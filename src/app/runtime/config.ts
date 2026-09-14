@@ -1,4 +1,4 @@
-import { hasWindowGlobal } from '@open-pencil/core/constants'
+import { currentLocationSearch } from '@open-pencil/core/constants'
 
 import { appPreferences, type CanvasRenderingMode } from '@/app/settings/preferences/store'
 
@@ -41,6 +41,6 @@ export function parseAppRuntimeConfig(
 export const appRuntimeConfig = parseAppRuntimeConfig(
   // SSR/test 形态下 window 不存在——parseAppRuntimeConfig 完全不需要 location.search，
   // 留空串即默认 config（与无 ?… 查询参数的行为一致）。
-  hasWindowGlobal() ? (window.location?.search ?? '') : '',
+  currentLocationSearch(),
   appPreferences.value.rendering.canvasMode
 )

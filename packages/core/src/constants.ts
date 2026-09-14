@@ -12,6 +12,24 @@ export function hasWindowGlobal(): boolean {
   return typeof window !== 'undefined'
 }
 
+/**
+ * 运行时 location.search 探测——DOM 类型声称 window.location 恒在，但共享进程里的
+ * 半成品 window stub（仅 localStorage 等）可能缺 location；联合类型显式带 undefined，
+ * 探到能力层（CI lint no-unnecessary-condition 不接受 window.location?.x 直写）。
+ */
+export function currentLocationSearch(): string {
+  const w = globalThis as { window?: { location?: { search?: unknown } } }
+  const search = w.window?.location?.search
+  return typeof search === 'string' ? search : ''
+}
+
+/** 同 currentLocationSearch，探测 location.origin；缺席返回 null。 */
+export function currentLocationOrigin(): string | null {
+  const w = globalThis as { window?: { location?: { origin?: unknown } } }
+  const origin = w.window?.location?.origin
+  return typeof origin === 'string' ? origin : null
+}
+
 export const BLACK: Color = { r: 0, g: 0, b: 0, a: 1 }
 export const TRANSPARENT: Color = { r: 0, g: 0, b: 0, a: 0 }
 export const DEFAULT_SHADOW_COLOR: Color = { r: 0, g: 0, b: 0, a: 0.25 }
@@ -37,8 +55,9 @@ export const CANVAS_BG_COLOR_DARK = { r: 0.173, g: 0.173, b: 0.173, a: 1 } satis
  * a file must not force darkness on recipients.
  */
 export function getDefaultCanvasBgColor(): Color {
-  if (hasWindowGlobal() && typeof window.location?.search === 'string') {
-    const params = new URLSearchParams(window.location.search)
+  const locationSearch = currentLocationSearch()
+  if (locationSearch !== '') {
+    const params = new URLSearchParams(locationSearch)
     if ('env' in import.meta && import.meta.env.DEV && params.has('test')) {
       return CANVAS_BG_COLOR
     }

@@ -1,4 +1,4 @@
-import { hasWindowGlobal } from '@open-pencil/core/constants'
+import { currentLocationOrigin } from '@open-pencil/core/constants'
 
 import { WEB_APP_ORIGIN } from '@/constants'
 
@@ -21,8 +21,9 @@ export const CLOUD_CORS_STATIC_ORIGINS = [
 export function collectCloudCORSOrigins(extra?: string | null): string[] {
   const set = new Set<string>(CLOUD_CORS_STATIC_ORIGINS)
   if (extra?.trim()) set.add(extra.trim().replace(/\/+$/, ''))
-  if (hasWindowGlobal() && typeof window.location?.origin === 'string') {
-    set.add(window.location.origin)
+  const currentOrigin = currentLocationOrigin()
+  if (currentOrigin !== null) {
+    set.add(currentOrigin)
   }
   return [...set].filter(Boolean).sort()
 }
@@ -105,10 +106,7 @@ export function isLikelyCORSOrNetworkError(error: unknown): boolean {
 }
 
 export function formatBrowserCORSHelpMessage(): string {
-  const origin =
-    hasWindowGlobal() && typeof window.location?.origin === 'string'
-      ? window.location.origin
-      : WEB_APP_ORIGIN
+  const origin = currentLocationOrigin() ?? WEB_APP_ORIGIN
   return (
     `The browser could not reach this bucket from ${origin}. ` +
     'Your bucket may not allow requests from this site, or the endpoint may be unavailable. ' +

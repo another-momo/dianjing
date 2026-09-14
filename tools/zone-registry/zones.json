@@ -583,7 +583,7 @@
     {
       "id": "P120",
       "file": "packages/core/src/constants.ts",
-      "reason": "T40：hasWindowGlobal() 调用期 window 探测——IS_BROWSER import 期冻结在共享进程（window mock 后建先拆）失真，window 解引用前必须调用期判断（修复单测全量跑 local 候选 ReferenceError）；2026-09-14 T40 延展：getDefaultCanvasBgColor 守卫换活探 + location 能力探针",
+      "reason": "T40：hasWindowGlobal() 调用期 window 探测——IS_BROWSER import 期冻结在共享进程（window mock 后建先拆）失真，window 解引用前必须调用期判断（修复单测全量跑 local 候选 ReferenceError）；2026-09-14 T40 延展：getDefaultCanvasBgColor 守卫换活探 + location 能力探针；同日四轮：location 能力探针收敛为 currentLocationSearch/Origin 两 helper（CI lint no-unnecessary-condition 修红——DOM 类型声称 location 恒在，stub 缺 location 的运行时真相由联合类型承载）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-14"
     },
@@ -1200,7 +1200,7 @@
     {
       "id": "P215",
       "file": "src/app/runtime/config.ts",
-      "reason": "ci-fix（2026-09-07）：appRuntimeConfig 模块顶层初始化在 bun 直跑测试时 IS_BROWSER 仍可能触 ReferenceError——Bun 1.3.5 + Windows 下 IS_BROWSER 冻结值与 window 取址时机错位。本轮直接复用常量，三元守卫与上游语义一致。；2026-09-14 T40 延展：换 hasWindowGlobal + location 能力探针（半成品 stub 实证）",
+      "reason": "ci-fix（2026-09-07）：appRuntimeConfig 模块顶层初始化在 bun 直跑测试时 IS_BROWSER 仍可能触 ReferenceError——Bun 1.3.5 + Windows 下 IS_BROWSER 冻结值与 window 取址时机错位。本轮直接复用常量，三元守卫与上游语义一致。；2026-09-14 T40 延展：换 hasWindowGlobal + location 能力探针（半成品 stub 实证）；同日四轮：换 currentLocationSearch()（CI lint 修红）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-14"
     },
@@ -1319,7 +1319,7 @@
     {
       "id": "P234",
       "file": "src/app/integrations/storage/s3/cors.ts",
-      "reason": "2026-09-14 合并后 L1：collectCloudCORSOrigins/formatBrowserCORSHelpMessage 的 IS_BROWSER 冻结守卫在 bun 共享进程 window 后建先拆时 ReferenceError（cors.test 红）——换 hasWindowGlobal 活探（constants.ts T40 注释本意）；同日三轮：location.origin 换能力探针（半成品 stub 防御）",
+      "reason": "2026-09-14 合并后 L1：collectCloudCORSOrigins/formatBrowserCORSHelpMessage 的 IS_BROWSER 冻结守卫在 bun 共享进程 window 后建先拆时 ReferenceError（cors.test 红）——换 hasWindowGlobal 活探（constants.ts T40 注释本意）；同日三轮：location.origin 换能力探针（半成品 stub 防御）；同日四轮：换 currentLocationOrigin()（CI lint 修红）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-14"
     },
