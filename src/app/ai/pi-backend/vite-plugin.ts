@@ -21,7 +21,7 @@
  * tmpdir 路径（桥插件 startChild 的 DIANJING_MCP_DISCOVERY_PATH），不再是平台
  * 默认路径；本插件经 mcpRuntimeId 选项同源推导该路径并注入后端子进程 env，
  * 后端 tools.ts 的 readDiscoveryFile()（getDiscoveryPath 吃同一 env）才能找到
- * 活桥。算法漂移由 tests/engine/rebuild/pi-dev-discovery.test.ts 钉扎。
+ * 活桥。算法漂移由 tests/engine/rebuild/pi-backend/dev-discovery.test.ts 钉扎。
  */
 
 import { spawn } from 'node:child_process'
@@ -62,7 +62,7 @@ export interface PiBackendPluginOptions {
  * T38：与桥 vite 插件 startChild 同源的 discovery 路径推导——
  * tmpdir()/dianjing-mcp/sha256(runtimeId)[:16]/mcp.json。
  * 算法实现已迁入 @/app/orchestration/discovery，本处 re-export 保持既有
- * 测试（tests/engine/rebuild/pi-dev-discovery.test.ts）的 import 路径与硬
+ * 测试（tests/engine/rebuild/pi-backend/dev-discovery.test.ts）的 import 路径与硬
  * 编码 digest 钉扎不变。一致性由该测试钉扎。
  */
 export { devMCPDiscoveryPath }
