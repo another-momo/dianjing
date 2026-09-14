@@ -6,33 +6,39 @@
  * 打包链。本文件纯字符串 + 类型，浏览器可放心 import。
  *
  * 集中真源：window.__OPENPENCIL_RUNTIME_* 与 vite define 烘焙的 __OPENPENCIL_LOCAL_*
- * 在此统一登记；Phase 2 改名只动此处。
+ * 在此统一登记；改名期 ①搬迁值字面量由 brand.ts 的 RUNTIME_GLOBAL_PREFIX
+ * 模板派生（保字面量类型），②翻转只改 brand.ts 一个常量即可完成。
  */
+
+import { RUNTIME_GLOBAL_PREFIX } from './brand'
 
 // ── runtime（宿主注入 / window 属性）──
 
 /** host.ts / Electron main 注入到 index.html 的桥 token 全局 */
-export const RUNTIME_AUTOMATION_TOKEN_KEY = '__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__'
+export const RUNTIME_AUTOMATION_TOKEN_KEY =
+  `${RUNTIME_GLOBAL_PREFIX}RUNTIME_AUTOMATION_TOKEN__` as const
 
 /** Electron main 注入到 index.html 的桥 WS URL 全局（与 token 同源） */
-export const RUNTIME_BRIDGE_URL_KEY = '__OPENPENCIL_RUNTIME_BRIDGE_URL__'
+export const RUNTIME_BRIDGE_URL_KEY = `${RUNTIME_GLOBAL_PREFIX}RUNTIME_BRIDGE_URL__` as const
 
 /** Electron main 注入到 index.html 的「运行在 Electron」标志 */
-export const RUNTIME_ELECTRON_KEY = '__OPENPENCIL_ELECTRON__'
+export const RUNTIME_ELECTRON_KEY = `${RUNTIME_GLOBAL_PREFIX}ELECTRON__` as const
 
 // ── local（vite define 烘焙 / build-time 全局）──
 
 /** vite define 烘焙的 dev 桥 token（dev 形态有效，build 形态为 null） */
-export const LOCAL_AUTOMATION_TOKEN_KEY = '__OPENPENCIL_LOCAL_AUTOMATION_TOKEN__'
+export const LOCAL_AUTOMATION_TOKEN_KEY =
+  `${RUNTIME_GLOBAL_PREFIX}LOCAL_AUTOMATION_TOKEN__` as const
 
 /** vite define 烘焙的 dev 桥 WS URL（dev 形态有效） */
-export const LOCAL_AUTOMATION_URL_KEY = '__OPENPENCIL_LOCAL_AUTOMATION_URL__'
+export const LOCAL_AUTOMATION_URL_KEY = `${RUNTIME_GLOBAL_PREFIX}LOCAL_AUTOMATION_URL__` as const
 
 /** vite define 烘焙的 dev 桥 HTTP URL（runtime.ts 健康探活用） */
-export const LOCAL_AUTOMATION_HTTP_URL_KEY = '__OPENPENCIL_LOCAL_AUTOMATION_HTTP_URL__'
+export const LOCAL_AUTOMATION_HTTP_URL_KEY =
+  `${RUNTIME_GLOBAL_PREFIX}LOCAL_AUTOMATION_HTTP_URL__` as const
 
 /** vite define 烘焙的应用版本号（vite.config.ts define） */
-export const LOCAL_AUTOMATION_APP_VERSION_KEY = '__OPENPENCIL_APP_VERSION__'
+export const LOCAL_AUTOMATION_APP_VERSION_KEY = `${RUNTIME_GLOBAL_PREFIX}APP_VERSION__` as const
 
 // ── 全集（给 env.ts re-export 与测试用）──
 

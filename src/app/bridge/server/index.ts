@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ENV_PREFIX, READY_MARKER_PREFIX } from '@/app/orchestration/brand'
 import {
   readBridgeTcpPort,
   readMCPAppAttachTimeoutMs,
@@ -20,12 +21,12 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
       `  --help, -h    Show this help message\n\n` +
       `Environment variables:\n` +
       `  PORT                         TCP port (default: 7600, set to 0 to disable TCP)\n` +
-      `  OPENPENCIL_MCP_SOCKET        Override Unix socket path (recorded in the discovery file)\n` +
-      `  OPENPENCIL_MCP_DISCOVERY_PATH Override discovery file (mcp.json) location; defaults to the\n` +
+      `  ${ENV_PREFIX}MCP_SOCKET        Override Unix socket path (recorded in the discovery file)\n` +
+      `  ${ENV_PREFIX}MCP_DISCOVERY_PATH Override discovery file (mcp.json) location; defaults to the\n` +
       `                               platform path. Parent dir created 0o700. Mainly for test isolation.\n` +
-      `  OPENPENCIL_MCP_AUTH_TOKEN    Bearer token for /rpc auth\n` +
-      `  OPENPENCIL_MCP_CORS_ORIGIN   Allowed CORS origin\n` +
-      `  OPENPENCIL_MCP_APP_TIMEOUT_MS  If set, close the bridge and remove its discovery\n` +
+      `  ${ENV_PREFIX}MCP_AUTH_TOKEN    Bearer token for /rpc auth\n` +
+      `  ${ENV_PREFIX}MCP_CORS_ORIGIN   Allowed CORS origin\n` +
+      `  ${ENV_PREFIX}MCP_APP_TIMEOUT_MS  If set, close the bridge and remove its discovery\n` +
       `                               file after no app is attached for this many ms. The\n` +
       `                               grace period starts at startup and after disconnects.\n` +
       `                               Unset/0 disables it (default) — do not set this for\n` +
@@ -69,7 +70,7 @@ const handle = await startServer({
 })
 
 const readyMarker = readMCPReadyMarker()
-if (readyMarker && /^open-pencil-ready:[a-f0-9-]{36}$/.test(readyMarker)) {
+if (readyMarker && new RegExp(`^${READY_MARKER_PREFIX}[a-f0-9-]{36}$`).test(readyMarker)) {
   process.stderr.write(`${readyMarker}
 `)
 }

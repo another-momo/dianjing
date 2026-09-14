@@ -1,6 +1,8 @@
 import type { ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 
+import { READY_MARKER_PREFIX } from './brand'
+
 /**
  * 子进程编排共享件——三个薄壳（bridge vite 插件、pi-backend vite 插件、
  * pi-backend host.ts）原本各自内联同一形态的 stopChild/stderr 透传/ready
@@ -84,5 +86,5 @@ export function attachStderrPassthrough(
  * 后写入子进程 stderr，父进程按 marker 判定子进程就绪）。
  */
 export function makeReadyMarker(): string {
-  return `open-pencil-ready:${randomUUID()}`
+  return `${READY_MARKER_PREFIX}${randomUUID()}`
 }

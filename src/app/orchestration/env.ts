@@ -16,6 +16,8 @@
 
 import { AUTOMATION_HTTP_PORT } from '@open-pencil/core/constants'
 
+import { ENV_PREFIX } from './brand'
+
 // ── 客户端运行时全局名常量（搬到 runtime-globals.ts；本文件 re-export 保兼容）──
 //
 // 这些常量不是 env 值——是宿主/Vite 注入到浏览器侧 window / build-time 全局
@@ -114,13 +116,13 @@ export function readBridgeTcpPort(env: EnvSource = process.env): number {
  */
 export type MCPAuthToken = string | null | undefined
 export function readMCPAuthToken(env: EnvSource = process.env): MCPAuthToken {
-  const raw = env?.OPENPENCIL_MCP_AUTH_TOKEN
+  const raw = env?.[`${ENV_PREFIX}MCP_AUTH_TOKEN`]
   if (raw === undefined) return undefined
   if (raw === '') return null
   const trimmed = raw.trim()
   if (!trimmed) {
     throw new Error(
-      'OPENPENCIL_MCP_AUTH_TOKEN is whitespace-only. Set a real token, or use an empty string to disable auth.'
+      `${ENV_PREFIX}MCP_AUTH_TOKEN is whitespace-only. Set a real token, or use an empty string to disable auth.`
     )
   }
   return trimmed
@@ -128,17 +130,17 @@ export function readMCPAuthToken(env: EnvSource = process.env): MCPAuthToken {
 
 /** CORS origin——bridge/server/index.ts:84。trim，空串归 null。 */
 export function readMCPCORSOrigin(env: EnvSource = process.env): string | null {
-  return env?.OPENPENCIL_MCP_CORS_ORIGIN?.trim() || null
+  return env?.[`${ENV_PREFIX}MCP_CORS_ORIGIN`]?.trim() || null
 }
 
 /** Socket 路径覆盖——bridge/server/paths.ts:84 / 107 / index.ts:66。trim，空串归 null。 */
 export function readMCPSocketPath(env: EnvSource = process.env): string | null {
-  return env?.OPENPENCIL_MCP_SOCKET?.trim() || null
+  return env?.[`${ENV_PREFIX}MCP_SOCKET`]?.trim() || null
 }
 
 /** Discovery 路径覆盖——bridge/server/paths.ts:133。trim，空串归 null。 */
 export function readMCPDiscoveryPathOverride(env: EnvSource = process.env): string | null {
-  return env?.OPENPENCIL_MCP_DISCOVERY_PATH?.trim() || null
+  return env?.[`${ENV_PREFIX}MCP_DISCOVERY_PATH`]?.trim() || null
 }
 
 /**
@@ -147,9 +149,9 @@ export function readMCPDiscoveryPathOverride(env: EnvSource = process.env): stri
  */
 const MAX_APP_TIMEOUT_MS = 2_147_483_647
 export function readMCPAppAttachTimeoutMs(env: EnvSource = process.env): number | undefined {
-  const raw = env?.OPENPENCIL_MCP_APP_TIMEOUT_MS?.trim()
+  const raw = env?.[`${ENV_PREFIX}MCP_APP_TIMEOUT_MS`]?.trim()
   if (!raw) return undefined
-  return readStrictNonNegativeInt(raw, 'OPENPENCIL_MCP_APP_TIMEOUT_MS', MAX_APP_TIMEOUT_MS)
+  return readStrictNonNegativeInt(raw, `${ENV_PREFIX}MCP_APP_TIMEOUT_MS`, MAX_APP_TIMEOUT_MS)
 }
 
 /**
@@ -162,7 +164,7 @@ export function readRPCTimeoutMs(
   fallback: number = DEFAULT_RPC_TIMEOUT_MS,
   env: EnvSource = process.env
 ): number {
-  return Number(env?.OPENPENCIL_RPC_TIMEOUT_MS) || fallback
+  return Number(env?.[`${ENV_PREFIX}RPC_TIMEOUT_MS`]) || fallback
 }
 
 /**
@@ -170,13 +172,13 @@ export function readRPCTimeoutMs(
  * 返回 trim 后值；调用方自己做正则校验（^open-pencil-ready:[a-f0-9-]{36}$）。
  */
 export function readMCPReadyMarker(env: EnvSource = process.env): string | null {
-  const raw = env?.OPENPENCIL_MCP_READY_MARKER
+  const raw = env?.[`${ENV_PREFIX}MCP_READY_MARKER`]
   return raw && raw.trim().length > 0 ? raw.trim() : null
 }
 
 /** MCP root（sidecar 形态下 cwd 不可依赖时的显式覆盖）——bridge/server/root.ts:8。trim。 */
 export function readMCPRoot(env: EnvSource = process.env): string | null {
-  return env?.OPENPENCIL_MCP_ROOT?.trim() || null
+  return env?.[`${ENV_PREFIX}MCP_ROOT`]?.trim() || null
 }
 
 /**
@@ -187,7 +189,7 @@ export function readMCPRoot(env: EnvSource = process.env): string | null {
  * 之类）。纯搬运，不顺手收紧。
  */
 export function readPiBackendPort(fallback: number, env: EnvSource = process.env): number {
-  return readEnvNumber('OPENPENCIL_PI_BACKEND_PORT', fallback, env)
+  return readEnvNumber(`${ENV_PREFIX}PI_BACKEND_PORT`, fallback, env)
 }
 
 /**
@@ -195,7 +197,7 @@ export function readPiBackendPort(fallback: number, env: EnvSource = process.env
  * trim，空串视同未注入（与原位 `if (injected) return injected` 等价）。
  */
 export function readPiAuthToken(env: EnvSource = process.env): string | null {
-  const raw = env?.OPENPENCIL_PI_TOKEN
+  const raw = env?.[`${ENV_PREFIX}PI_TOKEN`]
   if (raw === undefined) return null
   const trimmed = raw.trim()
   return trimmed.length > 0 ? trimmed : null
@@ -206,10 +208,10 @@ export function readPiAuthToken(env: EnvSource = process.env): string | null {
  * 默认 200 / 30；解析语义：Number(env ?? default)——未设置走默认；NaN 走默认（`||`）。
  */
 export function readMaxSessions(env: EnvSource = process.env): number {
-  return readEnvNumber('OPENPENCIL_MAX_SESSIONS', 200, env)
+  return readEnvNumber(`${ENV_PREFIX}MAX_SESSIONS`, 200, env)
 }
 export function readSessionMaxAgeDays(env: EnvSource = process.env): number {
-  return readEnvNumber('OPENPENCIL_SESSION_MAX_AGE_DAYS', 30, env)
+  return readEnvNumber(`${ENV_PREFIX}SESSION_MAX_AGE_DAYS`, 30, env)
 }
 
 /**
@@ -217,7 +219,7 @@ export function readSessionMaxAgeDays(env: EnvSource = process.env): number {
  * trim，空串视同未注入走 rootDir 默认拼接（与原位 `|| join(...)` 等价）。
  */
 export function readStudioBuiltinDir(env: EnvSource = process.env): string | null {
-  const raw = env?.OPENPENCIL_STUDIO_BUILTIN_DIR
+  const raw = env?.[`${ENV_PREFIX}STUDIO_BUILTIN_DIR`]
   if (raw === undefined) return null
   const trimmed = raw.trim()
   return trimmed.length > 0 ? trimmed : null
@@ -229,7 +231,7 @@ export function readStudioBuiltinDir(env: EnvSource = process.env): string | nul
  * trim，空串视同未注入（与原位 `|| process.cwd()` 等价）。
  */
 export function readRootDir(env: EnvSource = process.env): string | null {
-  const raw = env?.OPENPENCIL_ROOT_DIR
+  const raw = env?.[`${ENV_PREFIX}ROOT_DIR`]
   if (raw === undefined) return null
   const trimmed = raw.trim()
   return trimmed.length > 0 ? trimmed : null
@@ -244,7 +246,7 @@ export function readImageGenTimeoutMs(
   fallback: number = DEFAULT_IMAGE_GEN_TIMEOUT_MS,
   env: EnvSource = process.env
 ): number {
-  return Number(env?.OPENPENCIL_IMAGE_GEN_TIMEOUT_MS) || fallback
+  return Number(env?.[`${ENV_PREFIX}IMAGE_GEN_TIMEOUT_MS`]) || fallback
 }
 
 /**
@@ -252,7 +254,7 @@ export function readImageGenTimeoutMs(
  * 默认 8080；语义同 readEnvNumber：未设置走默认；非数字走默认。
  */
 export function readServePort(env: EnvSource = process.env): number {
-  return readEnvNumber('OPENPENCIL_SERVE_PORT', 8080, env)
+  return readEnvNumber(`${ENV_PREFIX}SERVE_PORT`, 8080, env)
 }
 
 // ── dev / vite 拓扑 env（vite.config.ts + vite/automation.ts）──
@@ -263,7 +265,7 @@ export function readServePort(env: EnvSource = process.env): number {
  * 注意：调用方需要接受"随机生成"副作用；测试环境应注入固定值。
  */
 export function readDevAutomationAuthToken(env: EnvSource = process.env): string | null {
-  return env?.OPENPENCIL_DEV_TOKEN?.trim() || null
+  return env?.[`${ENV_PREFIX}DEV_TOKEN`]?.trim() || null
 }
 
 /**
@@ -273,10 +275,10 @@ export function readDevAutomationAuthToken(env: EnvSource = process.env): string
  * 缺省走 AUTOMATION_HTTP_PORT 常量（7600）——与原位一致。
  */
 export function readDevMCPPort(env: EnvSource = process.env): number {
-  const raw = env?.OPENPENCIL_DEV_MCP_PORT
+  const raw = env?.[`${ENV_PREFIX}DEV_MCP_PORT`]
   const port = raw === undefined ? AUTOMATION_HTTP_PORT : Number(raw)
   if (!Number.isInteger(port) || port < 1024 || port > 65535) {
-    throw new Error('OPENPENCIL_DEV_MCP_PORT must be an integer between 1024 and 65535')
+    throw new Error(`${ENV_PREFIX}DEV_MCP_PORT must be an integer between 1024 and 65535`)
   }
   return port
 }
@@ -286,7 +288,7 @@ export function readDevMCPPort(env: EnvSource = process.env): number {
  * 解析语义：未设置返回 null（调用方用 host 推默认）；设置则 trim；非 http(s) origin → 抛错。
  */
 export function readDevOrigin(env: EnvSource = process.env): string | null {
-  const raw = env?.OPENPENCIL_DEV_ORIGIN
+  const raw = env?.[`${ENV_PREFIX}DEV_ORIGIN`]
   if (raw === undefined) return null
   const trimmed = raw.trim()
   if (trimmed.length === 0) return null
@@ -294,10 +296,10 @@ export function readDevOrigin(env: EnvSource = process.env): string | null {
   try {
     url = new URL(trimmed)
   } catch {
-    throw new Error('OPENPENCIL_DEV_ORIGIN must be an HTTP(S) origin')
+    throw new Error(`${ENV_PREFIX}DEV_ORIGIN must be an HTTP(S) origin`)
   }
   if (!['http:', 'https:'].includes(url.protocol) || url.origin !== trimmed) {
-    throw new Error('OPENPENCIL_DEV_ORIGIN must be an HTTP(S) origin')
+    throw new Error(`${ENV_PREFIX}DEV_ORIGIN must be an HTTP(S) origin`)
   }
   return url.origin
 }
@@ -322,7 +324,7 @@ export function readTauriDevHost(env: EnvSource = process.env): string | null {
  * reader 只暴露数值（randomPort 调用留给调用方，因为测试环境无 OS 端口）。
  */
 export function readElectronBridgePort(env: EnvSource = process.env): number | null {
-  const raw = env?.OPENPENCIL_BRIDGE_PORT
+  const raw = env?.[`${ENV_PREFIX}BRIDGE_PORT`]
   if (raw === undefined) return null
   const value = Number(raw)
   return Number.isFinite(value) && value > 0 ? value : null
@@ -333,7 +335,7 @@ export function readElectronBridgePort(env: EnvSource = process.env): number | n
  * 默认 0（randomPort）；解析语义：Number(env) || randomPort()。
  */
 export function readElectronBackendPort(env: EnvSource = process.env): number | null {
-  const raw = env?.OPENPENCIL_PI_BACKEND_PORT_ELECTRON
+  const raw = env?.[`${ENV_PREFIX}PI_BACKEND_PORT_ELECTRON`]
   if (raw === undefined) return null
   const value = Number(raw)
   return Number.isFinite(value) && value > 0 ? value : null
@@ -344,7 +346,7 @@ export function readElectronBackendPort(env: EnvSource = process.env): number | 
  * 默认 0（随机）；解析语义：Number(env) || 0（0 触发 randomPort）。
  */
 export function readElectronLoopbackPort(env: EnvSource = process.env): number {
-  return readEnvNumber('OPENPENCIL_LOOPBACK_PORT', 0, env)
+  return readEnvNumber(`${ENV_PREFIX}LOOPBACK_PORT`, 0, env)
 }
 
 // ── 布尔/枚举 env（字符串严格比较）──
@@ -359,12 +361,12 @@ function readEnvEquals1(name: string, env: EnvSource): boolean {
 
 /** smoke 模式——desktop-electron/main/main.ts:881。 */
 export function readSmokeMode(env: EnvSource = process.env): boolean {
-  return readEnvEquals1('OPENPENCIL_SMOKE', env)
+  return readEnvEquals1(`${ENV_PREFIX}SMOKE`, env)
 }
 
 /** full-smoke 模式——desktop-electron/main/main.ts:882。 */
 export function readFullSmokeMode(env: EnvSource = process.env): boolean {
-  return readEnvEquals1('OPENPENCIL_FULL_SMOKE', env)
+  return readEnvEquals1(`${ENV_PREFIX}FULL_SMOKE`, env)
 }
 
 /**
@@ -373,9 +375,9 @@ export function readFullSmokeMode(env: EnvSource = process.env): boolean {
  */
 export function readDisableSingleInstanceLock(env: EnvSource = process.env): boolean {
   return (
-    readEnvEquals1('OPENPENCIL_SMOKE', env) ||
-    readEnvEquals1('OPENPENCIL_FULL_SMOKE', env) ||
-    readEnvEquals1('OPENPENCIL_DISABLE_SINGLE_INSTANCE', env)
+    readEnvEquals1(`${ENV_PREFIX}SMOKE`, env) ||
+    readEnvEquals1(`${ENV_PREFIX}FULL_SMOKE`, env) ||
+    readEnvEquals1(`${ENV_PREFIX}DISABLE_SINGLE_INSTANCE`, env)
   )
 }
 
@@ -385,12 +387,12 @@ export function readDisableSingleInstanceLock(env: EnvSource = process.env): boo
  * 缺省（非 smoke）显示。
  */
 export function readShowWindow(env: EnvSource = process.env): boolean {
-  if (readEnvEquals1('OPENPENCIL_SMOKE', env)) return false
-  return env?.OPENPENCIL_SHOW !== '0'
+  if (readEnvEquals1(`${ENV_PREFIX}SMOKE`, env)) return false
+  return env?.[`${ENV_PREFIX}SHOW`] !== '0'
 }
 
 /** Electron dev URL——desktop-electron/main/main.ts:880。无 trim，原样透传。 */
 export function readElectronDevURL(env: EnvSource = process.env): string | null {
-  const raw = env?.OPENPENCIL_DEV_URL
+  const raw = env?.[`${ENV_PREFIX}DEV_URL`]
   return raw && raw.length > 0 ? raw : null
 }

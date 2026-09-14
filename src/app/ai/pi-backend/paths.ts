@@ -20,6 +20,9 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
+// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
+import { STATE_DIR_NAME } from '../../orchestration/brand'
+
 // ── 状态根目录 ──
 
 /**
@@ -61,8 +64,8 @@ export function resolveElectronRootDir(envRoot: string | null, userData: string)
 
 // ── .openpencil 子目录名常量（单源）──
 
-/** 顶层状态目录名——14 处 `.openpencil` 字面量汇总。 */
-export const STATE_DIR_NAME = '.openpencil'
+/** 顶层状态目录名——14 处 `.openpencil` 字面量汇总；品牌常量从 brand.ts re-export（改名只动 brand.ts）。 */
+export { STATE_DIR_NAME }
 
 /** pi agent 持久化目录（capabilities.json / auth.json / image-gen.json） */
 export const PI_AGENT_SUBDIR = 'pi-agent'

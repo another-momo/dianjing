@@ -12,13 +12,15 @@ import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { DEV_MCP_TMP_PREFIX } from './brand'
+
 function safeRuntimeId(value: string): string {
   return createHash('sha256').update(value).digest('hex').slice(0, 16)
 }
 
 /** runtimeId 同源推导的 dev 桥 discovery 目录（不带 mcp.json） */
 export function devMCPRuntimeDir(runtimeId: string): string {
-  return join(tmpdir(), 'open-pencil-mcp', safeRuntimeId(runtimeId))
+  return join(tmpdir(), DEV_MCP_TMP_PREFIX, safeRuntimeId(runtimeId))
 }
 
 /** runtimeId 同源推导的 dev 桥 discovery 文件全路径（mcp.json 终态） */

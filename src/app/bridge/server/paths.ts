@@ -2,6 +2,9 @@ import { chmod, mkdir } from 'node:fs/promises'
 import { homedir, platform } from 'node:os'
 import { dirname, join } from 'node:path'
 
+// 链上文件禁 @/——同走相对路径（与上一行同因）。
+// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
+import { BRIDGE_DIR_NAME_DESKTOP, BRIDGE_DIR_NAME_UNIX } from '../../orchestration/brand'
 // 本文件经 bridge/vite-plugin.ts 处于 vite.config.ts 加载链上——Storybook/vite
 // 配置 loader 不注册 @/ 别名（2026-09-14 CI+dev L3 实证），链上文件禁 @/。
 // oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
@@ -30,8 +33,8 @@ import { readMCPDiscoveryPathOverride, readMCPSocketPath } from '../../orchestra
  * OPENPENCIL_MCP_SOCKET is set, the discovery file stays at getPlatformDir().
  */
 
-const DIR_NAME_UNIX = 'openpencil'
-const DIR_NAME_MACOS = 'OpenPencil'
+const DIR_NAME_UNIX = BRIDGE_DIR_NAME_UNIX
+const DIR_NAME_DESKTOP = BRIDGE_DIR_NAME_DESKTOP
 const SOCKET_FILENAME = 'mcp.sock'
 const DISCOVERY_FILENAME = 'mcp.json'
 
@@ -52,13 +55,13 @@ async function getPlatformDir(): Promise<string> {
   let dir: string
 
   if (isMacOS) {
-    dir = join(homedir(), 'Library', 'Application Support', DIR_NAME_MACOS)
+    dir = join(homedir(), 'Library', 'Application Support', DIR_NAME_DESKTOP)
   } else if (isWindows) {
     const localAppData = process.env.LOCALAPPDATA?.trim()
     if (localAppData) {
-      dir = join(localAppData, DIR_NAME_MACOS)
+      dir = join(localAppData, DIR_NAME_DESKTOP)
     } else {
-      dir = join(homedir(), 'AppData', 'Local', DIR_NAME_MACOS)
+      dir = join(homedir(), 'AppData', 'Local', DIR_NAME_DESKTOP)
     }
   } else {
     // Linux / other Unix
