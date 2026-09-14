@@ -23,6 +23,10 @@ export type PiCatalogModel = {
 export type PiCatalogProvider = {
   id: string
   name: string
+  /** T100 C1：内建（pi SDK builtinProviders 注册）vs 自定义（models.json 主人手加）——
+   *  决定前端删除按钮可见性 + 后端 deleteProvider 拒绝内建。前端不另行引入 builtinIds 集合，
+   *  也避免前端 import SDK node-only 模块（仓内 §5 "Window API 增强归编译边界"同源问题）。 */
+  kind?: 'builtin' | 'custom'
   baseUrl?: string
   auth: { configured: boolean; type?: 'api_key' | 'oauth'; source?: string }
   models: PiCatalogModel[]

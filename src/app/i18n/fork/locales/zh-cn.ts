@@ -249,7 +249,33 @@ const zhCN = {
     thinkingLow: '低',
     thinkingMedium: '中',
     thinkingHigh: '高',
-    thinkingExtraHigh: '极高'
+    thinkingExtraHigh: '极高',
+    // T100：A 组发现性——provider 列表搜索框 + 已配置/全部分组小标题
+    providerGroupConfigured: '已配置',
+    providerGroupAll: '全部 Provider',
+    providerSearchEmpty: '没有匹配的 Provider。',
+    // T100：B1 验证闭环——行内验证按钮 + 三态结果文案
+    providerVerify: '验证',
+    providerVerifyOk: '验证通过',
+    providerVerifyFailed: '验证失败',
+    providerVerifyUnknownError: '验证失败（后端未返回详情）。',
+    // T100：B2 错误下沉——行内错误位（保存/删除/编辑/验证各动作的错误共用同位）
+    providerRowError: '操作失败',
+    // T100：C1 删除——行内删除按钮 + 行内二次确认两态
+    providerDelete: '删除',
+    providerDeleteConfirm: '确认删除？',
+    providerDeleteCancel: '取消',
+    providerDeleteConfirmHint: '将从本地目录移除该自定义 Provider 及其模型。',
+    // T100：C2 编辑——行内编辑按钮 + 编辑态表单标题/提交文案
+    providerEdit: '编辑',
+    providerFormTitleAdd: '添加自定义 Provider',
+    providerFormTitleEdit: '编辑自定义 Provider',
+    providerFormIdReadonlyHint: 'Provider ID 不可修改。',
+    providerFormSaveEdit: '保存修改',
+    // T100：D1 source 回显（catalog 仅透传 stored/environment 字符串，shadow 提示
+    // 需 catalog 额外透传 env 并存标志，超出本单范围——见讨论稿 §5.D1）
+    providerAuthSourceStored: '设置存储',
+    providerAuthSourceEnvironment: '环境变量'
   },
   toolbar: {
     addImage: '添加图片',

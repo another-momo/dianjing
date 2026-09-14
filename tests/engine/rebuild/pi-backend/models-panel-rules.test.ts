@@ -20,8 +20,12 @@ import {
   OPENROUTER_FREE_MODEL_ID,
   OPENROUTER_PROVIDER_ID,
   buildAssignment,
+  classifyVerifyResult,
   filterCatalogModels,
+  filterCatalogProviders,
+  groupProvidersByConfigured,
   isCurrentAssignment,
+  isCustomProvider,
   resolveDefaultModelId,
   shouldAutoAssignOnModelChange,
   shouldAutoAssignOnSaveKey
@@ -46,6 +50,18 @@ function makeProvider(id: string, modelIds: string[]): PiCatalogProvider {
     name: id,
     auth: { configured: false },
     models: modelIds.map((mid) => makeModel(mid))
+  }
+}
+
+/** T100：测试 fixture——支持自定义 configured + source（catalog auth 字段） */
+function makeConfiguredProvider(
+  id: string,
+  modelIds: string[],
+  source: 'stored' | 'environment' = 'stored'
+): PiCatalogProvider {
+  return {
+    ...makeProvider(id, modelIds),
+    auth: { configured: true, type: 'api_key', source }
   }
 }
 
@@ -239,5 +255,114 @@ describe('filterCatalogModels', () => {
 
   test('不匹配 → 空数组', () => {
     expect(filterCatalogModels(models, 'gemini')).toEqual([])
+  })
+})
+
+// T100：A 组——provider 列表搜索 + 已配置置顶分组
+describe('filterCatalogProviders', () => {
+  const providers = [
+    { ...makeProvider('anthropic', ['claude-3.5-sonnet']), name: 'Anthropic' },
+    { ...makeProvider('openai', ['gpt-4o']), name: 'OpenAI' },
+    { ...makeProvider('google', ['gemini-pro']), name: 'Google' }
+  ]
+
+  test('空 query → 原样返回（顺序保持）', () => {
+    expect(filterCatalogProviders(providers, '')).toEqual(providers)
+    expect(filterCatalogProviders(providers, '   ')).toEqual(providers)
+  })
+
+  test('name 子串大小写无关匹配', () => {
+    expect(filterCatalogProviders(providers, 'ANTHRO')).toHaveLength(1)
+    expect(filterCatalogProviders(providers, 'open')).toHaveLength(1)
+  })
+
+  test('id 子串大小写无关匹配', () => {
+    expect(filterCatalogProviders(providers, 'go')).toHaveLength(1)
+  })
+
+  test('不匹配 → 空数组', () => {
+    expect(filterCatalogProviders(providers, 'missing')).toEqual([])
+  })
+})
+
+describe('groupProvidersByConfigured', () => {
+  test('空数组 → 空分组', () => {
+    expect(groupProvidersByConfigured([])).toEqual([])
+  })
+
+  test('全已配置 → 单组（"configured"）', () => {
+    const providers = [
+      makeConfiguredProvider('anthropic', ['claude']),
+      makeConfiguredProvider('openai', ['gpt-4o'], 'environment')
+    ]
+    const groups = groupProvidersByConfigured(providers)
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.id).toBe('configured')
+    expect(groups[0]?.providers).toHaveLength(2)
+  })
+
+  test('全未配置 → 单组（"all"）', () => {
+    const providers = [makeProvider('anthropic', ['claude']), makeProvider('openai', ['gpt-4o'])]
+    const groups = groupProvidersByConfigured(providers)
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.id).toBe('all')
+    expect(groups[0]?.providers).toHaveLength(2)
+  })
+
+  test('混合 → configured 在前 + all 在后；组内维持原顺序', () => {
+    const a = makeProvider('anthropic', [])
+    const b = makeConfiguredProvider('openai', ['gpt-4o'])
+    const c = makeProvider('openrouter', ['openrouter/free'])
+    const d = makeConfiguredProvider('custom-1', ['m1'])
+    const groups = groupProvidersByConfigured([a, b, c, d])
+    expect(groups).toHaveLength(2)
+    expect(groups[0]?.id).toBe('configured')
+    expect(groups[0]?.providers.map((p) => p.id)).toEqual(['openai', 'custom-1'])
+    expect(groups[1]?.id).toBe('all')
+    expect(groups[1]?.providers.map((p) => p.id)).toEqual(['anthropic', 'openrouter'])
+  })
+
+  test('空组不出现（configured 仅 1 时只返 1 组）', () => {
+    const groups = groupProvidersByConfigured([
+      makeConfiguredProvider('openai', ['gpt-4o']),
+      makeProvider('anthropic', [])
+    ])
+    // 只有 1 个 configured，1 个 all——两组
+    expect(groups.map((g) => g.id)).toEqual(['configured', 'all'])
+  })
+})
+
+// T100：B1——验证结果分类
+describe('classifyVerifyResult', () => {
+  test('result=null → unknown-error', () => {
+    expect(classifyVerifyResult(null)).toBe('unknown-error')
+  })
+
+  test('ok=true → ok', () => {
+    expect(classifyVerifyResult({ ok: true })).toBe('ok')
+  })
+
+  test('ok=false + 非空 error → failed（用后端返回的中文 error 文案）', () => {
+    expect(classifyVerifyResult({ ok: false, error: '密钥无效' })).toBe('failed')
+  })
+
+  test('ok=false + 空 error → unknown-error（不显示空信息）', () => {
+    expect(classifyVerifyResult({ ok: false })).toBe('unknown-error')
+    expect(classifyVerifyResult({ ok: false, error: '' })).toBe('unknown-error')
+  })
+})
+
+// T100：C1——自定义 provider 判定（看 catalog.kind；后端双层防误删仍由 DELETE 路由兜底）
+describe('isCustomProvider', () => {
+  test('kind=custom → true（显示删除入口）', () => {
+    expect(isCustomProvider({ kind: 'custom' })).toBe(true)
+  })
+
+  test('kind=builtin → false（隐藏删除入口）', () => {
+    expect(isCustomProvider({ kind: 'builtin' })).toBe(false)
+  })
+
+  test('kind 缺失（旧 catalog 缓存）→ false（保守视为内建，不显示删除入口）', () => {
+    expect(isCustomProvider({})).toBe(false)
   })
 })

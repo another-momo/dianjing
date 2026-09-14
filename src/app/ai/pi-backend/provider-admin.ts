@@ -153,12 +153,16 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
 
   async function getCatalog(): Promise<PiCatalog> {
     const runtime = await ensureRuntime()
+    // T100 C1：把内建/自定义判定一次性算出来塞进 catalog.kind，前端无需
+    // 重复构造 builtinIds 集合（也不该 import SDK node-only 模块进浏览器包）。
+    const builtinIds = new Set(builtinProviders().map((p) => p.id))
     const providers: PiCatalogProvider[] = []
     for (const provider of runtime.getProviders()) {
       const check = await runtime.checkAuth(provider.id).catch(() => undefined)
       providers.push({
         id: provider.id,
         name: provider.name,
+        kind: builtinIds.has(provider.id) ? 'builtin' : 'custom',
         ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
         auth: check
           ? {

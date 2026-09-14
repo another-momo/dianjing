@@ -131,3 +131,84 @@ export function filterCatalogModels(
     (model) => model.name.toLowerCase().includes(query) || model.id.toLowerCase().includes(query)
   )
 }
+
+/**
+ * T100 A1：provider 列表过滤（name + id 大小写无关子串）—— 复用 filterCatalogModels
+ * 的同款语义（讨论稿 §5.A1）；不在该函数内复用通用 helper 是因为 model/provider
+ * 类型不同、引用点各自需要 PiCatalogProvider 字段，jscpd 看两个具名 export 更清晰。
+ */
+export function filterCatalogProviders(
+  providers: readonly PiCatalogProvider[],
+  term: string
+): PiCatalogProvider[] {
+  const query = term.trim().toLowerCase()
+  if (!query) return [...providers]
+  return providers.filter(
+    (provider) =>
+      provider.name.toLowerCase().includes(query) || provider.id.toLowerCase().includes(query)
+  )
+}
+
+/**
+ * T100 A2+A3：按 configured 状态分组——
+ *   configured=true → 「已配置」组（顺序按原数组）；
+ *   configured=false → 「全部」组（顺序按原数组；"全部"语义=未配置的部分）。
+ *
+ * 返回结构便于模板循环两次（已配置优先、组内维持原顺序）。空组不会出现在结果
+ * 里（v-for over groups 时空组自动隐去，不渲染小标题——避免 0 长小标题噪音）。
+ *
+ * 注：catalog.auth.source 是字符串自由值（SDK resolve.source），不参与分组。
+ * "已配置"语义=auth.configured===true，按字面布尔分。
+ */
+export type PiProviderGroup = {
+  id: 'configured' | 'all'
+  providers: PiCatalogProvider[]
+}
+
+export function groupProvidersByConfigured(
+  providers: readonly PiCatalogProvider[]
+): PiProviderGroup[] {
+  const configured: PiCatalogProvider[] = []
+  const rest: PiCatalogProvider[] = []
+  for (const provider of providers) {
+    if (provider.auth.configured) configured.push(provider)
+    else rest.push(provider)
+  }
+  const groups: PiProviderGroup[] = []
+  if (configured.length > 0) groups.push({ id: 'configured', providers: configured })
+  if (rest.length > 0) groups.push({ id: 'all', providers: rest })
+  return groups
+}
+
+/**
+ * T100 C1：是否为可删除的自定义 provider——看 catalog DTO 自带的 kind 字段（后端
+ * getCatalog 拼装时按 SDK builtinProviders() 集合差集填：'builtin' vs 'custom'）。
+ *
+ * 注：判定依据在 catalog（不在前端另引 SDK node-only 模块——仓内 §5
+ * "Window API 增强归编译边界" 同源问题，会把 node SDK 打进浏览器包）。
+ * 后端 DELETE /providers/:id 仍会二次校验（双层防误删）。
+ *
+ * kind 字段缺失（老后端 / 旧 catalog 缓存）→ 保守视为内建：不显示删除入口，
+ * 让用户走后端报错提示而非误删后兜底——错误现场更近。
+ */
+export function isCustomProvider(provider: Pick<PiCatalogProvider, 'kind'>): boolean {
+  return provider.kind === 'custom'
+}
+
+/**
+ * T100 B1：验证结果分类——区分 ok / 失败 / 缺数据。
+ * ok=true → 验证成功；ok=false+error 字符串 → 失败（带后端返回的中文 error）；
+ * 否则视为异常（无 error 文案）→ 落入「未知错误」回退文案分支。
+ *
+ * 不在 client.ts 内做——纯展示分类、含本地化降级策略，归属面板规则层。
+ */
+export type VerifyResultClass = 'ok' | 'failed' | 'unknown-error'
+
+export function classifyVerifyResult(
+  result: { ok: boolean; error?: string } | null
+): VerifyResultClass {
+  if (!result) return 'unknown-error'
+  if (result.ok) return 'ok'
+  if (typeof result.error === 'string' && result.error.length > 0) return 'failed'
+  return 'unknown-error'
+}

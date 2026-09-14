@@ -51,7 +51,34 @@ export const piMessageDefaults = {
   thinkingLow: 'Low',
   thinkingMedium: 'Medium',
   thinkingHigh: 'High',
-  thinkingExtraHigh: 'Extra high'
+  thinkingExtraHigh: 'Extra high',
+  // T100：A 组发现性——provider 列表搜索框 + 已配置/全部分组小标题
+  providerGroupConfigured: 'Configured',
+  providerGroupAll: 'All providers',
+  providerSearchEmpty: 'No providers match your search.',
+  // T100：B1 验证闭环——行内验证按钮 + 三态结果文案（ok/失败/未知错误）
+  providerVerify: 'Verify',
+  providerVerifyOk: 'Verified',
+  providerVerifyFailed: 'Verification failed',
+  providerVerifyUnknownError: 'Verification failed (no detail from server).',
+  // T100：B2 错误下沉——行内错误位（保存/删除/编辑/验证各动作的错误共用同位）
+  providerRowError: 'Action failed',
+  // T100：C1 删除——行内删除按钮 + 行内二次确认两态
+  providerDelete: 'Delete',
+  providerDeleteConfirm: 'Delete?',
+  providerDeleteCancel: 'Cancel',
+  providerDeleteConfirmHint:
+    'This removes the custom provider and its models from your local catalog.',
+  // T100：C2 编辑——行内编辑按钮 + 编辑态表单标题/提交文案
+  providerEdit: 'Edit',
+  providerFormTitleAdd: 'Add custom provider',
+  providerFormTitleEdit: 'Edit custom provider',
+  providerFormIdReadonlyHint: 'Provider ID cannot be changed.',
+  providerFormSaveEdit: 'Save changes',
+  // T100：D1 source 回显——stored/environment 标签文案；shadow 提示不在 catalog 透传范围，
+  // 仅做 source 标签（key-env 拍板见讨论稿 §6.3，本单范围内）
+  providerAuthSourceStored: 'Settings storage',
+  providerAuthSourceEnvironment: 'Environment variable'
 } as const
 
 /** T54→T66：generate_image 凭证面板（SettingsDialog media 分区；Provider 类型下拉 + baseUrl/model/key 输入 + 测试连接）英文默认值 */
