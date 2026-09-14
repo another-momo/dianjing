@@ -1,5 +1,6 @@
 import { shallowReactive } from 'vue'
 
+import { hasWindowGlobal } from '@open-pencil/core/constants'
 import { createEditor } from '@open-pencil/core/editor'
 import { BUILTIN_IO_FORMATS, IORegistry } from '@open-pencil/core/io'
 import { SceneGraph } from '@open-pencil/scene-graph'
@@ -29,7 +30,7 @@ import {
 import { createInitialAppEditorState, type AppEditorState } from '@/app/editor/session/types'
 import { notificationMessages } from '@/app/i18n/notifications'
 import { toast } from '@/app/shell/ui'
-import { IS_BROWSER, IS_TAURI } from '@/constants'
+import { IS_TAURI } from '@/constants'
 
 export { EDITOR_TOOLS as TOOLS, TOOL_SHORTCUTS } from '@open-pencil/core/editor'
 export type { EditorToolDef as ToolDef, Tool } from '@open-pencil/core/editor'
@@ -50,8 +51,8 @@ export function createEditorStore(initialGraph?: SceneGraph) {
       viewportSize.width > 0 && viewportSize.height > 0
         ? viewportSize
         : {
-            width: IS_BROWSER ? window.innerWidth : 1920,
-            height: IS_BROWSER ? window.innerHeight : 1080
+            width: hasWindowGlobal() ? window.innerWidth : 1920,
+            height: hasWindowGlobal() ? window.innerHeight : 1080
           }
   })
   const io = new IORegistry(BUILTIN_IO_FORMATS)

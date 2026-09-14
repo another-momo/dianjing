@@ -12,7 +12,7 @@
  * 当前活动 tab documentId」（document-key.ts，T22-plan D1/D2/D4）。
  */
 
-import { IS_BROWSER } from '@open-pencil/core/constants'
+import { hasWindowGlobal } from '@open-pencil/core/constants'
 
 import '@/app/ai/fork/use'
 import { getPiDesignModelSpec } from '@/app/ai/pi-backend/assignment'
@@ -20,7 +20,7 @@ import { getPiRequestContext } from '@/app/ai/pi-backend/document-key'
 import { PiBackendChatTransport } from '@/app/ai/pi-backend/transport'
 
 export function attachPiBackendTransport(): void {
-  if (!IS_BROWSER) return
+  if (!hasWindowGlobal()) return
 
   const setChatTransport = window.openPencil?.setChatTransport
   if (!setChatTransport) {

@@ -1,4 +1,4 @@
-import { IS_BROWSER } from '@open-pencil/core/constants'
+import { hasWindowGlobal } from '@open-pencil/core/constants'
 
 import {
   describeDiagnosticError,
@@ -262,7 +262,7 @@ function scheduleWake(ms: number) {
 }
 
 function ensureOnlineListeners() {
-  if (onlineBound || !IS_BROWSER) return
+  if (onlineBound || !hasWindowGlobal()) return
   onlineBound = true
   window.addEventListener('online', () => {
     setSyncUI('syncing')

@@ -1,5 +1,6 @@
+import { hasWindowGlobal } from '@open-pencil/core/constants'
+
 import { appPreferences, type CanvasRenderingMode } from '@/app/settings/preferences/store'
-import { IS_BROWSER } from '@/constants'
 
 export type SceneRendererMode = CanvasRenderingMode
 export type CollaborationTransportMode = 'default' | 'test'
@@ -40,6 +41,6 @@ export function parseAppRuntimeConfig(
 export const appRuntimeConfig = parseAppRuntimeConfig(
   // SSR/test 形态下 window 不存在——parseAppRuntimeConfig 完全不需要 location.search，
   // 留空串即默认 config（与无 ?… 查询参数的行为一致）。
-  IS_BROWSER ? window.location.search : '',
+  hasWindowGlobal() ? (window.location?.search ?? '') : '',
   appPreferences.value.rendering.canvasMode
 )

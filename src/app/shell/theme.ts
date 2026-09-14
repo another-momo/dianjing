@@ -3,7 +3,7 @@ import { computed, watch } from 'vue'
 
 import type { RulerTheme } from '@open-pencil/core/canvas'
 import { parseColor } from '@open-pencil/core/color'
-import { IS_BROWSER } from '@open-pencil/core/constants'
+import { hasWindowGlobal, IS_BROWSER } from '@open-pencil/core/constants'
 
 import { getActiveEditorStoreOrNull, useActiveEditorStoreRef } from '@/app/editor/active-store'
 import { isElectron } from '@/app/shell/electron'
@@ -32,7 +32,7 @@ function readRulerTheme(): RulerTheme | null {
 }
 
 function updateCanvasTheme(): void {
-  if (!IS_BROWSER) return
+  if (!hasWindowGlobal()) return
   const store = getActiveEditorStoreOrNull()
   if (!store) return
   store.state.rulerTheme = readRulerTheme() ?? undefined
@@ -44,7 +44,7 @@ function updateCanvasTheme(): void {
 // 端点幂等，无需去抖——每次 applyTheme 都发。symbolColor 仅 Windows 实际生效
 // （macOS titleBarOverlay 无按钮可见），逻辑仍写全端兼容代码。
 function syncElectronTitleBar(value: 'dark' | 'light'): void {
-  if (!IS_BROWSER || !isElectron()) return
+  if (!hasWindowGlobal() || !isElectron()) return
   const style = getComputedStyle(document.documentElement)
   const color = style.getPropertyValue('--color-canvas').trim()
   // symbolColor：app.css 无独立 --color-titlebar-symbol；浅色主题用 --color-surface

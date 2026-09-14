@@ -1,7 +1,7 @@
 import { promiseTimeout } from '@vueuse/core'
 import { reactive } from 'vue'
 
-import { AUTOMATION_HTTP_PORT, IS_BROWSER } from '@open-pencil/core/constants'
+import { AUTOMATION_HTTP_PORT, hasWindowGlobal } from '@open-pencil/core/constants'
 
 import type { EditorStore } from '@/app/editor/active-store'
 import { isTauri } from '@/app/tauri/env'
@@ -214,7 +214,7 @@ declare global {
 }
 
 const RUNTIME_AUTOMATION_AUTH_TOKEN =
-  IS_BROWSER && typeof window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__ === 'string'
+  hasWindowGlobal() && typeof window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__ === 'string'
     ? window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__
     : null
 
@@ -310,7 +310,7 @@ const appMCPRuntime = createMCPRuntimeService({
   canConnect: () =>
     import.meta.env.DEV ||
     isTauri() ||
-    (IS_BROWSER && typeof window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__ === 'string'),
+    (hasWindowGlobal() && typeof window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__ === 'string'),
   readHealth: readAutomationHealth,
   spawn: waitForAutomationBridge
 })

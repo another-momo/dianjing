@@ -1,4 +1,4 @@
-import { IS_BROWSER } from '@open-pencil/core/constants'
+import { hasWindowGlobal } from '@open-pencil/core/constants'
 import {
   DESIGN_JSX_ELEMENTS,
   DESIGN_JSX_HELPERS,
@@ -24,7 +24,7 @@ export async function evaluateDesignJSX(
   source: string,
   limits: DesignJSXSandboxLimits = {}
 ): Promise<DesignJSXSandboxResult> {
-  if (!IS_BROWSER) {
+  if (!hasWindowGlobal()) {
     return { ok: false, error: 'Design JSX execution requires a browser.' }
   }
   const sourceBytes = limits.sourceBytes ?? DESIGN_JSX_MAX_SOURCE_BYTES

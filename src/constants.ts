@@ -1,4 +1,4 @@
-import { IS_BROWSER, IS_TAURI } from '@open-pencil/core/constants'
+import { hasWindowGlobal, IS_TAURI } from '@open-pencil/core/constants'
 
 export {
   IS_BROWSER,
@@ -68,7 +68,7 @@ export const ROOM_ID_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789'
 export const WEB_APP_ORIGIN = 'https://app.openpencil.dev'
 
 export function getShareURL(roomId: string): string {
-  const base = IS_TAURI || !IS_BROWSER ? WEB_APP_ORIGIN : window.location.origin
+  const base = IS_TAURI || !hasWindowGlobal() ? WEB_APP_ORIGIN : window.location.origin
   return `${base}/share/${roomId}`
 }
 

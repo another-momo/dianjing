@@ -16,7 +16,7 @@ import { decodeBase64, encodeBase64 } from '#core/bytes'
 import type { SkiaRenderer } from '#core/canvas'
 import { canMakeBooleanSourceNode } from '#core/canvas/boolean'
 import { flattenNodesToVectorProps } from '#core/canvas/flatten'
-import { IS_BROWSER } from '#core/constants'
+import { hasWindowGlobal } from '#core/constants'
 import type { RasterExportFormat } from '#core/io/formats/raster'
 import { documentFontStatus, type DocumentFontStatus } from '#core/text/font/status'
 
@@ -520,8 +520,8 @@ export class FigmaAPI implements NodeProxyHost {
         const padding = 80
         const contentW = b.width + padding * 2
         const contentH = b.height + padding * 2
-        const viewW = IS_BROWSER ? window.innerWidth : 1280
-        const viewH = IS_BROWSER ? window.innerHeight : 720
+        const viewW = hasWindowGlobal() ? window.innerWidth : 1280
+        const viewH = hasWindowGlobal() ? window.innerHeight : 720
         const zoom = Math.min(viewW / contentW, viewH / contentH, 1)
         this._viewport = { x: b.x + b.width / 2, y: b.y + b.height / 2, zoom }
       }

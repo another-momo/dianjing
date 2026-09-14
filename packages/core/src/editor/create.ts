@@ -7,7 +7,7 @@ import { UndoManager } from '@open-pencil/scene-graph/undo'
 
 import type { SkiaRenderer } from '#core/canvas/renderer'
 import { prefetchFigmaSchema } from '#core/clipboard'
-import { IS_BROWSER } from '#core/constants'
+import { hasWindowGlobal } from '#core/constants'
 import { clearLazyFigImportContext } from '#core/kiwi/fig/lazy-import'
 import { releaseFigPopulationWorker } from '#core/kiwi/fig/population/client'
 import { releaseOriginalFigArchive } from '#core/kiwi/fig/session/original-archive'
@@ -59,7 +59,7 @@ export function createEditor(options?: EditorOptions) {
   const _getViewportSize =
     options?.getViewportSize ??
     (() => {
-      if (IS_BROWSER) return { width: window.innerWidth, height: window.innerHeight }
+      if (hasWindowGlobal()) return { width: window.innerWidth, height: window.innerHeight }
       return { width: 800, height: 600 }
     })
   let _ck: CanvasKit | null = null

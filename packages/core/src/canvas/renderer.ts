@@ -13,7 +13,7 @@ import {
   COMPONENT_SET_DASH,
   COMPONENT_SET_DASH_GAP,
   COMPONENT_SET_BORDER_WIDTH,
-  IS_BROWSER
+  hasWindowGlobal
 } from '#core/constants'
 import type { EditorState } from '#core/editor/types'
 import { RenderProfiler } from '#core/profiler'
@@ -550,7 +550,7 @@ export class SkiaRenderer {
     showRulers = true,
     layer: RenderPipeline.RenderLayer = 'full'
   ): void {
-    const dpr = IS_BROWSER ? window.devicePixelRatio || 1 : 1
+    const dpr = hasWindowGlobal() ? window.devicePixelRatio || 1 : 1
     RenderPipeline.renderFromEditorState(
       this,
       state,
@@ -670,7 +670,7 @@ export class SkiaRenderer {
     format: 'JPG' | 'WEBP',
     quality: number
   ): Uint8Array | null {
-    if (!IS_BROWSER) return null
+    if (typeof document === 'undefined') return null
     try {
       const canvas = document.createElement('canvas')
       canvas.width = width

@@ -37,7 +37,7 @@ export const CANVAS_BG_COLOR_DARK = { r: 0.173, g: 0.173, b: 0.173, a: 1 } satis
  * a file must not force darkness on recipients.
  */
 export function getDefaultCanvasBgColor(): Color {
-  if (IS_BROWSER) {
+  if (hasWindowGlobal() && typeof window.location?.search === 'string') {
     const params = new URLSearchParams(window.location.search)
     if ('env' in import.meta && import.meta.env.DEV && params.has('test')) {
       return CANVAS_BG_COLOR
@@ -45,7 +45,7 @@ export function getDefaultCanvasBgColor(): Color {
   }
 
   if (
-    IS_BROWSER &&
+    hasWindowGlobal() &&
     typeof window.matchMedia === 'function' &&
     window.matchMedia('(prefers-color-scheme: dark)').matches
   ) {

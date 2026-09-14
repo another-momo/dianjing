@@ -3,7 +3,7 @@
 // 入口已实质重写，与上游同名文件不再存在合并语义。
 import { ref } from 'vue'
 
-import { IS_BROWSER } from '@open-pencil/core/constants'
+import { hasWindowGlobal } from '@open-pencil/core/constants'
 
 import { loadPiChatHistory, mintPiSessionId } from '@/app/ai/pi-backend/document-key'
 import { exposeChatTransportOverride } from '@/app/browser-bridge'
@@ -25,7 +25,7 @@ const chatSession = createChatSessionManager({
   onSessionReset: (store: ReturnType<typeof getActiveEditorStore>) => mintPiSessionId(store)
 })
 
-if (IS_BROWSER) {
+if (hasWindowGlobal()) {
   exposeChatTransportOverride((factory) => {
     chatSession.setOverrideTransport(factory)
   })

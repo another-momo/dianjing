@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import CanvasKitInit, { type CanvasKit } from 'canvaskit-wasm'
 
-import { IS_BROWSER } from './constants'
+import { hasWindowGlobal } from './constants'
 
 let instance: CanvasKit | null = null
 
@@ -13,9 +13,11 @@ export async function getCanvasKit(options?: CanvasKitOptions): Promise<CanvasKi
   if (instance) return instance
 
   const defaultLocate = (file: string) => {
-    if (!IS_BROWSER) {
+    if (!hasWindowGlobal()) {
       const ckPath = import.meta.resolve('canvaskit-wasm')
-      return decodeURIComponent(new URL(file, ckPath).pathname)
+      const pathname = decodeURIComponent(new URL(file, ckPath).pathname)
+      // Windows file URL 的 pathname 带前导斜杠（/D:/...），剥掉才能过 fs 读盘
+      return /^\/[A-Za-z]:\//.test(pathname) ? pathname.slice(1) : pathname
     }
     const base = 'env' in import.meta ? import.meta.env.BASE_URL : '/'
     const prefix = base === '/' ? '' : base.replace(/\/$/, '')

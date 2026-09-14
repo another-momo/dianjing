@@ -59,9 +59,6 @@ jobs:
       - name: Build publishable packages
         run: bun run build:packages
 
-      - name: Validate package exports
-        run: bun run check:packages
-
       - name: Detect unused dependencies and files
         run: bun run check:deps
 

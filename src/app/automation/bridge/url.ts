@@ -14,7 +14,7 @@
  * DEV_AUTOMATION_HTTP_URL 仍走 runtime.ts 自身的 http fallback 推导（替换 ws→
  * http），二者共用同一来源 runtime URL 或烘焙值，URL 主体一致。
  */
-import { IS_BROWSER } from '@open-pencil/core/constants'
+import { hasWindowGlobal } from '@open-pencil/core/constants'
 
 declare global {
   interface Window {
@@ -23,7 +23,7 @@ declare global {
 }
 
 function readRuntimeBridgeURL(): string | null {
-  if (!IS_BROWSER) return null
+  if (!hasWindowGlobal()) return null
   const value = window.__OPENPENCIL_RUNTIME_BRIDGE_URL__
   return typeof value === 'string' && value.length > 0 ? value : null
 }

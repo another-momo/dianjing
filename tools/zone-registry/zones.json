@@ -144,9 +144,9 @@
     {
       "id": "P3",
       "file": "src/constants.ts",
-      "reason": "remove ACP_DESIGN_CONTEXT import/export and ACP_PERMISSION_TIMEOUT_MS",
+      "reason": "remove ACP_DESIGN_CONTEXT import/export and ACP_PERMISSION_TIMEOUT_MS；2026-09-14 T40 延展：origin getter 换 hasWindowGlobal 活探（合并后 L1 污染链根治）",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
+      "lastReviewed": "2026-09-14"
     },
     {
       "id": "P9",
@@ -505,9 +505,9 @@
     {
       "id": "P109",
       "file": "src/app/editor/fonts/index.ts",
-      "reason": "T39 加载链修复（05 册 T1）：systemFontDataCache 会话缓存（CJK fallback 循环不再每次 IPC 拉 ~100MB）+ 浏览器 local-fonts 权限启动同步；T41：disabledFontFamilies localStorage 持久化 + fontListRevision 同步（picker 失效信号）+ listAllFamilies 不过滤枚举（面板数据源，listFamilies 仍过滤供 picker）；T42：cnFontsEnabled（op-cn-fonts-enabled）+ enabledCatalogFamilies（op-font-enabled-catalog:v1）持久化接线 + cnSwitchEpoch（CDN 开关绕过白名单 revision 的 picker 失效补偿）；T50：抽 listTauriMergedFamilies helper 消 listFamilies/listAllFamilies 间 7 行 jscpd 克隆（行为不变，2026-08-31）",
+      "reason": "T39 加载链修复（05 册 T1）：systemFontDataCache 会话缓存（CJK fallback 循环不再每次 IPC 拉 ~100MB）+ 浏览器 local-fonts 权限启动同步；T41：disabledFontFamilies localStorage 持久化 + fontListRevision 同步（picker 失效信号）+ listAllFamilies 不过滤枚举（面板数据源，listFamilies 仍过滤供 picker）；T42：cnFontsEnabled（op-cn-fonts-enabled）+ enabledCatalogFamilies（op-font-enabled-catalog:v1）持久化接线 + cnSwitchEpoch（CDN 开关绕过白名单 revision 的 picker 失效补偿）；T50：抽 listTauriMergedFamilies helper 消 listFamilies/listAllFamilies 间 7 行 jscpd 克隆（行为不变，2026-08-31）；2026-09-14 T40 延展：local-fonts 启动同步守卫换 hasWindowGlobal 活探",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-31"
+      "lastReviewed": "2026-09-14"
     },
     {
       "id": "P110",
@@ -583,9 +583,9 @@
     {
       "id": "P120",
       "file": "packages/core/src/constants.ts",
-      "reason": "T40：hasWindowGlobal() 调用期 window 探测——IS_BROWSER import 期冻结在共享进程（window mock 后建先拆）失真，window 解引用前必须调用期判断（修复单测全量跑 local 候选 ReferenceError）",
+      "reason": "T40：hasWindowGlobal() 调用期 window 探测——IS_BROWSER import 期冻结在共享进程（window mock 后建先拆）失真，window 解引用前必须调用期判断（修复单测全量跑 local 候选 ReferenceError）；2026-09-14 T40 延展：getDefaultCanvasBgColor 守卫换活探 + location 能力探针",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-30"
+      "lastReviewed": "2026-09-14"
     },
     {
       "id": "P121",
@@ -619,9 +619,9 @@
     {
       "id": "P131",
       "file": "packages/core/src/figma-api/index.ts",
-      "reason": "T55（2026-09-01）：exportImage options 类型增 renderInContext/clip（S3 §5 主机能力前置，01 §8 锚定；签名向后兼容）",
+      "reason": "T55（2026-09-01）：exportImage options 类型增 renderInContext/clip（S3 §5 主机能力前置，01 §8 锚定；签名向后兼容）；2026-09-14 T40 延展：viewport zoom-fit 守卫换 hasWindowGlobal 活探",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-01",
+      "lastReviewed": "2026-09-14",
       "task": "T55"
     },
     {
@@ -1200,16 +1200,16 @@
     {
       "id": "P215",
       "file": "src/app/runtime/config.ts",
-      "reason": "ci-fix（2026-09-07）：appRuntimeConfig 模块顶层初始化在 bun 直跑测试时 IS_BROWSER 仍可能触 ReferenceError——Bun 1.3.5 + Windows 下 IS_BROWSER 冻结值与 window 取址时机错位。本轮直接复用常量，三元守卫与上游语义一致。",
+      "reason": "ci-fix（2026-09-07）：appRuntimeConfig 模块顶层初始化在 bun 直跑测试时 IS_BROWSER 仍可能触 ReferenceError——Bun 1.3.5 + Windows 下 IS_BROWSER 冻结值与 window 取址时机错位。本轮直接复用常量，三元守卫与上游语义一致。；2026-09-14 T40 延展：换 hasWindowGlobal + location 能力探针（半成品 stub 实证）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-07"
+      "lastReviewed": "2026-09-14"
     },
     {
       "id": "P216",
       "file": "src/app/shell/theme.ts",
-      "reason": "shell-polish（2026-09-08）：applyTheme 尾部追加 syncElectronTitleBar——Electron 形态下经 loopback POST /__openpencil/titlebar-theme 调 setTitleBarOverlay，让原生三键背景/图标色跟随 --color-canvas/--color-surface；浏览器形态 isElectron() 守卫早退，行为不变。",
+      "reason": "shell-polish（2026-09-08）：applyTheme 尾部追加 syncElectronTitleBar——Electron 形态下经 loopback POST /__openpencil/titlebar-theme 调 setTitleBarOverlay，让原生三键背景/图标色跟随 --color-canvas/--color-surface；浏览器形态 isElectron() 守卫早退，行为不变。；2026-09-14 T40 延展：updateCanvasTheme/syncElectronTitleBar 守卫换 hasWindowGlobal 活探",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-08"
+      "lastReviewed": "2026-09-14"
     },
     {
       "id": "P217",
@@ -1308,6 +1308,62 @@
       "reason": "字体专项 review 2026-09-10（owner 拍板：只优化 list_available_fonts）：description 失真两年修正——2026-06 起枚举面已含在线 provider/CDN/catalog 来源，旧文案仍声称 system+bundled；空结果补 note（无枚举面运行时返回 []，agent 需区分「没有字体」与「不提供枚举」）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-10"
+    },
+    {
+      "id": "P233",
+      "file": "packages/core/src/canvaskit.ts",
+      "reason": "2026-09-14 合并：Windows 下 import.meta.resolve 的 file URL pathname 带前导斜杠（/D:/...），Emscripten 读 wasm ENOENT——剥 /^\/[A-Za-z]:\// 前导斜杠。上游同病未修（其 CI 全 Linux 无感）；暴露路径=上游新 clipboard 测试首次在本机触发 CanvasKit 加载。适机回敬上游；同日 T40 延展：node 分支判定换 hasWindowGlobal 活探",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P234",
+      "file": "src/app/integrations/storage/s3/cors.ts",
+      "reason": "2026-09-14 合并后 L1：collectCloudCORSOrigins/formatBrowserCORSHelpMessage 的 IS_BROWSER 冻结守卫在 bun 共享进程 window 后建先拆时 ReferenceError（cors.test 红）——换 hasWindowGlobal 活探（constants.ts T40 注释本意）；同日三轮：location.origin 换能力探针（半成品 stub 防御）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P235",
+      "file": "src/app/editor/session/create.ts",
+      "reason": "2026-09-14 合并后 L1：getViewportSize 的 IS_BROWSER 冻结守卫同上污染链（clipboard memory 测试红）——换 hasWindowGlobal 活探",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P236",
+      "file": "packages/core/src/editor/create.ts",
+      "reason": "2026-09-14 合并后 L1 第二轮：默认 getViewportSize 的 IS_BROWSER 冻结守卫同上污染链——换 hasWindowGlobal 活探",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P237",
+      "file": "src/app/code/sandbox/evaluate.ts",
+      "reason": "2026-09-14 合并后 L1 第二轮：Design JSX 沙箱浏览器前提守卫换 hasWindowGlobal 活探（冻结 true 会让 node 形态漏过拦截走进浏览器 API）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P238",
+      "file": "src/app/shell/layout-storage.ts",
+      "reason": "2026-09-14 合并后 L1 第二轮：load/saveEditorLayout 的 localStorage 守卫换 hasWindowGlobal 活探",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P239",
+      "file": "src/app/storage/sync/engine.ts",
+      "reason": "2026-09-14 合并后 L1 第二轮：ensureOnlineListeners 的 window.addEventListener 守卫换 hasWindowGlobal 活探",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P240",
+      "file": "packages/core/src/canvas/renderer.ts",
+      "reason": "2026-09-14 合并后 L1：dpr/document 两处守卫换 hasWindowGlobal/typeof 活探（T40 污染链根治；P144 revoked 后本文件回 follow-pure，此为新一轮独立 patch）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
     }
   ],
   "deletedPaths": [
@@ -1462,7 +1518,11 @@
     "tools/ci",
     "src/app/settings/credentials/preferences/use.ts",
     "src/components/settings/credentials/CredentialSettingsSection.vue",
-    "src/components/settings/chat/ChatSettingsSection.vue"
+    "src/components/settings/chat/ChatSettingsSection.vue",
+    "tests/engine/app/ai/harness/transport.test.ts",
+    "tests/engine/app/chat/history/continuation.test.ts",
+    "tests/engine/app/chat/history/controller.test.ts",
+    "tests/engine/app/chat/history/idb.test.ts"
   ],
   "upstreamMergeTarball": []
 }
