@@ -45,7 +45,7 @@
 
 - 禁 `as unknown as` 双断言；要精确类型用单断言或 helper（lint 硬规则）。
 - 会被 node/测试环境加载的模块，访问 `window`/`document` 等浏览器全局前先 `typeof` 守卫（lint + 引擎测试）。
-- 新增入口/脚本/测试文件在 knip.json tasklist 登记（knip）。
+- 新增生产入口/脚本在 knip.json `entry` 登记（knip 只核入口可达性；测试文件无需登记——knip.json 无 tasklist 一说）。
 - 同形对象类型用别名复用，不另立字面量（type-shapes 门禁）。
 - ≥10 行级相似块抽 helper，不复制粘贴（jscpd 克隆门禁）。
 - 测试不读真实 env/浏览器全局，走注入与桩（引擎测试）。
@@ -62,6 +62,7 @@
 - worker 只跑目标测试文件；全量单测用 `bun run test:unit:serial`（套件分批串行，带 `(i/N)` 批次进度），禁单次全仓 `bun test tests/engine`（单进程内存累积）。serial 可按批次过滤（`bun tools/unit-tests/src/serial.ts editor scene`，批次 = tests/engine 一级目录）——改动域明确时本地只跑受影响批次，全量交 CI（分片并行）或后台长跑。
 - playwright（`test` / `test:figma`）主 agent 独占，与任何重型任务互斥。
 - bun mock 生命周期：`mock.restore()` 只恢复 spy，**不撤销 `mock.module()` 覆盖**——模块级 mock 不随 cleanup 钩子隔离；引入全局/模块级插桩前先读现装 runner 的 mock 文档（采上游 2026-09-14 约定）。
+- 桩贴真实故障边界：协议/验真类路径桩全局 fetch（或 socket），不桩 SDK 方法——SDK 方法桩遵守 throw/成功契约，盖不住实现吞状态（2026-09-15 实证：completeSimple 把 openrouter 401 解析成 content:[] 假成功，单测全绿、L3 才浮出）。
 
 ## 7. 仓库地图
 
