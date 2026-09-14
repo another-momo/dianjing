@@ -30,7 +30,7 @@ export function localAutomationRoute(host: string | undefined) {
   // 这里再二次校验兜底 default 拼接结果。
   const url = new URL(origin)
   if (!['http:', 'https:'].includes(url.protocol) || url.origin !== origin) {
-    throw new Error('OPENPENCIL_DEV_ORIGIN must be an HTTP(S) origin')
+    throw new Error('DIANJING_DEV_ORIGIN must be an HTTP(S) origin')
   }
   return {
     ...devAutomationRoute(readPortlessURL() ?? undefined, port, origin),

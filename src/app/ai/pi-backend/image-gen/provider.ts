@@ -29,7 +29,7 @@
  * - 模块级可变凭证（setImageGenCredentials）→ 依赖注入：凭证经
  *   createImageGenProvider({credentials}) 传入，fetch 可注入（测试 mock）
  * - 超时：源 timeout 选项保留语义，改 AbortSignal.timeout；默认 240s
- *   （生图 HTTP 超时独立于桥超时，S3 §4），env OPENPENCIL_IMAGE_GEN_TIMEOUT_MS
+ *   （生图 HTTP 超时独立于桥超时，S3 §4），env DIANJING_IMAGE_GEN_TIMEOUT_MS
  *   可覆盖（调用时读取）
  *
  * key 卫生：本模块不打印 key；错误信息取自响应体（OpenAI 兼容端点的
@@ -113,7 +113,7 @@ export interface ImageGenProviderOptions {
   credentials: ImageGenCredentials
   /** 测试注入点（CI 凭证链 mock，D34）；缺省用全局 fetch */
   fetchImpl?: FetchLike
-  /** 缺省读 env OPENPENCIL_IMAGE_GEN_TIMEOUT_MS || 240_000 */
+  /** 缺省读 env DIANJING_IMAGE_GEN_TIMEOUT_MS || 240_000 */
   timeoutMs?: number
 }
 

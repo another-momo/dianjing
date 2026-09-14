@@ -68,8 +68,8 @@ export default defineConfig({
     cwd: import.meta.dirname,
     url: origin,
     env: {
-      OPENPENCIL_DEV_ORIGIN: origin,
-      OPENPENCIL_DEV_MCP_PORT: mcpPort,
+      DIANJING_DEV_ORIGIN: origin,
+      DIANJING_DEV_MCP_PORT: mcpPort,
       PORTLESS_URL: ''
     },
     reuseExistingServer: !process.env.CI && reuse === '1'

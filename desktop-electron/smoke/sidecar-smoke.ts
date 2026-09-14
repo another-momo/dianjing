@@ -12,7 +12,7 @@
  *     形态完整），且不出现单文件打包回归标记（Cannot find module /
  *     No API key found / OAuth auth derivation failed）
  *  3. bridge /rpc 负向路径：无 app 附挂时 502（RPC 管线活着，只是不可达）
- *  4. rootDir env 化生效：状态落在 OPENPENCIL_ROOT_DIR 而非 cwd
+ *  4. rootDir env 化生效：状态落在 DIANJING_ROOT_DIR 而非 cwd
  *
  * 端口自律：随机高位端口（20000-49000），绝不碰 1420/7600/7700。
  */
@@ -97,7 +97,7 @@ async function main(): Promise<void> {
   const nodeKind = (nodeProbe.stdout ?? '').trim()
   check('系统 node 可用且非 bun', nodeKind === 'node', `node -p 探测结果: ${nodeKind}`)
 
-  const scratch = mkdtempSync(join(tmpdir(), 'openpencil-sidecar-smoke-'))
+  const scratch = mkdtempSync(join(tmpdir(), 'dianjing-sidecar-smoke-'))
   const piRoot = join(scratch, 'pi-root')
   const bridgeDiscovery = join(scratch, 'bridge', 'mcp.json')
   const piPort = await pickFreePort()
@@ -117,9 +117,9 @@ async function main(): Promise<void> {
       cwd: scratch,
       env: {
         ...piEnv,
-        OPENPENCIL_ROOT_DIR: piRoot,
-        OPENPENCIL_PI_BACKEND_PORT: String(piPort),
-        OPENPENCIL_PI_TOKEN: piToken
+        DIANJING_ROOT_DIR: piRoot,
+        DIANJING_PI_BACKEND_PORT: String(piPort),
+        DIANJING_PI_TOKEN: piToken
       },
       stdio: ['ignore', 'pipe', 'pipe']
     })
@@ -132,8 +132,8 @@ async function main(): Promise<void> {
       env: {
         ...process.env,
         PORT: String(bridgePort),
-        OPENPENCIL_MCP_DISCOVERY_PATH: bridgeDiscovery,
-        OPENPENCIL_MCP_AUTH_TOKEN: bridgeToken
+        DIANJING_MCP_DISCOVERY_PATH: bridgeDiscovery,
+        DIANJING_MCP_AUTH_TOKEN: bridgeToken
       },
       stdio: ['ignore', 'pipe', 'pipe']
     })
@@ -168,8 +168,8 @@ async function main(): Promise<void> {
     check('POST /api/pi/credentials 200', credRes.status === 200, `status=${credRes.status}`)
 
     check(
-      '凭据落盘在 OPENPENCIL_ROOT_DIR 下（rootDir env 生效）',
-      existsSync(join(piRoot, '.openpencil', 'pi-agent', 'auth.json'))
+      '凭据落盘在 DIANJING_ROOT_DIR 下（rootDir env 生效）',
+      existsSync(join(piRoot, '.dianjing', 'pi-agent', 'auth.json'))
     )
 
     const catalog = (await (await fetch(`${piBase}/api/pi/catalog`, { headers: authHeaders })).json()) as {
@@ -211,7 +211,7 @@ async function main(): Promise<void> {
     )
 
     // 会话记录：stopReason=error 的 assistant message 携带 errorMessage
-    const sessionsDir = join(piRoot, '.openpencil', 'pi-sessions')
+    const sessionsDir = join(piRoot, '.dianjing', 'pi-sessions')
     check('pi-sessions 目录创建（会话持久化链路）', existsSync(sessionsDir))
     let sessionErrorMessage = ''
     if (existsSync(sessionsDir)) {

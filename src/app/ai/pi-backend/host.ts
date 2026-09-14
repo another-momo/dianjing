@@ -9,13 +9,13 @@
  *  1. spawn 自动化桥（src/app/bridge/server/index.ts，TCP 7600 + token）
  *  2. spawn pi 后端（src/app/ai/pi-backend/main.ts，7700 + token env 注入）
  *  3. 托管 dist/（MIME 表 + SPA fallback），index.html 注入桥 token 运行时
- *     全局（配合 bridge/runtime.ts P104 的 window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__
+ *     全局（配合 bridge/runtime.ts P104 的 window.__DIANJING_RUNTIME_AUTOMATION_TOKEN__
  *     hook——上游生产形态靠 Tauri 读 discovery 文件，web 形态无该通道）
  *  4. 反代 /api/pi* → 127.0.0.1:7700 并注入 Bearer（流式管道透传，SSE 不缓冲；
  *     仅客户端主动断连才销毁上游——正常 SSE 收尾不杀，chat abort 语义与
  *     vite proxy 一致；pipe 双侧 error 守卫防 EPIPE 杀进程）
  *
- * 端口：主服务 OPENPENCIL_SERVE_PORT（默认 8080）；子进程沿用既有常量
+ * 端口：主服务 DIANJING_SERVE_PORT（默认 8080）；子进程沿用既有常量
  * 7600/7700。与 vite dev 互斥（同端口冲突时子进程 EADDRINUSE 文案已有）。
  * key 卫生：token 只经 env 进子进程 / 经注入脚本进同源页面，不落日志。
  */
@@ -63,7 +63,7 @@ function passthroughStderr(child: ChildProcess, label: string): void {
     label,
     onEaddrinuse: () => {
       console.error(
-        `[host] ${label} 端口绑定失败（可能另一个 OpenPencil 实例/dev server 正在运行）——先停掉占用 ${AUTOMATION_HTTP_PORT}/${backendPort} 的进程`
+        `[host] ${label} 端口绑定失败（可能另一个点睛设计实例/dev server 正在运行）——先停掉占用 ${AUTOMATION_HTTP_PORT}/${backendPort} 的进程`
       )
       child.kill()
     }
@@ -80,11 +80,11 @@ async function spawnBridge(): Promise<void> {
   // env 语义复制自 automation/bridge/vite-plugin.ts createAutomationEnvironment
   // （鉴权开、corsOrigin 指向宿主来源）
   //
-  // T34 评估：跟不跟 OPENPENCIL_MCP_DISCOVERY_PATH 隔离（0f981ff2）？
+  // T34 评估：跟不跟 DIANJING_MCP_DISCOVERY_PATH 隔离（0f981ff2）？
   // 不跟——host.ts 自身是生产形态，7600 端口独占（serveOrigin 也固定），
   // 多实例会被端口 EADDRINUSE 拦截，不存在 dev-plugin 同款「worktree 隔离」
-  // 场景。discovery 默认路径 `~/.openpencil/mcp.json` 在 host.ts 单实例下不
-  // 构成冲突；若未来扩成同主机多 host.ts 实例，再补 OPENPENCIL_MCP_DISCOVERY_PATH
+  // 场景。discovery 默认路径 `~/.dianjing/mcp.json` 在 host.ts 单实例下不
+  // 构成冲突；若未来扩成同主机多 host.ts 实例，再补 DIANJING_MCP_DISCOVERY_PATH
   // 临时目录隔离——届时复用 vite-plugin 的 sha256(runtimeId) 方案即可。
   const socketPath = platformHasUnixSockets() ? await getSocketPath() : null
   bridge = spawn('bun', ['run', 'src/app/bridge/server/index.ts'], {
@@ -92,9 +92,9 @@ async function spawnBridge(): Promise<void> {
     env: {
       ...process.env,
       PORT: String(AUTOMATION_HTTP_PORT),
-      ...(socketPath ? { OPENPENCIL_MCP_SOCKET: socketPath } : {}),
-      OPENPENCIL_MCP_AUTH_TOKEN: automationToken,
-      OPENPENCIL_MCP_CORS_ORIGIN: serveOrigin
+      ...(socketPath ? { DIANJING_MCP_SOCKET: socketPath } : {}),
+      DIANJING_MCP_AUTH_TOKEN: automationToken,
+      DIANJING_MCP_CORS_ORIGIN: serveOrigin
     }
   })
   bridge.on('error', (err) => console.error(`[host] 无法 spawn 自动化桥：${err.message}`))
@@ -107,8 +107,8 @@ async function spawnBackend(): Promise<void> {
     stdio: ['ignore', 'inherit', 'pipe'],
     env: {
       ...process.env,
-      OPENPENCIL_PI_BACKEND_PORT: String(backendPort),
-      OPENPENCIL_PI_TOKEN: piToken
+      DIANJING_PI_BACKEND_PORT: String(backendPort),
+      DIANJING_PI_TOKEN: piToken
     }
   })
   backend.on('error', (err) => console.error(`[host] 无法 spawn pi 后端：${err.message}`))
@@ -344,7 +344,7 @@ function main(): void {
     const server = createServer(handleRequest)
     server.on('error', (error: NodeJS.ErrnoException) => {
       if (error.code === 'EADDRINUSE') {
-        console.error(`[host] 端口 ${servePort} 已被占用——换 OPENPENCIL_SERVE_PORT 或停掉占用进程`)
+        console.error(`[host] 端口 ${servePort} 已被占用——换 DIANJING_SERVE_PORT 或停掉占用进程`)
       } else {
         console.error(`[host] 启动失败：${error.message}`)
       }
@@ -352,7 +352,7 @@ function main(): void {
       process.exitCode = 1
     })
     server.listen(servePort, '127.0.0.1', () => {
-      console.error(`[host] OpenPencil 已就绪 → ${serveOrigin}`)
+      console.error(`[host] 点睛设计已就绪 → ${serveOrigin}`)
       console.error('[host] Ctrl+C 退出（级联停止后端与工具桥）')
     })
   })().catch((error: unknown) => {

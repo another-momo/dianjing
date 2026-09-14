@@ -22,32 +22,34 @@ describe('Portless MCP routing', () => {
   })
 
   test('derives a sibling MCP service for the main checkout', () => {
-    expect(devAutomationRoute('https://open-pencil.localhost', 7600)).toEqual({
-      browserURL: 'wss://mcp.open-pencil.localhost',
-      corsOrigin: 'https://open-pencil.localhost',
-      portlessServiceName: 'mcp.open-pencil',
-      runtimeId: 'mcp.open-pencil.localhost'
+    expect(devAutomationRoute('https://dianjing-app.localhost', 7600)).toEqual({
+      browserURL: 'wss://mcp.dianjing-app.localhost',
+      corsOrigin: 'https://dianjing-app.localhost',
+      portlessServiceName: 'mcp.dianjing-app',
+      runtimeId: 'mcp.dianjing-app.localhost'
     })
   })
 
   test('preserves the worktree prefix for the MCP service', () => {
-    expect(devAutomationRoute('https://portless-mcp-routing.open-pencil.localhost', 7600)).toEqual({
-      browserURL: 'wss://portless-mcp-routing.mcp.open-pencil.localhost',
-      corsOrigin: 'https://portless-mcp-routing.open-pencil.localhost',
-      portlessServiceName: 'mcp.open-pencil',
-      runtimeId: 'portless-mcp-routing.mcp.open-pencil.localhost'
-    })
+    expect(devAutomationRoute('https://portless-mcp-routing.dianjing-app.localhost', 7600)).toEqual(
+      {
+        browserURL: 'wss://portless-mcp-routing.mcp.dianjing-app.localhost',
+        corsOrigin: 'https://portless-mcp-routing.dianjing-app.localhost',
+        portlessServiceName: 'mcp.dianjing-app',
+        runtimeId: 'portless-mcp-routing.mcp.dianjing-app.localhost'
+      }
+    )
   })
 
   test('preserves a nonstandard HTTPS proxy port', () => {
-    const route = devAutomationRoute('https://chat-history.open-pencil.localhost:1355', 7600)
-    expect(route.browserURL).toBe('wss://chat-history.mcp.open-pencil.localhost:1355')
-    expect(route.corsOrigin).toBe('https://chat-history.open-pencil.localhost:1355')
+    const route = devAutomationRoute('https://chat-history.dianjing-app.localhost:1355', 7600)
+    expect(route.browserURL).toBe('wss://chat-history.mcp.dianjing-app.localhost:1355')
+    expect(route.corsOrigin).toBe('https://chat-history.dianjing-app.localhost:1355')
   })
 
   test('rejects unrelated Portless hostnames', () => {
     expect(() => devAutomationRoute('https://other.localhost', 7600)).toThrow(
-      'Unexpected OpenPencil Portless URL'
+      'Unexpected Dianjing Studio Portless URL'
     )
   })
 })

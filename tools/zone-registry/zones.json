@@ -182,9 +182,9 @@
     {
       "id": "P11",
       "file": "src/env.d.ts",
-      "reason": "remove vite-plugin-pwa types reference",
+      "reason": "remove vite-plugin-pwa types reference；改名期②（2026-09-14）：__OPENPENCIL_* vite define 全局声明随 brand.ts RUNTIME_GLOBAL_PREFIX 翻转改 __DIANJING_*",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
+      "lastReviewed": "2026-09-14"
     },
     {
       "id": "P12",
@@ -337,9 +337,9 @@
     {
       "id": "P33",
       "file": "src/components/editor/EditorWorkspace.vue",
-      "reason": "remove CollabPanel import + mount above PropertiesPanel (collab deletion cut; T10: migrated from P2 after upstream bb5960cd moved editor UI from EditorView.vue here)",
+      "reason": "remove CollabPanel import + mount above PropertiesPanel (collab deletion cut; T10: migrated from P2 after upstream bb5960cd moved editor UI from EditorView.vue here)；改名期②（2026-09-14）：折叠态 logo img alt 翻转「点睛设计」",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
+      "lastReviewed": "2026-09-14"
     },
     {
       "id": "P34",
@@ -1196,9 +1196,9 @@
     {
       "id": "P219",
       "file": "src/components/settings/general/GeneralSettingsPanel.vue",
-      "reason": "P2-11（2026-09-07）：「Studio 资产扩展」节——展示 ~/.openpencil/studio 用户扩展目录路径 + 复制按钮三态（studio seed 机制配套入口，Phase 4+5 泳道 C）",
+      "reason": "P2-11（2026-09-07）：「Studio 资产扩展」节——展示 ~/.openpencil/studio 用户扩展目录路径 + 复制按钮三态（studio seed 机制配套入口，Phase 4+5 泳道 C）；改名期②（2026-09-14）：展示路径随 STATE_DIR_NAME 翻转改 ~/.dianjing/studio（用户可见文案与注释同步）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-07"
+      "lastReviewed": "2026-09-14"
     },
     {
       "id": "P215",
@@ -1371,7 +1371,42 @@
     {
       "id": "P241",
       "file": "vite/automation.ts",
-      "reason": "bridge-path-separation（2026-09-14）：两行 import 由 src/app/automation/bridge/* 改指 src/app/bridge/*（devAutomationRoute / automationPlugin 同源迁址）；env 读取收口至 src/app/orchestration/env.ts（orchestration-consolidation 2026-09-14）",
+      "reason": "bridge-path-separation（2026-09-14）：两行 import 由 src/app/automation/bridge/* 改指 src/app/bridge/*（devAutomationRoute / automationPlugin 同源迁址）；env 读取收口至 src/app/orchestration/env.ts（orchestration-consolidation 2026-09-14）；改名期②：报错文案 env 名随 ENV_PREFIX 翻转 DIANJING_DEV_ORIGIN",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P242",
+      "file": "index.html",
+      "reason": "改名期②（2026-09-14）：<title> 翻转「点睛设计」（brand.ts PRODUCT_NAME_DISPLAY 的非 TS 镜像触点之一）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P243",
+      "file": "src/App.vue",
+      "reason": "改名期②（2026-09-14）：useHead titleTemplate 产品名翻转「点睛设计」（与 index.html <title> 同批镜像）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P244",
+      "file": "src/components/Shell/AppMenu.vue",
+      "reason": "改名期②（2026-09-14）：app-logo img alt 翻转「点睛设计」",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P245",
+      "file": "src/components/code-editor/extensions.ts",
+      "reason": "改名期②（2026-09-14）：两条 JSX lint 诊断文案产品名翻转（Unknown OpenPencil property/element → Dianjing Studio）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P246",
+      "file": "playwright.config.ts",
+      "reason": "改名期②（2026-09-14）：webServer env 键随 ENV_PREFIX 翻转（OPENPENCIL_DEV_ORIGIN/DEV_MCP_PORT → DIANJING_*；读侧 orchestration/env.ts 已只认新名，不翻则 e2e dev server 端口/origin 配置失效）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-14"
     }

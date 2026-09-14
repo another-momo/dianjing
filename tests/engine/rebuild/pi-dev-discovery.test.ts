@@ -10,5 +10,5 @@ import { devMCPDiscoveryPath } from '@/app/ai/pi-backend/vite-plugin'
 test('pi dev discovery path matches bridge plugin algorithm', () => {
   // 'localhost-7600' 是 devAutomationRoute() 无 PORTLESS_URL 时的 fallback runtimeId
   const path = devMCPDiscoveryPath('localhost-7600').replaceAll('\\', '/')
-  expect(path.endsWith('open-pencil-mcp/18d901424f534c7b/mcp.json')).toBe(true)
+  expect(path.endsWith('dianjing-mcp/18d901424f534c7b/mcp.json')).toBe(true)
 })

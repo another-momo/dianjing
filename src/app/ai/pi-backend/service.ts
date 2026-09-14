@@ -4,7 +4,7 @@
  *
  * 职责：
  *  - tab 级 session 池：sessionId → AgentSession，提示按 session 串行
- *  - SessionManager JSONL 持久化（.openpencil/pi-sessions/，gitignored）
+ *  - SessionManager JSONL 持久化（.dianjing/pi-sessions/，gitignored）
  *    + index.json（sessionId → 文件路径）支持 dev server 重启后恢复
  *  - AgentSessionEvent → UIMessageChunk（mapping.ts）经 emit 直推 SSE
  *  - T20：customTools 注册（tools.ts，hello-tool create_shape 经 7600 桥执行），
@@ -19,7 +19,7 @@
  *    进 context；新建意图一次性旗标接 setup_design 注入缝；setup_design
  *    成功移槽回调、ask formId 映射、删除悬空清槽皆由 host 承担
  *  - T28：会话 GC（决策单 #2，session-gc.ts）——铸新会话后检查，超量
- *    （OPENPENCIL_MAX_SESSIONS，默认 200）/超龄（OPENPENCIL_SESSION_MAX_AGE_DAYS，
+ *    （DIANJING_MAX_SESSIONS，默认 200）/超龄（DIANJING_SESSION_MAX_AGE_DAYS，
  *    默认 30）会话**移动**到 pi-sessions-archive/（保持文件名，index 除条），
  *    归档不删除；GC 失败只 warn 不阻断
  *  - T59：undo burst coalesce——每个 prompt run（= 一个 AI 回合）首尾向
@@ -370,12 +370,12 @@ export function createPiChatService({
       // 的异常路径露面）+ 关闭 pi 侧上下文文件/prompt 模板加载——否则 repo
       // 的 AGENTS.md 等会混入设计会话（旧 ToolLoop 只有静态 prompt，对齐）
       // T87：noSkills 由 capabilities.agentSkills 决定——开启时加载
-      // .openpencil/skills 下的 SKILL.md，进入 <available_skills> prompt 列表或被
+      // .dianjing/skills 下的 SKILL.md，进入 <available_skills> prompt 列表或被
       // /skill:name 显式调用（disable-model-invocation 的不进 prompt，可被显式调）。
-      // T89：扫描目录由 `.pi/skills` + `.openpencil/pi-agent/skills` 双源
-      // 收敛为 `.openpencil/skills` 单源。
+      // T89：扫描目录由 `.pi/skills` + `.dianjing/pi-agent/skills` 双源
+      // 收敛为 `.dianjing/skills` 单源。
       // T91b 修复：SDK 默认只扫 cwd/.pi/skills 与 agentDir/skills——T89 单源
-      // `.openpencil/skills` 不被 SDK 感知，/skill:name 展开透传原文（CI 冒烟④
+      // `.dianjing/skills` 不被 SDK 感知，/skill:name 展开透传原文（CI 冒烟④
       // 失败实证）。用 additionalSkillPaths 显式把单源目录喂给 SDK，
       // 保持 T89 单源决策同时让 SDK 实际加载到。
       resourceLoader: await (async () => {

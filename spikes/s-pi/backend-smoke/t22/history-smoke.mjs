@@ -2,7 +2,7 @@
  * T22 历史回填 + 会话族谱冒烟（T22-plan D2/D3，验收 A1/A3/A6 的后端半）。
  *
  * 全程不需要 LLM key：会话族谱由合成 pi JSONL（../pi-session-fixture.mjs，
- * T28 自含化——不再依赖本机 .openpencil/pi-sessions 既有文件）+ 合成
+ * T28 自含化——不再依赖本机 .dianjing/pi-sessions 既有文件）+ 合成
  * index.json 键构造，直接打 GET /api/pi/history 验证：
  *  ① docKey 前缀解析族内最新会话（时间戳后缀字典序）
  *  ② 历史回填内容保真（user/assistant 文本 + 工具卡片折叠，reasoning 不回填）
@@ -62,7 +62,7 @@ const fileB = 'fx-b.jsonl'
 
 // ── ② 临时 rootDir + 合成会话族谱
 const tempRoot = mkdtempSync(join(tmpdir(), 't22-history-'))
-const sessionsDir = join(tempRoot, '.openpencil', 'pi-sessions')
+const sessionsDir = join(tempRoot, '.dianjing', 'pi-sessions')
 mkdirSync(sessionsDir, { recursive: true })
 // pi-backend/studio/base.md：service 读盘需要（本冒烟不触发 prompt，仅为启动完整）
 mkdirSync(join(tempRoot, 'src/app/ai/pi-backend/studio'), { recursive: true })
@@ -130,7 +130,7 @@ writeFileSync(join(sessionsDir, 'index.json'), JSON.stringify(index, null, 2))
 const indexBefore = readFileSync(join(sessionsDir, 'index.json'), 'utf8')
 
 // ── ③ 起后端（无 LLM 调用，env 无需 key；显式剔除防环境泄漏干扰）
-const backendEnv = { ...process.env, OPENPENCIL_PI_BACKEND_PORT: String(PORT) }
+const backendEnv = { ...process.env, DIANJING_PI_BACKEND_PORT: String(PORT) }
 delete backendEnv.OPENROUTER_API_KEY
 const backend = spawn('bun', ['run', join(repoRoot, 'src/app/ai/pi-backend/main.ts')], {
   cwd: tempRoot,

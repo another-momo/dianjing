@@ -9,11 +9,11 @@
  * - pi-backend → 桥 fetch（src/app/ai/pi-backend/tools.ts callBridgeTool）
  *   裸 fetch 无 client 超时；
  * - MCP 桥 WS 中继（packages/mcp/src/browser-rpc.ts:11）有 RPC_TIMEOUT =
- *   env OPENPENCIL_RPC_TIMEOUT_MS || 20_000 —— 链路唯一墙钟上限在此。
+ *   env DIANJING_RPC_TIMEOUT_MS || 20_000 —— 链路唯一墙钟上限在此。
  *
  * 本探针实证桥层行为（动态）：
  *   default  模式：mock app 延迟 25s 应答 → 期望 ~20s 被掐（502 RPC timeout）；
- *   override 模式：OPENPENCIL_RPC_TIMEOUT_MS=60000（模块加载前设置）→ 期望 25s 成功。
+ *   override 模式：DIANJING_RPC_TIMEOUT_MS=60000（模块加载前设置）→ 期望 25s 成功。
  *
  * 运行：bun spikes/probes/sp/b-rpc-timeout.mjs default|override
  * 注意：RPC_TIMEOUT 是模块加载期常量，两种模式必须分进程跑（由驱动模式 all 编排）。
@@ -71,7 +71,7 @@ async function connectSleepyApp(port, delayMs) {
 async function runScenario(label) {
   // RPC_TIMEOUT 是模块加载期常量——override 模式必须先设 env 再动态 import
   const override = label === 'override'
-  if (override) process.env.OPENPENCIL_RPC_TIMEOUT_MS = String(OVERRIDE_MS)
+  if (override) process.env.DIANJING_RPC_TIMEOUT_MS = String(OVERRIDE_MS)
   const { startServer } = await import('../../packages/mcp/src/server.ts')
 
   const handle = await startServer({

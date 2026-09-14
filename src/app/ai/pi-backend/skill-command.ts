@@ -4,7 +4,7 @@
  *  - 名后直接贴中文（无空格）→ skillName 吞掉整段正文、查无此 skill 透传
  *  - 提及在句中/句尾 → startsWith 不过、整条透传
  * 透传后模型只拿到字面 /skill: 文本，退化成 find/read/ls 猎 SKILL.md——
- * .openpencil/skills 是隐藏目录、fd 默认不搜隐藏目录，永远猎不到
+ * .dianjing/skills 是隐藏目录、fd 默认不搜隐藏目录，永远猎不到
  * （owner 情况①②实测）。
  *
  * 本模块只做「整形」：把首个 /skill: 提及提到消息头、与正文用单空格连接，

@@ -51,11 +51,11 @@ const snapToPixelGrid = computed({
 // 显式展示路径文本 + 「复制路径」按钮——用户自行粘贴到资源管理器/终端/Finder
 // 打开。后续 IPC 桥就位后可在此 hook 上接 openPath，UI 与 i18n 不变。
 //
-// 路径以 POSIX 风格相对显示（`~/.openpencil/studio`），跨平台用户均能识别；
-// Windows 实际为 `%USERPROFILE%\.openpencil\studio`，macOS 为
-// `$HOME/.openpencil/studio`，Linux 同 macOS。绝对路径需后端 IPC 才能解析，
+// 路径以 POSIX 风格相对显示（`~/.dianjing/studio`），跨平台用户均能识别；
+// Windows 实际为 `%USERPROFILE%\.dianjing\studio`，macOS 为
+// `$HOME/.dianjing/studio`，Linux 同 macOS。绝对路径需后端 IPC 才能解析，
 // 留待 IPC 桥就位后由后端注入。
-const studioFolderPath = '~/.openpencil/studio'
+const studioFolderPath = '~/.dianjing/studio'
 const copyStatus = ref<'idle' | 'copied' | 'failed'>('idle')
 
 async function copyStudioFolderPath(): Promise<void> {
@@ -183,7 +183,7 @@ const copyStatusLabel = computed(() => {
       Studio 资产扩展
       <template #description>
         你的自定义 workflow / profile 放在用户目录
-        <code>~/.openpencil/studio/</code> 下，以同名子目录包裹（<code
+        <code>~/.dianjing/studio/</code> 下，以同名子目录包裹（<code
           >workflows/&lt;id&gt;/workflow.md</code
         >
         与 <code>profiles/&lt;id&gt;/profile.md</code>）。首跑时已自动复制

@@ -3,10 +3,10 @@
  * 验证前端零改动链路——attach 注册 override transport → Chat 类 POST /api/pi-chat
  * → SSE 流式渲染 → 后端 session 历史跨回合生效。
  *
- * 前置：vite dev server 已起（T25 D3 后门退役：pi 为唯一路径；key 经 env 或 .openpencil/key-env 自助注入）。
+ * 前置：vite dev server 已起（T25 D3 后门退役：pi 为唯一路径；key 经 env 或 .dianjing/key-env 自助注入）。
  * 运行：node spikes/s-pi/backend-smoke/browser-smoke.mjs [baseUrl]
  * （T27 修正头注释 stale 路径——本脚本 T19 从 tests/engine/rebuild/ 迁来后未更新）
- * 退出码 0 = 全过；截图证据落 .openpencil/p5b-*.png（gitignored）。
+ * 退出码 0 = 全过；截图证据落 .dianjing/p5b-*.png（gitignored）。
  */
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
@@ -87,7 +87,7 @@ try {
   await remembered.waitFor({ timeout: 120000 })
   await page.waitForTimeout(1500)
   check('R1 流式回复渲染（含「记住」）', await remembered.isVisible())
-  await page.screenshot({ path: join(root, '.openpencil', 'p5b-turn1.png') })
+  await page.screenshot({ path: join(root, '.dianjing', 'p5b-turn1.png') })
 
   // 回合 2：追问锚点——只有后端 pi session 历史能提供 8246
   await input.fill('我刚才让你记住的数字是什么？只回答数字本身。')
@@ -96,10 +96,10 @@ try {
   await anchor.waitFor({ timeout: 120000 })
   await page.waitForTimeout(1000)
   check('R2 回复含锚点 8246（前端→后端 session 连续性端到端）', await anchor.isVisible())
-  await page.screenshot({ path: join(root, '.openpencil', 'p5b-turn2.png') })
+  await page.screenshot({ path: join(root, '.dianjing', 'p5b-turn2.png') })
 
   // 前后端 session 对账：浏览器 sessionId 出现在后端 index.json
-  const indexPath = join(root, '.openpencil', 'pi-sessions', 'index.json')
+  const indexPath = join(root, '.dianjing', 'pi-sessions', 'index.json')
   const index = existsSync(indexPath) ? JSON.parse(readFileSync(indexPath, 'utf8')) : {}
   check('后端 index.json 记录浏览器 sessionId', !!index[sessionId], Object.keys(index).join(','))
   const jsonlFile = index[sessionId]?.file

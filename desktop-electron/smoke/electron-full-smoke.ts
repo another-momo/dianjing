@@ -5,10 +5,10 @@
  * 验收点（与本步交付物第 3 条一一对应）：
  *  ① 经回环代理 GET /api/pi/catalog 带 Bearer 得 200（证代理+鉴权+backend 活）
  *  ② 桥 /health 显示**执行器已注册**（status='ok' 而非 'no_app'——证 token
- *     三方对齐：index.html 注入的 __OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__
- *     === bridge OPENPENCIL_MCP_AUTH_TOKEN === 任何客户端 WS 鉴权用的 token。
+ *     三方对齐：index.html 注入的 __DIANJING_RUNTIME_AUTOMATION_TOKEN__
+ *     === bridge DIANJING_MCP_AUTH_TOKEN === 任何客户端 WS 鉴权用的 token。
  *     spike-electron-spike 起：桥 URL 改为运行时全局注入（main.ts 经
- *     index.html 前置 <script> 注入 __OPENPENCIL_RUNTIME_BRIDGE_URL__=ws://
+ *     index.html 前置 <script> 注入 __DIANJING_RUNTIME_BRIDGE_URL__=ws://
  *     127.0.0.1:<bridgePort>），dist 不再烤死 ws://127.0.0.1:7600——本步
  *     直接断 smoke 自起 WS 的等价证明，改为硬断言**页面自己注册为执行器**
  *     （等 bridge /health.status 从 'no_app' 翻 'ok'，无 smoke 侧 WS 参与）。）
@@ -16,15 +16,15 @@
  *     /api/pi/catalog → 200（证 vite-plugin T27 退避语义移植生效）
  *     ——此步在 chat 前做，避免 chat 的 proxy-destroy-upstream 把 pi-backend
  *     推到不稳定状态影响退避复活链路的可观测性。
- *  ④ rootDir 指向 %TEMP% 下新目录；若上游 D:\...\open-pencil-mode\.openpencil\key-env
- *     存在则只读复制到临时 rootDir 的 .openpencil/key-env，让 pi-backend
+ *  ④ rootDir 指向 %TEMP% 下新目录；若上游 D:\...\open-pencil-mode\.dianjing\key-env
+ *     存在则只读复制到临时 rootDir 的 .dianjing/key-env，让 pi-backend
  *     拿到真实模型 key
  *  ⑤ 若 key 可用：经代理 POST /api/pi-chat 发一条最小消息，断言 SSE
  *     start+finish 完整且无 error（真模型调用，一次即可）；key 不可用则
  *     跳过⑤并在报告里明说
  *
  * 端口自律：随机高位端口（20000-49000），绝不碰 1420/7600/7700；全部经
- * OPENPENCIL_*_PORT env 注入 electron 主进程。
+ * DIANJING_*_PORT env 注入 electron 主进程。
  */
 
 import { spawn, type ChildProcess } from 'node:child_process'
@@ -49,7 +49,7 @@ if (!existsSync(mainBundle)) {
 }
 
 // 上游 key-env 路径（仓外，本步提交物外）
-const SOURCE_KEY_ENV = 'D:\\Desktop\\AgentLearn\\00_DIYProjects\\0720openpencil\\open-pencil-mode\\.openpencil\\key-env'
+const SOURCE_KEY_ENV = 'D:\\Desktop\\AgentLearn\\00_DIYProjects\\0720openpencil\\open-pencil-mode\\.dianjing\\key-env'
 
 function taskkill(pid: number): Promise<{ code: number | null; aliveAfter: boolean }> {
   // /T = 杀子树（含 utilityProcess 派生的 helper），/F = 强杀。
@@ -101,7 +101,7 @@ async function waitForHealth(url: string, timeoutMs: number): Promise<boolean> {
 async function waitForBridgeExecutorOk(bridgeBase: string, authToken: string, timeoutMs: number): Promise<{ ok: boolean; raw: unknown }> {
   // 等**页面自己**连上桥后，/health.status 从 'no_app' 翻到 'ok'。
   // spike-electron-spike 起：smoke 不再自起 WS 注册；URL 解析靠运行时全局
-  // __OPENPENCIL_RUNTIME_BRIDGE_URL__（main.ts 注入），页面经
+  // __DIANJING_RUNTIME_BRIDGE_URL__（main.ts 注入），页面经
   // src/app/bridge/client.ts connectAutomation 自动 register。
   // 翻 'ok' 即证：①运行时 URL 通道连通（页面拿到了 bridgePort）；②token
   // 三方对齐（页面用注入的 token 鉴权成功）。
@@ -134,17 +134,17 @@ function skip(name: string, reason: string): void {
 
 async function main(): Promise<void> {
   // 0. 准备：临时 rootDir + 可选 key-env 复制
-  const scratch = mkdtempSync(join(tmpdir(), 'openpencil-electron-full-smoke-'))
+  const scratch = mkdtempSync(join(tmpdir(), 'dianjing-electron-full-smoke-'))
   const electronRootDir = join(scratch, 'electron-root')
-  const targetOpenPencil = join(electronRootDir, '.openpencil')
-  mkdirSync(targetOpenPencil, { recursive: true })
+  const targetDianjing = join(electronRootDir, '.dianjing')
+  mkdirSync(targetDianjing, { recursive: true })
 
   let keyEnvCopied = false
   if (existsSync(SOURCE_KEY_ENV)) {
     try {
-      copyFileSync(SOURCE_KEY_ENV, join(targetOpenPencil, 'key-env'))
+      copyFileSync(SOURCE_KEY_ENV, join(targetDianjing, 'key-env'))
       keyEnvCopied = true
-      console.log(`[smoke] 已复制 key-env → ${join(targetOpenPencil, 'key-env')}`)
+      console.log(`[smoke] 已复制 key-env → ${join(targetDianjing, 'key-env')}`)
     } catch (error) {
       console.log(`[smoke] key-env 复制失败：${error instanceof Error ? error.message : String(error)}——真模型调用将跳过`)
     }
@@ -158,17 +158,17 @@ async function main(): Promise<void> {
   const backendPort = await pickFreePort()
   console.log(`[smoke] loopback=${loopbackPort} bridge=${bridgePort} backend=${backendPort} rootDir=${electronRootDir}`)
 
-  // 2. spawn electron main（OPENPENCIL_FULL_SMOKE=1）
+  // 2. spawn electron main（DIANJING_FULL_SMOKE=1）
   const electronExe = resolve(root, 'node_modules/electron/dist/electron.exe')
   if (!existsSync(electronExe)) throw new Error(`electron 二进制缺失：${electronExe}`)
 
   const childEnv: NodeJS.ProcessEnv = {
     ...process.env,
-    OPENPENCIL_FULL_SMOKE: '1',
-    OPENPENCIL_LOOPBACK_PORT: String(loopbackPort),
-    OPENPENCIL_BRIDGE_PORT: String(bridgePort),
-    OPENPENCIL_PI_BACKEND_PORT_ELECTRON: String(backendPort),
-    OPENPENCIL_ROOT_DIR: electronRootDir,
+    DIANJING_FULL_SMOKE: '1',
+    DIANJING_LOOPBACK_PORT: String(loopbackPort),
+    DIANJING_BRIDGE_PORT: String(bridgePort),
+    DIANJING_PI_BACKEND_PORT_ELECTRON: String(backendPort),
+    DIANJING_ROOT_DIR: electronRootDir,
     ELECTRON_DISABLE_SECURITY_WARNINGS: '1'
   }
   // 关键：让 pi-backend 拿不到父进程 OPENROUTER_API_KEY，强制走 key-env
@@ -207,12 +207,12 @@ async function main(): Promise<void> {
   child.stdout?.on('data', (chunk) => {
     const text = chunk.toString()
     for (const line of text.split(/\r?\n/)) {
-      const pidMatch = line.match(/^SIDECAR_PID (openpencil-(?:bridge|pi-backend)) (\d+)/)
+      const pidMatch = line.match(/^SIDECAR_PID (dianjing-(?:bridge|pi-backend)) (\d+)/)
       if (pidMatch) {
         const name = pidMatch[1]!
         const pid = Number(pidMatch[2])
-        if (name === 'openpencil-bridge') bridgePid = pid
-        if (name === 'openpencil-pi-backend') backendPid = pid
+        if (name === 'dianjing-bridge') bridgePid = pid
+        if (name === 'dianjing-pi-backend') backendPid = pid
       }
       if (line.startsWith('[electron-main] FULL_SMOKE_RESULT ')) {
         try {

@@ -1,5 +1,5 @@
 /**
- * Dev MCP discovery 路径推导单源：tmpdir()/open-pencil-mcp/sha256(runtimeId)[:16]/mcp.json。
+ * Dev MCP discovery 路径推导单源：tmpdir()/dianjing-mcp/sha256(runtimeId)[:16]/mcp.json。
  *
  * 算法历史（移植自 src/app/ai/pi-backend/vite-plugin.ts:58 与
  * src/app/bridge/vite-plugin.ts:120 的同源推导）：上游 0f981ff2（经 T34 合入）

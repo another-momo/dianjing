@@ -26,12 +26,12 @@ import {
 } from '@/app/ai/pi-backend/paths'
 
 describe('pi-backend/paths — constants', () => {
-  test('STATE_DIR_NAME is the canonical ".openpencil" (verbatim source-of-truth)', () => {
-    expect(STATE_DIR_NAME).toBe('.openpencil')
+  test('STATE_DIR_NAME is the canonical ".dianjing" (verbatim source-of-truth)', () => {
+    expect(STATE_DIR_NAME).toBe('.dianjing')
   })
 
   test('subdir / filename constants match the original inline literals', () => {
-    // 这些常量被原位 .openpencil/pi-agent、.openpencil/skills、.openpencil/studio
+    // 这些常量被原位 .dianjing/pi-agent、.dianjing/skills、.dianjing/studio
     // 等拼接字面量替换——值与原文一致即可保证下游拼接结果不变。
     expect(PI_AGENT_SUBDIR).toBe('pi-agent')
     expect(PI_SESSIONS_SUBDIR).toBe('pi-sessions')
@@ -41,8 +41,8 @@ describe('pi-backend/paths — constants', () => {
     expect(PI_BACKEND_TOKEN_FILENAME).toBe('pi-backend-token')
   })
 
-  test('USER_STUDIO_SUBPATH is ".openpencil/studio" (posix join)', () => {
-    expect(USER_STUDIO_SUBPATH.replaceAll('\\', '/')).toBe('.openpencil/studio')
+  test('USER_STUDIO_SUBPATH is ".dianjing/studio" (posix join)', () => {
+    expect(USER_STUDIO_SUBPATH.replaceAll('\\', '/')).toBe('.dianjing/studio')
   })
 
   test('BUILTIN_STUDIO_SUBPATH is the dev source-tree location', () => {
@@ -51,36 +51,34 @@ describe('pi-backend/paths — constants', () => {
 })
 
 describe('pi-backend/paths — resolveStateDir and friends', () => {
-  const rootDir = '/tmp/open-pencil-test-root'
+  const rootDir = '/tmp/dianjing-test-root'
 
   test('resolveStateDir returns rootDir + STATE_DIR_NAME', () => {
-    expect(resolveStateDir(rootDir)).toBe(join(rootDir, '.openpencil'))
+    expect(resolveStateDir(rootDir)).toBe(join(rootDir, '.dianjing'))
   })
 
   test('resolveAgentDir appends pi-agent', () => {
-    expect(resolveAgentDir(rootDir)).toBe(join(rootDir, '.openpencil', 'pi-agent'))
+    expect(resolveAgentDir(rootDir)).toBe(join(rootDir, '.dianjing', 'pi-agent'))
   })
 
   test('resolveSessionsDir appends pi-sessions', () => {
-    expect(resolveSessionsDir(rootDir)).toBe(join(rootDir, '.openpencil', 'pi-sessions'))
+    expect(resolveSessionsDir(rootDir)).toBe(join(rootDir, '.dianjing', 'pi-sessions'))
   })
 
   test('resolveArchiveDir appends pi-sessions-archive', () => {
-    expect(resolveArchiveDir(rootDir)).toBe(join(rootDir, '.openpencil', 'pi-sessions-archive'))
+    expect(resolveArchiveDir(rootDir)).toBe(join(rootDir, '.dianjing', 'pi-sessions-archive'))
   })
 
   test('resolveKeyEnvPath appends key-env filename', () => {
-    expect(resolveKeyEnvPath(rootDir)).toBe(join(rootDir, '.openpencil', 'key-env'))
+    expect(resolveKeyEnvPath(rootDir)).toBe(join(rootDir, '.dianjing', 'key-env'))
   })
 
   test('resolveSkillsDir appends skills', () => {
-    expect(resolveSkillsDir(rootDir)).toBe(join(rootDir, '.openpencil', 'skills'))
+    expect(resolveSkillsDir(rootDir)).toBe(join(rootDir, '.dianjing', 'skills'))
   })
 
   test('resolvePiBackendTokenPath appends pi-backend-token filename', () => {
-    expect(resolvePiBackendTokenPath(rootDir)).toBe(
-      join(rootDir, '.openpencil', 'pi-backend-token')
-    )
+    expect(resolvePiBackendTokenPath(rootDir)).toBe(join(rootDir, '.dianjing', 'pi-backend-token'))
   })
 })
 
@@ -109,17 +107,17 @@ describe('pi-backend/paths — resolveStudioDirs', () => {
   test('with env override: builtinDir uses override; userDir always under homedir', () => {
     const dirs = resolveStudioDirs('/repo/root', '/opt/custom/studio')
     expect(dirs.builtinDir).toBe('/opt/custom/studio')
-    expect(dirs.userDir).toBe(join(homedir(), '.openpencil', 'studio'))
+    expect(dirs.userDir).toBe(join(homedir(), '.dianjing', 'studio'))
   })
 
   test('without env override: builtinDir is rootDir + BUILTIN_STUDIO_SUBPATH', () => {
     const rootDir = '/repo/root'
     const dirs = resolveStudioDirs(rootDir, null)
     expect(dirs.builtinDir).toBe(join(rootDir, 'src', 'app', 'ai', 'pi-backend', 'studio'))
-    expect(dirs.userDir).toBe(join(homedir(), '.openpencil', 'studio'))
+    expect(dirs.userDir).toBe(join(homedir(), '.dianjing', 'studio'))
   })
 
-  test('userDir is independent of rootDir (always ~/.openpencil/studio)', () => {
+  test('userDir is independent of rootDir (always ~/.dianjing/studio)', () => {
     const a = resolveStudioDirs('/repo/A', null)
     const b = resolveStudioDirs('/repo/B', null)
     expect(a.userDir).toBe(b.userDir)

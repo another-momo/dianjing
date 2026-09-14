@@ -78,11 +78,11 @@ export function attachStderrPassthrough(
 }
 
 /**
- * 构造 ready marker——前缀 `open-pencil-ready:` + randomUUID。
+ * 构造 ready marker——前缀 `dianjing-ready:` + randomUUID。
  *
  * 行为对齐 src/app/bridge/vite-plugin.ts:129 的内联拼装：
- *   `open-pencil-ready:${randomUUID()}`
- * 由 child-ready.ts 的 waitForChildReady 解析（marker 串写入 OPENPENCIL_MCP_READY_MARKER
+ *   `dianjing-ready:${randomUUID()}`
+ * 由 child-ready.ts 的 waitForChildReady 解析（marker 串写入 DIANJING_MCP_READY_MARKER
  * 后写入子进程 stderr，父进程按 marker 判定子进程就绪）。
  */
 export function makeReadyMarker(): string {

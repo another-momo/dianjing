@@ -124,9 +124,9 @@ describe('orchestration/lifecycle', () => {
   })
 
   describe('makeReadyMarker', () => {
-    test('prefix is open-pencil-ready:', () => {
+    test('prefix is dianjing-ready:', () => {
       const marker = makeReadyMarker()
-      expect(marker.startsWith('open-pencil-ready:')).toBe(true)
+      expect(marker.startsWith('dianjing-ready:')).toBe(true)
     })
 
     test('two markers differ (UUID v4 随机段)', () => {

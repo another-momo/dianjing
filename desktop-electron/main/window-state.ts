@@ -4,7 +4,7 @@
  *
  * 设计取舍：
  *  - 文件位置：app.getPath('userData')/window-state.json——与 P1.9.1 userData
- *    化一致，卸载/重装行为由 OS 接管；不写进 OPENPENCIL_ROOT_DIR（那是
+ *    化一致，卸载/重装行为由 OS 接管；不写进 DIANJING_ROOT_DIR（那是
  *    sidecar 的状态根，不该被窗口 bounds 污染）
  *  - 校验显示器交集：保存时的坐标可能在保存与恢复之间失效（最经典场景：拔
  *    了外接屏，原本在副屏右侧的窗口坐标出屏）。load 时拿当前 screen.

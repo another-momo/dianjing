@@ -6,9 +6,9 @@
  * 导致的 timingSafeEqual 抛错）。
  *
  * token 本体只经两条路到达后端进程（main.ts 解析，见该文件头部注释）：
- *  - vite 插件 spawn：env OPENPENCIL_PI_TOKEN 注入（每 vite 进程一枚随机值），
+ *  - vite 插件 spawn：env DIANJING_PI_TOKEN 注入（每 vite 进程一枚随机值），
  *    vite proxy 给 /api/pi 转发自动补 Authorization 头，前端同源调用零改动
- *  - standalone（bun run dev:backend）：自生成随机值写 .openpencil/pi-backend-token
+ *  - standalone（bun run dev:backend）：自生成随机值写 .dianjing/pi-backend-token
  *    （0o600），控制台只打印文件路径
  *
  * key 卫生：本模块只在内存中比较，任何日志/响应不得含 token 本体。

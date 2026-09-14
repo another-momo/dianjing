@@ -5,7 +5,7 @@
  * T91o：expandSkillText 宿主侧 skill 展开——解除 SDK「仅消息开头 + 单
  * 命令」双限制（句中提及/名后贴中文/多 skill，见方法注释）。
  *
- * 存储：.openpencil/pi-agent/capabilities.json（tmp+rename 原子写；坏 JSON
+ * 存储：.dianjing/pi-agent/capabilities.json（tmp+rename 原子写；坏 JSON
  * 降级 OFF——同 image-gen/credentials 纪律但无敏感字段，0o600 仅对齐设置文件
  * 既存卫生标准；绝无任何 key/secret 字段）。
  *
@@ -24,7 +24,7 @@
  *  - getCapabilitiesForManifest() 投影只用 name + description，**绝不返回**
  *    filePath / baseDir / sourceInfo——这些是宿主内部坐标系，下发前端
  *    即泄漏内部路径（与 T45 §信任边界同质）。
- *  - T89：扫描目录改为单源 `${rootDir}/.openpencil/skills`（与 key-env /
+ *  - T89：扫描目录改为单源 `${rootDir}/.dianjing/skills`（与 key-env /
  *    pi-agent / pi-sessions 同层私有状态目录），原 `${cwd}/.pi/skills` 与
  *    「pi coding agent」生态位冲突，已删除；agentDir/skills 也删除（agentDir
  *    仅用于 capabilities.json 持久化，不再承担 skill 扫描）。
@@ -90,7 +90,7 @@ export type CapabilitiesStore = {
    * 只认「整条消息以 /skill: 开头 + skill 名到首个 ASCII 空格止」，两个硬限制：
    * 名后直接贴中文（无空格）→ skillName 吞掉整段正文、查无此 skill 透传；
    * 提及在句中/句尾 → startsWith 不过、整条透传。透传后模型只拿到字面
-   * /skill: 文本，退化成 find/read/ls 猎 SKILL.md——.openpencil/skills 是
+   * /skill: 文本，退化成 find/read/ls 猎 SKILL.md——.dianjing/skills 是
    * 隐藏目录、fd 默认不搜隐藏目录，永远猎不到（owner 情况①②实测）。
    * 本方法解除双限制：文本内全部 `/skill:<name>` 提及就地展开为 SDK 同款
    * `<skill>` 块（位置自由、一条消息可激活多个 skill）；未知名透传（SDK
@@ -195,7 +195,7 @@ export function createCapabilitiesStore({
   function listSkills(): ManifestSkillEntry[] {
     const caps = get()
     if (!caps.agentSkills) return []
-    // T89：单源扫描 `.openpencil/skills`（私有状态目录，与 key-env/pi-agent 同层）——
+    // T89：单源扫描 `.dianjing/skills`（私有状态目录，与 key-env/pi-agent 同层）——
     // 不调 loadSkills 全局版，避免引入 cwd/agentDir 之外的隐式来源
     const userSkillsDir = resolveSkillsDir(rootDir)
     if (!existsSync(userSkillsDir)) return []

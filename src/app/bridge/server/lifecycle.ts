@@ -124,7 +124,7 @@ export async function startSocketListener(
   } catch (e) {
     // Fail closed: if we cannot restrict socket permissions, refuse to
     // serve on this socket. A world-readable socket with auth disabled
-    // (OPENPENCIL_MCP_AUTH_TOKEN="") is a security hole.
+    // (DIANJING_MCP_AUTH_TOKEN="") is a security hole.
     await closeServer(server).catch(() => undefined)
     await cleanupSocket(resolvedPath).catch(() => undefined)
     throw new Error(

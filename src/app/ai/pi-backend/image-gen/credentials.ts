@@ -2,7 +2,7 @@
  * T54（Phase 3 W2/T-B3）：generate_image 凭证面（providerType/baseUrl/apiKey/model
  * 四键；T66 起 presetId 退役——预设表删除，三键全部用户手填，P0/P1）。
  *
- * 存储：.openpencil/pi-agent/image-gen.json（0o600，tmp+rename 原子写）。
+ * 存储：.dianjing/pi-agent/image-gen.json（0o600，tmp+rename 原子写）。
  * 进程级注入：store 对象由 server.ts 创建并注入 generate_image 工具工厂
  * （集成期装配）——key 只活在本进程内存与该文件，不进桥 payload、不进
  * 工具 schema、不打印、不回传前端（status() 只回 configured/providerType/

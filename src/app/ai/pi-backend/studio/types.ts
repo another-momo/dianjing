@@ -43,7 +43,7 @@ export type StudioSizePreset = CanvasSizePreset
 
 export type StudioAssetKind = 'base' | 'workflow' | 'profile'
 
-/** 资产来源：内置集（随应用分发）或用户目录（~/.openpencil/studio/，同 id 覆盖内置） */
+/** 资产来源：内置集（随应用分发）或用户目录（~/.dianjing/studio/，同 id 覆盖内置） */
 export type StudioOrigin = 'builtin' | 'user'
 
 /**

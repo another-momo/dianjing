@@ -13,8 +13,8 @@ import { startServer } from './server'
 
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
   process.stdout.write(
-    `openpencil automation bridge\n\n` +
-      `Start the OpenPencil automation bridge (editor WebSocket + /rpc HTTP relay).\n\n` +
+    `Dianjing Studio automation bridge\n\n` +
+      `Start the Dianjing Studio automation bridge (editor WebSocket + /rpc HTTP relay).\n\n` +
       `On macOS/Linux, the bridge listens on a Unix domain socket by default\n` +
       `with optional TCP for browser clients. On Windows, only TCP is available.\n\n` +
       `Options:\n` +
@@ -75,7 +75,7 @@ if (readyMarker && new RegExp(`^${READY_MARKER_PREFIX}[a-f0-9-]{36}$`).test(read
 `)
 }
 
-process.stderr.write(`OpenPencil automation bridge
+process.stderr.write(`Dianjing Studio automation bridge
 `)
 if (handle.socketPath) process.stderr.write(`  Socket: ${handle.socketPath}\n`)
 if (handle.httpPort) process.stderr.write(`  HTTP:   http://127.0.0.1:${handle.httpPort}\n`)

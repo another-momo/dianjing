@@ -1,6 +1,6 @@
 /**
  * T28（决策单 #12）：合成 pi JSONL 会话 fixture——smoke:pi 自含化，
- * 不再依赖本机 .openpencil/pi-sessions 既有文件（CI 裸机上没有）。
+ * 不再依赖本机 .dianjing/pi-sessions 既有文件（CI 裸机上没有）。
  *
  * 条目形状按 pi v3 格式：首行 session 头 + 逐行 JSON entry。
  * parseSessionEntries（SDK session-manager.js）逐行 JSON.parse 即收；

@@ -9,7 +9,7 @@
  *  ② 后端进程无 env key，凭 auth.json 里的 key 跑通真实聊天回合
  *    （start/text-delta/finish/[DONE]，回复含「2」）
  *
- * key 卫生：脚本进程 env 读取（set -a; source .openpencil/key-env; set +a），
+ * key 卫生：脚本进程 env 读取（set -a; source .dianjing/key-env; set +a），
  * 只经请求体传输，绝不打印（断言输出只给布尔/长度）。
  *
  * 运行：node spikes/s-pi/backend-smoke/t21/admin-smoke.mjs
@@ -65,7 +65,7 @@ console.log(`T21 管理面冒烟 → ${BASE}`)
 
 check('前置：OPENROUTER_API_KEY 在脚本环境（只用于请求体传输）', KEY.length > 0)
 if (KEY.length === 0) {
-  console.error('运行方式：set -a; source .openpencil/key-env; set +a; node t21/admin-smoke.mjs')
+  console.error('运行方式：set -a; source .dianjing/key-env; set +a; node t21/admin-smoke.mjs')
   process.exit(1)
 }
 
@@ -76,11 +76,11 @@ copyFileSync(
   join(repoRoot, 'src/app/ai/pi-backend/studio/base.md'),
   join(tempRoot, 'src/app/ai/pi-backend/studio/base.md')
 )
-const agentDir = join(tempRoot, '.openpencil', 'pi-agent')
+const agentDir = join(tempRoot, '.dianjing', 'pi-agent')
 const authPath = join(agentDir, 'auth.json')
 
 // 后端进程 env 显式剔除 key——全链只能走 auth.json
-const backendEnv = { ...process.env, OPENPENCIL_PI_BACKEND_PORT: String(PORT) }
+const backendEnv = { ...process.env, DIANJING_PI_BACKEND_PORT: String(PORT) }
 delete backendEnv.OPENROUTER_API_KEY
 const backend = spawn('bun', ['run', join(repoRoot, 'src/app/ai/pi-backend/main.ts')], {
   cwd: tempRoot,
@@ -103,7 +103,7 @@ try {
   const token = readBackendToken(tempRoot)
   check('T28 前置：token 文件可读', typeof token === 'string' && token.length > 0)
   if (process.platform !== 'win32') {
-    const tokenMode = statSync(join(tempRoot, '.openpencil', 'pi-backend-token')).mode & 0o777
+    const tokenMode = statSync(join(tempRoot, '.dianjing', 'pi-backend-token')).mode & 0o777
     check('T28 token 文件权限 0600', tokenMode === 0o600, `mode=${tokenMode.toString(8)}`)
   }
 

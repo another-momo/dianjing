@@ -9,12 +9,12 @@ describe('orchestration/discovery', () => {
     // pi-dev-discovery.test.ts 钉扎同一 digest，本测试双保险（pin 给 orchestration/
     // 共享模块）。上游若改算法，devMCPRuntimeDir 与 devMCPDiscoveryPath 同时漂。
     const path = devMCPDiscoveryPath('localhost-7600').replaceAll('\\', '/')
-    expect(path.endsWith('open-pencil-mcp/18d901424f534c7b/mcp.json')).toBe(true)
+    expect(path.endsWith('dianjing-mcp/18d901424f534c7b/mcp.json')).toBe(true)
   })
 
   test('devMCPRuntimeDir returns the parent directory without mcp.json suffix', () => {
     const dir = devMCPRuntimeDir('localhost-7600').replaceAll('\\', '/')
-    expect(dir.endsWith('open-pencil-mcp/18d901424f534c7b')).toBe(true)
+    expect(dir.endsWith('dianjing-mcp/18d901424f534c7b')).toBe(true)
     expect(dir.startsWith(tmpdir().replaceAll('\\', '/'))).toBe(true)
   })
 

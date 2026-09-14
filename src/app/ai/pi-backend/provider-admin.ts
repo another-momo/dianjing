@@ -5,7 +5,7 @@
  *
  * 职责：
  *  - ModelRuntime 生命周期（authPath/modelsPath 固定于 agentDir，即
- *    .openpencil/pi-agent/；models.json 缺失时写种子——openrouter/free 免费
+ *    .dianjing/pi-agent/；models.json 缺失时写种子——openrouter/free 免费
  *    默认路由，纯配置无秘密）
  *  - catalog 序列化（白名单字段；凭据只回 {configured,type,source} 元数据，
  *    永不回 key 本体）

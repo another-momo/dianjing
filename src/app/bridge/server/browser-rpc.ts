@@ -8,7 +8,7 @@ import { isAuthorized } from './auth'
 import type { RPCJSONObject } from './json'
 import type { PendingRequest } from './rpc-types'
 
-// T27：长回合场景（大文档批量工具调用）可经 OPENPENCIL_RPC_TIMEOUT_MS 放宽。
+// T27：长回合场景（大文档批量工具调用）可经 DIANJING_RPC_TIMEOUT_MS 放宽。
 // T54（Phase 3 W2/T-B3）：默认值 20s → 300s——generate_image 双段执行经桥落图，
 // 生图 HTTP 上限 240s（pi-backend image-gen 独立超时），桥超时必须 ≥ 生图上限+余量，
 // 否则 240s 级调用被桥层 20s kill（SP-b 探针实证旧默认掐断点）。
@@ -19,7 +19,7 @@ export { DEFAULT_RPC_TIMEOUT_MS }
 const APP_WAIT_TIMEOUT = 10_000
 
 const APP_NOT_CONNECTED_MESSAGE =
-  'OpenPencil app is not connected. STOP and tell the user: "The OpenPencil desktop app is not running, no document is open, or the desktop app is connected to a different MCP server. Please start OpenPencil, open a document, and try again." Do NOT attempt to start the app yourself or retry automatically.'
+  'Dianjing Studio app is not connected. STOP and tell the user: "The Dianjing Studio desktop app is not running, no document is open, or the desktop app is connected to a different MCP server. Please start Dianjing Studio, open a document, and try again." Do NOT attempt to start the app yourself or retry automatically.'
 
 /**
  * T98：工具执行失败标记——浏览器 app 显式应答 ok:false（编辑器在线，命令/

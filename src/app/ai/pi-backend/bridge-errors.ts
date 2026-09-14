@@ -21,7 +21,7 @@
 
 /** 连接级失败统一文案（模型可见）——不含端口/桥/discovery 等内部设施字眼。 */
 export const EDITOR_UNREACHABLE_MESSAGE =
-  'Editor is not reachable — make sure the OpenPencil app is open in a browser tab with a document loaded, then try again.'
+  'Editor is not reachable — make sure the Dianjing Studio app is open in a browser tab with a document loaded, then try again.'
 
 /** 内部落点路径片段（最小清洗的判定锚）：核心包/源码目录/依赖目录 */
 const INTERNAL_PATH_PATTERN = /(?:^|[\\/])(?:packages|src|node_modules)(?:[\\/]|$)/

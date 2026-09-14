@@ -25,7 +25,7 @@ const store = useEditorStore()
 const { updates, locale } = useI18n()
 
 useHead({
-  titleTemplate: (title) => (title ? `${title} — OpenPencil` : 'OpenPencil'),
+  titleTemplate: (title) => (title ? `${title} — 点睛设计` : '点睛设计'),
   htmlAttrs: {
     lang: locale,
     'data-motion': computed(() => (animationsEnabled.value ? 'full' : 'off'))

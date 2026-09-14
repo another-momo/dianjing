@@ -1,11 +1,11 @@
-appId: com.openpencil.app
-productName: OpenPencil
-copyright: Copyright (c) 2026 OpenPencil
+appId: com.dianjing.app
+productName: Dianjing
+copyright: Copyright (c) 2026 Dianjing Studio
 # main 入口在 package.json#main 设了（dist-main/main.mjs，Electron 主进程 bundle）。
 # 不设 main 时 electron-builder 26 把整个工作目录当 app 根，连同 bun.lock、
 # node_modules 提示文件等全部卷进 asar；显式设 main 走标准 asar 流程。
-# P2 打包元数据——主目录命名 OpenPencil（与 productName 对齐；缺省取
-# package.json#name"open-pencil-app"太长）。artifactName 去掉平台后缀
+# P2 打包元数据——主目录命名 Dianjing（与 productName 对齐；缺省取
+# package.json#name"dianjing-app"太长）。artifactName 去掉平台后缀
 # （electron-builder 会自动追 _-win-x64 与 .exe/.dmg 等后缀）。
 artifactName: ${productName}-${version}-${arch}
 
@@ -45,7 +45,7 @@ extraResources:
   # 运行时按文件系统读，不随 sidecar bundle 打包；打包形态 rootDir=userData
   # 下无源码树，缺这条则内置层全空、只剩硬编码 general 兜底（实测症状：
   # 打包版 mode 选择器只剩「通用设计」）。平铺后由 main.ts 经
-  # OPENPENCIL_STUDIO_BUILTIN_DIR 注入解析基准。
+  # DIANJING_STUDIO_BUILTIN_DIR 注入解析基准。
   - from: src/app/ai/pi-backend/studio
     to: app/studio
     # 只分发 markdown 资产——.ts 源码已被 sidecar bundle 收编，平铺无意义
@@ -117,7 +117,7 @@ nsis:
   # 卸载时清干净 app 数据；createDesktopShortcut 已默认 true。
   # shell-polish B2：deleteAppDataOnUninstall 只删 %APPDATA% 下 userData
   # （electron-builder 自动判 APP_FILENAME / APP_PRODUCT_FILENAME / APP_PACKAGE_NAME
-  # 三 key），但用户自定义 studio 目录 %USERPROFILE%\.openpencil\studio\ 不在其
+  # 三 key），但用户自定义 studio 目录 %USERPROFILE%\.dianjing\studio\ 不在其
   # 内——补删走 desktop-electron/nsis/include.nsh 的 customUnInstall 钩子。
   # electron-builder 26 会用 !include "<path>" 把文件加入主 installer.nsi
   # （NsisTarget.js L603 scriptGenerator.include），并自动把仓库根加入

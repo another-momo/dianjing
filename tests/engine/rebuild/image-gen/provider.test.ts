@@ -199,18 +199,18 @@ describe('provider 请求形状', () => {
 
 describe('生图 HTTP 超时（独立于桥超时，240s 基线）', () => {
   test('缺省 240s；env 覆盖生效；非法值回退缺省', () => {
-    const saved = process.env.OPENPENCIL_IMAGE_GEN_TIMEOUT_MS
+    const saved = process.env.DIANJING_IMAGE_GEN_TIMEOUT_MS
     try {
-      delete process.env.OPENPENCIL_IMAGE_GEN_TIMEOUT_MS
+      delete process.env.DIANJING_IMAGE_GEN_TIMEOUT_MS
       expect(readImageGenTimeoutMs()).toBe(IMAGE_GEN_DEFAULT_TIMEOUT_MS)
       expect(IMAGE_GEN_DEFAULT_TIMEOUT_MS).toBe(240_000)
-      process.env.OPENPENCIL_IMAGE_GEN_TIMEOUT_MS = '90000'
+      process.env.DIANJING_IMAGE_GEN_TIMEOUT_MS = '90000'
       expect(readImageGenTimeoutMs()).toBe(90_000)
-      process.env.OPENPENCIL_IMAGE_GEN_TIMEOUT_MS = 'not-a-number'
+      process.env.DIANJING_IMAGE_GEN_TIMEOUT_MS = 'not-a-number'
       expect(readImageGenTimeoutMs()).toBe(IMAGE_GEN_DEFAULT_TIMEOUT_MS)
     } finally {
-      if (saved === undefined) delete process.env.OPENPENCIL_IMAGE_GEN_TIMEOUT_MS
-      else process.env.OPENPENCIL_IMAGE_GEN_TIMEOUT_MS = saved
+      if (saved === undefined) delete process.env.DIANJING_IMAGE_GEN_TIMEOUT_MS
+      else process.env.DIANJING_IMAGE_GEN_TIMEOUT_MS = saved
     }
   })
 })

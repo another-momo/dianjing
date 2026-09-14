@@ -2,10 +2,10 @@
  * T28（决策单 #2，owner 拍板 2026-08-25）：会话 GC——归档不删除。
  *
  * 触发点：铸新会话后（service.ts createSession 内调用）。规则：
- *  - 会话文件（*.jsonl）数 > maxSessions（env OPENPENCIL_MAX_SESSIONS，默认 200）
+ *  - 会话文件（*.jsonl）数 > maxSessions（env DIANJING_MAX_SESSIONS，默认 200）
  *    → 按 mtime 最老先归，直到不超阈值
- *  - mtime 老于 maxAgeDays（env OPENPENCIL_SESSION_MAX_AGE_DAYS，默认 30）→ 归档
- * 归档 = 移动（rename，同卷）到 archiveDir（.openpencil/pi-sessions-archive/），
+ *  - mtime 老于 maxAgeDays（env DIANJING_SESSION_MAX_AGE_DAYS，默认 30）→ 归档
+ * 归档 = 移动（rename，同卷）到 archiveDir（.dianjing/pi-sessions-archive/），
  * 保持文件名；index.json 同步移除对应条目；archive 目录不建索引。
  * listSessionFamily/readHistory 都经 index.json 解析——归档除条后自然不可见，
  * readHistory 对已归档 sessionId 走 index miss 返回空（既有语义，前端按无历史处理）。

@@ -43,7 +43,7 @@ for (const f of ['system-prompt-base.md']) {
 
 const backend = spawn('bun', ['run', join(repoRoot, 'src/app/ai/pi-backend/main.ts')], {
   cwd: tempRoot,
-  env: { ...process.env, OPENPENCIL_PI_BACKEND_PORT: String(PORT) },
+  env: { ...process.env, DIANJING_PI_BACKEND_PORT: String(PORT) },
   stdio: ['ignore', 'pipe', 'pipe']
 })
 backend.stderr.on('data', (d) => process.stderr.write(`[backend] ${d}`))

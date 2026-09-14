@@ -7,10 +7,10 @@
  *   - 端口/产物存在性校验放一处：dist-main/main.mjs 缺失时直接 fail-fast，
  *     提示先跑 spike:electron:build，省一次手动排错。
  *
- * 仅设 OPENPENCIL_SHOW=1——其余 env（端口 / token / rootDir）由 main.ts 内
+ * 仅设 DIANJING_SHOW=1——其余 env（端口 / token / rootDir）由 main.ts 内
  * randomPort + 内部 randomBytes 自举；不开 L3 想另起 sidecar 调试口时自己加
- * env 即可（OPENPENCIL_BRIDGE_PORT / OPENPENCIL_PI_BACKEND_PORT_ELECTRON
- * / OPENPENCIL_LOOPBACK_PORT / OPENPENCIL_ROOT_DIR）。
+ * env 即可（DIANJING_BRIDGE_PORT / DIANJING_PI_BACKEND_PORT_ELECTRON
+ * / DIANJING_LOOPBACK_PORT / DIANJING_ROOT_DIR）。
  */
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -33,11 +33,11 @@ const child = spawn(electronExe, [mainBundle, '--no-sandbox', '--disable-gpu'], 
   cwd: root,
   env: {
     ...process.env,
-    OPENPENCIL_SHOW: '1',
+    DIANJING_SHOW: '1',
     // main.ts 缺省 rootDir=distDir（面向打包形态）——dev 启动器显式钉到 worktree
-    // 根，让 pi-backend 读到 <worktree>/.openpencil/key-env（dist/ 会被 vite
+    // 根，让 pi-backend 读到 <worktree>/.dianjing/key-env（dist/ 会被 vite
     // build 清空，不能放凭证）
-    OPENPENCIL_ROOT_DIR: process.env.OPENPENCIL_ROOT_DIR ?? root
+    DIANJING_ROOT_DIR: process.env.DIANJING_ROOT_DIR ?? root
   },
   stdio: 'inherit'
 })

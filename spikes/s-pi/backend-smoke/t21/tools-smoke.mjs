@@ -6,7 +6,7 @@
  *
  * 前置（与 tool-smoke.mjs 相同）：
  *  - vite dev server 已起（pi 后端为其 spawn 的子进程，1420 端口）
- *  - OPENROUTER_API_KEY 已在环境（set -a; source .openpencil/key-env; set +a）
+ *  - OPENROUTER_API_KEY 已在环境（set -a; source .dianjing/key-env; set +a）
  *  - 7600 桥需要执行端：若桥不在线，脚本自开一个 headless Chromium 挂着
  *    app 页面当 keeper（跑完关闭）
  * 运行：node spikes/s-pi/backend-smoke/t21/tools-smoke.mjs [baseUrl]
@@ -68,7 +68,7 @@ function discoveryPath() {
     );
   }
   const xdg = process.env.XDG_RUNTIME_DIR?.trim();
-  return join(xdg || join(homedir(), ".openpencil"), "mcp.json");
+  return join(xdg || join(homedir(), ".dianjing"), "mcp.json");
 }
 
 async function bridgeHealth() {

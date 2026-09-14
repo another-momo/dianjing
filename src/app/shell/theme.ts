@@ -54,7 +54,7 @@ function syncElectronTitleBar(value: 'dark' | 'light'): void {
   const symbolColor =
     value === 'light' ? style.getPropertyValue('--color-surface').trim() : '#ffffff'
   if (!color) return
-  void fetch('/__openpencil/titlebar-theme', {
+  void fetch('/__dianjing/titlebar-theme', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ color, symbolColor })

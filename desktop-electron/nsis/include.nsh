@@ -1,4 +1,4 @@
-; shell-polish B2: Uninstaller hook for %USERPROFILE%\.openpencil\studio\.
+; shell-polish B2: Uninstaller hook for %USERPROFILE%\.dianjing\studio\.
 ;
 ; electron-builder 26 templates/nsis/uninstaller.nsh L156 calls
 ; `!insertmacro customUnInstall` if defined -- this file provides that macro.
@@ -14,5 +14,5 @@
 ; builds, hence ASCII-only.
 
 !macro customUnInstall
-  RMDir /r "$PROFILE\.openpencil\studio"
+  RMDir /r "$PROFILE\.dianjing\studio"
 !macroend

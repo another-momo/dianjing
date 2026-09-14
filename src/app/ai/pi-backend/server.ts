@@ -41,7 +41,7 @@
  * T28（决策单 #1）：除 /health 外全部端点要求 Authorization: Bearer <token>
  * （auth.ts，timingSafeEqual 定常比较）；token 由 main.ts 解析传入——vite 插件
  * spawn 时经 env 注入（proxy 自动补头，前端零改动），standalone 自生成落
- * .openpencil/pi-backend-token。无 token 配置时 fail-close 全拒（不应发生）。
+ * .dianjing/pi-backend-token。无 token 配置时 fail-close 全拒（不应发生）。
  */
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'

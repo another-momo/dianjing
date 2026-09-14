@@ -48,13 +48,13 @@ describe('orchestration/env — runtime-globals constants', () => {
   test('constant values match vite define + runtime global names (verbatim source-of-truth)', () => {
     // 与 bridge/runtime.ts / url.ts / vite.config.ts / desktop-electron/main/main.ts
     // 的 declare global 与 define 键字面量必须同源——任何漂移即字面量契约破裂。
-    expect(RUNTIME_AUTOMATION_TOKEN_KEY).toBe('__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__')
-    expect(RUNTIME_BRIDGE_URL_KEY).toBe('__OPENPENCIL_RUNTIME_BRIDGE_URL__')
-    expect(RUNTIME_ELECTRON_KEY).toBe('__OPENPENCIL_ELECTRON__')
-    expect(LOCAL_AUTOMATION_TOKEN_KEY).toBe('__OPENPENCIL_LOCAL_AUTOMATION_TOKEN__')
-    expect(LOCAL_AUTOMATION_URL_KEY).toBe('__OPENPENCIL_LOCAL_AUTOMATION_URL__')
-    expect(LOCAL_AUTOMATION_HTTP_URL_KEY).toBe('__OPENPENCIL_LOCAL_AUTOMATION_HTTP_URL__')
-    expect(LOCAL_AUTOMATION_APP_VERSION_KEY).toBe('__OPENPENCIL_APP_VERSION__')
+    expect(RUNTIME_AUTOMATION_TOKEN_KEY).toBe('__DIANJING_RUNTIME_AUTOMATION_TOKEN__')
+    expect(RUNTIME_BRIDGE_URL_KEY).toBe('__DIANJING_RUNTIME_BRIDGE_URL__')
+    expect(RUNTIME_ELECTRON_KEY).toBe('__DIANJING_ELECTRON__')
+    expect(LOCAL_AUTOMATION_TOKEN_KEY).toBe('__DIANJING_LOCAL_AUTOMATION_TOKEN__')
+    expect(LOCAL_AUTOMATION_URL_KEY).toBe('__DIANJING_LOCAL_AUTOMATION_URL__')
+    expect(LOCAL_AUTOMATION_HTTP_URL_KEY).toBe('__DIANJING_LOCAL_AUTOMATION_HTTP_URL__')
+    expect(LOCAL_AUTOMATION_APP_VERSION_KEY).toBe('__DIANJING_APP_VERSION__')
   })
 
   test('RUNTIME_GLOBALS aggregates all keys (used by isRuntimeGlobalKey)', () => {
@@ -70,7 +70,7 @@ describe('orchestration/env — runtime-globals constants', () => {
   })
 
   test('isRuntimeGlobalKey returns true for known keys, false for unknown', () => {
-    expect(isRuntimeGlobalKey('__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__')).toBe(true)
+    expect(isRuntimeGlobalKey('__DIANJING_RUNTIME_AUTOMATION_TOKEN__')).toBe(true)
     expect(isRuntimeGlobalKey('__NOT_A_REAL_KEY__')).toBe(false)
     expect(isRuntimeGlobalKey('')).toBe(false)
   })
@@ -106,59 +106,59 @@ describe('orchestration/env — readMCPAuthToken', () => {
   })
 
   test('empty string → null (explicit disable auth)', () => {
-    expect(readMCPAuthToken({ OPENPENCIL_MCP_AUTH_TOKEN: '' })).toBeNull()
+    expect(readMCPAuthToken({ DIANJING_MCP_AUTH_TOKEN: '' })).toBeNull()
   })
 
   test('non-empty string is trimmed', () => {
-    expect(readMCPAuthToken({ OPENPENCIL_MCP_AUTH_TOKEN: 'tok-xyz' })).toBe('tok-xyz')
-    expect(readMCPAuthToken({ OPENPENCIL_MCP_AUTH_TOKEN: '  tok  ' })).toBe('tok')
+    expect(readMCPAuthToken({ DIANJING_MCP_AUTH_TOKEN: 'tok-xyz' })).toBe('tok-xyz')
+    expect(readMCPAuthToken({ DIANJING_MCP_AUTH_TOKEN: '  tok  ' })).toBe('tok')
   })
 
   test('whitespace-only throws (silent fallback protection)', () => {
-    expect(() => readMCPAuthToken({ OPENPENCIL_MCP_AUTH_TOKEN: '   ' })).toThrow(/whitespace-only/)
+    expect(() => readMCPAuthToken({ DIANJING_MCP_AUTH_TOKEN: '   ' })).toThrow(/whitespace-only/)
   })
 })
 
 describe('orchestration/env — readMCPCORSOrigin / Socket / Discovery / Root', () => {
   test('readMCPCORSOrigin returns null for unset/empty and trimmed value otherwise', () => {
     expect(readMCPCORSOrigin({})).toBeNull()
-    expect(readMCPCORSOrigin({ OPENPENCIL_MCP_CORS_ORIGIN: '' })).toBeNull()
-    expect(readMCPCORSOrigin({ OPENPENCIL_MCP_CORS_ORIGIN: '  http://x  ' })).toBe('http://x')
+    expect(readMCPCORSOrigin({ DIANJING_MCP_CORS_ORIGIN: '' })).toBeNull()
+    expect(readMCPCORSOrigin({ DIANJING_MCP_CORS_ORIGIN: '  http://x  ' })).toBe('http://x')
   })
 
   test('readMCPSocketPath trims and treats empty as null', () => {
     expect(readMCPSocketPath({})).toBeNull()
-    expect(readMCPSocketPath({ OPENPENCIL_MCP_SOCKET: '/tmp/x.sock' })).toBe('/tmp/x.sock')
-    expect(readMCPSocketPath({ OPENPENCIL_MCP_SOCKET: '  ' })).toBeNull()
+    expect(readMCPSocketPath({ DIANJING_MCP_SOCKET: '/tmp/x.sock' })).toBe('/tmp/x.sock')
+    expect(readMCPSocketPath({ DIANJING_MCP_SOCKET: '  ' })).toBeNull()
   })
 
   test('readMCPDiscoveryPathOverride trims and treats empty as null', () => {
     expect(readMCPDiscoveryPathOverride({})).toBeNull()
-    expect(readMCPDiscoveryPathOverride({ OPENPENCIL_MCP_DISCOVERY_PATH: '/tmp/x.json' })).toBe(
+    expect(readMCPDiscoveryPathOverride({ DIANJING_MCP_DISCOVERY_PATH: '/tmp/x.json' })).toBe(
       '/tmp/x.json'
     )
   })
 
   test('readMCPRoot returns null for unset and trimmed value otherwise', () => {
     expect(readMCPRoot({})).toBeNull()
-    expect(readMCPRoot({ OPENPENCIL_MCP_ROOT: '/path' })).toBe('/path')
-    expect(readMCPRoot({ OPENPENCIL_MCP_ROOT: '  ' })).toBeNull()
+    expect(readMCPRoot({ DIANJING_MCP_ROOT: '/path' })).toBe('/path')
+    expect(readMCPRoot({ DIANJING_MCP_ROOT: '  ' })).toBeNull()
   })
 })
 
 describe('orchestration/env — readMCPAppAttachTimeoutMs', () => {
   test('undefined / unset → undefined (timeout disabled)', () => {
     expect(readMCPAppAttachTimeoutMs({})).toBeUndefined()
-    expect(readMCPAppAttachTimeoutMs({ OPENPENCIL_MCP_APP_TIMEOUT_MS: '' })).toBeUndefined()
-    expect(readMCPAppAttachTimeoutMs({ OPENPENCIL_MCP_APP_TIMEOUT_MS: '  ' })).toBeUndefined()
+    expect(readMCPAppAttachTimeoutMs({ DIANJING_MCP_APP_TIMEOUT_MS: '' })).toBeUndefined()
+    expect(readMCPAppAttachTimeoutMs({ DIANJING_MCP_APP_TIMEOUT_MS: '  ' })).toBeUndefined()
   })
 
   test('valid integer returns the value', () => {
-    expect(readMCPAppAttachTimeoutMs({ OPENPENCIL_MCP_APP_TIMEOUT_MS: '5000' })).toBe(5000)
+    expect(readMCPAppAttachTimeoutMs({ DIANJING_MCP_APP_TIMEOUT_MS: '5000' })).toBe(5000)
   })
 
   test('rejects non-digit strings (mirrors bridge/server/index.ts strict parse)', () => {
-    expect(() => readMCPAppAttachTimeoutMs({ OPENPENCIL_MCP_APP_TIMEOUT_MS: '5s' })).toThrow(
+    expect(() => readMCPAppAttachTimeoutMs({ DIANJING_MCP_APP_TIMEOUT_MS: '5s' })).toThrow(
       /non-negative integer/
     )
   })
@@ -172,13 +172,13 @@ describe('orchestration/env — readRPCTimeoutMs / DEFAULT_RPC_TIMEOUT_MS', () =
   test('returns default when env unset or non-numeric', () => {
     expect(readRPCTimeoutMs()).toBe(DEFAULT_RPC_TIMEOUT_MS)
     expect(readRPCTimeoutMs(123, {})).toBe(123)
-    expect(readRPCTimeoutMs(undefined, { OPENPENCIL_RPC_TIMEOUT_MS: 'abc' })).toBe(
+    expect(readRPCTimeoutMs(undefined, { DIANJING_RPC_TIMEOUT_MS: 'abc' })).toBe(
       DEFAULT_RPC_TIMEOUT_MS
     )
   })
 
   test('returns parsed numeric value when set', () => {
-    expect(readRPCTimeoutMs(undefined, { OPENPENCIL_RPC_TIMEOUT_MS: '60000' })).toBe(60_000)
+    expect(readRPCTimeoutMs(undefined, { DIANJING_RPC_TIMEOUT_MS: '60000' })).toBe(60_000)
   })
 
   test('honors caller-provided fallback override', () => {
@@ -189,12 +189,12 @@ describe('orchestration/env — readRPCTimeoutMs / DEFAULT_RPC_TIMEOUT_MS', () =
 describe('orchestration/env — readMCPReadyMarker', () => {
   test('returns null for unset or empty', () => {
     expect(readMCPReadyMarker({})).toBeNull()
-    expect(readMCPReadyMarker({ OPENPENCIL_MCP_READY_MARKER: '' })).toBeNull()
-    expect(readMCPReadyMarker({ OPENPENCIL_MCP_READY_MARKER: '   ' })).toBeNull()
+    expect(readMCPReadyMarker({ DIANJING_MCP_READY_MARKER: '' })).toBeNull()
+    expect(readMCPReadyMarker({ DIANJING_MCP_READY_MARKER: '   ' })).toBeNull()
   })
 
   test('returns trimmed value when set', () => {
-    expect(readMCPReadyMarker({ OPENPENCIL_MCP_READY_MARKER: 'marker-x' })).toBe('marker-x')
+    expect(readMCPReadyMarker({ DIANJING_MCP_READY_MARKER: 'marker-x' })).toBe('marker-x')
   })
 })
 
@@ -204,46 +204,44 @@ describe('orchestration/env — pi backend readers', () => {
   })
 
   test('readPiBackendPort parses numeric env value', () => {
-    expect(readPiBackendPort(7700, { OPENPENCIL_PI_BACKEND_PORT: '8800' })).toBe(8800)
+    expect(readPiBackendPort(7700, { DIANJING_PI_BACKEND_PORT: '8800' })).toBe(8800)
   })
 
   test('readPiBackendPort falls back on non-numeric (Number(...) form)', () => {
     // 与原位 Number(env ?? default) 行为一致：非数字走默认
-    expect(readPiBackendPort(7700, { OPENPENCIL_PI_BACKEND_PORT: 'abc' })).toBe(7700)
+    expect(readPiBackendPort(7700, { DIANJING_PI_BACKEND_PORT: 'abc' })).toBe(7700)
   })
 
   test('readPiAuthToken: undefined → null, trim empty to null', () => {
     expect(readPiAuthToken({})).toBeNull()
-    expect(readPiAuthToken({ OPENPENCIL_PI_TOKEN: '' })).toBeNull()
-    expect(readPiAuthToken({ OPENPENCIL_PI_TOKEN: '   ' })).toBeNull()
+    expect(readPiAuthToken({ DIANJING_PI_TOKEN: '' })).toBeNull()
+    expect(readPiAuthToken({ DIANJING_PI_TOKEN: '   ' })).toBeNull()
   })
 
   test('readPiAuthToken: returns trimmed value', () => {
-    expect(readPiAuthToken({ OPENPENCIL_PI_TOKEN: '  token  ' })).toBe('token')
+    expect(readPiAuthToken({ DIANJING_PI_TOKEN: '  token  ' })).toBe('token')
   })
 
   test('readMaxSessions default 200', () => {
     expect(readMaxSessions({})).toBe(200)
-    expect(readMaxSessions({ OPENPENCIL_MAX_SESSIONS: '50' })).toBe(50)
+    expect(readMaxSessions({ DIANJING_MAX_SESSIONS: '50' })).toBe(50)
   })
 
   test('readSessionMaxAgeDays default 30', () => {
     expect(readSessionMaxAgeDays({})).toBe(30)
-    expect(readSessionMaxAgeDays({ OPENPENCIL_SESSION_MAX_AGE_DAYS: '7' })).toBe(7)
+    expect(readSessionMaxAgeDays({ DIANJING_SESSION_MAX_AGE_DAYS: '7' })).toBe(7)
   })
 
   test('readStudioBuiltinDir: trim and treat empty as null', () => {
     expect(readStudioBuiltinDir({})).toBeNull()
-    expect(readStudioBuiltinDir({ OPENPENCIL_STUDIO_BUILTIN_DIR: '/opt/studio' })).toBe(
-      '/opt/studio'
-    )
-    expect(readStudioBuiltinDir({ OPENPENCIL_STUDIO_BUILTIN_DIR: '   ' })).toBeNull()
+    expect(readStudioBuiltinDir({ DIANJING_STUDIO_BUILTIN_DIR: '/opt/studio' })).toBe('/opt/studio')
+    expect(readStudioBuiltinDir({ DIANJING_STUDIO_BUILTIN_DIR: '   ' })).toBeNull()
   })
 
   test('readRootDir: trim and treat empty as null', () => {
     expect(readRootDir({})).toBeNull()
-    expect(readRootDir({ OPENPENCIL_ROOT_DIR: '/var/data' })).toBe('/var/data')
-    expect(readRootDir({ OPENPENCIL_ROOT_DIR: '  ' })).toBeNull()
+    expect(readRootDir({ DIANJING_ROOT_DIR: '/var/data' })).toBe('/var/data')
+    expect(readRootDir({ DIANJING_ROOT_DIR: '  ' })).toBeNull()
   })
 })
 
@@ -254,13 +252,13 @@ describe('orchestration/env — readImageGenTimeoutMs', () => {
 
   test('returns default when env unset or non-numeric', () => {
     expect(readImageGenTimeoutMs()).toBe(DEFAULT_IMAGE_GEN_TIMEOUT_MS)
-    expect(readImageGenTimeoutMs(undefined, { OPENPENCIL_IMAGE_GEN_TIMEOUT_MS: 'bad' })).toBe(
+    expect(readImageGenTimeoutMs(undefined, { DIANJING_IMAGE_GEN_TIMEOUT_MS: 'bad' })).toBe(
       DEFAULT_IMAGE_GEN_TIMEOUT_MS
     )
   })
 
   test('returns parsed numeric value when set', () => {
-    expect(readImageGenTimeoutMs(undefined, { OPENPENCIL_IMAGE_GEN_TIMEOUT_MS: '300000' })).toBe(
+    expect(readImageGenTimeoutMs(undefined, { DIANJING_IMAGE_GEN_TIMEOUT_MS: '300000' })).toBe(
       300_000
     )
   })
@@ -269,32 +267,32 @@ describe('orchestration/env — readImageGenTimeoutMs', () => {
 describe('orchestration/env — dev / vite topology readers', () => {
   test('readDevAutomationAuthToken: null when unset, trimmed value when set', () => {
     expect(readDevAutomationAuthToken({})).toBeNull()
-    expect(readDevAutomationAuthToken({ OPENPENCIL_DEV_TOKEN: 'abc' })).toBe('abc')
-    expect(readDevAutomationAuthToken({ OPENPENCIL_DEV_TOKEN: '  xyz  ' })).toBe('xyz')
+    expect(readDevAutomationAuthToken({ DIANJING_DEV_TOKEN: 'abc' })).toBe('abc')
+    expect(readDevAutomationAuthToken({ DIANJING_DEV_TOKEN: '  xyz  ' })).toBe('xyz')
   })
 
   test('readDevMCPPort: defaults to AUTOMATION_HTTP_PORT (7600) when unset', () => {
     expect(readDevMCPPort({})).toBe(7600)
-    expect(readDevMCPPort({ OPENPENCIL_DEV_MCP_PORT: '7700' })).toBe(7700)
+    expect(readDevMCPPort({ DIANJING_DEV_MCP_PORT: '7700' })).toBe(7700)
   })
 
   test('readDevMCPPort: throws when out of [1024, 65535] range or non-integer', () => {
-    expect(() => readDevMCPPort({ OPENPENCIL_DEV_MCP_PORT: '80' })).toThrow(/between 1024/)
-    expect(() => readDevMCPPort({ OPENPENCIL_DEV_MCP_PORT: '70000' })).toThrow(/between 1024/)
-    expect(() => readDevMCPPort({ OPENPENCIL_DEV_MCP_PORT: '1.5' })).toThrow(/between 1024/)
+    expect(() => readDevMCPPort({ DIANJING_DEV_MCP_PORT: '80' })).toThrow(/between 1024/)
+    expect(() => readDevMCPPort({ DIANJING_DEV_MCP_PORT: '70000' })).toThrow(/between 1024/)
+    expect(() => readDevMCPPort({ DIANJING_DEV_MCP_PORT: '1.5' })).toThrow(/between 1024/)
   })
 
   test('readDevOrigin: null when unset, returns origin when valid http(s)', () => {
     expect(readDevOrigin({})).toBeNull()
-    expect(readDevOrigin({ OPENPENCIL_DEV_ORIGIN: 'http://localhost:1420' })).toBe(
+    expect(readDevOrigin({ DIANJING_DEV_ORIGIN: 'http://localhost:1420' })).toBe(
       'http://localhost:1420'
     )
-    expect(readDevOrigin({ OPENPENCIL_DEV_ORIGIN: 'https://x.y' })).toBe('https://x.y')
+    expect(readDevOrigin({ DIANJING_DEV_ORIGIN: 'https://x.y' })).toBe('https://x.y')
   })
 
   test('readDevOrigin: throws on non-http schemes or invalid URLs', () => {
-    expect(() => readDevOrigin({ OPENPENCIL_DEV_ORIGIN: 'ftp://x' })).toThrow(/HTTP\(S\) origin/)
-    expect(() => readDevOrigin({ OPENPENCIL_DEV_ORIGIN: 'not-a-url' })).toThrow(/HTTP\(S\) origin/)
+    expect(() => readDevOrigin({ DIANJING_DEV_ORIGIN: 'ftp://x' })).toThrow(/HTTP\(S\) origin/)
+    expect(() => readDevOrigin({ DIANJING_DEV_ORIGIN: 'not-a-url' })).toThrow(/HTTP\(S\) origin/)
   })
 
   test('readPortlessURL: null when unset, value when set', () => {
@@ -313,40 +311,40 @@ describe('orchestration/env — dev / vite topology readers', () => {
 describe('orchestration/env — Electron readers', () => {
   test('readElectronBridgePort: null when unset, parsed number when set', () => {
     expect(readElectronBridgePort({})).toBeNull()
-    expect(readElectronBridgePort({ OPENPENCIL_BRIDGE_PORT: '7600' })).toBe(7600)
-    expect(readElectronBridgePort({ OPENPENCIL_BRIDGE_PORT: 'abc' })).toBeNull()
+    expect(readElectronBridgePort({ DIANJING_BRIDGE_PORT: '7600' })).toBe(7600)
+    expect(readElectronBridgePort({ DIANJING_BRIDGE_PORT: 'abc' })).toBeNull()
   })
 
   test('readElectronBackendPort: null when unset, parsed number when set', () => {
     expect(readElectronBackendPort({})).toBeNull()
-    expect(readElectronBackendPort({ OPENPENCIL_PI_BACKEND_PORT_ELECTRON: '8800' })).toBe(8800)
+    expect(readElectronBackendPort({ DIANJING_PI_BACKEND_PORT_ELECTRON: '8800' })).toBe(8800)
   })
 
   test('readElectronLoopbackPort: defaults to 0 (random port) when unset', () => {
     expect(readElectronLoopbackPort({})).toBe(0)
-    expect(readElectronLoopbackPort({ OPENPENCIL_LOOPBACK_PORT: '8080' })).toBe(8080)
+    expect(readElectronLoopbackPort({ DIANJING_LOOPBACK_PORT: '8080' })).toBe(8080)
   })
 })
 
 describe('orchestration/env — boolean flag readers (Electron)', () => {
   test('readSmokeMode: strict === "1" comparison (preserved from main.ts)', () => {
     expect(readSmokeMode({})).toBe(false)
-    expect(readSmokeMode({ OPENPENCIL_SMOKE: '1' })).toBe(true)
-    expect(readSmokeMode({ OPENPENCIL_SMOKE: 'true' })).toBe(false)
-    expect(readSmokeMode({ OPENPENCIL_SMOKE: '0' })).toBe(false)
+    expect(readSmokeMode({ DIANJING_SMOKE: '1' })).toBe(true)
+    expect(readSmokeMode({ DIANJING_SMOKE: 'true' })).toBe(false)
+    expect(readSmokeMode({ DIANJING_SMOKE: '0' })).toBe(false)
   })
 
   test('readFullSmokeMode: strict === "1" comparison', () => {
     expect(readFullSmokeMode({})).toBe(false)
-    expect(readFullSmokeMode({ OPENPENCIL_FULL_SMOKE: '1' })).toBe(true)
+    expect(readFullSmokeMode({ DIANJING_FULL_SMOKE: '1' })).toBe(true)
   })
 
-  test('readShowWindow: false only for smoke OR OPENPENCIL_SHOW="0"', () => {
+  test('readShowWindow: false only for smoke OR DIANJING_SHOW="0"', () => {
     expect(readShowWindow({})).toBe(true)
-    expect(readShowWindow({ OPENPENCIL_SHOW: '1' })).toBe(true)
-    expect(readShowWindow({ OPENPENCIL_SHOW: '0' })).toBe(false)
-    expect(readShowWindow({ OPENPENCIL_SMOKE: '1' })).toBe(false)
-    // OPENPENCIL_SHOW=1 保留兼容：与缺省同
-    expect(readShowWindow({ OPENPENCIL_SHOW: '1', OPENPENCIL_SMOKE: '1' })).toBe(false)
+    expect(readShowWindow({ DIANJING_SHOW: '1' })).toBe(true)
+    expect(readShowWindow({ DIANJING_SHOW: '0' })).toBe(false)
+    expect(readShowWindow({ DIANJING_SMOKE: '1' })).toBe(false)
+    // DIANJING_SHOW=1 保留兼容：与缺省同
+    expect(readShowWindow({ DIANJING_SHOW: '1', DIANJING_SMOKE: '1' })).toBe(false)
   })
 })

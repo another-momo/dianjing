@@ -36,7 +36,7 @@ let activeStore: EditorStore | null = null
 function windowAPI(): OpenPencilWindowAPI {
   window.openPencil ??= {}
   window.openPencil.getStore ??= () => {
-    if (!activeStore) throw new Error('OpenPencil store not initialized')
+    if (!activeStore) throw new Error('Dianjing Studio store not initialized')
     return activeStore
   }
   return window.openPencil

@@ -2,7 +2,7 @@
  * T23 会话族谱清单冒烟（T23-plan E1，验收 B1/B2 的后端半）。
  *
  * 全程不需要 LLM key：会话族谱由合成 pi JSONL（../pi-session-fixture.mjs，
- * T28 自含化——不再依赖本机 .openpencil/pi-sessions 既有文件）+ 合成
+ * T28 自含化——不再依赖本机 .dianjing/pi-sessions 既有文件）+ 合成
  * index.json 键构造，直接打 GET /api/pi/sessions 验证：
  *  ① docKey 前缀返回族内全部会话（A 族两条），倒序最新在前
  *  ① 字段齐：sessionId/title（首条用户消息截断 40 字）/messageCount/updatedAtMs
@@ -77,7 +77,7 @@ function foldedMessageCount(file) {
 
 // ── 临时 rootDir + 合成会话族谱
 const tempRoot = mkdtempSync(join(tmpdir(), 't23-sessions-'))
-const sessionsDir = join(tempRoot, '.openpencil', 'pi-sessions')
+const sessionsDir = join(tempRoot, '.dianjing', 'pi-sessions')
 mkdirSync(sessionsDir, { recursive: true })
 // pi-backend/studio/base.md：service 读盘需要（本冒烟不触发 prompt，仅为启动完整）
 mkdirSync(join(tempRoot, 'src/app/ai/pi-backend/studio'), { recursive: true })
@@ -148,7 +148,7 @@ const jsonlBefore = new Map(
 )
 
 // ── 起后端（无 LLM 调用，env 无需 key；显式剔除防环境泄漏干扰）
-const backendEnv = { ...process.env, OPENPENCIL_PI_BACKEND_PORT: String(PORT) }
+const backendEnv = { ...process.env, DIANJING_PI_BACKEND_PORT: String(PORT) }
 delete backendEnv.OPENROUTER_API_KEY
 const backend = spawn('bun', ['run', join(repoRoot, 'src/app/ai/pi-backend/main.ts')], {
   cwd: tempRoot,

@@ -27,16 +27,16 @@ export function createAutomationEnvironment(
 ): NodeJS.ProcessEnv {
   const { authToken, baseEnv, corsOrigin, discoveryPath, httpPort, socketPath } = options
   const childEnv = { ...baseEnv }
-  delete childEnv.OPENPENCIL_MCP_SOCKET
-  delete childEnv.OPENPENCIL_MCP_AUTH_TOKEN
+  delete childEnv.DIANJING_MCP_SOCKET
+  delete childEnv.DIANJING_MCP_AUTH_TOKEN
   const childProcessEnv: NodeJS.ProcessEnv = {
     ...childEnv,
     PORT: String(httpPort),
-    OPENPENCIL_MCP_AUTH_TOKEN: authToken ?? '',
-    OPENPENCIL_MCP_CORS_ORIGIN: corsOrigin
+    DIANJING_MCP_AUTH_TOKEN: authToken ?? '',
+    DIANJING_MCP_CORS_ORIGIN: corsOrigin
   }
-  if (socketPath) childProcessEnv.OPENPENCIL_MCP_SOCKET = socketPath
-  if (discoveryPath) childProcessEnv.OPENPENCIL_MCP_DISCOVERY_PATH = discoveryPath
+  if (socketPath) childProcessEnv.DIANJING_MCP_SOCKET = socketPath
+  if (discoveryPath) childProcessEnv.DIANJING_MCP_DISCOVERY_PATH = discoveryPath
   return childProcessEnv
 }
 
@@ -125,7 +125,7 @@ export function automationPlugin(
           httpPort: options.httpPort,
           socketPath
         }),
-        OPENPENCIL_MCP_READY_MARKER: readyMarker
+        DIANJING_MCP_READY_MARKER: readyMarker
       }
     })
     const ready = waitForChildReady(spawned, readyMarker)
@@ -139,7 +139,7 @@ export function automationPlugin(
     attachStderrPassthrough(spawned, {
       onEaddrinuse: () => {
         console.error(
-          `\x1b[31m[automation] Bridge bind failed (${options.browserURL}${socketPath ? ` or socket ${socketPath}` : ''}). Is another OpenPencil instance running?\x1b[0m`
+          `\x1b[31m[automation] Bridge bind failed (${options.browserURL}${socketPath ? ` or socket ${socketPath}` : ''}). Is another Dianjing Studio instance running?\x1b[0m`
         )
         spawned.kill()
         if (child === spawned) child = null

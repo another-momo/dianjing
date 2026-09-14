@@ -205,21 +205,19 @@ export function createMCPRuntimeService(dependencies: MCPRuntimeDependencies) {
 // 桥可连（spawn 返回 null）。
 
 // T33（P104）：生产 host 运行时注入——host.ts 托管 index.html 时前置
-// `<script>window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__=…</script>`，让
+// `<script>window.__DIANJING_RUNTIME_AUTOMATION_TOKEN__=…</script>`，让
 // 非 Tauri 的 localhost 生产形态也能拿到桥 token。运行时值优先；dev 编译期
 // 注入行为不变。
 // 不变量由 RUNTIME_AUTOMATION_TOKEN_KEY 钉扎——Phase 2 改名时同步该常量即可；
 // 下方 type-level 断言保证 const 与 declare global 字面量同步漂移。
 declare global {
   interface Window {
-    __OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__?: unknown
+    __DIANJING_RUNTIME_AUTOMATION_TOKEN__?: unknown
   }
 }
 // 编译期锚定：const 与 declare global 字面量必须同源——任一漂移即 TS 编译错。
 type _AssertRuntimeTokenKeyMatches =
-  typeof RUNTIME_AUTOMATION_TOKEN_KEY extends '__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__'
-    ? true
-    : never
+  typeof RUNTIME_AUTOMATION_TOKEN_KEY extends '__DIANJING_RUNTIME_AUTOMATION_TOKEN__' ? true : never
 const _assertRuntimeTokenKey: _AssertRuntimeTokenKeyMatches = true
 void _assertRuntimeTokenKey
 
@@ -234,12 +232,12 @@ const RUNTIME_AUTOMATION_AUTH_TOKEN =
 // 旧 fallback `http://127.0.0.1:${AUTOMATION_HTTP_PORT}`（=7600）会被主战场
 // dev server 占用、token 也不符，本步彻底放弃。
 const DEV_AUTOMATION_HTTP_URL = import.meta.env.DEV
-  ? __OPENPENCIL_LOCAL_AUTOMATION_HTTP_URL__
+  ? __DIANJING_LOCAL_AUTOMATION_HTTP_URL__
   : resolveAutomationHTTPURL()
 const DEV_AUTOMATION_AUTH_TOKEN =
   RUNTIME_AUTOMATION_AUTH_TOKEN ??
-  (import.meta.env.DEV && typeof __OPENPENCIL_LOCAL_AUTOMATION_TOKEN__ === 'string'
-    ? __OPENPENCIL_LOCAL_AUTOMATION_TOKEN__
+  (import.meta.env.DEV && typeof __DIANJING_LOCAL_AUTOMATION_TOKEN__ === 'string'
+    ? __DIANJING_LOCAL_AUTOMATION_TOKEN__
     : null)
 
 const noop = () => undefined

@@ -1,8 +1,8 @@
 /**
  * 编排层 env 读取 + 运行时全局名常量——单点化层。
  *
- * C2 目标：把 `process.env.OPENPENCIL_*`（及桥用的 `PORT`）的散点读取收口成
- * per-var reader 函数；客户端运行时全局名（`__OPENPENCIL_RUNTIME_*` 等字符串
+ * C2 目标：把 `process.env.DIANJING_*`（及桥用的 `PORT`）的散点读取收口成
+ * per-var reader 函数；客户端运行时全局名（`__DIANJING_RUNTIME_*` 等字符串
  * 字面量）收口成命名常量。Phase 2 改名时只动这一个文件。
  *
  * 行为纪律（搬迁 = 纯重构）：
@@ -169,7 +169,7 @@ export function readRPCTimeoutMs(
 
 /**
  * 桥 ready marker——bridge/server/index.ts:88 读后写 stderr。
- * 返回 trim 后值；调用方自己做正则校验（^open-pencil-ready:[a-f0-9-]{36}$）。
+ * 返回 trim 后值；调用方自己做正则校验（^dianjing-ready:[a-f0-9-]{36}$）。
  */
 export function readMCPReadyMarker(env: EnvSource = process.env): string | null {
   const raw = env?.[`${ENV_PREFIX}MCP_READY_MARKER`]
@@ -371,7 +371,7 @@ export function readFullSmokeMode(env: EnvSource = process.env): boolean {
 
 /**
  * 单实例锁绕过——desktop-electron/main/main.ts:858-859。
- * 语义：smoke 或 full-smoke 模式自动绕过；或 OPENPENCIL_DISABLE_SINGLE_INSTANCE='1'。
+ * 语义：smoke 或 full-smoke 模式自动绕过；或 DIANJING_DISABLE_SINGLE_INSTANCE='1'。
  */
 export function readDisableSingleInstanceLock(env: EnvSource = process.env): boolean {
   return (
@@ -383,7 +383,7 @@ export function readDisableSingleInstanceLock(env: EnvSource = process.env): boo
 
 /**
  * 窗口显示开关——desktop-electron/main/main.ts:903。
- * 语义：smoke 模式不显示；OPENPENCIL_SHOW='0' 不显示；OPENPENCIL_SHOW='1' 显示（兼容）。
+ * 语义：smoke 模式不显示；DIANJING_SHOW='0' 不显示；DIANJING_SHOW='1' 显示（兼容）。
  * 缺省（非 smoke）显示。
  */
 export function readShowWindow(env: EnvSource = process.env): boolean {

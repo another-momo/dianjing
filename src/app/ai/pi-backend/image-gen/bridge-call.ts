@@ -4,7 +4,7 @@
  * 与 pi-backend/tools.ts callBridgeTool 同语义（discovery 读取 → POST /rpc →
  * {ok,result}/{ok:false,error}，连接失败/401 单次重读 discovery 重试），两点差异：
  *  1. 显式 fetch 超时：桥 RPC 超时（automation/bridge/server/browser-rpc.ts，
- *     OPENPENCIL_RPC_TIMEOUT_MS，缺省 300s）+ 60s 余量——生图链路 240s 级，
+ *     DIANJING_RPC_TIMEOUT_MS，缺省 300s）+ 60s 余量——生图链路 240s 级，
  *     裸 fetch 无超时会无限悬挂（tools.ts 既有段不在本任务改动面，集成期可
  *     归并共用，见 T54 报告）
  *  2. 独立模块：tools.ts 的 callBridgeTool 为私有且该文件属集成期接线面，

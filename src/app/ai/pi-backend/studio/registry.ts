@@ -6,7 +6,7 @@
  * 热重载 v1 降级为显式 `reloadStudio()`（S2 §2 授权；fs.watch 不做，T43-plan D-c）。
  *
  * 路径约定：调用方注入 rootDir（仓库根），内置目录 =
- * `<rootDir>/src/app/ai/pi-backend/studio/`；用户目录 = `~/.openpencil/studio/`
+ * `<rootDir>/src/app/ai/pi-backend/studio/`；用户目录 = `~/.dianjing/studio/`
  * （rootDir 注入模型与 service.ts 一致，T24 起在线）。
  *
  * T85（资产 references 按需读取机制）：三类资产 frontmatter 可选 `references`

@@ -116,7 +116,7 @@ const baseBody = stripFrontmatter(
 // ── 起后端（显式剔除真实 key 防环境泄漏干扰；dummy key 经凭据路由写入）
 const backendEnv = {
   ...process.env,
-  OPENPENCIL_PI_BACKEND_PORT: String(PORT),
+  DIANJING_PI_BACKEND_PORT: String(PORT),
   PI_PROMPT_PROBE_DIR: join(tempRoot, 'probe')
 }
 delete backendEnv.OPENROUTER_API_KEY
@@ -136,7 +136,7 @@ const PORT2 = PORT + 500 > 7989 ? PORT - 500 : PORT + 500
 const BASE2 = `http://127.0.0.1:${PORT2}`
 const backendEnv2 = {
   ...process.env,
-  OPENPENCIL_PI_BACKEND_PORT: String(PORT2),
+  DIANJING_PI_BACKEND_PORT: String(PORT2),
   PI_PROMPT_PROBE_DIR: join(emptyAssetsRoot, 'probe')
 }
 delete backendEnv2.OPENROUTER_API_KEY
@@ -360,7 +360,7 @@ try {
   const capNoAuth = await fetch(`${BASE}/api/pi/capabilities`)
   check('T87 路由 capabilities：未鉴权 → 401', capNoAuth.status === 401, `status=${capNoAuth.status}`)
 
-  // ── dummy 凭据过 auth 预检（写 tempRoot 自带 agentDir，不碰真实 .openpencil）
+  // ── dummy 凭据过 auth 预检（写 tempRoot 自带 agentDir，不碰真实 .dianjing）
   const cred = await fetch(`${BASE}/api/pi/credentials`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...authHeaders(token) },

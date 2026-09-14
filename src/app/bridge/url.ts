@@ -1,10 +1,10 @@
 /**
- * 桥 URL 运行时通道——把 build-time 烘焙的 __OPENPENCIL_LOCAL_AUTOMATION_URL__
- * 与运行时全局 window.__OPENPENCIL_RUNTIME_BRIDGE_URL__ 统一在一处解析。
+ * 桥 URL 运行时通道——把 build-time 烘焙的 __DIANJING_LOCAL_AUTOMATION_URL__
+ * 与运行时全局 window.__DIANJING_RUNTIME_BRIDGE_URL__ 统一在一处解析。
  *
  * 优先级链（与 token 同款 runtime.ts P104 模式）：
- *   1. window.__OPENPENCIL_RUNTIME_BRIDGE_URL__（宿主注入，字符串）
- *   2. __OPENPENCIL_LOCAL_AUTOMATION_URL__（vite define 烘焙，dev / 静态托管）
+ *   1. window.__DIANJING_RUNTIME_BRIDGE_URL__（宿主注入，字符串）
+ *   2. __DIANJING_LOCAL_AUTOMATION_URL__（vite define 烘焙，dev / 静态托管）
  *   3. `ws://127.0.0.1:${AUTOMATION_HTTP_PORT}`（fallback）
  *
  * dev 形态：宿主不注入运行时全局 → 走烘焙值 → 行为与本文件创建前逐字节相同。
@@ -20,12 +20,12 @@ import { RUNTIME_BRIDGE_URL_KEY } from '@/app/orchestration/runtime-globals'
 
 declare global {
   interface Window {
-    __OPENPENCIL_RUNTIME_BRIDGE_URL__?: unknown
+    __DIANJING_RUNTIME_BRIDGE_URL__?: unknown
   }
 }
 // 编译期锚定：const 与 declare global 字面量必须同源——任一漂移即 TS 编译错。
 type _AssertRuntimeBridgeURLKeyMatches =
-  typeof RUNTIME_BRIDGE_URL_KEY extends '__OPENPENCIL_RUNTIME_BRIDGE_URL__' ? true : never
+  typeof RUNTIME_BRIDGE_URL_KEY extends '__DIANJING_RUNTIME_BRIDGE_URL__' ? true : never
 const _assertRuntimeBridgeURLKey: _AssertRuntimeBridgeURLKeyMatches = true
 void _assertRuntimeBridgeURLKey
 
@@ -46,8 +46,8 @@ export function resolveAutomationWSURL(): string {
   // 让 engine tests 不依赖构建产物。
   return (
     readRuntimeBridgeURL() ??
-    (typeof __OPENPENCIL_LOCAL_AUTOMATION_URL__ === 'string'
-      ? __OPENPENCIL_LOCAL_AUTOMATION_URL__
+    (typeof __DIANJING_LOCAL_AUTOMATION_URL__ === 'string'
+      ? __DIANJING_LOCAL_AUTOMATION_URL__
       : FALLBACK_AUTOMATION_WS_URL)
   )
 }

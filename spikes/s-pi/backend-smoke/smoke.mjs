@@ -3,7 +3,7 @@
  * 直接 POST /api/pi-chat 验证 SSE 帧序列、中文无损、跨请求 session 连续性、
  * SessionManager JSONL 落盘。
  *
- * 前置：vite dev server 已起（T25 D3 后门退役：pi 为唯一路径；key 经 env 或 .openpencil/key-env 自助注入）。
+ * 前置：vite dev server 已起（T25 D3 后门退役：pi 为唯一路径；key 经 env 或 .dianjing/key-env 自助注入）。
  * 运行：node spikes/s-pi/backend-smoke/smoke.mjs [baseUrl]
  * 退出码 0 = 全过。key 卫生：脚本不接触 key 本体。
  */
@@ -110,7 +110,7 @@ check(
 )
 
 // 落盘：index.json 记录 + JSONL 文件存在且非空 + 管道侧 UTF-8 确定性断言
-const sessionsDir = join(root, '.openpencil', 'pi-sessions')
+const sessionsDir = join(root, '.dianjing', 'pi-sessions')
 const indexPath = join(sessionsDir, 'index.json')
 check('index.json 存在', existsSync(indexPath))
 const index = existsSync(indexPath) ? JSON.parse(readFileSync(indexPath, 'utf8')) : {}

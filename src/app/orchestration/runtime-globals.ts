@@ -5,7 +5,7 @@
  * 字符串字面量，不应被 env.ts 的 `import process from 'node:process'` 污染
  * 打包链。本文件纯字符串 + 类型，浏览器可放心 import。
  *
- * 集中真源：window.__OPENPENCIL_RUNTIME_* 与 vite define 烘焙的 __OPENPENCIL_LOCAL_*
+ * 集中真源：window.__DIANJING_RUNTIME_* 与 vite define 烘焙的 __DIANJING_LOCAL_*
  * 在此统一登记；改名期 ①搬迁值字面量由 brand.ts 的 RUNTIME_GLOBAL_PREFIX
  * 模板派生（保字面量类型），②翻转只改 brand.ts 一个常量即可完成。
  */

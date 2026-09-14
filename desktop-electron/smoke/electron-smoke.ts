@@ -5,9 +5,9 @@
  *  1. 页面加载成功（编辑器根节点存在）
  *  2. CanvasKit 初始化成功、无 wasm fetch 报错（收集 console / pageerror）
  *  3. IndexedDB 可写可读（写入 + 读回一个值）
- *  4. 注入的 window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__ 存在
+ *  4. 注入的 window.__DIANJING_RUNTIME_AUTOMATION_TOKEN__ 存在
  *
- * 形态 2（OPENPENCIL_DEV_URL=…）下跳过第 4 条。
+ * 形态 2（DIANJING_DEV_URL=…）下跳过第 4 条。
  * 全部断言打完 app.exit；隐藏窗禁弹可见窗口。
  */
 import { spawn, type ChildProcess } from 'node:child_process'
@@ -25,14 +25,14 @@ const mainBundle = resolve(root, 'desktop-electron/dist-main/main.mjs')
 if (!existsSync(mainBundle)) {
   throw new Error('main bundle 缺失——先跑 bun run spike:electron:build')
 }
-const devUrl = process.env.OPENPENCIL_DEV_URL ?? ''
+const devUrl = process.env.DIANJING_DEV_URL ?? ''
 
 const env: NodeJS.ProcessEnv = {
   ...process.env,
-  OPENPENCIL_SMOKE: '1',
+  DIANJING_SMOKE: '1',
   ELECTRON_DISABLE_SECURITY_WARNINGS: '1'
 }
-if (devUrl) env.OPENPENCIL_DEV_URL = devUrl
+if (devUrl) env.DIANJING_DEV_URL = devUrl
 
 const electronExe = resolve(root, 'node_modules/electron/dist/electron.exe')
 if (!existsSync(electronExe)) throw new Error(`electron 二进制缺失：${electronExe}`)

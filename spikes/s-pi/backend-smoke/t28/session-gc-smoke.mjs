@@ -6,10 +6,10 @@
  * GC 挂在铸新会话路径上，session 落盘即触发，provider 401 在其后）。
  *
  * 两相隔离验证两条规则（GC 触发点 = createSession，即 POST /api/pi-chat 新 sessionId）：
- *  A 数量规则：OPENPENCIL_MAX_SESSIONS=3，4 条存量 + 1 条新建 → 最老 2 条归档
- *  B 年龄规则：OPENPENCIL_MAX_SESSIONS=100（数量不触发），backdate 一条 mtime
+ *  A 数量规则：DIANJING_MAX_SESSIONS=3，4 条存量 + 1 条新建 → 最老 2 条归档
+ *  B 年龄规则：DIANJING_MAX_SESSIONS=100（数量不触发），backdate 一条 mtime
  *    到 40 天前（默认 MAX_AGE_DAYS=30）→ 仅该条归档
- * 归档语义：移动到 .openpencil/pi-sessions-archive/（保持文件名、不建索引），
+ * 归档语义：移动到 .dianjing/pi-sessions-archive/（保持文件名、不建索引），
  * index.json 同步除条；listSessionFamily 不含归档、readHistory 归档返回空、
  * 未归档会话不受影响。
  *
@@ -70,8 +70,8 @@ const DAY = 24 * HOUR
 
 // ── 临时 rootDir + 4 条合成会话（mtime 递增：A1 最老 … A4 最新）
 const tempRoot = mkdtempSync(join(tmpdir(), 't28-gc-'))
-const sessionsDir = join(tempRoot, '.openpencil', 'pi-sessions')
-const archiveDir = join(tempRoot, '.openpencil', 'pi-sessions-archive')
+const sessionsDir = join(tempRoot, '.dianjing', 'pi-sessions')
+const archiveDir = join(tempRoot, '.dianjing', 'pi-sessions-archive')
 mkdirSync(sessionsDir, { recursive: true })
 // pi-backend/studio/base.md：service 读盘需要
 mkdirSync(join(tempRoot, 'src/app/ai/pi-backend/studio'), { recursive: true })
@@ -110,7 +110,7 @@ writeFileSync(join(sessionsDir, 'index.json'), JSON.stringify(index, null, 2))
 function spawnBackend(port, envExtra) {
   const backendEnv = {
     ...process.env,
-    OPENPENCIL_PI_BACKEND_PORT: String(port),
+    DIANJING_PI_BACKEND_PORT: String(port),
     ...envExtra
   }
   delete backendEnv.OPENROUTER_API_KEY
@@ -175,7 +175,7 @@ function readIndexFile() {
   return JSON.parse(readFileSync(join(sessionsDir, 'index.json'), 'utf8'))
 }
 
-const backendA = spawnBackend(PORT_A, { OPENPENCIL_MAX_SESSIONS: '3' })
+const backendA = spawnBackend(PORT_A, { DIANJING_MAX_SESSIONS: '3' })
 
 try {
   check('A 后端就绪（MAX_SESSIONS=3）', await waitHealth(BASE_A, backendA.isExited))
@@ -186,7 +186,7 @@ try {
   const noAuth = await getJson(BASE_A, `/api/pi/sessions?docKey=${PREFIX_C}`)
   check('T28 负向：未鉴权请求 → 401', noAuth.status === 401, `status=${noAuth.status}`)
 
-  // dummy 凭据过 pi auth 预检（写 tempRoot 自带 agentDir，不碰真实 .openpencil）
+  // dummy 凭据过 pi auth 预检（写 tempRoot 自带 agentDir，不碰真实 .dianjing）
   const cred = await fetch(`${BASE_A}/api/pi/credentials`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...authHeaders(tokenA) },
@@ -254,7 +254,7 @@ try {
   const old = new Date(Date.now() - 40 * DAY)
   utimesSync(a3Path, old, old)
 
-  const backendB = spawnBackend(PORT_B, { OPENPENCIL_MAX_SESSIONS: '100' })
+  const backendB = spawnBackend(PORT_B, { DIANJING_MAX_SESSIONS: '100' })
   try {
     check('B 后端就绪（MAX_SESSIONS=100）', await waitHealth(BASE_B, backendB.isExited))
     // B 后端同 tempRoot——token 文件被 B 覆写，重读

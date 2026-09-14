@@ -1,14 +1,14 @@
 /**
  * T43/T87/S3 §4/S3 §5 pi 后端路径解析单点化层。
  *
- * C3 目标：把状态根 / .openpencil 子目录名 / studio 资产目录对的解析收口成
- * 纯函数 resolver。原位散点拼接（rootDir + '.openpencil' + 'pi-agent'、host.ts
+ * C3 目标：把状态根 / .dianjing 子目录名 / studio 资产目录对的解析收口成
+ * 纯函数 resolver。原位散点拼接（rootDir + '.dianjing' + 'pi-agent'、host.ts
  * 的隐式 cwd 契约等）逐字搬迁过来，行为/字符串零变化。
  *
  * 行为纪律（搬迁 = 纯重构）：
  *  - 子目录名（`pi-agent` / `pi-sessions` / `key-env` / `skills` / `studio` /
  *    `pi-backend-token` / `pi-sessions-archive`）单源——搬家时只动本文件
- *  - `OPENPENCIL_ROOT_DIR || process.cwd()` 语义保留（host.ts 隐式 cwd 契约）
+ *  - `DIANJING_ROOT_DIR || process.cwd()` 语义保留（host.ts 隐式 cwd 契约）
  *  - studio 双源（builtinDir / userDir）解析语义保留，env override 语义保留
  *  - 资产两层语义（内置只读 + 用户可写、_ 前缀跳过、seed 失败仅 warn）一行不动
  *
@@ -29,10 +29,10 @@ import { STATE_DIR_NAME } from '../../orchestration/brand'
  * 状态根目录解析（rootDir）——单源。
  *
  * 原位散点：
- *  - pi-backend/main.ts:39：`process.env.OPENPENCIL_ROOT_DIR || process.cwd()`
+ *  - pi-backend/main.ts:39：`process.env.DIANJING_ROOT_DIR || process.cwd()`
  *  - pi-backend/host.ts:43：`const rootDir = process.cwd()`（隐式约定，serve
  *    从仓根跑，cwd 即仓库根）
- *  - desktop-electron/main/main.ts:692：`process.env.OPENPENCIL_ROOT_DIR || app.getPath('userData')`
+ *  - desktop-electron/main/main.ts:692：`process.env.DIANJING_ROOT_DIR || app.getPath('userData')`
  *  - bridge/server/root.ts:9：`(runtimePlatform === 'win32' ? homedir() : process.cwd())`
  *
  * 本函数仅承担「env override + cwd 兜底」段（pi-backend 语义）；host.ts 的
@@ -62,9 +62,9 @@ export function resolveElectronRootDir(envRoot: string | null, userData: string)
   return envRoot ?? userData
 }
 
-// ── .openpencil 子目录名常量（单源）──
+// ── .dianjing 子目录名常量（单源）──
 
-/** 顶层状态目录名——14 处 `.openpencil` 字面量汇总；品牌常量从 brand.ts re-export（改名只动 brand.ts）。 */
+/** 顶层状态目录名——14 处 `.dianjing` 字面量汇总；品牌常量从 brand.ts re-export（改名只动 brand.ts）。 */
 export { STATE_DIR_NAME }
 
 /** pi agent 持久化目录（capabilities.json / auth.json / image-gen.json） */
@@ -94,39 +94,39 @@ export const BUILTIN_STUDIO_SUBPATH = join('src', 'app', 'ai', 'pi-backend', 'st
 // ── stateDir 拼接 helper ──
 
 /**
- * 拼接 rootDir + `.openpencil` 顶层状态目录。
- * 原位 `join(rootDir, '.openpencil')` 字面量 14 处统一收口。
+ * 拼接 rootDir + `.dianjing` 顶层状态目录。
+ * 原位 `join(rootDir, '.dianjing')` 字面量 14 处统一收口。
  */
 export function resolveStateDir(rootDir: string): string {
   return join(rootDir, STATE_DIR_NAME)
 }
 
-/** `.openpencil/pi-agent/` */
+/** `.dianjing/pi-agent/` */
 export function resolveAgentDir(rootDir: string): string {
   return join(rootDir, STATE_DIR_NAME, PI_AGENT_SUBDIR)
 }
 
-/** `.openpencil/pi-sessions/` */
+/** `.dianjing/pi-sessions/` */
 export function resolveSessionsDir(rootDir: string): string {
   return join(rootDir, STATE_DIR_NAME, PI_SESSIONS_SUBDIR)
 }
 
-/** `.openpencil/pi-sessions-archive/` */
+/** `.dianjing/pi-sessions-archive/` */
 export function resolveArchiveDir(rootDir: string): string {
   return join(rootDir, STATE_DIR_NAME, PI_SESSIONS_ARCHIVE_SUBDIR)
 }
 
-/** `rootDir/.openpencil/key-env` */
+/** `rootDir/.dianjing/key-env` */
 export function resolveKeyEnvPath(rootDir: string): string {
   return join(rootDir, STATE_DIR_NAME, KEY_ENV_FILENAME)
 }
 
-/** `.openpencil/skills/` */
+/** `.dianjing/skills/` */
 export function resolveSkillsDir(rootDir: string): string {
   return join(rootDir, STATE_DIR_NAME, SKILLS_SUBDIR)
 }
 
-/** `rootDir/.openpencil/pi-backend-token` */
+/** `rootDir/.dianjing/pi-backend-token` */
 export function resolvePiBackendTokenPath(rootDir: string): string {
   return join(rootDir, STATE_DIR_NAME, PI_BACKEND_TOKEN_FILENAME)
 }
@@ -137,8 +137,8 @@ export function resolvePiBackendTokenPath(rootDir: string): string {
  * studio 双源解析（builtin + user）——单源。
  *
  * 原位两处（pi-backend/service.ts:173-175 / studio/registry.ts:399-401）：
- *  - builtinDir：`OPENPENCIL_STUDIO_BUILTIN_DIR || join(rootDir, 内置子路径)`
- *  - userDir：`join(homedir(), '.openpencil', 'studio')`
+ *  - builtinDir：`DIANJING_STUDIO_BUILTIN_DIR || join(rootDir, 内置子路径)`
+ *  - userDir：`join(homedir(), '.dianjing', 'studio')`
  *
  * 两处拼接语义一致——registry.ts 注释明示「路径与 service.ts defaultDirs
  * 同源——保持两者对齐」。本函数把同源契约机器化，调用方各自调一次即可。

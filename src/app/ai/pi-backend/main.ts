@@ -6,15 +6,15 @@
  *  - 独立：`bun run dev:backend`
  *
  * 环境变量：
- *  - OPENPENCIL_PI_BACKEND_PORT：监听端口（默认 7700，见 server.ts）
- *  - OPENPENCIL_PI_TOKEN：T28 鉴权 token——vite 插件 spawn 时注入（proxy 补头，
+ *  - DIANJING_PI_BACKEND_PORT：监听端口（默认 7700，见 server.ts）
+ *  - DIANJING_PI_TOKEN：T28 鉴权 token——vite 插件 spawn 时注入（proxy 补头，
  *    前端零改动）。未注入（standalone `bun run dev:backend`）时自生成 32-hex
- *    随机值写 <cwd>/.openpencil/pi-backend-token（0o600，tmp+rename 原子落盘），
+ *    随机值写 <cwd>/.dianjing/pi-backend-token（0o600，tmp+rename 原子落盘），
  *    控制台只打印文件路径不打印 token；直连后端的脚本从该文件读 token。
- *  - OPENROUTER_API_KEY：模型 key。T25 D3：缺失时自动读 .openpencil/key-env
+ *  - OPENROUTER_API_KEY：模型 key。T25 D3：缺失时自动读 .dianjing/key-env
  *    自助注入（shell 脚本 source 不再是前置条件）；仍缺则 service 在首个
  *    prompt 处如实报错。key 只注入 process.env，不打印不落日志。
- *  - OPENPENCIL_ROOT_DIR：状态根目录（.openpencil/ 落盘点），缺省 process.cwd()。
+ *  - DIANJING_ROOT_DIR：状态根目录（.dianjing/ 落盘点），缺省 process.cwd()。
  *    Electron sidecar 形态下由 main 进程显式注入（sidecar cwd 不可依赖）。
  */
 
@@ -104,7 +104,7 @@ server.on('error', (error: NodeJS.ErrnoException) => {
   if (error.code === 'EADDRINUSE') {
     console.error(
       `[pi-backend] 端口 ${port} 已被占用——是否有另一个 pi 后端实例在运行？` +
-        `（可用 OPENPENCIL_PI_BACKEND_PORT 换端口）`
+        `（可用 DIANJING_PI_BACKEND_PORT 换端口）`
     )
   } else {
     console.error(`[pi-backend] 启动失败：${error.message}`)

@@ -54,7 +54,7 @@ function discoveryPath() {
     return join(homedir(), 'Library', 'Application Support', 'OpenPencil', 'mcp.json')
   }
   const xdg = process.env.XDG_RUNTIME_DIR?.trim()
-  return join(xdg || join(homedir(), '.openpencil'), 'mcp.json')
+  return join(xdg || join(homedir(), '.dianjing'), 'mcp.json')
 }
 
 function readDiscovery() {

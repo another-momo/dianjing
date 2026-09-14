@@ -77,7 +77,7 @@ describe('pi-backend service.ts capabilities seam（T87）', () => {
 
   beforeEach(() => {
     rootDir = mkdtempSync(join(tmpdir(), 'pi-svc-cap-'))
-    mkdirSync(join(rootDir, '.openpencil', 'pi-agent'), { recursive: true })
+    mkdirSync(join(rootDir, '.dianjing', 'pi-agent'), { recursive: true })
     capturedSessionOptions.length = 0
     capturedLoaderOptions.length = 0
   })
@@ -120,9 +120,9 @@ describe('pi-backend service.ts capabilities seam（T87）', () => {
     expect(manifest.skills).toEqual([])
   })
 
-  test('getStudioManifest：capabilities ON 时 listSkills 反映 .openpencil/skills 扫描', () => {
-    // T89：扫描目录由 `.pi/skills` 改 `.openpencil/skills`
-    const skillDir = join(rootDir, '.openpencil', 'skills', 'svc-test')
+  test('getStudioManifest：capabilities ON 时 listSkills 反映 .dianjing/skills 扫描', () => {
+    // T89：扫描目录由 `.pi/skills` 改 `.dianjing/skills`
+    const skillDir = join(rootDir, '.dianjing', 'skills', 'svc-test')
     mkdirSync(skillDir, { recursive: true })
     writeFileSync(
       join(skillDir, 'SKILL.md'),
@@ -144,7 +144,7 @@ description: service 装配 seam 测试
   })
 
   test('setCapabilities OFF → manifest.skills=[]（listSkills 守门）', () => {
-    const skillDir = join(rootDir, '.openpencil', 'skills', 'svc-test')
+    const skillDir = join(rootDir, '.dianjing', 'skills', 'svc-test')
     mkdirSync(skillDir, { recursive: true })
     writeFileSync(
       join(skillDir, 'SKILL.md'),

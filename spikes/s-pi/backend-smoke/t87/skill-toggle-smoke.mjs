@@ -70,7 +70,7 @@ async function sendPrompt(base, body, token) {
   }
 }
 
-// ── fixture：studio 资产集复制 + 一份 fixture skill（T89：单源 .openpencil/skills）
+// ── fixture：studio 资产集复制 + 一份 fixture skill（T89：单源 .dianjing/skills）
 const tempRoot = mkdtempSync(join(tmpdir(), 't87-skill-'))
 mkdirSync(join(tempRoot, 'src/app/ai/pi-backend/studio'), { recursive: true })
 copyFileSync(
@@ -83,10 +83,10 @@ for (const sub of ['workflows', 'profiles']) {
   mkdirSync(dstDir, { recursive: true })
   cpSync(srcDir, dstDir, { recursive: true })
 }
-mkdirSync(join(tempRoot, '.openpencil', 'pi-agent'), { recursive: true })
+mkdirSync(join(tempRoot, '.dianjing', 'pi-agent'), { recursive: true })
 
-// T89：单源 fixture — 仅落一份 .openpencil/skills/t87-demo/SKILL.md
-const userSkillDir = join(tempRoot, '.openpencil', 'skills', 't87-demo')
+// T89：单源 fixture — 仅落一份 .dianjing/skills/t87-demo/SKILL.md
+const userSkillDir = join(tempRoot, '.dianjing', 'skills', 't87-demo')
 mkdirSync(userSkillDir, { recursive: true })
 writeFileSync(
   join(userSkillDir, 'SKILL.md'),
@@ -105,7 +105,7 @@ writeFileSync(
 // ── 起后端
 const backendEnv = {
   ...process.env,
-  OPENPENCIL_PI_BACKEND_PORT: String(PORT),
+  DIANJING_PI_BACKEND_PORT: String(PORT),
   PI_PROMPT_PROBE_DIR: join(tempRoot, 'probe')
 }
 delete backendEnv.OPENROUTER_API_KEY

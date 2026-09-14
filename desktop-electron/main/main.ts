@@ -8,7 +8,7 @@
  *  1. spawn 自动化桥（electron-spike/dist-sidecar/bridge.mjs，token 经 env）
  *  2. spawn pi 后端（electron-spike/dist-sidecar/pi-backend.mjs，token + port 经 env）
  *  3. 托管 dist/（MIME 表 + SPA fallback），index.html 注入桥 token 运行时
- *     全局（__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__，见 bridge/runtime.ts P104）
+ *     全局（__DIANJING_RUNTIME_AUTOMATION_TOKEN__，见 bridge/runtime.ts P104）
  *  4. 反代 /api/pi* → 127.0.0.1:<backend> 并注入 Bearer piToken（流式管道透传，
  *     SSE 不缓冲；前端同源调用零改动）
  *  5. sidecar 崩溃退避复活（移植 vite-plugin.ts T27 语义：最多 3 次、间隔退避，
@@ -19,15 +19,15 @@
  *  7. 窗口与 sidecar 生命周期解耦（关窗不杀 sidecar，app quit 才杀）
  *  8. P0.5 壳加固（依据 docs/202609071041-electron-shell-ux.md §1）：
  *     8.1 防白屏：backgroundColor + 可见窗 show:false 起步 + ready-to-show
- *     8.2 单实例锁（smoke 路径 OPENPENCIL_DISABLE_SINGLE_INSTANCE=1 绕过）
+ *     8.2 单实例锁（smoke 路径 DIANJING_DISABLE_SINGLE_INSTANCE=1 绕过）
  *     8.3 did-fail-load 重试 3 次（1s 间隔）+ 失败日志
  *     8.4 setWindowOpenHandler + will-navigate 双重拦截（url-safety 分类）
  *  9. P1 状态根 userData 化 + 窗口状态持久化 + 关窗语义：
- *     9.1 app.setName('open-pencil') 在 main() 入口尽快调——让 userData 目录
- *         在 Windows 下落到 %APPDATA%/open-pencil（macOS ~/Library/Application
- *         Support/open-pencil），可读且与产品名一致
+ *     9.1 app.setName(USER_DATA_DIR_NAME) 在 main() 入口尽快调——让 userData
+ *         目录在 Windows 下落到 %APPDATA%/Dianjing（macOS ~/Library/Application
+ *         Support/Dianjing），可读且与产品名一致
  *     9.2 rootDir 缺省从 distDir 改为 app.getPath('userData')；env 仍优先——
- *         smoke/full-smoke 显式传 OPENPENCIL_ROOT_DIR 隔离多实例，dev 启动器
+ *         smoke/full-smoke 显式传 DIANJING_ROOT_DIR 隔离多实例，dev 启动器
  *         spike-electron-dev.ts 钉 worktree 根的便利也不受影响
  *     9.3 窗口 bounds（width/height/x/y/maximized）持久化到 userData/
  *         window-state.json（见 ./window-state.ts）；恢复时校验与当前显示器
@@ -37,9 +37,9 @@
  *
  * token 三方对齐（不变量，spike 阶段由本文件单点维护）：
  *   pageToken === bridgeEnvToken（页面经 WS 连桥用的 token = 注入 index.html
- *     的 __OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__ = spawn 桥时 env 传入的 token）
+ *     的 __DIANJING_RUNTIME_AUTOMATION_TOKEN__ = spawn 桥时 env 传入的 token）
  *   proxyBearer === piBackendEnvToken（/api/pi 反代注入的 Bearer = spawn 后端
- *     时 env 传入的 OPENPENCIL_PI_TOKEN）
+ *     时 env 传入的 DIANJING_PI_TOKEN）
  *   桥与后端的 token 彼此独立——只与代理/前端对应侧对齐即可。
  *   任何漂移都会破坏：① /rpc 401；② /api/pi 401；③ pi-backend 拿不到桥端口/token。
  */
@@ -51,6 +51,7 @@ import { spawn } from 'node:child_process'
 import { dirname, extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, shell, utilityProcess, type UtilityProcess } from 'electron'
+import { USER_DATA_DIR_NAME } from '@/app/orchestration/brand'
 import {
   readDisableSingleInstanceLock,
   readElectronBackendPort,
@@ -79,11 +80,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 // ── 端口 + token 自举 ──
 
-// OPENPENCIL_PI_BACKEND_PORT / OPENPENCIL_MCP_PORT 是 sidecar 自身 env 名（见
-// pi-backend/main.ts:92 + bridge/server/index.ts:28）。与 vite plugin 命名错开
+// PORT / DIANJING_PI_BACKEND_PORT 是 sidecar 自身 env 名（见
+// pi-backend/main.ts + bridge/server/index.ts）。与 vite plugin 命名错开
 // 是有意的——electron 主进程设的是「自己 fork 子进程时的 env」，不是 vite
 // plugin 已经设过的 env，二者不冲突；vite plugin 路径走的是另一套进程。
-// OPENPENCIL_LOOPBACK_PORT：full-smoke 用，把回环服务端口钉住便于外部脚本
+// DIANJING_LOOPBACK_PORT：full-smoke 用，把回环服务端口钉住便于外部脚本
 // 经固定 URL 探活（不钉则 smoke 必须 grep 主进程 stdout 解出随机端口）
 const bridgePort = readElectronBridgePort() ?? randomPort()
 const backendPort = readElectronBackendPort() ?? randomPort()
@@ -380,9 +381,9 @@ export function createLoopbackServer(options: LoopbackServerOptions): Promise<{ 
     // shell-polish A2：三键主题跟随——前端把当前主题色 POST 过来，main 调
     // setTitleBarOverlay。严格 ^#[0-9a-fA-F]{6}$ 校验拒绝一切非法输入；端点
     // 幂等（setTitleBarOverlay 重复同值无副作用），所以前端每次 applyTheme 都
-    // 发即可。命名空间 /__openpencil/* 留扩展位（如未来 chat-telegram 等
+    // 发即可。命名空间 /__dianjing/* 留扩展位（如未来 chat-telegram 等
     // shell-side hook 都走此前缀，避免与产品路由 /api/* 混）。
-    if (urlPath === '/__openpencil/titlebar-theme' && req.method === 'POST') {
+    if (urlPath === '/__dianjing/titlebar-theme' && req.method === 'POST') {
       return handleTitleBarTheme(req, res)
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405).end(); return }
@@ -400,7 +401,7 @@ export function createLoopbackServer(options: LoopbackServerOptions): Promise<{ 
       // 撞主战场 + token 不符。dev 形态不注入，页面 fallback 到 vite define 烘焙值。
       // shell-polish A1：三键遮挡顶部通栏——前端用 isElectron() 给 editor-root 顶
       // 部通栏右侧预留 titleBarOverlay 宽度；A2：标题栏主题切换——前端把当前主
-      // 题色 POST 到 /__openpencil/titlebar-theme，main 调 setTitleBarOverlay。
+      // 题色 POST 到 /__dianjing/titlebar-theme，main 调 setTitleBarOverlay。
       // 浏览器形态（含 dev url 路径）不注入——这些功能只在 Electron 壳里生效。
       const script = `<script>window.${RUNTIME_AUTOMATION_TOKEN_KEY}=${JSON.stringify(token)};window.${RUNTIME_BRIDGE_URL_KEY}=${JSON.stringify(`ws://127.0.0.1:${bridgePort}`)};window.${RUNTIME_ELECTRON_KEY}=true</script>`
       res.writeHead(200, { 'content-type': MIME_TYPES['.html'] }); res.end(html.replace('<head>', `<head>${script}`)); return
@@ -450,7 +451,7 @@ const BASE_WINDOW_OPTIONS: Electron.BrowserWindowConstructorOptions = {
 // 共享此值，防漂移（前端 --window-controls-width 按 height×3+ 余量校准）。
 const TITLEBAR_OVERLAY_HEIGHT = 36
 
-// shell-polish A2：处理前端 POST /__openpencil/titlebar-theme。严格六位 hex
+// shell-polish A2：处理前端 POST /__dianjing/titlebar-theme。严格六位 hex
 // 校验拒绝任何非法输入；端点幂等（重复同值无副作用），无需去抖。读 body 用
 // 累加 chunk 模式——http.IncomingMessage 不直接给完整 body，需自管 buffer。
 // apply 走 BrowserWindow.getAllWindows()——覆盖 dev 形态 / 默认形态 / 未来
@@ -649,7 +650,7 @@ const PROBE_SCRIPT = `(async () => {
   record('canvaskit.wasm fetchable via http', out.ck.ok, JSON.stringify(out.ck))
   out.idb = await (async () => {
     try {
-      const open = indexedDB.open('openpencil-smoke', 1)
+      const open = indexedDB.open('dianjing-smoke', 1)
       await new Promise((res, rej) => { open.onupgradeneeded = () => open.result.createObjectStore('kv'); open.onsuccess = res; open.onerror = () => rej(open.error) })
       const db = open.result
       const tx = db.transaction('kv', 'readwrite')
@@ -662,16 +663,16 @@ const PROBE_SCRIPT = `(async () => {
     } catch (e) { return { ok: false, error: String(e) } }
   })()
   record('idb write+read', out.idb.ok, JSON.stringify(out.idb))
-  // 探针在渲染进程跑——此处字面量必须与 src/app/orchestration/runtime-globals.ts
-  // 的 RUNTIME_AUTOMATION_TOKEN_KEY / RUNTIME_BRIDGE_URL_KEY 同源（拼字符串传过去
-  // 没办法用 const；本探针手改与上面 withRuntimeToken 注入脚本错位即回归）
-  out.token = typeof window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__ === 'string' && window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__.length > 0
-  record('runtime automation token injected', out.token, window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__ ?? '')
+  // 探针在渲染进程跑——全局名经 TS 模板插值直取 runtime-globals 常量（与
+  // withRuntimeToken 注入端同源，编译期插值保证不错位；插值在模块加载期
+  // 完成，渲染进程收到的仍是纯字面量脚本）
+  out.token = typeof window.${RUNTIME_AUTOMATION_TOKEN_KEY} === 'string' && window.${RUNTIME_AUTOMATION_TOKEN_KEY}.length > 0
+  record('runtime automation token injected', out.token, window.${RUNTIME_AUTOMATION_TOKEN_KEY} ?? '')
   // spike-electron-spike：桥 URL 运行时全局注入断言（electron 形态必命中；
-  // dev 形态——OPENPENCIL_DEV_URL 路径下 main 不注入——本条天然不命中，smoke
+  // dev 形态——DIANJING_DEV_URL 路径下 main 不注入——本条天然不命中，smoke
   // 跳过本条以免误伤）
-  out.runtimeBridgeUrl = typeof window.__OPENPENCIL_RUNTIME_BRIDGE_URL__ === 'string' && window.__OPENPENCIL_RUNTIME_BRIDGE_URL__.startsWith('ws://')
-  record('runtime bridge url injected', out.runtimeBridgeUrl, window.__OPENPENCIL_RUNTIME_BRIDGE_URL__ ?? '')
+  out.runtimeBridgeUrl = typeof window.${RUNTIME_BRIDGE_URL_KEY} === 'string' && window.${RUNTIME_BRIDGE_URL_KEY}.startsWith('ws://')
+  record('runtime bridge url injected', out.runtimeBridgeUrl, window.${RUNTIME_BRIDGE_URL_KEY} ?? '')
   // spike-electron-spike：Vue mount + mcpRuntime 状态探针——证 WorkspaceView
   // onMounted 跑了 startMCPRuntime，进而 connectAutomation 才会经运行时 URL
   // 通道 WS 连桥。
@@ -703,14 +704,14 @@ async function runSmoke(window: BrowserWindow, skipTokenCheck: boolean): Promise
 // ── sidecar + 回环启动（编排入口，被 main / full-smoke 共用）──
 
 function buildSidecars(distDir: string, loopbackOrigin: string): { bridge: SidecarHandle; backend: SidecarHandle } {
-  // OPENPENCIL_ROOT_DIR：状态根目录（sidecar 内 .openpencil/ 落盘点）。
+  // DIANJING_ROOT_DIR：状态根目录（sidecar 内 .dianjing/ 落盘点）。
   // 解析优先级 env > app.getPath('userData')——env 优先保留是为了让 smoke /
   // full-smoke 显式钉独立 rootDir 隔离多实例，dev 启动器 spike-electron-dev.ts
   // 钉 worktree 根的便利也不受影响；用户日常双击图标落地即默认 userData，
   // 不再依赖「spawn 时所在目录」（既有缺省 distDir 在打包形态下随产物目录
   // 走——既不可读也不跨平台稳定）
   const rootDir = resolveElectronRootDir(readRootDir(), app.getPath('userData'))
-  // OPENPENCIL_STUDIO_BUILTIN_DIR：studio 内置资产目录的显式解析基准。
+  // DIANJING_STUDIO_BUILTIN_DIR：studio 内置资产目录的显式解析基准。
   // registry 缺省按 rootDir + 源码树子路径（src/app/ai/pi-backend/studio）
   // 解析——打包形态 rootDir=userData 下没有源码树，必须指向 extraResources
   // 平铺位 resources/app/studio；dev 形态显式钉 worktree 源码树，与 vite
@@ -718,13 +719,13 @@ function buildSidecars(distDir: string, loopbackOrigin: string): { bridge: Sidec
   const studioBuiltinDir = app.isPackaged
     ? join(process.resourcesPath, 'app', 'studio')
     : join(__dirname, '..', '..', 'src', 'app', 'ai', 'pi-backend', 'studio')
-  // OPENPENCIL_MCP_SOCKET / OPENPENCIL_MCP_DISCOVERY_PATH：host.ts 不隔离（单
+  // DIANJING_MCP_SOCKET / DIANJING_MCP_DISCOVERY_PATH：host.ts 不隔离（单
   // 实例 + 平台默认路径）；Electron 同款——不注入则 sidecar 落平台默认路径。
   // full-smoke 通过 env 覆盖到 tmp 子目录即可隔离多 smoke 实例。
   const baseEnv: NodeJS.ProcessEnv = {
     ...process.env,
-    OPENPENCIL_ROOT_DIR: rootDir,
-    OPENPENCIL_STUDIO_BUILTIN_DIR: studioBuiltinDir
+    DIANJING_ROOT_DIR: rootDir,
+    DIANJING_STUDIO_BUILTIN_DIR: studioBuiltinDir
   }
   // P2 sidecar 解析基准——dev / spike 形态：相对 dist-main/ 的 dist-sidecar/
   // （__dirname 解析 main.mjs 所在目录）；打包形态：app.isPackaged=true 且
@@ -737,19 +738,19 @@ function buildSidecars(distDir: string, loopbackOrigin: string): { bridge: Sidec
     : join(__dirname, '..', 'dist-sidecar')
   const packedDistDir = app.isPackaged ? join(process.resourcesPath, 'app', 'dist') : distDir
   const bridge: SidecarHandle = {
-    name: 'openpencil-bridge',
+    name: 'dianjing-bridge',
     modulePath: join(sidecarsDir, 'bridge.mjs'),
     env: {
       ...baseEnv,
       PORT: String(bridgePort),
       // bridge token 经 env 进 sidecar——与 index.html 注入的 token 同源
-      OPENPENCIL_MCP_AUTH_TOKEN: bridgeToken,
+      DIANJING_MCP_AUTH_TOKEN: bridgeToken,
       // spike-electron-spike：跨源兜底——页面在 loopback 端口（http://127.0.0.1:
       // <loopback>）发 fetch 到 bridge 端口（http://127.0.0.1:<bridge>），跨
       // 源；显式给 bridge CORS origin = 页面 origin，让预检通过。旧「空字符
       // 串禁用 cors middleware」在跨源 fetch 时会让浏览器预检 401，readAutomationHealth
       // 失败 → connectAutomation 永不 register → bridge /health 永 no_app。
-      OPENPENCIL_MCP_CORS_ORIGIN: loopbackOrigin
+      DIANJING_MCP_CORS_ORIGIN: loopbackOrigin
     },
     healthUrl: `http://127.0.0.1:${bridgePort}/health`,
     current: null,
@@ -758,12 +759,12 @@ function buildSidecars(distDir: string, loopbackOrigin: string): { bridge: Sidec
     restartTimer: null
   }
   const backend: SidecarHandle = {
-    name: 'openpencil-pi-backend',
+    name: 'dianjing-pi-backend',
     modulePath: join(sidecarsDir, 'pi-backend.mjs'),
     env: {
       ...baseEnv,
-      OPENPENCIL_PI_BACKEND_PORT: String(backendPort),
-      OPENPENCIL_PI_TOKEN: piToken
+      DIANJING_PI_BACKEND_PORT: String(backendPort),
+      DIANJING_PI_TOKEN: piToken
     },
     healthUrl: `http://127.0.0.1:${backendPort}/health`,
     current: null,
@@ -778,7 +779,7 @@ function buildSidecars(distDir: string, loopbackOrigin: string): { bridge: Sidec
 }
 
 async function startLoopbackWithSidecars(distDir: string): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
-  // spike-electron-spike：先钉 loopback 端口（full-smoke 已用 OPENPENCIL_
+  // spike-electron-spike：先钉 loopback 端口（full-smoke 已用 DIANJING_
   // LOOPBACK_PORT 注入；默认 0 = 选个空闲端口），再编排 sidecar——桥 CORS
   // origin 必须等于页面 origin（即 loopbackOrigin），跨源 fetch 才会放行。
   // 旧顺序「先 spawn bridge 再 listen loopback」会让 CORS origin 拿不到，
@@ -803,7 +804,7 @@ async function startLoopbackWithSidecars(distDir: string): Promise<{ server: Ret
   await waitForHealthUntil(backend.healthUrl, HEALTH_TIMEOUT_MS, 'pi-backend')
 
   // 3. 起回环服务。token / port 注入 createLoopbackServer；pinnedLoopbackPort
-  // 由 OPENPENCIL_LOOPBACK_PORT 解析（full-smoke 钉住便于外部脚本探活）
+  // 由 DIANJING_LOOPBACK_PORT 解析（full-smoke 钉住便于外部脚本探活）
   const { server, port } = await createLoopbackServer({
     distDir: resolvedDistDir,
     automationToken: bridgeToken,
@@ -855,17 +856,17 @@ let primaryWindow: BrowserWindow | null = null
 
 async function main(): Promise<void> {
   // P1.9.1 状态根 userData 化——app.setName 必须在 whenReady 之前调，否则
-  // app.getPath('userData') 已按 package.json 名字（open-pencil-app）落盘，
-  // 再 setName 已晚（路径缓存）。统一改名为 'open-pencil' 让 Windows 下
-  // %APPDATA%/open-pencil、macOS 下 ~/Library/Application Support/open-pencil，
-  // 与产品名一致且可读
-  app.setName('open-pencil')
+  // app.getPath('userData') 已按 package.json 名字（dianjing-app）落盘，
+  // 再 setName 已晚（路径缓存）。统一改名为 USER_DATA_DIR_NAME（'Dianjing'）
+  // 让 Windows 下 %APPDATA%/Dianjing、macOS 下 ~/Library/Application
+  // Support/Dianjing，与产品名（electron-builder productName）一致且可读
+  app.setName(USER_DATA_DIR_NAME)
 
   // P0.5.2 单实例锁——必须在 whenReady 之前 requestSingleInstanceLock：
   //   1. 文档要求；2. 二实例启动 race 下第二个进程必须抢在 Electron 派发
   //   second-instance 之前判定锁，否则二实例会跳过主实例直接走自己流程。
   //
-  // 绕过例外：smoke / full-smoke 模式（OPENPENCIL_SMOKE=1 / OPENPENCIL_
+  // 绕过例外：smoke / full-smoke 模式（DIANJING_SMOKE=1 / DIANJING_
   // FULL_SMOKE=1）默认绕过——理由：
   //   (a) smoke 探针靠子进程监听 stdout，Electron 单实例锁会把「同一个
   //   userData 下的二实例」踢到主实例，二实例的 SMOKE_RESULT 行根本没
@@ -873,7 +874,7 @@ async function main(): Promise<void> {
   //   (b) full-smoke 每次跑会建独立 rootDir + 独立端口集合，逻辑上应当
   //   可以并存多实例。
   //   (c) CI 上若需真测单实例行为，spike 脚本尚未写——P2 后由测试侧补。
-  // 此外保留 OPENPENCIL_DISABLE_SINGLE_INSTANCE=1 作为「我就是要开锁」的
+  // 此外保留 DIANJING_DISABLE_SINGLE_INSTANCE=1 作为「我就是要开锁」的
   // 显式旁路（写死/双击图标时也可临时设）。
   const disableLock = readDisableSingleInstanceLock()
   if (!disableLock) {
@@ -917,8 +918,8 @@ async function main(): Promise<void> {
   }
 
   // 窗口默认可见（产品形态）。隐藏只剩两个场景：smoke 探针（smokeMode，
-  // 探针不等 ready-to-show）与显式 OPENPENCIL_SHOW=0（无头调试）。
-  // OPENPENCIL_SHOW=1 保留兼容，等价于缺省。
+  // 探针不等 ready-to-show）与显式 DIANJING_SHOW=0（无头调试）。
+  // DIANJING_SHOW=1 保留兼容，等价于缺省。
   const showWindow = readShowWindow()
 
   if (devUrl) {

@@ -31,7 +31,7 @@
  * 运行：node spikes/s-pi/backend-smoke/t23/sessions-bind-smoke.mjs [base=http://localhost:1420]
  *   ⚠ 必须用 node——bun 跑 playwright chromium.launch 会卡 CDP pipe 握手
  *   （2026-08-24 实证：bun 下 180s launch timeout，node 秒起；二进制本身正常）
- * 清理：finally 恢复 .openpencil/pi-sessions/index.json 原貌并删除种子 JSONL。
+ * 清理：finally 恢复 .dianjing/pi-sessions/index.json 原貌并删除种子 JSONL。
  */
 
 import { createHash } from 'node:crypto'
@@ -46,7 +46,7 @@ selectors.setTestIdAttribute('data-test-id')
 
 const base = process.argv[2] ?? 'http://localhost:1420'
 const root = process.cwd()
-const sessionsDir = join(root, '.openpencil', 'pi-sessions')
+const sessionsDir = join(root, '.dianjing', 'pi-sessions')
 const indexPath = join(sessionsDir, 'index.json')
 
 let passed = 0

@@ -19,7 +19,7 @@
  *     --external @playwright/test --external playwright-core
  *   node desktop-electron/dist-smoke/l3-rectangle.mjs
  * 前置：dist/（vite build）、dist-main/、dist-sidecar/ 均已构建；
- *       上游 .openpencil/key-env 存在（复制进临时 rootDir）。
+ *       上游 .dianjing/key-env 存在（复制进临时 rootDir）。
  */
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process'
 import { copyFileSync, mkdirSync } from 'node:fs'
@@ -33,13 +33,13 @@ const here = dirname(fileURLToPath(import.meta.url))
 const root = resolve(here, '..', '..')
 const SHOTS = 'D:\\Desktop\\AgentLearn\\00_DIYProjects\\0720openpencil\\_ops\\20260907-l3'
 const SOURCE_KEY_ENV =
-  'D:\\Desktop\\AgentLearn\\00_DIYProjects\\0720openpencil\\open-pencil-mode\\.openpencil\\key-env'
+  'D:\\Desktop\\AgentLearn\\00_DIYProjects\\0720openpencil\\open-pencil-mode\\.dianjing\\key-env'
 
 mkdirSync(SHOTS, { recursive: true })
 
 const rootDir = join(tmpdir(), `op-l3-${Date.now()}`)
-mkdirSync(join(rootDir, '.openpencil'), { recursive: true })
-copyFileSync(SOURCE_KEY_ENV, join(rootDir, '.openpencil', 'key-env'))
+mkdirSync(join(rootDir, '.dianjing'), { recursive: true })
+copyFileSync(SOURCE_KEY_ENV, join(rootDir, '.dianjing', 'key-env'))
 console.log('[l3] rootDir =', rootDir)
 
 let child: ChildProcess | null = null
@@ -87,7 +87,7 @@ async function main(): Promise<void> {
     [resolve(root, 'desktop-electron', 'dist-main', 'main.mjs'), '--no-sandbox', '--disable-gpu', '--remote-debugging-port=0'],
     {
       cwd: root,
-      env: { ...process.env, OPENPENCIL_SHOW: '1', OPENPENCIL_ROOT_DIR: rootDir },
+      env: { ...process.env, DIANJING_SHOW: '1', DIANJING_ROOT_DIR: rootDir },
       stdio: ['ignore', 'inherit', 'pipe']
     }
   )

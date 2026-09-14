@@ -7,13 +7,13 @@
  * 前置：
  *  - vite dev server 已起（T20 拓扑：pi 后端为其 spawn 的独立子进程）
  *  - 浏览器已打开 app（编辑器自动连 7600 桥；无执行端时桥调用 502）
- *  - OPENROUTER_API_KEY 已在环境（set -a; source .openpencil/key-env; set +a）——
+ *  - OPENROUTER_API_KEY 已在环境（set -a; source .dianjing/key-env; set +a）——
  *    仅重启段 spawn 独立后端时传递，脚本不读取不打印 key 本体
  * 运行：node spikes/s-pi/backend-smoke/tool-smoke.mjs [baseUrl]
  * 退出码 0 = 全过。
  *
  * T28（决策单 #1）：dev server 段经 1420 proxy 自动补鉴权头（零改动）；
- * T4 恢复探针段自起 standalone 后端——token 落盘 .openpencil/pi-backend-token，
+ * T4 恢复探针段自起 standalone 后端——token 落盘 .dianjing/pi-backend-token，
  * 脚本读文件带 Authorization 头（不打印），未鉴权请求断言 401。
  */
 
@@ -25,7 +25,7 @@ import { join } from 'node:path'
 import { authHeaders, readBackendToken } from './pi-backend-auth.mjs'
 
 const base = process.argv[2] ?? 'http://localhost:1420'
-const backendPort = Number(process.env.OPENPENCIL_PI_BACKEND_PORT ?? 7700)
+const backendPort = Number(process.env.DIANJING_PI_BACKEND_PORT ?? 7700)
 const recoveryPort = 7701 // 重启恢复段用独立端口起新进程（同一 state 目录，恢复语义等价）
 const root = process.cwd()
 const sessionId = `t20-tool-${Date.now()}`
@@ -52,7 +52,7 @@ function discoveryPath() {
     return join(homedir(), 'Library', 'Application Support', 'OpenPencil', 'mcp.json')
   }
   const xdg = process.env.XDG_RUNTIME_DIR?.trim()
-  return join(xdg || join(homedir(), '.openpencil'), 'mcp.json')
+  return join(xdg || join(homedir(), '.dianjing'), 'mcp.json')
 }
 
 function readDiscovery() {
@@ -117,7 +117,7 @@ console.log(`T20 工具链冒烟 → ${base}  session=${sessionId}`)
 check(
   '前置：OPENROUTER_API_KEY 在环境（T4 恢复探针 spawn 需要）',
   !!process.env.OPENROUTER_API_KEY,
-  '运行方式：set -a; source .openpencil/key-env; set +a; node tool-smoke.mjs'
+  '运行方式：set -a; source .dianjing/key-env; set +a; node tool-smoke.mjs'
 )
 try {
   const health = await fetch(`http://127.0.0.1:${backendPort}/health`).then((r) => r.json())
@@ -219,7 +219,7 @@ if (nodeId) {
 let recovery = null
 try {
   recovery = spawn('bun', ['run', 'src/app/ai/pi-backend/main.ts'], {
-    env: { ...process.env, OPENPENCIL_PI_BACKEND_PORT: String(recoveryPort) },
+    env: { ...process.env, DIANJING_PI_BACKEND_PORT: String(recoveryPort) },
     stdio: ['ignore', 'ignore', 'pipe']
   })
   let up = false

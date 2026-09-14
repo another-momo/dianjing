@@ -6,7 +6,7 @@
  *
  * 设计要点：
  * - 内置模板以 `_` 前缀命名（`_example`），registry 加载时跳过不注册——仅作
- *   复制源，用户首跑检测到 `~/.openpencil/studio/` 下没有任何 `_` 前缀资产即
+ *   复制源，用户首跑检测到 `~/.dianjing/studio/` 下没有任何 `_` 前缀资产即
  *   递归复制整套 `_example`（workflows + profiles）。
  * - 纯逻辑、无 I/O 副作用外的依赖：用户目录路径由调用方注入，便于测试用临时
  *   目录；不挂进 loadStudioFromDirs（加载路径有测试用临时目录，副作用会污染）。
@@ -93,7 +93,7 @@ function copyTree(src: string, dst: string): void {
  * 检测用户目录是否已有 `_` 前缀模板；无则从内置目录递归复制 `_example`。
  *
  * 调用方契约：
- *  - `userStudioDir`：用户 studio 目录绝对路径（默认 = `~/.openpencil/studio`）。
+ *  - `userStudioDir`：用户 studio 目录绝对路径（默认 = `~/.dianjing/studio`）。
  *    若目录不存在本函数会创建它。
  *  - `builtinStudioDir`：内置 studio 目录绝对路径（含 `workflows/` `profiles/` 子目录）。
  *    缺失对应子目录视为「无内置模板可 seed」，跳过并返回。

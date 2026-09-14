@@ -14,23 +14,23 @@ import { readMCPDiscoveryPathOverride, readMCPSocketPath } from '../../orchestra
  * Platform-specific paths for the automation bridge's Unix domain socket
  * and the discovery JSON file.
  *
- * Socket directory layout (overridable via OPENPENCIL_MCP_SOCKET):
- *   macOS:   ~/Library/Application Support/OpenPencil/
- *   Linux:   $XDG_RUNTIME_DIR/openpencil/  (fallback: ~/.openpencil/)
- *   Windows: %LOCALAPPDATA%\OpenPencil\  (fallback: ~\AppData\Local\OpenPencil\)
+ * Socket directory layout (overridable via DIANJING_MCP_SOCKET):
+ *   macOS:   ~/Library/Application Support/Dianjing/
+ *   Linux:   $XDG_RUNTIME_DIR/dianjing/  (fallback: ~/.dianjing/)
+ *   Windows: %LOCALAPPDATA%\Dianjing\  (fallback: ~\AppData\Local\Dianjing\)
  *
  * On Windows, Unix domain sockets are unavailable — the server uses TCP only.
  *
  * Discovery file: at the platform-default path above, UNLESS
- * OPENPENCIL_MCP_DISCOVERY_PATH is set (see getDiscoveryPath()). The socket
- * override (OPENPENCIL_MCP_SOCKET) never moves the discovery file — it is
+ * DIANJING_MCP_DISCOVERY_PATH is set (see getDiscoveryPath()). The socket
+ * override (DIANJING_MCP_SOCKET) never moves the discovery file — it is
  * recorded in the discovery file's `socketPath` field so clients read it
  * from the well-known location.
  * Socket file:     <socketDir>/mcp.sock  (or the override path)
  *
  * IMPORTANT: getSocketDir() returns the directory that contains the socket
  * file. It does NOT always contain the discovery file — when
- * OPENPENCIL_MCP_SOCKET is set, the discovery file stays at getPlatformDir().
+ * DIANJING_MCP_SOCKET is set, the discovery file stays at getPlatformDir().
  */
 
 const DIR_NAME_UNIX = BRIDGE_DIR_NAME_UNIX
@@ -43,7 +43,7 @@ const isWindows = platform() === 'win32'
 
 /**
  * Returns the platform-specific default directory for MCP runtime files,
- * ignoring OPENPENCIL_MCP_SOCKET. The discovery file always lives here so
+ * ignoring DIANJING_MCP_SOCKET. The discovery file always lives here so
  * clients can find it at a well-known location regardless of socket overrides.
  * Creates the directory (with restrictive permissions) if it does not exist.
  *
@@ -81,12 +81,12 @@ async function getPlatformDir(): Promise<string> {
 /**
  * Returns the directory for the MCP socket file.
  *
- * When OPENPENCIL_MCP_SOCKET is set, its dirname is used as the socket
+ * When DIANJING_MCP_SOCKET is set, its dirname is used as the socket
  * directory. When unset, the platform default from getPlatformDir() is used.
  * Creates the directory (with restrictive permissions) if it does not exist.
  *
  * NOTE: The discovery file always lives at getPlatformDir(), regardless of
- * OPENPENCIL_MCP_SOCKET. This function should NOT be used to locate it.
+ * DIANJING_MCP_SOCKET. This function should NOT be used to locate it.
  */
 export async function getSocketDir(): Promise<string> {
   const socketOverride = readMCPSocketPath()
@@ -108,7 +108,7 @@ export async function getSocketDir(): Promise<string> {
  *
  * On macOS/Linux: <socketDir>/mcp.sock
  *
- * When OPENPENCIL_MCP_SOCKET is set, its value is returned directly
+ * When DIANJING_MCP_SOCKET is set, its value is returned directly
  * (no directory resolution needed).
  */
 export async function getSocketPath(): Promise<string> {
@@ -128,12 +128,12 @@ export async function getSocketPath(): Promise<string> {
  * Returns the full path to the MCP discovery JSON file.
  *
  * The discovery file lives at the platform-default location so clients can
- * find it without knowing whether OPENPENCIL_MCP_SOCKET is set. It contains
+ * find it without knowing whether DIANJING_MCP_SOCKET is set. It contains
  * the actual socket path (which may be overridden) in its `socketPath` field,
  * so clients read the discovery file to learn where to connect — not the other
  * way around.
  *
- * Set OPENPENCIL_MCP_DISCOVERY_PATH to relocate the discovery file (e.g. to a
+ * Set DIANJING_MCP_DISCOVERY_PATH to relocate the discovery file (e.g. to a
  * temp directory for test isolation). The parent directory is created (0o700)
  * so writeDiscoveryFile's atomic temp-then-rename succeeds.
  */

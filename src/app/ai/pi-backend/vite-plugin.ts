@@ -9,16 +9,16 @@
  * 一次 /health 就绪即清零计数；超过次数打印明确指引并停手。
  *
  * OPENROUTER_API_KEY 经 env 继承进入后端进程；缺 key 时后端自助读
- * .openpencil/key-env 注入（main.ts，T25 D3），仍缺则 service 在首个 prompt
+ * .dianjing/key-env 注入（main.ts，T25 D3），仍缺则 service 在首个 prompt
  * 处如实报错（不阻断 vite 启动）。
  *
- * T28（决策单 #1）：插件实例生成 32-hex 随机 token，经 env OPENPENCIL_PI_TOKEN
+ * T28（决策单 #1）：插件实例生成 32-hex 随机 token，经 env DIANJING_PI_TOKEN
  * 传给后端子进程（崩溃复活沿用同一枚）；config() hook 的 server.proxy 给
  * /api/pi 转发统一注入 Authorization: Bearer 头——后端除 /health 外全端点鉴权，
  * 前端同源调用零改动，token 不落盘不打印。
  *
  * T38：dev 拓扑下 7600 桥的 discovery 文件已被上游 0f981ff2（经 T34 合入）隔离到
- * tmpdir 路径（桥插件 startChild 的 OPENPENCIL_MCP_DISCOVERY_PATH），不再是平台
+ * tmpdir 路径（桥插件 startChild 的 DIANJING_MCP_DISCOVERY_PATH），不再是平台
  * 默认路径；本插件经 mcpRuntimeId 选项同源推导该路径并注入后端子进程 env，
  * 后端 tools.ts 的 readDiscoveryFile()（getDiscoveryPath 吃同一 env）才能找到
  * 活桥。算法漂移由 tests/engine/rebuild/pi-dev-discovery.test.ts 钉扎。
@@ -53,14 +53,14 @@ export interface PiBackendPluginOptions {
   /**
    * T38：dev 桥（automation vite 插件）的 runtimeId（vite.config 里
    * devAutomationRoute() 的返回值，单源）。给定时把同源推导的桥 discovery
-   * 路径注入后端子进程 env OPENPENCIL_MCP_DISCOVERY_PATH。
+   * 路径注入后端子进程 env DIANJING_MCP_DISCOVERY_PATH。
    */
   mcpRuntimeId?: string
 }
 
 /**
  * T38：与桥 vite 插件 startChild 同源的 discovery 路径推导——
- * tmpdir()/open-pencil-mcp/sha256(runtimeId)[:16]/mcp.json。
+ * tmpdir()/dianjing-mcp/sha256(runtimeId)[:16]/mcp.json。
  * 算法实现已迁入 @/app/orchestration/discovery，本处 re-export 保持既有
  * 测试（tests/engine/rebuild/pi-dev-discovery.test.ts）的 import 路径与硬
  * 编码 digest 钉扎不变。一致性由该测试钉扎。
@@ -130,12 +130,12 @@ export function piBackendPlugin(options: PiBackendPluginOptions = {}): Plugin {
       stdio: ['ignore', 'inherit', 'pipe'],
       env: {
         ...process.env,
-        OPENPENCIL_PI_BACKEND_PORT: String(port),
+        DIANJING_PI_BACKEND_PORT: String(port),
         // T28：鉴权 token 经 env 注入（后端见 token 即不走 standalone 落盘路径）
-        OPENPENCIL_PI_TOKEN: authToken,
+        DIANJING_PI_TOKEN: authToken,
         // T38：dev 桥 discovery 隔离路径注入（后端 readDiscoveryFile 经
         // getDiscoveryPath 吃该 env；不注入则盲读平台默认路径找不到活桥）
-        ...(mcpDiscoveryPath ? { OPENPENCIL_MCP_DISCOVERY_PATH: mcpDiscoveryPath } : {})
+        ...(mcpDiscoveryPath ? { DIANJING_MCP_DISCOVERY_PATH: mcpDiscoveryPath } : {})
       }
     })
     child = spawned
