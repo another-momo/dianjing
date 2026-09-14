@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { UIDataTypes, UIMessagePart, UITools } from 'ai'
 /**
  * T56（Phase 3 W2/T-B5）：ask_user_question 聊天内表单卡片——全新建。
  *
@@ -31,8 +32,6 @@ import {
 
 import { getActiveEditorStoreOrNull } from '@/app/editor/active-store'
 import { useForkAsk } from '@/app/i18n/fork'
-
-import type { UIDataTypes, UIMessagePart, UITools } from 'ai'
 
 type ToolPart = Extract<UIMessagePart<UIDataTypes, UITools>, { toolCallId: string }>
 

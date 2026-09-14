@@ -26,6 +26,8 @@
 import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
 import { computed, ref, watch } from 'vue'
 
+import type { MarketingDesignRef } from '@open-pencil/core/tools/fork/marketing/setup'
+
 import {
   piActiveDesign,
   piStudioManifest,
@@ -45,8 +47,6 @@ import {
   scanCurrentPageDesigns,
   type BriefListEntry
 } from './active-design'
-
-import type { MarketingDesignRef } from '@open-pencil/core/tools/fork/marketing/setup'
 
 const { disabled = false } = defineProps<{ disabled?: boolean }>()
 

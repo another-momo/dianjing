@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { DialogClose } from 'reka-ui'
 import { computed } from 'vue'
-import { useI18n } from '@open-pencil/vue'
+
 import { IS_TAURI } from '@open-pencil/core/constants'
+import { useI18n } from '@open-pencil/vue'
 
 import { useForkFonts } from '@/app/i18n/fork'
 import { appCredentialServices } from '@/app/settings/credentials/app'
@@ -19,8 +20,8 @@ import ImageGenKeysSection from '@/components/settings/provider/ImageGenKeysSect
 import StockPhotoKeysSection from '@/components/settings/provider/StockPhotoKeysSection.vue'
 import StorageSettingsPanel from '@/components/settings/storage/StorageSettingsPanel.vue'
 import VectorizeSettingsSection from '@/components/settings/vectorize/VectorizeSettingsSection.vue'
-import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
 import { AppDialogFooter, AppDialogHeader, AppDialogRoot } from '@/components/ui/dialog'
+import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
 
 const { settings, common, credentials } = useI18n()
 const fontsMsgs = useForkFonts()

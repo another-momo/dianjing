@@ -2,15 +2,6 @@
 import { computed } from 'vue'
 import IconImage from '~icons/lucide/image'
 
-import DesktopToolbar from '@/components/Toolbar/DesktopToolbar.vue'
-import MobileToolbar from '@/components/Toolbar/MobileToolbar.vue'
-import { useToolbarActions } from '@/components/Toolbar/actions'
-import { useAddImage } from '@/components/Toolbar/useAddImage'
-import { useForkToolbar } from '@/app/i18n/fork'
-import { useActionToast } from '@/app/shell/toast/action'
-import { useEditorStore } from '@/app/editor/active-store'
-import { toolIcons } from '@/app/editor/icons'
-import { useMenuUI } from '@/components/ui/menu/menu'
 import {
   ToolbarRoot,
   useEditorCommands,
@@ -22,11 +13,13 @@ import type { Tool } from '@open-pencil/vue'
 
 import { useEditorStore } from '@/app/editor/active-store'
 import { toolIcons } from '@/app/editor/icons'
+import { useForkToolbar } from '@/app/i18n/fork'
 import { useActionToast } from '@/app/shell/toast/action'
 import { useToolbarActions } from '@/components/Toolbar/actions'
 import DesktopToolbar from '@/components/Toolbar/DesktopToolbar.vue'
 import MobileToolbar from '@/components/Toolbar/MobileToolbar.vue'
 import type { ToolbarActionItem } from '@/components/Toolbar/types'
+import { useAddImage } from '@/components/Toolbar/useAddImage'
 import { useMenuUI } from '@/components/ui/menu/menu'
 
 const store = useEditorStore()

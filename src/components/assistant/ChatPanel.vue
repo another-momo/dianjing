@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import type { Chat } from '@ai-sdk/vue'
+import { refAutoReset } from '@vueuse/core'
+import { isTextUIPart, isToolUIPart } from 'ai'
+import type { UIMessage } from 'ai'
 // Batch 2a 路径分离（2026-09-05）：本面板自 src/components/ChatPanel.vue 迁入
 // ownedRoot src/components/assistant/（Batch 2f 自 chat/ 整体改名），原上游路径
 // 留给 deletedPaths 落账；ChatInput/ChatMessage 同批改名 PiChatInput/PiChatMessage 完成命名分离。
@@ -13,12 +17,19 @@ import {
   ScrollAreaThumb,
   ScrollAreaViewport
 } from 'reka-ui'
-import { refAutoReset } from '@vueuse/core'
 import { computed, markRaw, nextTick, onErrorCaptured, ref, watch } from 'vue'
-import { isTextUIPart, isToolUIPart } from 'ai'
+
+import {
+  parseAskAnswer,
+  serializeAskAnswer
+} from '@open-pencil/core/tools/fork/marketing/ask-user-question'
+import type { AskFormSubmission } from '@open-pencil/core/tools/fork/marketing/ask-user-question'
+import type { JSONObject } from '@open-pencil/scene-graph/primitives'
+import { useI18n } from '@open-pencil/vue'
 
 import { copyChatLog } from '@/app/ai/fork/debug'
 import { isAbortShapedError, markIntentionalStop } from '@/app/ai/fork/transports'
+import { useAIChat } from '@/app/ai/fork/use'
 import {
   getPiCurrentSessionId,
   hasPiDocId,
@@ -33,12 +44,16 @@ import {
   piStudioManifest,
   resyncPiActiveDesign
 } from '@/app/ai/pi-backend/mode-selection'
-import { activeTab } from '@/app/tabs'
 import { getActiveEditorStore } from '@/app/editor/active-store'
-import ChatBriefDialog from './ChatBriefDialog.vue'
-import ChatContextBar from './ChatContextBar.vue'
-import PiChatInput from './PiChatInput.vue'
-import PiChatMessage from './PiChatMessage.vue'
+import { useForkConfirm } from '@/app/i18n/fork'
+import { useNotificationMessages } from '@/app/i18n/notifications'
+import { toast } from '@/app/shell/ui'
+import { activeTab } from '@/app/tabs'
+import AppTextButton from '@/components/ui/AppTextButton.vue'
+import AppPlaceholder from '@/components/ui/feedback/AppPlaceholder.vue'
+import { menuItem, useMenuUI } from '@/components/ui/menu/menu'
+import Tip from '@/components/ui/overlay/Tip.vue'
+
 import {
   ACTIVE_DESIGN_DECISION_PART_TYPE,
   CONTEXT_SWITCH_PART_TYPE,
@@ -54,26 +69,10 @@ import {
   type ContextSwitchPartData,
   type NewIntentPartData
 } from './active-design'
-import AppPlaceholder from '@/components/ui/feedback/AppPlaceholder.vue'
-import AppTextButton from '@/components/ui/AppTextButton.vue'
-import Tip from '@/components/ui/overlay/Tip.vue'
-import { menuItem, useMenuUI } from '@/components/ui/menu/menu'
-import { useAIChat } from '@/app/ai/fork/use'
-import { toast } from '@/app/shell/ui'
-import { useI18n } from '@open-pencil/vue'
-
-import { useForkConfirm } from '@/app/i18n/fork'
-import { useNotificationMessages } from '@/app/i18n/notifications'
-
-import {
-  parseAskAnswer,
-  serializeAskAnswer
-} from '@open-pencil/core/tools/fork/marketing/ask-user-question'
-
-import type { Chat } from '@ai-sdk/vue'
-import type { UIMessage } from 'ai'
-import type { JSONObject } from '@open-pencil/scene-graph/primitives'
-import type { AskFormSubmission } from '@open-pencil/core/tools/fork/marketing/ask-user-question'
+import ChatBriefDialog from './ChatBriefDialog.vue'
+import ChatContextBar from './ChatContextBar.vue'
+import PiChatInput from './PiChatInput.vue'
+import PiChatMessage from './PiChatMessage.vue'
 
 const IS_DEV = import.meta.env.DEV
 

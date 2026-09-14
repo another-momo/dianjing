@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, provide, ref } from 'vue'
 import { useEventListener, useUrlSearchParams } from '@vueuse/core'
+import { computed, onMounted, onUnmounted, provide, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
-import { exposeCollaborationActions } from '@/app/browser-bridge'
 import { startMCPRuntime, stopMCPRuntime } from '@/app/automation/bridge/runtime'
+import { exposeCollaborationActions } from '@/app/browser-bridge'
 import { COLLAB_KEY, useCollab } from '@/app/collab/use'
 import { isElectron } from '@/app/shell/electron'
 import { useKeyboard } from '@/app/shell/keyboard/use'
@@ -17,13 +17,9 @@ import {
   getActiveStore
 } from '@/app/tabs'
 import { isTauri } from '@/app/tauri/env'
-import FontStatusBanner from '@/components/font-status/FontStatusBanner.vue'
-import RenameSelectionDialog from '@/components/selection/RenameSelectionDialog.vue'
-import TabBar from '@/components/TabBar.vue'
 import EditorWorkspace from '@/components/editor/EditorWorkspace.vue'
 import FontStatusBanner from '@/components/font-status/FontStatusBanner.vue'
 import HomeWorkspace from '@/components/home/HomeWorkspace.vue'
-import SafariBanner from '@/components/SafariBanner.vue'
 import RenameSelectionDialog from '@/components/selection/RenameSelectionDialog.vue'
 import TabBar from '@/components/TabBar.vue'
 

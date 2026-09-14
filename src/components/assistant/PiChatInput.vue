@@ -79,6 +79,20 @@ import {
 } from 'reka-ui'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
+import type { SkiaRenderer } from '@open-pencil/core/canvas'
+import type { SceneGraph } from '@open-pencil/scene-graph'
+import { useI18n } from '@open-pencil/vue'
+
+import { piDesignAssignment } from '@/app/ai/pi-backend/assignment'
+import {
+  ensurePiStudioManifest,
+  piStudioManifest,
+  piStudioManifestFailed,
+  retryPiStudioManifest
+} from '@/app/ai/pi-backend/mode-selection'
+import { getActiveEditorStoreOrNull } from '@/app/editor/active-store'
+import { useForkChips, useForkPi } from '@/app/i18n/fork'
+import { openSettingsDialog } from '@/app/settings/dialog'
 import ChatModeChips from '@/components/assistant/ChatModeChips.vue'
 import ChatNodePreview from '@/components/assistant/ChatNodePreview.vue'
 import { deletionEmptiesDocument } from '@/components/assistant/delete-guard'
@@ -106,20 +120,6 @@ import {
 } from '@/components/assistant/skill-chip'
 import IconButton from '@/components/ui/button/IconButton.vue'
 import InputGroup from '@/components/ui/input/InputGroup.vue'
-import { piDesignAssignment } from '@/app/ai/pi-backend/assignment'
-import {
-  ensurePiStudioManifest,
-  piStudioManifest,
-  piStudioManifestFailed,
-  retryPiStudioManifest
-} from '@/app/ai/pi-backend/mode-selection'
-import { getActiveEditorStoreOrNull } from '@/app/editor/active-store'
-import { openSettingsDialog } from '@/app/settings/dialog'
-import type { SkiaRenderer } from '@open-pencil/core/canvas'
-import type { SceneGraph } from '@open-pencil/scene-graph'
-import { useI18n } from '@open-pencil/vue'
-
-import { useForkChips, useForkPi } from '@/app/i18n/fork'
 const { ai } = useI18n()
 const piDialogs = useForkPi()
 const chipsText = useForkChips()

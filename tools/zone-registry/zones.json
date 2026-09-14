@@ -1461,7 +1461,8 @@
     "tools/authoring-reference",
     "tools/ci",
     "src/app/settings/credentials/preferences/use.ts",
-    "src/components/settings/credentials/CredentialSettingsSection.vue"
+    "src/components/settings/credentials/CredentialSettingsSection.vue",
+    "src/components/settings/chat/ChatSettingsSection.vue"
   ],
   "upstreamMergeTarball": []
 }

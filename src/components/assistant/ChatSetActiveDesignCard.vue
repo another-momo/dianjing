@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { UIDataTypes, UIMessagePart, UITools } from 'ai'
 /**
  * T61（Phase 3 W3/T-B10）：set_active_design 工具同意卡（共享契约 3）。
  *
@@ -21,8 +22,6 @@ import { getActiveEditorStoreOrNull } from '@/app/editor/active-store'
 import { useForkConfirm } from '@/app/i18n/fork'
 
 import { parseSetActiveDesignProposed } from './active-design'
-
-import type { UIDataTypes, UIMessagePart, UITools } from 'ai'
 
 type ToolPart = Extract<UIMessagePart<UIDataTypes, UITools>, { toolCallId: string }>
 

@@ -14,9 +14,9 @@ import {
   requestLocalFontAccess
 } from '@/app/editor/fonts'
 import { useForkFonts } from '@/app/i18n/fork'
+import AppButton from '@/components/ui/button/AppButton.vue'
 import Tip from '@/components/ui/overlay/Tip.vue'
 import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
-import AppButton from '@/components/ui/button/AppButton.vue'
 
 /**
  * T41 S5：字体白名单可视化管理面板（SettingsDialog fonts 分区）。

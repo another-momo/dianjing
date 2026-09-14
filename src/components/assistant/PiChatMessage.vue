@@ -1,15 +1,16 @@
 <script setup lang="ts">
+import { isFileUIPart, isReasoningUIPart, isTextUIPart, isToolUIPart, getToolName } from 'ai'
+import type { UIDataTypes, UIMessage, UIMessagePart, UITools } from 'ai'
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui'
 // Batch 2a 命名分离（2026-09-05）：本组件自 ChatMessage.vue 改名 PiChatMessage.vue，
 // 原名留给 deletedPaths 落账——组件已实质重写，与上游 ChatMessage 无合并语义。
 import { computed } from 'vue'
-import { isFileUIPart, isReasoningUIPart, isTextUIPart, isToolUIPart, getToolName } from 'ai'
-import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui'
+
+import type { AskFormSubmission } from '@open-pencil/core/tools/fork/marketing/ask-user-question'
 import { useI18n, vTestId } from '@open-pencil/vue'
 
-import type { UIDataTypes, UIMessage, UIMessagePart, UITools } from 'ai'
-import type { AskFormSubmission } from '@open-pencil/core/tools/fork/marketing/ask-user-question'
+import { useForkConfirm } from '@/app/i18n/fork'
 
-import AskUserQuestionCard from './AskUserQuestionCard.vue'
 import {
   CONTEXT_SWITCH_PART_TYPE,
   NEW_INTENT_PART_TYPE,
@@ -18,14 +19,13 @@ import {
   type ContextSwitchPartData,
   type NewIntentPartData
 } from './active-design'
+import AskUserQuestionCard from './AskUserQuestionCard.vue'
 import ChatAwaitingIntentCard from './ChatAwaitingIntentCard.vue'
 import ChatMarkdown from './ChatMarkdown.vue'
 import ChatNewIntentCard from './ChatNewIntentCard.vue'
 import ChatSetActiveDesignCard from './ChatSetActiveDesignCard.vue'
 import { displayToolOutput } from './tool-output'
 import { classifyToolState } from './tool-state'
-
-import { useForkConfirm } from '@/app/i18n/fork'
 
 const {
   message,

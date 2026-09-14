@@ -8,8 +8,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
-import { useForkAgentCapabilities } from '@/app/i18n/fork'
 import { applyPiCapabilities, piCapabilities } from '@/app/ai/pi-backend/mode-selection'
+import { useForkAgentCapabilities } from '@/app/i18n/fork'
 
 const msgs = useForkAgentCapabilities()
 

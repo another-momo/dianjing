@@ -54,7 +54,7 @@ hero-first 五阶段执行序：**阶段 0 需求接入 → 阶段 1 方向提�
 
 ## 阶段 2 · hero 物化（图像轮）
 
-做：先把锁定的标题渲染为最小版式（真文案、真字号，render 进根框并 describe 修尽 error）→ prepare_hero_scaffold（克隆标题版式为页面级参考帧；underlap_px / transition_zone_px 按 profile 语境定值，几何记录写进 scaffold，下游只读记录不散传）→ generate_image 全分辨率候选 ×2~3（默认 2~3，直接全分辨率，无低清分级）。每候选落独立节点（同尺寸、同标题参照）；references 用 scaffold 作合成参照时 prompt 必须明写参照用法（围绕标题构图、标题区保持平静低细节、画面中不画任何文字）。写候选 prompt 前经 load_reference 读 `references/hero-prompt-template.md`（三段模板 + 变异纪律 + 回图诊断）；算 scaffold 几何 / 落位坐标前读 `references/coordinates.md`。
+做：先把锁定的标题渲染为最小版式（真文案、真字号，render 进根框并 describe 修尽 error）→ prepare_hero_scaffold（克隆标题版式为页面级参考帧；underlap_px / transition_zone_px 按 profile 语境定值，几何记录写进 scaffold，下游只读记录不散传）→ generate_image 全分辨率候选 ×2~~3（默认 2~~3，直接全分辨率，无低清分级）。每候选落独立节点（同尺寸、同标题参照）；references 用 scaffold 作合成参照时 prompt 必须明写参照用法（围绕标题构图、标题区保持平静低细节、画面中不画任何文字）。写候选 prompt 前经 load_reference 读 `references/hero-prompt-template.md`（三段模板 + 变异纪律 + 回图诊断）；算 scaffold 几何 / 落位坐标前读 `references/coordinates.md`。
 
 候选纪律：单变量受控变异——风格词与标题参照锁同，一批内只动一个变量轴（构图 / 氛围 / 题材择一）。用户整批拒绝 = 合法请求，确认界面自带成本提示；整批重生计数与脱困阀见「脱困阀」节（每次整批重生写一行结论区备查）。
 

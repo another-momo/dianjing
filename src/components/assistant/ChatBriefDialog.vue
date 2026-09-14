@@ -22,13 +22,15 @@
 import { useFileDialog } from '@vueuse/core'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
+import type { BriefView } from '@open-pencil/core/tools/fork/marketing/brief-edit'
+import { useSelectionState } from '@open-pencil/vue'
+
 import { piStudioManifest } from '@/app/ai/pi-backend/mode-selection'
 import { getActiveEditorStoreOrNull } from '@/app/editor/active-store'
 import { useForkPanels } from '@/app/i18n/fork'
 import { toast } from '@/app/shell/ui'
-import AppTextarea from '@/components/ui/input/AppTextarea.vue'
 import { AppDialogBody, AppDialogHeader, AppDialogRoot } from '@/components/ui/dialog'
-import { useSelectionState } from '@open-pencil/vue'
+import AppTextarea from '@/components/ui/input/AppTextarea.vue'
 
 import {
   addBriefMaterialFromUpload,
@@ -42,8 +44,6 @@ import {
   saveBriefContent,
   saveMaterialCaption
 } from './active-design'
-
-import type { BriefView } from '@open-pencil/core/tools/fork/marketing/brief-edit'
 
 const panelsText = useForkPanels()
 
