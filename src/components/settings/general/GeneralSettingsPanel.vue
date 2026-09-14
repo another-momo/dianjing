@@ -8,9 +8,12 @@ import { appPreferences } from '@/app/settings/preferences/store'
 import AppSelect from '@/components/ui/select/AppSelect.vue'
 import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
 import Tip from '@/components/ui/overlay/Tip.vue'
+import { animationPreference } from '@/app/shell/motion'
 import RenderingSettingsSection from '@/components/settings/general/RenderingSettingsSection.vue'
 import SettingsGroup from '@/components/settings/layout/SettingsGroup.vue'
 import SettingsSectionHeader from '@/components/settings/layout/SettingsSectionHeader.vue'
+import AppSelect from '@/components/ui/select/AppSelect.vue'
+import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
 
 const { availableLocales, locale, localeLabels, menu, recovery, setLocale, settings } = useI18n()
 
@@ -95,6 +98,21 @@ const copyStatusLabel = computed(() => {
         />
       </label>
     </div>
+
+    <SettingsGroup>
+      <label class="flex items-center justify-between gap-4 px-3 py-2.5">
+        <span class="text-xs text-surface">{{ settings.animations }}</span>
+        <AppSelect
+          v-model="animationPreference"
+          :label="settings.animations"
+          :options="[
+            { value: 'system', label: settings.animationsSystem },
+            { value: 'off', label: settings.animationsOff }
+          ]"
+          class="w-44"
+        />
+      </label>
+    </SettingsGroup>
 
     <SettingsSectionHeader>
       {{ recovery.settingsTitle }}

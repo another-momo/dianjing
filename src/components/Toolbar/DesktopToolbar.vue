@@ -1,22 +1,24 @@
 <script setup lang="ts">
-import Tip from '@/components/ui/overlay/Tip.vue'
-import ToolButton from '@/components/Toolbar/ToolButton.vue'
-import ToolFlyout from '@/components/Toolbar/ToolFlyout.vue'
+import { ToolbarRoot } from 'reka-ui'
+
+import type { EditorToolDef } from '@open-pencil/core/editor'
 import {
   getToolbarToolSelection,
   isToolbarToolActive,
   toolbarToolTestId,
   ToolbarItem
 } from '@open-pencil/vue'
-
 import type { Tool } from '@open-pencil/vue'
-import type { EditorToolDef } from '@open-pencil/core/editor'
+
+import ToolButton from '@/components/Toolbar/ToolButton.vue'
+import ToolFlyout from '@/components/Toolbar/ToolFlyout.vue'
 import type {
   ToolbarActionItem,
   ToolbarUI,
   ToolIconMap,
   ToolLabels
 } from '@/components/Toolbar/types'
+import Tip from '@/components/ui/overlay/Tip.vue'
 
 const { tools, activeTool, flyoutSelections, toolIcons, toolLabels, toolShortcuts, addImage, ui } =
   defineProps<{
@@ -37,7 +39,7 @@ const emit = defineEmits<{
 
 <template>
   <div class="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center">
-    <div
+    <ToolbarRoot
       data-test-id="toolbar"
       class="flex gap-0.5 rounded-xl bg-panel p-1 shadow-[0_8px_30px_rgb(0_0_0/0.4)]"
     >
@@ -82,6 +84,6 @@ const emit = defineEmits<{
           @click="addImage.action()"
         />
       </Tip>
-    </div>
+    </ToolbarRoot>
   </div>
 </template>

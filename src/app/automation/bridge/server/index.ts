@@ -85,7 +85,14 @@ const handle = await startServer({
   appAttachTimeoutMs
 })
 
-process.stderr.write(`OpenPencil automation bridge\n`)
+const readyMarker = process.env.OPENPENCIL_MCP_READY_MARKER
+if (readyMarker && /^open-pencil-ready:[a-f0-9-]{36}$/.test(readyMarker)) {
+  process.stderr.write(`${readyMarker}
+`)
+}
+
+process.stderr.write(`OpenPencil automation bridge
+`)
 if (handle.socketPath) process.stderr.write(`  Socket: ${handle.socketPath}\n`)
 if (handle.httpPort) process.stderr.write(`  HTTP:   http://127.0.0.1:${handle.httpPort}\n`)
 

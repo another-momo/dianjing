@@ -1,5 +1,4 @@
 <script setup lang="ts" generic="T extends string | number">
-import { tv } from 'tailwind-variants'
 import {
   SelectContent,
   SelectItem,
@@ -13,10 +12,11 @@ import {
   SelectValue,
   SelectViewport
 } from 'reka-ui'
+import { tv } from 'tailwind-variants'
 
+import type { ComponentUI } from '@/components/ui/types'
 import theme from '@/theme/select/app'
 import type { AppSelectTheme } from '@/theme/select/app'
-import type { ComponentUI } from '@/components/ui/types'
 
 interface AppSelectProps<TValue extends string | number> {
   label?: string
@@ -34,7 +34,11 @@ const styles = tv(theme)()
 
 <template>
   <SelectRoot v-model="modelValue">
+    <SelectTrigger v-if="$slots.trigger" as-child v-bind="$attrs" :aria-label="label">
+      <slot name="trigger" />
+    </SelectTrigger>
     <SelectTrigger
+      v-else
       v-bind="$attrs"
       :class="styles.trigger({ class: ui?.trigger })"
       :aria-label="label"

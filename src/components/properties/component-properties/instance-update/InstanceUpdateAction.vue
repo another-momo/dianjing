@@ -14,8 +14,8 @@ import { useI18n } from '@open-pencil/vue'
 import type { EditorStore } from '@/app/editor/session'
 import type { LibraryService } from '@/app/libraries'
 import { useInstanceUpdate } from '@/components/properties/component-properties/instance-update/use'
-import Tip from '@/components/ui/overlay/Tip.vue'
 import { useMenuUI } from '@/components/ui/menu/menu'
+import Tip from '@/components/ui/overlay/Tip.vue'
 
 const { node, editor, service } = defineProps<{
   node: SceneNode | null | undefined
@@ -43,7 +43,10 @@ const { available, updating, updateSelectedInstance } = useInstanceUpdate(
           :disabled="updating"
           :aria-label="panels.updateSelectedInstance"
         >
-          <icon-lucide-refresh-cw class="size-3.5" :class="updating ? 'animate-spin' : ''" />
+          <icon-lucide-refresh-cw
+            :data-loading="updating"
+            class="size-3.5 data-[loading=true]:animate-spin motion-reduce:data-[loading=true]:animate-none"
+          />
         </button>
       </DropdownMenuTrigger>
     </Tip>

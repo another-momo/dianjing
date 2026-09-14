@@ -15,9 +15,9 @@ export interface AppSwitchProps {
 </script>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { SwitchRoot, SwitchThumb } from 'reka-ui'
 import { tv } from 'tailwind-variants'
+import { computed } from 'vue'
 
 import theme from '@/theme/toggle/switch'
 

@@ -9,6 +9,7 @@
   },
   "files": [
     "dist",
+    "src",
     "assets"
   ],
   "type": "module",
@@ -16,7 +17,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "imports": {
-    "#core/*": "./src/*"
+    "#core/*": "./src/*.ts"
   },
   "exports": {
     "./package.json": "./package.json",
@@ -184,6 +185,7 @@
     "canvaskit-wasm": "^0.41.1",
     "css-tree": "3.2.1",
     "culori": "^4.0.2",
+    "dedent": "^1.7.2",
     "destr": "^2.0.5",
     "diff": "^8.0.4",
     "es-toolkit": "^1.51.0",
@@ -204,6 +206,7 @@
     "svgpath": "^2.6.0",
     "twirlwind": "^0.3.0",
     "unifont": "0.7.4",
+    "valibot": "^1.4.2",
     "yoga-layout": "npm:@open-pencil/yoga-layout@3.3.0-grid.3"
   },
   "devDependencies": {

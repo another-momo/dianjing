@@ -18,9 +18,16 @@ import {
   useToolbarState,
   useViewportKind
 } from '@open-pencil/vue'
-
 import type { Tool } from '@open-pencil/vue'
+
+import { useEditorStore } from '@/app/editor/active-store'
+import { toolIcons } from '@/app/editor/icons'
+import { useActionToast } from '@/app/shell/toast/action'
+import { useToolbarActions } from '@/components/Toolbar/actions'
+import DesktopToolbar from '@/components/Toolbar/DesktopToolbar.vue'
+import MobileToolbar from '@/components/Toolbar/MobileToolbar.vue'
 import type { ToolbarActionItem } from '@/components/Toolbar/types'
+import { useMenuUI } from '@/components/ui/menu/menu'
 
 const store = useEditorStore()
 const { isMobile } = useViewportKind()

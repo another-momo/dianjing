@@ -1,5 +1,5 @@
 {
-  "$comment": "Zone registry（工作机制 v2 现行规则，2026-09-06 瘦身）。本文件是 fork 与上游合并的文件所有权唯一真相，由 tools/zone-registry/src/check.ts（check:zones，pre-commit 强制）机器执行。现行规则：改动上游供血文件必须登记 patches；新增文件只许落在 ownedRoots；deletedPaths 不得复活；stubs 登记伪装上游接口的 fork 自有桩（与 patches 互斥——R-mutex）；pendingReclass 是计划元数据（重分类仪式完成前文件保持 follow-pure，可携带 deletion-cut patch）；relocations 登记搬移意图（上游旧位置→fork 新家园，空数组=纯裁撤无继承者），check.ts RELOCATION_WATCH 对 upstreamBase..upstream/master diff 命中时打印移植评估 advisory（永不 fail gate，--drift 出明细）；upstreamMergeTarball 机制（按合并事件白名单字节一致拷贝、锚 base SHA、drift 即违规）保留给未来合并，当前清零。上游合并 SOP：合并前 check:zones 绿 → 按 zone 裁定冲突 → 合并后 ownedFiles 字节审计（清 phantom）+ relocations/tarball 台账更新。最近合并：2026-09-08 上游 d82aaff9e→9dac52da1（27 commits：UI family 重组收割 + P37 退役转 relocation + deletedPaths 增补 5 条——ModelsPanel.vue/credentials media.ts/diagnostics recent.ts+其测试/AppCombobox.vue；fuse.js 根依赖拒收，packages/vue 既有依赖保留）。历史台账全本：docs/archive/rebuild-campaign/zones-comment-ledger-2026-09-06.md 与 git 历史。机制复盘节奏由 tools/hooks/src/mechanism-review.ts 跟踪。",
+  "$comment": "Zone registry（工作机制 v2 现行规则，2026-09-06 瘦身）。本文件是 fork 与上游合并的文件所有权唯一真相，由 tools/zone-registry/src/check.ts（check:zones，pre-commit 强制）机器执行。现行规则：改动上游供血文件必须登记 patches；新增文件只许落在 ownedRoots；deletedPaths 不得复活；stubs 登记伪装上游接口的 fork 自有桩（与 patches 互斥——R-mutex）；pendingReclass 是计划元数据（重分类仪式完成前文件保持 follow-pure，可携带 deletion-cut patch）；relocations 登记搬移意图（上游旧位置→fork 新家园，空数组=纯裁撤无继承者），check.ts RELOCATION_WATCH 对 upstreamBase..upstream/master diff 命中时打印移植评估 advisory（永不 fail gate，--drift 出明细）；upstreamMergeTarball 机制（按合并事件白名单字节一致拷贝、锚 base SHA、drift 即违规）保留给未来合并，当前清零。上游合并 SOP：合并前 check:zones 绿 → 按 zone 裁定冲突 → 合并后 ownedFiles 字节审计（清 phantom）+ relocations/tarball 台账更新。最近合并：2026-09-14 上游 9dac52da1→5cc6fa70e（109 commits：DU 83 保持删除 + UA 19 拒收（#661 会话历史不移植）+ UU 20 手工裁定（SettingsDialog 全取我方，MobileDrawer/DesktopToolbar/tab-bar 取上游重打 fork patch）+ ownedRoots 静默并入 2 件尽收（child-ready.ts 待移植/portless-route.ts 小改进）+ GHOST 7+1 随删 + P179 退役 + deletedPaths 增补 4 条——package-quality/package-artifacts/authoring-reference/ci（上游 npm 发布与 CI 分类链，与我方 electron 形态无关，check:packages/test:packages 随之摘出 check 链）；依赖尽收 oxfmt 0.67/vue-stream-markdown beta.5/@lezer/highlight/dedent）。历史台账全本：docs/archive/rebuild-campaign/zones-comment-ledger-2026-09-06.md 与 git 历史。机制复盘节奏由 tools/hooks/src/mechanism-review.ts 跟踪。",
   "ownedRoots": [
     "docs/",
     "tools/zone-registry/",
@@ -81,25 +81,25 @@
       "oldPath": "packages/mcp/",
       "newPaths": ["src/app/automation/bridge/server/"],
       "since": "Batch 2c (2026-09-05)",
-      "note": "mcp 裁撤内核迁入；stdio/tool registration 等外壳未迁"
+      "note": "mcp 裁撤内核迁入；stdio/tool registration 等外壳未迁；2026-09-14 合并采 child-ready 机制（server/index.ts 吸收 marker 块；vite-plugin 就绪探测移植另行）"
     },
     {
       "oldPath": "packages/cli/",
       "newPaths": ["packages/core/src/io/", "tools/visual-oracles/src/render-fixture.ts"],
       "since": "Batch 2b (2026-09-05)",
-      "note": "cli 裁撤；CanvasKit 初始化/字体预备吸收进 core/io，fixture 导出归 visual-oracles；2026-09-08 合并吸收上游改动（import.ts 随删除批）"
+      "note": "cli 裁撤；CanvasKit 初始化/字体预备吸收进 core/io，fixture 导出归 visual-oracles；2026-09-08 合并吸收上游改动（import.ts 随删除批）；2026-09-14 上游改动仅 package.json 版本噪音，无实质"
     },
     {
       "oldPath": "src/app/ai/chat/",
       "newPaths": ["src/app/ai/fork/"],
       "since": "Batch 2a (2026-09-05)",
-      "note": "路径分离：use/failure/transports 迁 fork；2026-09-05 整目录进 deletedPaths；2026-09-08 合并吸收上游改动（storage/use.ts 随删除批）"
+      "note": "路径分离：use/failure/transports 迁 fork；2026-09-05 整目录进 deletedPaths；2026-09-08 合并吸收上游改动（storage/use.ts 随删除批）；2026-09-14 合并拒收 #661 会话历史（owner 拍板：pi-backend 自有 JSONL 历史，数据源不同不移植）"
     },
     {
       "oldPath": "src/components/chat/",
       "newPaths": ["src/components/assistant/"],
       "since": "Batch 2f (2026-09-05)",
-      "note": "整目录搬家腾出上游仍在用的目录名；2026-09-08 合并吸收上游改动（6 组件随删除批）"
+      "note": "整目录搬家腾出上游仍在用的目录名；2026-09-08 合并吸收上游改动（6 组件随删除批）；2026-09-14 合并拒收 #661 历史组件（ChatComposer/ChatHistory/ChatTranscript 等 9 件随删除批）"
     },
     {
       "oldPath": "src/app/automation/mcp/",
@@ -117,13 +117,13 @@
       "oldPath": "src/app/ai/chat/system-prompt.md",
       "newPaths": ["src/app/ai/pi-backend/studio/base.md"],
       "since": "T46 (2026-08)",
-      "note": "提示词谱系：T46 转写副本 2026-09-05 退役，studio/ 唯一真源"
+      "note": "提示词谱系：T46 转写副本 2026-09-05 退役，studio/ 唯一真源；2026-09-14 上游转 compose 架构（17+/569-，system-prompt.ts + design-jsx/reference），不采；内容净增量扫描另行"
     },
     {
       "oldPath": "src/components/settings/models/ModelsPanel.vue",
       "newPaths": ["src/components/settings/models/PiModelsPanel.vue"],
       "since": "upstream-merge d82aaff9e..9dac52da1 (2026-09-08)",
-      "note": "路径分离（owner 拍板①）：上游推平重写依赖已裁 ai/models 域，彻底抛弃；SettingsDialog 直引 PiModelsPanel（pi SDK 自持），P37 塌缩 patch 随之退役"
+      "note": "路径分离（owner 拍板①）：上游推平重写依赖已裁 ai/models 域，彻底抛弃；SettingsDialog 直引 PiModelsPanel（pi SDK 自持），P37 塌缩 patch 随之退役；2026-09-14 上游 118/78 重构（editingModel 稳定化），架构不同源不移植"
     }
   ],
   "patches": [
@@ -937,13 +937,6 @@
       "lastReviewed": "2026-09-06"
     },
     {
-      "id": "P179",
-      "file": "tools/package-quality/src/smoke.ts",
-      "reason": "Batch 2b/2c（2026-09-05）：pack 冒烟去 @open-pencil/mcp/stdio eval 跳过项与 openpencil/openpencil-mcp/openpencil-mcp-http 三条 bin --help 校验（两包裁撤连带）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-05"
-    },
-    {
       "id": "P180",
       "file": "tools/type-shapes/tests/files.test.ts",
       "reason": "Batch 2c（2026-09-05）：isTypeShapeSourcePath 断言由 packages/mcp/dist 改 packages/vue/dist（mcp 裁撤后换参照包）",
@@ -1462,7 +1455,13 @@
     "tests/engine/render/canvas/text.test.ts",
     "packages/vue/src/i18n/messages/diagnostics.ts",
     "packages/vue/src/i18n/locales/zh-cn/diagnostics.json",
-    "src/components/ui/AppComboboxInput.vue"
+    "src/components/ui/AppComboboxInput.vue",
+    "tools/package-quality",
+    "tools/package-artifacts",
+    "tools/authoring-reference",
+    "tools/ci",
+    "src/app/settings/credentials/preferences/use.ts",
+    "src/components/settings/credentials/CredentialSettingsSection.vue"
   ],
   "upstreamMergeTarball": []
 }

@@ -2,7 +2,15 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- Update custom Vue SDK binding providers to implement `getBindingId()` and handle `unresolved`. Replace `setValue()` with `prepareEdit()`, returning a stable edit key, captured value, setter, and restoration callback.
+
 ### Added
+
+- Bind Design JSX spacing, sizing, corners, and typography directly to numeric document variables.
+- Define component properties and assign instance values in Design JSX using stable property IDs.
+- Save AI conversations and attachment previews locally, switch between chats, rename or delete them, and browse saved transcripts across documents. Choose whether reasoning stays collapsed, expands while thinking, or stays expanded, with animated disclosure controls that respect reduced motion.
 
 - Add a searchable command palette for editor and application actions.
 - Search current AI provider catalogs from model pickers, with curated recommendations, recent compatible models, and offline fallbacks.
@@ -18,7 +26,7 @@
 - Add local AI usage and technical diagnostics, including token telemetry, provider/model summaries, recent failures, configurable retention, export, and clear controls. (#588)
 - Import, render, edit, resize, select, and export Figma text-on-path layers while preserving their curved glyph layout.
 - Show temporary Figma-style distance measurements between selected and Option/Alt-hovered layers. (#491)
-- Edit Design JSX and HTML/CSS previews in CodeMirror, with Tailwind viewing, completion, diagnostics, bounded execution, and session-level undo. (#130)
+- Edit Design JSX and HTML/CSS previews in CodeMirror, with theme-aware highlighting, Tailwind viewing, completion, diagnostics, bounded execution, and session-level undo. (#130)
 - Set provider-specific reasoning effort on supported AI model profiles. (#454)
 - Show unavailable or substituted document fonts with affected-layer selection and retry actions, and expose font fidelity through the Figma API and MCP tooling. (#503)
 - Add reusable remote MCP connections for ACP agents, with Streamable HTTP endpoints and credential-backed bearer tokens.
@@ -30,6 +38,16 @@
 
 ### Changed
 
+- Use compact desktop Home search actions with consistent responsive layout and control sizing.
+- Keep applied and available Effect styles concise, and collapse equal independent corner fields when all four use the same variable.
+- Keep pixel-grid rounding invisible while showing alignment guides only for real geometry, objects, and canvas/layout guides.
+- Copy selections with embedded images into Figma while preserving typed geometry, text sizing, images, components, variables, modes, and shared styles for lossless in-app paste.
+- Choose whether interface animations follow the system motion preference or stay off, with live updates and a persistent override.
+- Put unbound fill and stroke style pickers in section headers, preserve applied and missing style rows, and remove the redundant Dimensions heading for text layers.
+- Open variable pickers below their trigger when space permits, flipping above near the viewport edge.
+- Keep AI chat preferences with the model overview and edit models in a fixed-size Settings pane with explicit Save and Cancel actions.
+- Match page-list density to the layer tree and add subtle, reduced-motion-aware dialog transitions.
+- Fade in streaming Markdown list items and code lines without animating completed responses.
 - Vertically center shaped section titles and allow renaming a section by double-clicking its canvas label.
 - Load supported online fonts before revealing imported pages, preserve substituted text during editing, and shape canvas labels with bundled Inter typography.
 - Upgrade CanvasKit to 0.41 and use immutable renderer paths through `PathBuilder`.
@@ -40,7 +58,18 @@
 
 ### Fixed
 
+- Keep Undo and Redo commands available as edit history changes, without requiring another scene edit.
+- Avoid recursive desktop HTTP proxy requests when font downloads intercept Tauri IPC traffic.
+- Keep FIT image fills proportional, centered, and fully visible without stretching or cropped edges.
+- Preserve edited instance text, including cleared labels, when saving and reopening `.fig` files.
+- Honor `.pen` frame layout defaults and sizing and padding shorthands so imported auto-layout frames keep their computed dimensions and child positions. (#564)
+- Avoid macOS Keychain prompts during credential status checks and pause repeated credential access after failures until explicitly retried from Settings.
+
+- Honor explicit Design JSX instance dimensions and preserve authored overrides through component synchronization.
+- Route browser Command/Ctrl plus and minus shortcuts to canvas zoom instead of page zoom.
 - Resolve `$name` references in imported `.pen` fills, stroke fills, font families, dimensions, and spacing without requiring a `--` prefix. (#563)
+- Resolve bound fields in each layer’s mode, keep variable edits scoped and undoable, and make broken bindings visible and recoverable.
+- Display letter spacing in pixels and support explicit automatic line height.
 - Prevent the stock photo tool from replacing text, lines, structural layers, or containers with content while supporting closed shape geometry.
 - Preserve explicit text alignment metadata on imported Figma vectors across save and reload.
 
@@ -53,7 +82,7 @@
 
 - Preserve imported Figma divider-line geometry during auto-layout recomputation, preventing half-pixel shifts on save and reload.
 
-- Make published package export conditions resolve to files included in npm tarballs.
+- Resolve package imports under Node and Bun from ordinary tarballs while preserving Bun source-first workspace execution. (#663)
 - Use the user's home directory as the default MCP file root on Windows, avoiding the caller's unreliable working directory.
 - Open legacy raw `.fig` files that store the Kiwi document and thumbnail without a ZIP wrapper. (#582)
 - Preserve a frame's auto-layout HUG sizing mode when converting it into a component with `create_component`.
@@ -92,6 +121,7 @@
 - Preserve component links when pasting Figma instances so later component edits continue to update them.
 - Stop local MCP servers after the app disconnects instead of leaving orphaned background processes. (#494)
 
+- Prevent unbounded instance duplication when editing Figma-imported or pasted components with serialized or renamed children, keep extra instance children stable instead of yanking them to the front, and avoid pasted instances re-linking pre-existing instances during clipboard import.
 ### Performance
 
 - Scope automation and Figma API layout reconciliation to graph nodes and parent containers actually changed by each mutation.

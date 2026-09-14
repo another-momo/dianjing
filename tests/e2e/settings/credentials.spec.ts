@@ -40,12 +40,13 @@ test('model library keeps reusable profiles and role assignments', async ({ page
   await canvas.waitForInit()
 
   await page.getByTestId('app-settings-trigger').click()
+  await page.getByTestId('settings-section-ai').click()
   await page.getByTestId('settings-add-model').click()
   await page.getByLabel('Name').fill('Fast model')
   await page.getByTestId('settings-model-provider').click()
   await page.getByRole('option', { name: 'Google AI' }).click()
   await page.getByLabel('Model ID').click()
-  await page.getByRole('option', { name: 'Gemini 3 Flash' }).click()
+  await page.getByRole('option').first().click()
   await page.getByRole('button', { name: 'Save model' }).click()
 
   await page.getByTestId('settings-add-model').click()
@@ -53,8 +54,7 @@ test('model library keeps reusable profiles and role assignments', async ({ page
   await page.getByTestId('settings-model-provider').click()
   await page.getByRole('option', { name: 'OpenRouter' }).click()
   await page.getByLabel('Model ID').first().click()
-  await page.getByRole('option', { name: 'Kimi K2.5' }).click()
-  await page.getByRole('switch', { name: 'Image input' }).click()
+  await page.getByRole('option').first().click()
   await page.getByRole('button', { name: 'Save model' }).click()
 
   await page.getByTestId('settings-model-assignment-fast').click()
@@ -66,6 +66,7 @@ test('model library keeps reusable profiles and role assignments', async ({ page
   await page.reload()
   await canvas.waitForInit()
   await page.getByTestId('app-settings-trigger').click()
+  await page.getByTestId('settings-section-ai').click()
   await expect(page.getByTestId('settings-model-list')).toContainText('Fast model')
   await expect(page.getByTestId('settings-model-list')).toContainText('Vision model')
   await expect(page.getByTestId('settings-model-assignment-fast')).toContainText('Fast model')
@@ -80,11 +81,10 @@ test('remembered browser credentials survive reload and clear centrally', async 
   await page.getByRole('tab', { name: 'AI' }).click()
   await page.getByTestId('provider-setup-open-settings').click()
 
-  const remember = page.getByTestId('settings-remember-credentials')
-  await expect(remember).toHaveAttribute('data-state', 'checked')
-  await expect(page.getByTestId('settings-credential-backend')).toContainText(
-    'encrypted browser storage'
-  )
+  await page.getByTestId('settings-section-general').click()
+  const remember = page.getByRole('switch', { name: 'Remember API keys on this device' })
+  await expect(remember).toHaveAttribute('aria-checked', 'true')
+  await page.getByTestId('settings-section-ai').click()
 
   await page.locator('[data-model-id]').first().click()
   await page.getByTestId('settings-model-provider').click()
@@ -101,14 +101,35 @@ test('remembered browser credentials survive reload and clear centrally', async 
   await expect(page.getByTestId('chat-input')).toBeVisible()
 
   await page.getByTestId('app-settings-trigger').click()
+  await page.getByTestId('settings-section-ai').click()
   await page.locator('[data-model-id]').first().click()
   await page.getByTestId('provider-settings-clear-key').click()
-  await page.getByRole('button', { name: 'Back' }).click()
-  await page.getByTestId('settings-remember-credentials').click()
+  await page
+    .getByTestId('settings-model-editor')
+    .getByRole('button', { name: 'Cancel', exact: true })
+    .click()
+  await page.getByTestId('settings-section-general').click()
+  await remember.click()
   await page.getByTestId('app-settings-done').click()
 
   await page.reload()
   await canvas.waitForInit()
   await page.getByRole('tab', { name: 'AI' }).click()
   await expect(page.getByTestId('provider-setup-open-settings')).toBeVisible()
+})
+
+test('browser credential preferences live in General, not the footer', async ({ page }) => {
+  await page.goto('/')
+  await page.keyboard.press('ControlOrMeta+,')
+  const panel = page.getByTestId('settings-general-panel')
+  const remember = panel.getByRole('switch', { name: 'Remember API keys on this device' })
+  await expect(remember).toBeVisible()
+  if ((await remember.getAttribute('aria-checked')) === 'true') await remember.click()
+  await expect(remember).toHaveAttribute('aria-checked', 'false')
+  await expect(panel.getByText('Keys are kept only until you close this session.')).toBeVisible()
+  await remember.click()
+  await expect(remember).toHaveAttribute('aria-checked', 'true')
+  await expect(panel.getByText('Keys are kept only until you close this session.')).toBeHidden()
+  await expect(page.getByText('system credential store', { exact: false })).toHaveCount(0)
+  await page.getByTestId('app-settings-done').click()
 })

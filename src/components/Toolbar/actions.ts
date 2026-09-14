@@ -34,7 +34,7 @@ export function useToolbarActions({
 }: ToolbarActionOptions) {
   const editActions = computed<ToolbarActionItem[]>(() => [
     { icon: IconCopy, label: menu.value.copy, action: () => void store.mobileCopy() },
-    { icon: IconClipboard, label: menu.value.paste, action: () => store.mobilePaste() },
+    { icon: IconClipboard, label: menu.value.paste, action: () => void store.mobilePaste() },
     { icon: IconScissors, label: menu.value.cut, action: () => void store.mobileCut() },
     {
       icon: IconCopyPlus,

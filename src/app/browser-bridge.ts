@@ -30,12 +30,6 @@ export interface OpenPencilWindowAPI {
   test?: OpenPencilTestHooks
 }
 
-declare global {
-  interface Window {
-    openPencil?: OpenPencilWindowAPI
-  }
-}
-
 let activeStore: EditorStore | null = null
 
 function windowAPI(): OpenPencilWindowAPI {
