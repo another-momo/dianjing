@@ -403,7 +403,7 @@ export function createPiChatService({
     if (builtinToolsMode === 'readonly') {
       sessionOpts.tools = ['read', 'grep', 'find', 'ls', ...customTools.map((tool) => tool.name)]
     }
-    if (modelSpec?.thinkingLevel) sessionOpts.thinkingLevel = modelSpec.thinkingLevel
+    if (modelSpec.thinkingLevel) sessionOpts.thinkingLevel = modelSpec.thinkingLevel
     const { session } = await createAgentSession(sessionOpts)
 
     const file = sessionManager.getSessionFile()

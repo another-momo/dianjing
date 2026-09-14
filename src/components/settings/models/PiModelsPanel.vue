@@ -72,6 +72,12 @@ import Tip from '@/components/ui/overlay/Tip.vue'
 const dialogs = useForkPi()
 const { ai, collaboration: uiCollab } = useI18n()
 
+/** 响应式 Record 去键——immutable 重写替代动态 delete（lint 禁 delete obj[computed]），
+ *  ref 整体替换保持响应性。 */
+function omitRecordKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  return Object.fromEntries(Object.entries(record).filter(([k]) => k !== key))
+}
+
 const expandedProviderId = ref<string | null>(null)
 const keyDrafts = ref<Record<string, string>>({})
 /** T100：行级 busy——同一时刻只允许一个 provider 行在跑动作；与 providerKeyInputs 同行级绑定 */
@@ -260,7 +266,7 @@ async function saveKey(providerId: string): Promise<void> {
   const key = (keyDrafts.value[providerId] ?? '').trim()
   if (!key) return
   busyProviderId.value = providerId
-  delete rowErrors.value[providerId]
+  rowErrors.value = omitRecordKey(rowErrors.value, providerId)
   try {
     await setPiCredential(providerId, key)
     keyDrafts.value[providerId] = ''
@@ -294,7 +300,7 @@ async function saveKey(providerId: string): Promise<void> {
 
 async function clearKey(providerId: string): Promise<void> {
   busyProviderId.value = providerId
-  delete rowErrors.value[providerId]
+  rowErrors.value = omitRecordKey(rowErrors.value, providerId)
   try {
     await clearPiCredential(providerId)
     // T97：清除当前指派 provider 的 key 不清指派——指派语义独立；该 provider 行
@@ -327,7 +333,7 @@ function focusProvider(providerId: string): void {
 async function verifyProvider(providerId: string): Promise<void> {
   if (verifyStates.value[providerId] === 'busy') return
   verifyStates.value[providerId] = 'busy'
-  delete rowErrors.value[providerId]
+  rowErrors.value = omitRecordKey(rowErrors.value, providerId)
   try {
     const result = await verifyPiCredential(providerId)
     verifyStates.value[providerId] = classifyVerifyResult(result)
@@ -343,26 +349,26 @@ async function verifyProvider(providerId: string): Promise<void> {
 function startDelete(providerId: string): void {
   if (!canDeleteProvider(providers.value.find((p) => p.id === providerId) ?? {})) return
   deleteConfirmIds.value[providerId] = true
-  delete rowErrors.value[providerId]
+  rowErrors.value = omitRecordKey(rowErrors.value, providerId)
 }
 
 /** T100 C1：取消删除——回退到正常态（不调后端） */
 function cancelDelete(providerId: string): void {
-  delete deleteConfirmIds.value[providerId]
+  deleteConfirmIds.value = omitRecordKey(deleteConfirmIds.value, providerId)
 }
 
 /** T100 C1：行内确认删除——调 deletePiProvider，失败错误下沉到行内 */
 async function confirmDelete(providerId: string): Promise<void> {
   busyProviderId.value = providerId
-  delete deleteConfirmIds.value[providerId]
-  delete rowErrors.value[providerId]
+  deleteConfirmIds.value = omitRecordKey(deleteConfirmIds.value, providerId)
+  rowErrors.value = omitRecordKey(rowErrors.value, providerId)
   try {
     await deletePiProvider(providerId)
     // 删除成功：清理该行的 transient state（draft/verify/confirm），并 collapse 行
-    delete keyDrafts.value[providerId]
-    delete draftModel.value[providerId]
-    delete draftThinking.value[providerId]
-    delete verifyStates.value[providerId]
+    keyDrafts.value = omitRecordKey(keyDrafts.value, providerId)
+    draftModel.value = omitRecordKey(draftModel.value, providerId)
+    draftThinking.value = omitRecordKey(draftThinking.value, providerId)
+    verifyStates.value = omitRecordKey(verifyStates.value, providerId)
     if (expandedProviderId.value === providerId) expandedProviderId.value = null
   } catch (error) {
     rowErrors.value[providerId] = error instanceof Error ? error.message : String(error)
@@ -386,7 +392,7 @@ function startEdit(providerId: string): void {
   // api 类型优先看 provider.models[0]?.api（来自 SDK 反序列化）；fallback 缺省值
   customAPI.value = provider.models[0]?.api ?? 'openai-completions'
   customModelIds.value = provider.models.map((m) => m.id).join('\n')
-  delete rowErrors.value[providerId]
+  rowErrors.value = omitRecordKey(rowErrors.value, providerId)
   formMode.value = 'edit'
 }
 
@@ -422,7 +428,7 @@ async function submitCustomForm(): Promise<void> {
   // 错误位：edit 走原 providerId，add 走 '__custom__' 虚拟行
   const errorKey = targetId ?? '__custom__'
   busyProviderId.value = errorKey
-  delete rowErrors.value[errorKey]
+  rowErrors.value = omitRecordKey(rowErrors.value, errorKey)
   try {
     await upsertPiProvider({
       id: customId.value.trim(),

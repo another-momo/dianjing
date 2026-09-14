@@ -307,7 +307,7 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
    * T100 C1：删除自定义 provider——只删「非 SDK 内建 + models.json 中存在」的条目；
    * 内建 provider（pi SDK 40 家）拒绝 400，避免误删 SDK 自带支持。
    * 同清 auth.json 凭据（logout）+ models.json 条目 + models-store.json 缓存条目
-   * （能定位时同清；不能定位不影响正确性，记注释），重建 runtime。
+   * （能定位时同清；不能定位不影响正确性，记 warn），重建 runtime。
    */
   async function deleteProvider(providerId: string): Promise<void> {
     if (!PROVIDER_ID_PATTERN.test(providerId)) {
@@ -331,9 +331,10 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
     if (!(providerId in providers)) {
       throw new Error(`${providerId} 不在 models.json 中，无需删除（确认 providerId 是否正确）`)
     }
-    // 1. 从 models.json 删除该 provider 条目
-    delete providers[providerId]
-    doc.providers = providers
+    // 1. 从 models.json 删除该 provider 条目（immutable 去键——lint 禁动态 delete）
+    doc.providers = Object.fromEntries(
+      Object.entries(providers).filter(([id]) => id !== providerId)
+    )
     writeFileSync(modelsPath, JSON.stringify(doc, null, 2))
 
     // 2. 凭据清理——logout 对未配凭据的 provider 是 no-op，对已配的会清 auth.json 条目
@@ -348,20 +349,25 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
       )
     }
 
-    // 3. models-store.json 缓存条目清理（best-effort）——定位则同清、否则记注释
+    // 3. models-store.json 缓存条目清理（best-effort）——定位则同清、否则记 warn。
     //    pi SDK 把动态 provider 远程 catalog 缓存写到这里，按 providerId key。
-    //    文件不存在/读失败/格式异常时静默跳过：缓存只是加速，残留条目不会
+    //    文件不存在/读失败/格式异常时跳过：缓存只是加速，残留条目不会
     //    影响下次 getCatalog（custom provider 已被删，缓存条目成孤儿）。
     const modelsStorePath = join(agentDir, 'models-store.json')
     try {
-      const raw = readFileSync(modelsStorePath, 'utf8')
-      const store = JSON.parse(raw) as Record<string, unknown>
-      if (providerId in store) {
-        delete store[providerId]
-        writeFileSync(modelsStorePath, JSON.stringify(store, null, 2))
+      const store: unknown = JSON.parse(readFileSync(modelsStorePath, 'utf8'))
+      if (store !== null && typeof store === 'object' && providerId in store) {
+        const remaining = Object.fromEntries(
+          Object.entries(store).filter(([id]) => id !== providerId)
+        )
+        writeFileSync(modelsStorePath, JSON.stringify(remaining, null, 2))
       }
-    } catch {
-      // 文件不存在/坏 JSON 静默跳过
+    } catch (error) {
+      // 缓存清理失败不影响正确性（孤儿条目无害）——warn 留诊断线索
+      console.warn(
+        `[pi-backend] deleteProvider: models-store.json 缓存清理跳过：` +
+          (error instanceof Error ? error.message : String(error))
+      )
     }
 
     // 4. 重建 runtime——provider 目录变更的同一通路（与 upsertProvider 一致）
@@ -400,8 +406,8 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
     }
     const provider = runtime.getProviders().find((entry) => entry.id === providerId)
     const firstModel = provider?.getModels()[0]
-    const baseUrl = provider?.baseUrl
-    if (!provider || !firstModel || !baseUrl) {
+    const baseURL = provider?.baseUrl
+    if (!provider || !firstModel || !baseURL) {
       return {
         ok: false,
         error: `${providerId} 缺少 baseUrl 或模型定义，无法在线验证——key 已保存，以实际对话为准`
@@ -414,7 +420,7 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
       }
     }
     try {
-      const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+      const response = await fetch(`${baseURL.replace(/\/+$/, '')}/chat/completions`, {
         method: 'POST',
         headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -452,6 +458,7 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
     const modelRuntime = await ensureRuntime()
     // T100：spec 必填——无 spec 即"未指派"，直接报可行动错误，引导用户去设置面板
     // 指派（前端引导门是第一道闸，此处是兜底路径，前端被绕过时给出可定位的文案）
+    // oxlint-disable-next-line typescript-eslint/no-unnecessary-condition -- 运行时兜底：调用方可绕过 TS（单测 undefined as never 钉死此路径）
     if (!spec) {
       throw new Error('未指派设计模型——请打开设置→AI 选择 provider 与模型后再试')
     }

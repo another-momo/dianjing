@@ -18,7 +18,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { createProviderAdmin, type ModelSpec } from '@/app/ai/pi-backend/provider-admin'
+import { createProviderAdmin } from '@/app/ai/pi-backend/provider-admin'
 
 let agentDir = ''
 
@@ -64,7 +64,7 @@ describe('a. resolveModel spec 必填（T100）', () => {
   test('无 spec → 报「未指派」可行动错误（开放/兜底文案钉死）', async () => {
     const admin = createProviderAdmin({ agentDir })
     // 类型层 spec 必填——测兜底路径需绕过 TS 检查
-    await expect(admin.resolveModel(undefined as unknown as ModelSpec)).rejects.toThrow(
+    await expect(admin.resolveModel(undefined as never)).rejects.toThrow(
       /未指派设计模型.*打开设置.*AI 选择 provider 与模型/
     )
   })
@@ -147,9 +147,12 @@ describe('b. deleteProvider 三态（T100 C1）', () => {
     const admin = createProviderAdmin({ agentDir })
     await admin.deleteProvider('my-custom')
 
-    const storeAfter = JSON.parse(
+    const storeAfter: unknown = JSON.parse(
       readFileSync(join(agentDir, 'models-store.json'), 'utf8')
-    ) as Record<string, unknown>
+    )
+    if (storeAfter === null || typeof storeAfter !== 'object') {
+      throw new Error('models-store.json 应为对象')
+    }
     expect('my-custom' in storeAfter).toBe(false)
     // 其他条目未被误伤
     expect('openrouter' in storeAfter).toBe(true)
@@ -231,18 +234,22 @@ describe('c. verifyCredential 状态码分档（T100 B1）', () => {
   test('200 → ok=true；请求带 Bearer 头 + /chat/completions 端点', async () => {
     writeOpenrouterSeed('sk-or-test')
     const admin = createProviderAdmin({ agentDir })
-    const fetchStub = mock((url: string | URL | Request, init?: RequestInit) =>
-      Promise.resolve(new Response('{}', { status: 200 }))
-    )
+    // 闭包捕获实参（不用 mock.calls 回取——避免对 optional init 做强转断言）
+    let seenURL = ''
+    let seenAuth: string | null = null
+    const fetchStub = mock((url: string | URL | Request, init?: RequestInit) => {
+      seenURL = String(url)
+      seenAuth = new Headers(init?.headers).get('authorization')
+      return Promise.resolve(new Response('{}', { status: 200 }))
+    })
     await withFetchStub(fetchStub, async () => {
       const result = await admin.verifyCredential('openrouter')
       expect(result.ok).toBe(true)
       expect(result.error).toBeUndefined()
     })
     expect(fetchStub).toHaveBeenCalledTimes(1)
-    const [url, init] = fetchStub.mock.calls[0]
-    expect(String(url)).toContain('/chat/completions')
-    expect((init?.headers as Record<string, string>).authorization).toBe('Bearer sk-or-test')
+    expect(seenURL).toContain('/chat/completions')
+    expect(seenAuth).toBe('Bearer sk-or-test')
   })
 
   test('401 → ok=false + 「凭据被拒绝（HTTP 401）」', async () => {
