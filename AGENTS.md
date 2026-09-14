@@ -28,10 +28,11 @@
 ## 4. 提交与门禁
 
 - commit 前必跑 `bun run format:check`（CI 红灯首要嫌疑，历史教训）。
+- oxfmt 只格式化门禁覆盖内或本批新建的文件——覆盖外的既有文件（desktop-electron 等不在 format 门禁内的目录）顺手格式化制造纯噪音 diff（2026-09-14 ④ 实证：smoke 文件 12 行功能改动被手跑 oxfmt 膨胀成 124 行，`git show HEAD:file` 回滚）。
 - commit 前 `git status` 核对无残留未暂存改动——pre-commit 门禁跑的是工作区，绿 ≠ 已入库（2026-09-08 事故：三文件台账改动未暂存，随 worktree 拆除灭失，CI 红一轮才兜住）。
 - 日常收口门禁：`bun run check:quick`（format + lint + typecheck + zones 四步串行）。
 - 变更集含 `.vue` 时收口补跑 `bun run check:vue`（约 72s，不进 check:quick 是刻意的——主 agent 收口职责，worker 无责）。
-- 注意：本机 oxlint 目录取文件为 0（静默假绿，2026-09-07 起未定位）——本地 lint 结果不可信，lint 类门禁以 CI 为准。本地复现 CI lint 的替代法：`bunx oxlint -c oxlint.json --type-aware --type-check <单文件>`（单文件参数不受 0 文件问题影响；prefer-optional-chain 等 type-aware 规则只在 lint 第二段跑，第一段失败会屏蔽它）。
+- 注意：本机 oxlint 目录取文件为 0（静默假绿，2026-09-07 起未定位）——本地 lint 结果不可信，lint 类门禁以 CI 为准。本地复现 CI lint 的替代法：`bunx oxlint -c oxlint.json --type-aware --type-check <单文件>`（单文件参数不受 0 文件问题影响）。CI lint 分两段不同规则集——src-only 311 条 type-aware / 含 tests 345 条，第二段有独有规则（4728a46d4 实证：optional 参数显式 undefined 第一段规则集复现不出）；逐文件复现先对照 CI 失败日志属哪一段，prefer-optional-chain 等 type-aware 规则只在第二段跑、第一段失败会屏蔽它。
 - 大改动（≥10 文件或 ≥200 行）收口跑全量 `bun run check`，跑前停 dev server。
 - studio 资产增删改名的耦合断言不止 tests/engine——`spikes/s-pi/backend-smoke/`（CI smoke:pi 契约层）直拷真资产目录并断言具体 id/数量/顺序；改资产同步扫 spikes/（2026-09-08 Phase 2 事故：派单 scope 只圈 tests/engine，CI 红一轮才浮出）。
 - 状态根/目录布局/路径契约类改动同样必扫 spikes：`spikes/s-pi/backend-smoke/` 钉死 token/状态文件相对布局，且冒烟 spawn 后端不带 env 时后端状态根不再跟 cwd（2026-09-14 D2 实证：15 处布局钉 + 7 处 env 注入漏扫，CI 红一轮）。**sweep 输出禁截断**——`grep | head` 截断漏掉 t28 archiveDir 钉，本地复现二轮才兜住。
