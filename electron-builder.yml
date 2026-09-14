@@ -115,14 +115,12 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   # 卸载时清干净 app 数据；createDesktopShortcut 已默认 true。
-  # shell-polish B2：deleteAppDataOnUninstall 只删 %APPDATA% 下 userData
-  # （electron-builder 自动判 APP_FILENAME / APP_PRODUCT_FILENAME / APP_PACKAGE_NAME
-  # 三 key），但用户自定义 studio 目录 %USERPROFILE%\.dianjing\studio\ 不在其
-  # 内——补删走 desktop-electron/nsis/include.nsh 的 customUnInstall 钩子。
-  # electron-builder 26 会用 !include "<path>" 把文件加入主 installer.nsi
-  # （NsisTarget.js L603 scriptGenerator.include），并自动把仓库根加入
-  # !addincludedir，路径相对仓库根解析。
-  include: desktop-electron/nsis/include.nsh
+  # D2：deleteAppDataOnUninstall 只删 %APPDATA% 下 userData——但状态根已
+  # 统一进 userData（resolveAppDataRoot = %APPDATA%/Dianjing，与 Electron
+  # userData 同位），所有持久化资产（pi-agent/ / pi-sessions/ / studio/
+  # / pi-backend-token / key-env）皆在 userData 之内，无需再补 nsis 自定义
+  # 钩子删 %USERPROFILE%\.dianjing\studio\。原 shell-polish B2 的
+  # desktop-electron/nsis/include.nsh 已退役删除。
   deleteAppDataOnUninstall: true
   # artifactName 在 win.* 已设，这里保留 nsis 自身的命名兜底
   artifactName: ${productName}-Setup-${version}.${ext}

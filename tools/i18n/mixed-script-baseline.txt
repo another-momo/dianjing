@@ -4,7 +4,6 @@ zh-cn:ai.baseURL
 zh-cn:ai.baseURLPlaceholder
 zh-cn:ai.chatAuthenticationFailed
 zh-cn:ai.chatForbidden
-zh-cn:ai.chatNetworkFailed
 zh-cn:ai.connectionTestAPITypeMismatch
 zh-cn:ai.connectionTestAuthFailed
 zh-cn:ai.connectionTestBrowserNetworkFailed
@@ -45,7 +44,6 @@ zh-cn:automation.toolsRestartNotice
 zh-cn:code.copyJSXReference
 zh-cn:code.editorHTMLCSSLabel
 zh-cn:collaboration.pasteRoomLinkOrId
-zh-cn:commands.paletteDescription
 zh-cn:credentials.getAPIKey
 zh-cn:files.browserFileAPINotSupported
 zh-cn:files.clipboardImageFetchFailed
@@ -81,9 +79,6 @@ zh-cn:panels.sizingFillFr
 zh-cn:panels.sizingFixedPx
 zh-cn:panels.xAxis
 zh-cn:panels.yAxis
-zh-cn:recovery.dialogDescription
-zh-cn:rendering.reloadRequired
-zh-cn:rendering.settingsDescription
 zh-cn:rendering.urlOverride
 zh-cn:settings.aiAndAgents
 zh-cn:settings.automation
@@ -91,12 +86,7 @@ zh-cn:settings.temporaryDisableSnappingHint
 zh-cn:storage.accessKeyID
 zh-cn:storage.copyCors
 zh-cn:storage.providerS3
-zh-cn:updates.available
-zh-cn:updates.availableTitle
-zh-cn:updates.downloading
-zh-cn:updates.installed
 zh-cn:updates.unavailable
-zh-cn:updates.upToDate
 
 zh-cn:ai.copyACPLog
 

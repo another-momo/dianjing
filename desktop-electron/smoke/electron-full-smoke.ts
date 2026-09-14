@@ -16,8 +16,9 @@
  *     /api/pi/catalog → 200（证 vite-plugin T27 退避语义移植生效）
  *     ——此步在 chat 前做，避免 chat 的 proxy-destroy-upstream 把 pi-backend
  *     推到不稳定状态影响退避复活链路的可观测性。
- *  ④ rootDir 指向 %TEMP% 下新目录；若上游 D:\...\open-pencil-mode\.dianjing\key-env
- *     存在则只读复制到临时 rootDir 的 .dianjing/key-env，让 pi-backend
+ *  ④ rootDir 指向 %TEMP% 下新目录；若上游 key-env（dev 状态根
+ *     %APPDATA%/Dianjing/key-env）存在则只读复制到临时 rootDir 的 key-env
+ *    （D2 起 rootDir 即状态根本身，key-env 直接挂 root），让 pi-backend
  *     拿到真实模型 key
  *  ⑤ 若 key 可用：经代理 POST /api/pi-chat 发一条最小消息，断言 SSE
  *     start+finish 完整且无 error（真模型调用，一次即可）；key 不可用则
@@ -29,7 +30,7 @@
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 import { pickFreePort } from '../tools/ports.js'
@@ -48,8 +49,13 @@ if (!existsSync(mainBundle)) {
   throw new Error('main bundle 缺失——先跑 bun run spike:electron:build')
 }
 
-// 上游 key-env 路径（仓外，本步提交物外）
-const SOURCE_KEY_ENV = 'D:\\Desktop\\AgentLearn\\00_DIYProjects\\0720openpencil\\open-pencil-mode\\.dianjing\\key-env'
+// 上游 key-env 路径——D2 起 dev 形态状态根 = %APPDATA%/Dianjing（resolveAppDataRoot
+// 同位），key-env 直挂根下；仓根 .dianjing/ 是旧布局遗物，不再被 dev 写入。
+const SOURCE_KEY_ENV = join(
+  process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'),
+  'Dianjing',
+  'key-env'
+)
 
 function taskkill(pid: number): Promise<{ code: number | null; aliveAfter: boolean }> {
   // /T = 杀子树（含 utilityProcess 派生的 helper），/F = 强杀。
@@ -134,17 +140,17 @@ function skip(name: string, reason: string): void {
 
 async function main(): Promise<void> {
   // 0. 准备：临时 rootDir + 可选 key-env 复制
+  // D2：rootDir 即状态根本身——key-env 直接挂 rootDir，不再嵌 .dianjing 子层
   const scratch = mkdtempSync(join(tmpdir(), 'dianjing-electron-full-smoke-'))
   const electronRootDir = join(scratch, 'electron-root')
-  const targetDianjing = join(electronRootDir, '.dianjing')
-  mkdirSync(targetDianjing, { recursive: true })
+  mkdirSync(electronRootDir, { recursive: true })
 
   let keyEnvCopied = false
   if (existsSync(SOURCE_KEY_ENV)) {
     try {
-      copyFileSync(SOURCE_KEY_ENV, join(targetDianjing, 'key-env'))
+      copyFileSync(SOURCE_KEY_ENV, join(electronRootDir, 'key-env'))
       keyEnvCopied = true
-      console.log(`[smoke] 已复制 key-env → ${join(targetDianjing, 'key-env')}`)
+      console.log(`[smoke] 已复制 key-env → ${join(electronRootDir, 'key-env')}`)
     } catch (error) {
       console.log(`[smoke] key-env 复制失败：${error instanceof Error ? error.message : String(error)}——真模型调用将跳过`)
     }

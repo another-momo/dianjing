@@ -704,12 +704,14 @@ async function runSmoke(window: BrowserWindow, skipTokenCheck: boolean): Promise
 // ── sidecar + 回环启动（编排入口，被 main / full-smoke 共用）──
 
 function buildSidecars(distDir: string, loopbackOrigin: string): { bridge: SidecarHandle; backend: SidecarHandle } {
-  // DIANJING_ROOT_DIR：状态根目录（sidecar 内 .dianjing/ 落盘点）。
+  // DIANJING_ROOT_DIR：状态根目录（sidecar 内 pi-agent/ pi-sessions/ 等
+  // 落盘点——D2 起不再内含 .dianjing 子层，rootDir 即状态根本身）。
   // 解析优先级 env > app.getPath('userData')——env 优先保留是为了让 smoke /
   // full-smoke 显式钉独立 rootDir 隔离多实例，dev 启动器 spike-electron-dev.ts
-  // 钉 worktree 根的便利也不受影响；用户日常双击图标落地即默认 userData，
-  // 不再依赖「spawn 时所在目录」（既有缺省 distDir 在打包形态下随产物目录
-  // 走——既不可读也不跨平台稳定）
+  // 钉 worktree 根的便利也不受影响（smoke/spike 配套重写：override 直指根
+  // + 自己拼子目录，例如 spike 显式 <wt>/.dianjing）。用户日常双击图标落
+  // 地即默认 userData，与 pi-backend/host.ts 同源 resolveAppDataRoot
+  // （D2 三形态统一根）。
   const rootDir = resolveElectronRootDir(readRootDir(), app.getPath('userData'))
   // DIANJING_STUDIO_BUILTIN_DIR：studio 内置资产目录的显式解析基准。
   // registry 缺省按 rootDir + 源码树子路径（src/app/ai/pi-backend/studio）

@@ -9,13 +9,16 @@
  *  - DIANJING_PI_BACKEND_PORT：监听端口（默认 7700，见 server.ts）
  *  - DIANJING_PI_TOKEN：T28 鉴权 token——vite 插件 spawn 时注入（proxy 补头，
  *    前端零改动）。未注入（standalone `bun run dev:backend`）时自生成 32-hex
- *    随机值写 <cwd>/.dianjing/pi-backend-token（0o600，tmp+rename 原子落盘），
+ *    随机值写 <rootDir>/pi-backend-token（0o600，tmp+rename 原子落盘），
  *    控制台只打印文件路径不打印 token；直连后端的脚本从该文件读 token。
- *  - OPENROUTER_API_KEY：模型 key。T25 D3：缺失时自动读 .dianjing/key-env
+ *  - OPENROUTER_API_KEY：模型 key。T25 D3：缺失时自动读 rootDir/key-env
  *    自助注入（shell 脚本 source 不再是前置条件）；仍缺则 service 在首个
  *    prompt 处如实报错。key 只注入 process.env，不打印不落日志。
- *  - DIANJING_ROOT_DIR：状态根目录（.dianjing/ 落盘点），缺省 process.cwd()。
- *    Electron sidecar 形态下由 main 进程显式注入（sidecar cwd 不可依赖）。
+ *  - DIANJING_ROOT_DIR：状态根目录（pi-agent/ / pi-sessions/ 等落盘点），
+ *    缺省 resolveAppDataRoot()——即 OS 标准应用数据目录下的 Dianjing
+ *    子目录（D2 起：直接指向状态根本身，不再内含 .dianjing 子层）。
+ *    Electron sidecar 形态下由 main 进程显式注入；dev/spike 形态下若需要
+ *    钉到仓根之外（例如 worktree 隔离），由调用方拼好后传入。
  */
 
 import { randomBytes } from 'node:crypto'
@@ -41,9 +44,9 @@ import { createPiBackendServer, PI_BACKEND_DEFAULT_PORT } from './server'
 setBedrockProviderModule(bedrockProviderModule)
 registerBunOAuthFlows()
 
-// Electron sidecar 形态下 cwd 不可依赖——状态根目录由宿主显式注入；
-// 不传时维持现状（dev/standalone 均为 cwd）。
-const rootDir = resolveRootDir(readRootDir())
+// D2：状态根收口——env override 直指根（不再内含 .dianjing 子层），缺省
+// 走 resolveAppDataRoot（OS 标准应用数据目录下的 Dianjing 子目录）。
+const rootDir = resolveRootDir(readRootDir(), process.env)
 
 // T25 D3：key-env 自助注入（仅补缺失项，不覆盖已有 env）
 function injectKeyEnv(): void {

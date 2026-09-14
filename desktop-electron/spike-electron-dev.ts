@@ -14,7 +14,7 @@
  */
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -34,10 +34,11 @@ const child = spawn(electronExe, [mainBundle, '--no-sandbox', '--disable-gpu'], 
   env: {
     ...process.env,
     DIANJING_SHOW: '1',
-    // main.ts 缺省 rootDir=distDir（面向打包形态）——dev 启动器显式钉到 worktree
-    // 根，让 pi-backend 读到 <worktree>/.dianjing/key-env（dist/ 会被 vite
-    // build 清空，不能放凭证）
-    DIANJING_ROOT_DIR: process.env.DIANJING_ROOT_DIR ?? root
+    // main.ts 缺省 rootDir=app.getPath('userData')（面向打包形态）——dev 启
+    // 动器显式钉到 <worktree>/.dianjing（保留多 worktree 隔离意图）。D2 起
+    // override 直指状态根本身，spike 自己拼子目录：让 pi-backend 读到
+    // <worktree>/.dianjing/key-env（dist/ 会被 vite build 清空，不能放凭证）
+    DIANJING_ROOT_DIR: process.env.DIANJING_ROOT_DIR ?? join(root, '.dianjing')
   },
   stdio: 'inherit'
 })

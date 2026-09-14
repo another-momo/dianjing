@@ -1,12 +1,14 @@
 import { chmod, mkdir } from 'node:fs/promises'
-import { homedir, platform } from 'node:os'
+import { platform } from 'node:os'
 import { dirname, join } from 'node:path'
 
 // 链上文件禁 @/——同走相对路径（与上一行同因）。
 // oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
-import { BRIDGE_DIR_NAME_DESKTOP, BRIDGE_DIR_NAME_UNIX } from '../../orchestration/brand'
+import { resolveAppDataRoot } from '../../orchestration/app-data'
 // 本文件经 bridge/vite-plugin.ts 处于 vite.config.ts 加载链上——Storybook/vite
 // 配置 loader 不注册 @/ 别名（2026-09-14 CI+dev L3 实证），链上文件禁 @/。
+// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
+import { BRIDGE_DIR_NAME_UNIX } from '../../orchestration/brand'
 // oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
 import { readMCPDiscoveryPathOverride, readMCPSocketPath } from '../../orchestration/env'
 
@@ -14,10 +16,16 @@ import { readMCPDiscoveryPathOverride, readMCPSocketPath } from '../../orchestra
  * Platform-specific paths for the automation bridge's Unix domain socket
  * and the discovery JSON file.
  *
- * Socket directory layout (overridable via DIANJING_MCP_SOCKET):
+ * Discovery file directory layout（D2：与 Electron userData 同位，对齐
+ * resolveAppDataRoot 单点）：
  *   macOS:   ~/Library/Application Support/Dianjing/
- *   Linux:   $XDG_RUNTIME_DIR/dianjing/  (fallback: ~/.dianjing/)
- *   Windows: %LOCALAPPDATA%\Dianjing\  (fallback: ~\AppData\Local\Dianjing\)
+ *   Linux:   ~/.config/Dianjing/  （resolveAppDataRoot 单源）
+ *   Windows: %APPDATA%\Dianjing\  （roaming，对齐 userData；D2 前是 local）
+ *
+ * Socket directory layout (overridable via DIANJING_MCP_SOCKET):
+ *   macOS:   <discovery>/mcp.sock（即 discovery 同目录）
+ *   Linux:   $XDG_RUNTIME_DIR/dianjing/mcp.sock  （fallback: <discovery> 同目录）
+ *   Windows: N/A — Unix domain sockets 不可用，桥走 TCP only
  *
  * On Windows, Unix domain sockets are unavailable — the server uses TCP only.
  *
@@ -34,7 +42,6 @@ import { readMCPDiscoveryPathOverride, readMCPSocketPath } from '../../orchestra
  */
 
 const DIR_NAME_UNIX = BRIDGE_DIR_NAME_UNIX
-const DIR_NAME_DESKTOP = BRIDGE_DIR_NAME_DESKTOP
 const SOCKET_FILENAME = 'mcp.sock'
 const DISCOVERY_FILENAME = 'mcp.json'
 
@@ -55,22 +62,16 @@ async function getPlatformDir(): Promise<string> {
   let dir: string
 
   if (isMacOS) {
-    dir = join(homedir(), 'Library', 'Application Support', DIR_NAME_DESKTOP)
+    // macOS：resolveAppDataRoot 单源解析（~/Library/Application Support/Dianjing）
+    dir = resolveAppDataRoot(process.env, 'darwin')
   } else if (isWindows) {
-    const localAppData = process.env.LOCALAPPDATA?.trim()
-    if (localAppData) {
-      dir = join(localAppData, DIR_NAME_DESKTOP)
-    } else {
-      dir = join(homedir(), 'AppData', 'Local', DIR_NAME_DESKTOP)
-    }
+    // D2：discovery 目录对齐 Electron userData（%APPDATA%/Dianjing，roaming）——
+    // 桥进程不再依赖 LOCALAPPDATA（local），改走 APPDATA（roaming）。解析
+    // 单源由 resolveAppDataRoot 承担，不再散点拼 LOCALAPPDATA 字面量。
+    dir = resolveAppDataRoot(process.env, 'win32')
   } else {
-    // Linux / other Unix
-    const xdgRuntime = process.env.XDG_RUNTIME_DIR?.trim()
-    if (xdgRuntime) {
-      dir = join(xdgRuntime, DIR_NAME_UNIX)
-    } else {
-      dir = join(homedir(), `.${DIR_NAME_UNIX}`)
-    }
+    // Linux / 其他 Unix：discovery 与 userData 同位（~/.config/Dianjing）
+    dir = resolveAppDataRoot(process.env, 'linux')
   }
 
   await mkdir(dir, { recursive: true, mode: 0o700 })
@@ -87,6 +88,11 @@ async function getPlatformDir(): Promise<string> {
  *
  * NOTE: The discovery file always lives at getPlatformDir(), regardless of
  * DIANJING_MCP_SOCKET. This function should NOT be used to locate it.
+ *
+ * Linux 特例（D2 保留）：socket 是临时 IPC 端点，规范落点是
+ * $XDG_RUNTIME_DIR/dianjing/（tmpfs、随会话生命周期清理）——discovery 文件
+ * 留在 getPlatformDir()（~/.config/Dianjing）不动，两者分居；XDG_RUNTIME_DIR
+ * 缺失时 socket fallback 到 discovery 同目录。
  */
 export async function getSocketDir(): Promise<string> {
   const socketOverride = readMCPSocketPath()
@@ -98,6 +104,16 @@ export async function getSocketDir(): Promise<string> {
     // may be in a shared directory (e.g. /tmp for tests).
     await mkdir(dir, { recursive: true, mode: 0o700 })
     return dir
+  }
+
+  if (platform() === 'linux') {
+    const xdgRuntime = process.env.XDG_RUNTIME_DIR?.trim()
+    if (xdgRuntime) {
+      const dir = join(xdgRuntime, DIR_NAME_UNIX)
+      await mkdir(dir, { recursive: true, mode: 0o700 })
+      await chmod(dir, 0o700)
+      return dir
+    }
   }
 
   return getPlatformDir()

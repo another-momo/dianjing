@@ -226,9 +226,14 @@ export function readStudioBuiltinDir(env: EnvSource = process.env): string | nul
 }
 
 /**
- * 状态根目录——pi-backend/main.ts:39、host.ts:43 (隐式 cwd 契约)、
- * desktop-electron/main/main.ts:692、bridge/server/root.ts:9。
- * trim，空串视同未注入（与原位 `|| process.cwd()` 等价）。
+ * 状态根目录——pi-backend/main.ts、pi-backend/host.ts（D2 起走
+ * resolveAppDataRoot，不再 cwd 隐式契约）、desktop-electron/main/main.ts
+ * （app.getPath('userData'）兜底）、bridge/server/root.ts:9。
+ * trim，空串视同未注入。
+ *
+ * D2 起 override 语义：「直接指向状态根本身」——不再内含 `.dianjing` 子层，
+ * 由调用方负责确保路径形态与 resolveAppDataRoot 输出对齐（smoke / spike
+ * 配套重写）。
  */
 export function readRootDir(env: EnvSource = process.env): string | null {
   const raw = env?.[`${ENV_PREFIX}ROOT_DIR`]

@@ -2,20 +2,22 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   APP_ID,
-  BRIDGE_DIR_NAME_DESKTOP,
   BRIDGE_DIR_NAME_UNIX,
   DEV_MCP_TMP_PREFIX,
   ENV_PREFIX,
   PRODUCT_NAME_DISPLAY,
   READY_MARKER_PREFIX,
   RUNTIME_GLOBAL_PREFIX,
-  STATE_DIR_NAME,
   USER_DATA_DIR_NAME
 } from '@/app/orchestration/brand'
 
 // 改名期 ② 翻转后钉字面值——单一真源改了，本钉同步翻转。
 // 这些值是消费面（product copy / bundle ID / 文件系统名 / env 前缀 / 运行时全局前缀）
 // 的真源，钉死后任何漂移立即可见。
+//
+// D2 收口：STATE_DIR_NAME 与 BRIDGE_DIR_NAME_DESKTOP 已退——状态根统一进
+// OS 标准应用数据目录（resolveAppDataRoot 单源），不再散点拼「.dianjing」
+// 或「Dianjing」字面量；本钉随之摘除。
 
 describe('orchestration/brand — product & filesystem constants', () => {
   test('PRODUCT_NAME_DISPLAY is "点睛设计" (verbatim source-of-truth)', () => {
@@ -26,19 +28,13 @@ describe('orchestration/brand — product & filesystem constants', () => {
     expect(APP_ID).toBe('com.dianjing.app')
   })
 
-  test('STATE_DIR_NAME is the canonical ".dianjing"', () => {
-    expect(STATE_DIR_NAME).toBe('.dianjing')
-  })
-
-  test('BRIDGE_DIR_NAME_UNIX is the Unix bridge dir shortname', () => {
+  test('BRIDGE_DIR_NAME_UNIX is the Unix socket shortname (used for $XDG_RUNTIME_DIR/dianjing segment)', () => {
     expect(BRIDGE_DIR_NAME_UNIX).toBe('dianjing')
   })
 
-  test('BRIDGE_DIR_NAME_DESKTOP is the macOS/Windows bridge dir display name', () => {
-    expect(BRIDGE_DIR_NAME_DESKTOP).toBe('Dianjing')
-  })
-
-  test('USER_DATA_DIR_NAME is the Electron userData dir name (app.setName)', () => {
+  test('USER_DATA_DIR_NAME is the Electron userData dir name (app.setName) + resolveAppDataRoot segment', () => {
+    // D2 起 USER_DATA_DIR_NAME 是「OS 标准应用数据目录下的产品子目录」唯一
+    // 真源，被 orchestration/app-data 的 resolveAppDataRoot 单源消费。
     expect(USER_DATA_DIR_NAME).toBe('Dianjing')
   })
 })

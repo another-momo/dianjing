@@ -169,7 +169,7 @@ async function main(): Promise<void> {
 
     check(
       '凭据落盘在 DIANJING_ROOT_DIR 下（rootDir env 生效）',
-      existsSync(join(piRoot, '.dianjing', 'pi-agent', 'auth.json'))
+      existsSync(join(piRoot, 'pi-agent', 'auth.json'))
     )
 
     const catalog = (await (await fetch(`${piBase}/api/pi/catalog`, { headers: authHeaders })).json()) as {
@@ -211,7 +211,7 @@ async function main(): Promise<void> {
     )
 
     // 会话记录：stopReason=error 的 assistant message 携带 errorMessage
-    const sessionsDir = join(piRoot, '.dianjing', 'pi-sessions')
+    const sessionsDir = join(piRoot, 'pi-sessions')
     check('pi-sessions 目录创建（会话持久化链路）', existsSync(sessionsDir))
     let sessionErrorMessage = ''
     if (existsSync(sessionsDir)) {

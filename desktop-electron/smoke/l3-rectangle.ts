@@ -19,11 +19,12 @@
  *     --external @playwright/test --external playwright-core
  *   node desktop-electron/dist-smoke/l3-rectangle.mjs
  * 前置：dist/（vite build）、dist-main/、dist-sidecar/ 均已构建；
- *       上游 .dianjing/key-env 存在（复制进临时 rootDir）。
+ *       上游 key-env（%APPDATA%/Dianjing/key-env）存在（复制进临时
+ *       rootDir——D2 起 rootDir 即状态根本身，key-env 直接挂 root）。
  */
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process'
 import { copyFileSync, mkdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -32,14 +33,19 @@ import { chromium, type Browser, type Page } from '@playwright/test'
 const here = dirname(fileURLToPath(import.meta.url))
 const root = resolve(here, '..', '..')
 const SHOTS = 'D:\\Desktop\\AgentLearn\\00_DIYProjects\\0720openpencil\\_ops\\20260907-l3'
-const SOURCE_KEY_ENV =
-  'D:\\Desktop\\AgentLearn\\00_DIYProjects\\0720openpencil\\open-pencil-mode\\.dianjing\\key-env'
+// D2 起 dev 形态状态根 = %APPDATA%/Dianjing——key-env 从统一根取，不再读
+// 仓根 .dianjing/（旧布局遗物）。
+const SOURCE_KEY_ENV = join(
+  process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'),
+  'Dianjing',
+  'key-env'
+)
 
 mkdirSync(SHOTS, { recursive: true })
 
 const rootDir = join(tmpdir(), `op-l3-${Date.now()}`)
-mkdirSync(join(rootDir, '.dianjing'), { recursive: true })
-copyFileSync(SOURCE_KEY_ENV, join(rootDir, '.dianjing', 'key-env'))
+mkdirSync(rootDir, { recursive: true })
+copyFileSync(SOURCE_KEY_ENV, join(rootDir, 'key-env'))
 console.log('[l3] rootDir =', rootDir)
 
 let child: ChildProcess | null = null

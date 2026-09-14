@@ -63,7 +63,7 @@ async function boot(): Promise<void> {
   // 每测试独立 fresh rootDir：避免状态跨用例污染（capabilities.json 持久化）
   await teardown()
   rootDir = mkdtempSync(join(tmpdir(), 'pi-cap-route-'))
-  mkdirSync(join(rootDir, '.dianjing', 'pi-agent'), { recursive: true })
+  mkdirSync(join(rootDir, 'pi-agent'), { recursive: true })
   const next = createPiBackendServer({ rootDir, authToken: TOKEN })
   await new Promise<void>((resolve) => {
     next.listen(0, '127.0.0.1', resolve)

@@ -1196,7 +1196,7 @@
     {
       "id": "P219",
       "file": "src/components/settings/general/GeneralSettingsPanel.vue",
-      "reason": "P2-11（2026-09-07）：「Studio 资产扩展」节——展示 ~/.openpencil/studio 用户扩展目录路径 + 复制按钮三态（studio seed 机制配套入口，Phase 4+5 泳道 C）；改名期②（2026-09-14）：展示路径随 STATE_DIR_NAME 翻转改 ~/.dianjing/studio（用户可见文案与注释同步）",
+      "reason": "P2-11（2026-09-07）：「Studio 资产扩展」节——展示 ~/.openpencil/studio 用户扩展目录路径 + 复制按钮三态（studio seed 机制配套入口，Phase 4+5 泳道 C）；改名期②（2026-09-14）：展示路径随 STATE_DIR_NAME 翻转改 ~/.dianjing/studio（用户可见文案与注释同步）；改名期③ D2（2026-09-14）：userDir 随状态根走（rootDir/studio），路径展示同步迁移",
       "disposition": "permanent",
       "lastReviewed": "2026-09-14"
     },
@@ -1407,6 +1407,41 @@
       "id": "P246",
       "file": "playwright.config.ts",
       "reason": "改名期②（2026-09-14）：webServer env 键随 ENV_PREFIX 翻转（OPENPENCIL_DEV_ORIGIN/DEV_MCP_PORT → DIANJING_*；读侧 orchestration/env.ts 已只认新名，不翻则 e2e dev server 端口/origin 配置失效）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P247",
+      "file": "packages/vue/src/i18n/locales/zh-cn/ai.json",
+      "reason": "改名期③补扫（2026-09-14）：②产品面扫荡漏区——zh-cn 语言包 chatNetworkFailed 文案 OpenPencil→点睛设计（③ L3 实测恢复对话框现形后顺藤摸瓜全量 sweep 本目录）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P248",
+      "file": "packages/vue/src/i18n/locales/zh-cn/commands.json",
+      "reason": "改名期③补扫（2026-09-14）：②漏区同批——paletteDescription 文案 OpenPencil→点睛设计",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P249",
+      "file": "packages/vue/src/i18n/locales/zh-cn/recovery.json",
+      "reason": "改名期③补扫（2026-09-14）：②漏区同批——恢复对话框 dialogDescription 文案 OpenPencil→点睛设计（③ L3 实测现形处，HMR 即时验证）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P250",
+      "file": "packages/vue/src/i18n/locales/zh-cn/rendering.json",
+      "reason": "改名期③补扫（2026-09-14）：②漏区同批——settingsDescription/reloadRequired 两条文案 OpenPencil→点睛设计",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P251",
+      "file": "packages/vue/src/i18n/locales/zh-cn/updates.json",
+      "reason": "改名期③补扫（2026-09-14）：②漏区同批——upToDate/availableTitle/available/downloading/installed 五条文案 OpenPencil→点睛设计",
       "disposition": "permanent",
       "lastReviewed": "2026-09-14"
     }

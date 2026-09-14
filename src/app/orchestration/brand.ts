@@ -1,9 +1,11 @@
 /**
- * 品牌常量单一真源（改名期 ①建源 + ②翻转）。
+ * 品牌常量单一真源（改名期 ①建源 + ②翻转 + ③D2 收口）。
  *
  * 改名期工作流：①建立本文件作为品牌常量唯一真源并把既有字面量接线过来——所有
  * 值保持现名（openpencil 系）逐字不变；②改本文件完成 TS 面 rebrand（值已
- * 全部改写为「点睛/Dianjing」对应字面量）。后续非 TS 镜像触点见下。
+ * 全部改写为「点睛/Dianjing」对应字面量）；③D2 收口：删除 STATE_DIR_NAME /
+ * BRIDGE_DIR_NAME_DESKTOP（双层嵌套 + 三处根不统一已消亡，状态根统一进 OS
+ * 标准应用数据目录由 orchestration/app-data 的 resolveAppDataRoot 单源承担）。
  *
  * 行为纪律（①搬迁 = 纯重构）：
  *  - 零 import、纯字符串字面量、`as const` 保字面量类型
@@ -13,7 +15,6 @@
  *  - electron-builder.yml（appId / productName / copyright）
  *  - package.json#name
  *  - index.html `<title>`
- *  - desktop-electron/nsis/include.nsh（.dianjing 路径）
  *  - desktop-electron/smoke/*.ts
  */
 
@@ -27,19 +28,17 @@ export const APP_ID = 'com.dianjing.app'
 
 // ── 文件系统常量 ──
 
-/** 顶层状态目录名（`.dianjing`）——14 处字面量汇总，原位 src/app/ai/pi-backend/paths.ts:65。 */
-export const STATE_DIR_NAME = '.dianjing'
-
-/** Unix 平台 socket/discovery 目录短名（不带 `.` 前缀），原位 src/app/bridge/server/paths.ts:33。 */
+/** Unix 平台 socket 短名（不带 `.` 前缀，仅用于 $XDG_RUNTIME_DIR/dianjing/mcp.sock 临时目录段）。 */
 export const BRIDGE_DIR_NAME_UNIX = 'dianjing'
-
-/** macOS/Windows 平台桥目录显示名（首字母大写形态，两平台共享），原位 src/app/bridge/server/paths.ts:37。 */
-export const BRIDGE_DIR_NAME_DESKTOP = 'Dianjing'
 
 /**
  * Electron userData 目录名（app.setName 参数）——Windows %APPDATA%/Dianjing、
  * macOS ~/Library/Application Support/Dianjing；与 electron-builder productName
  * 对齐（打包形态缺省即取 productName，setName 把 dev 形态钉到同一名）。
+ *
+ * D2 起：作为「OS 标准应用数据目录下的产品子目录」唯一真源，被
+ * orchestration/app-data 的 resolveAppDataRoot 单源消费，桥 discovery 与
+ * pi-backend 状态根都走它（不再散点拼字面量）。
  */
 export const USER_DATA_DIR_NAME = 'Dianjing'
 

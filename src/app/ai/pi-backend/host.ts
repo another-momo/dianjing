@@ -41,10 +41,13 @@ import { RUNTIME_AUTOMATION_TOKEN_KEY } from '@/app/orchestration/runtime-global
 import { generateToken } from '@/app/orchestration/token'
 
 import { PI_BACKEND_DEFAULT_PORT } from './config'
-import { resolveHostRootDir } from './paths'
 
-const rootDir = resolveHostRootDir()
-const distDir = resolve(rootDir, 'dist')
+// D2：状态根收口——host 进程自身没有状态根（旧 rootDir 唯一消费者是 dist
+// 解析基准）；状态根由 backend 子进程 main.ts 走 resolveAppDataRoot 单源
+// 解析，与 dev / Electron 三形态同源（旧「cwd 即仓根」隐式契约随之消亡）。
+// distDir 维持相对工作目录解析（`bun run build && bun run serve` 仍按仓根
+// 跑，dist/ 是构建产物约定落点）。
+const distDir = resolve(process.cwd(), 'dist')
 const servePort = readServePort()
 const backendPort = readPiBackendPort(PI_BACKEND_DEFAULT_PORT)
 // CORS/WS 都按主服务来源放行（浏览器跨源 fetch 桥 /health 需要它）
