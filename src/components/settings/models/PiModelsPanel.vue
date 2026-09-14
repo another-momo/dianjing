@@ -450,14 +450,19 @@ function sourceLabel(source: string | undefined): string | null {
   return null
 }
 
-/** T97：watch 深链锚点——引导门传 { provider } 时展开该行 + 聚焦 key 输入 */
+/** T97：watch 深链锚点——引导门传 { provider } 时展开该行 + 聚焦 key 输入。
+ *  immediate:true + 双源：CTA 先设锚点再开面板（面板后挂载）时锚点已是终态、
+ *  无变化事件——immediate 在挂载即评；catalog 未就绪（len=0）先让位，
+ *  目录到达后 providers.length 变化再触发。聚焦后消费锚点（置 null）——
+ *  一次性深链，防目录刷新（保存 key 后 refresh）重复展开用户已收起的行。 */
 watch(
-  () => settingsDialogAnchor.value?.provider ?? null,
-  (providerId) => {
-    if (!providerId) return
+  [() => settingsDialogAnchor.value?.provider ?? null, () => providers.value.length],
+  ([providerId, len]) => {
+    if (!providerId || len === 0) return
     focusProvider(providerId)
+    settingsDialogAnchor.value = null
   },
-  { immediate: false }
+  { immediate: true }
 )
 
 /** T97：关闭时清空锚点（防止下次打开残留旧 provider） */
