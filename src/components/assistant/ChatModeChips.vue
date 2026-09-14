@@ -11,8 +11,9 @@
  *    同步，系统同步不触发意图。
  *  - 拨 chip = setPiChipSelection 暂存未确认意向（与回显相同则清空）；
  *    发消息时 ChatPanel 拦为新建意图确认卡。只拨 chip 浏览不发消息 = 无意图事件。
- *  - T65（决策 E）：pending badge 内容化「将新建：mode·profile」（拨 chip 即见
- *    意向内容，不等发送）+ 可点 × 一键撤销（clearPiPendingNewIntent）。
+ *  - pending 意向呈现：与回显逐项比对（piChipEcho），不同的 chip 变 accent 色
+ *    + Tip 悬停全文「将以 … 新建设计，发送时确认」；只拨 mode 仅 mode chip 变色。
+ *    撤销 = 拨回原组合（sameSelection 自动清暂存），确认卡是最终闸门。
  *  - manifest 失败（piStudioManifestFailed）→ chips 禁用（错误条 + 重试在
  *    ChatInput 错误条区，08 P0-2）。
  *  - P2-10（2026-09-07）：profile 菜单按当前选中 mode ⊆ profile.modes 过滤——
@@ -30,7 +31,7 @@ import {
 import { computed } from 'vue'
 
 import {
-  clearPiPendingNewIntent,
+  piChipEcho,
   piChipSelection,
   piPendingNewIntent,
   piStudioManifest,
@@ -39,6 +40,7 @@ import {
 } from '@/app/ai/pi-backend/mode-selection'
 import { useForkChips } from '@/app/i18n/fork'
 import { menuItem, useMenuUI } from '@/components/ui/menu/menu'
+import Tip from '@/components/ui/overlay/Tip.vue'
 
 const { disabled = false } = defineProps<{ disabled?: boolean }>()
 
@@ -68,8 +70,16 @@ const chipsDisabled = computed(
   () => disabled || piStudioManifestFailed.value || piStudioManifest.value === null
 )
 
-// T65：pending badge 内容化——拨 chip 即见「将新建：mode·profile」（不等发送）
+// pending 意向呈现：与回显逐项比对，不同的 chip 变色 + Tip 挂全文（只拨 mode 仅 mode chip 变色）
 const pending = computed(() => piPendingNewIntent.value)
+const echo = computed(() => piChipEcho.value)
+const modePendingChanged = computed(
+  () => pending.value !== null && pending.value.modeId !== echo.value.modeId
+)
+const profilePendingChanged = computed(
+  () => pending.value !== null && pending.value.profileId !== echo.value.profileId
+)
+
 const pendingModeLabel = computed(() => {
   const intent = pending.value
   if (!intent) return ''
@@ -84,6 +94,15 @@ const pendingProfileLabel = computed(() => {
   )
 })
 
+// Tip 全文（仅变色锚点上挂载——label 缺省 = Tip 不开）
+const pendingTip = computed(() => {
+  if (!pending.value) return undefined
+  return chipsText.value.chipsPendingTip({
+    mode: pendingModeLabel.value,
+    profile: pendingProfileLabel.value
+  })
+})
+
 function pickMode(modeId: string) {
   setPiChipSelection({ modeId, profileId: selection.value.profileId })
 }
@@ -93,23 +112,34 @@ function pickProfile(profileId: string | null) {
 }
 
 const triggerCls =
-  'flex min-w-0 max-w-28 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted outline-none hover:bg-hover data-[state=open]:bg-hover disabled:cursor-not-allowed disabled:opacity-50'
+  'flex min-w-0 max-w-28 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] outline-none hover:bg-hover data-[state=open]:bg-hover disabled:cursor-not-allowed disabled:opacity-50'
+// 变色 = 该字段与回显不同（accent）；未变色保持 muted
+const modeTriggerCls = computed(() => [
+  triggerCls,
+  modePendingChanged.value ? 'text-accent' : 'text-muted'
+])
+const profileTriggerCls = computed(() => [
+  triggerCls,
+  profilePendingChanged.value ? 'text-accent' : 'text-muted'
+])
 </script>
 
 <template>
   <div data-test-id="chat-mode-chips" class="flex min-w-0 items-center gap-0.5">
     <!-- mode chip（一级） -->
     <DropdownMenuRoot>
-      <DropdownMenuTrigger
-        data-test-id="chat-mode-chip"
-        :aria-label="chipsText.chipsMode"
-        :disabled="chipsDisabled"
-        :class="triggerCls"
-      >
-        <icon-lucide-palette class="size-3 shrink-0" />
-        <span class="min-w-0 truncate">{{ selectedMode?.label ?? selection.modeId }}</span>
-        <icon-lucide-chevron-down class="size-2.5 shrink-0" />
-      </DropdownMenuTrigger>
+      <Tip :label="modePendingChanged ? pendingTip : undefined">
+        <DropdownMenuTrigger
+          data-test-id="chat-mode-chip"
+          :aria-label="chipsText.chipsMode"
+          :disabled="chipsDisabled"
+          :class="modeTriggerCls"
+        >
+          <icon-lucide-palette class="size-3 shrink-0" />
+          <span class="min-w-0 truncate">{{ selectedMode?.label ?? selection.modeId }}</span>
+          <icon-lucide-chevron-down class="size-2.5 shrink-0" />
+        </DropdownMenuTrigger>
+      </Tip>
       <DropdownMenuPortal>
         <DropdownMenuContent side="top" align="start" :side-offset="4" :class="menuCls.content">
           <DropdownMenuItem
@@ -132,20 +162,22 @@ const triggerCls =
       </DropdownMenuPortal>
     </DropdownMenuRoot>
 
-    <!-- profile chip（恒在，正交不过滤） -->
+    <!-- profile chip（恒在，菜单按当前 mode 过滤） -->
     <DropdownMenuRoot>
-      <DropdownMenuTrigger
-        data-test-id="chat-profile-chip"
-        :aria-label="chipsText.chipsProfile"
-        :disabled="chipsDisabled"
-        :class="triggerCls"
-      >
-        <icon-lucide-swatch-book class="size-3 shrink-0" />
-        <span class="min-w-0 truncate">{{
-          selectedProfile?.label ?? chipsText.chipsNoProfile
-        }}</span>
-        <icon-lucide-chevron-down class="size-2.5 shrink-0" />
-      </DropdownMenuTrigger>
+      <Tip :label="profilePendingChanged ? pendingTip : undefined">
+        <DropdownMenuTrigger
+          data-test-id="chat-profile-chip"
+          :aria-label="chipsText.chipsProfile"
+          :disabled="chipsDisabled"
+          :class="profileTriggerCls"
+        >
+          <icon-lucide-swatch-book class="size-3 shrink-0" />
+          <span class="min-w-0 truncate">{{
+            selectedProfile?.label ?? chipsText.chipsNoProfile
+          }}</span>
+          <icon-lucide-chevron-down class="size-2.5 shrink-0" />
+        </DropdownMenuTrigger>
+      </Tip>
       <DropdownMenuPortal>
         <DropdownMenuContent side="top" align="start" :side-offset="4" :class="menuCls.content">
           <DropdownMenuItem
@@ -180,25 +212,5 @@ const triggerCls =
         </DropdownMenuContent>
       </DropdownMenuPortal>
     </DropdownMenuRoot>
-
-    <!-- T65：未确认新建意向标记——内容化「将新建：mode·profile」+ 可点 × 一键撤销 -->
-    <span
-      v-if="pending"
-      data-test-id="chat-chips-pending-badge"
-      class="flex shrink-0 items-center gap-0.5 rounded bg-accent/15 py-0.5 pr-0.5 pl-1.5 text-[11px] text-accent"
-    >
-      <span class="max-w-36 truncate">{{
-        chipsText.chipsPendingLabel({ mode: pendingModeLabel, profile: pendingProfileLabel })
-      }}</span>
-      <button
-        type="button"
-        data-test-id="chat-chips-pending-undo"
-        :aria-label="chipsText.chipsPendingUndo"
-        class="flex size-3.5 shrink-0 items-center justify-center rounded hover:bg-accent/20"
-        @click="clearPiPendingNewIntent"
-      >
-        <icon-lucide-x class="size-2.5" />
-      </button>
-    </span>
   </div>
 </template>

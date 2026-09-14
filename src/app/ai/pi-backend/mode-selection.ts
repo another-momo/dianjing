@@ -16,8 +16,8 @@
  *    空槽信号——trigger 回落引导文案；resyncPiActiveDesign 是切换端点 200 后
  *    的显式兜底（分割线回执经 ChatPanel 注入，不在本模块）。
  *  - piPendingNewIntent：用户手动拨 chip 的未确认暂存（不持久化）——发消息时
- *    ChatPanel 拦为新建意图确认卡；确认发出或取消回滚后清空。T65：badge
- *    内容化「将新建：mode·profile」+ 可点 × 经 clearPiPendingNewIntent 撤销。
+ *    ChatPanel 拦为新建意图确认卡；确认发出或取消回滚后清空。意向在 chips 上的
+ *    呈现 = 与 piChipEcho 逐项比对，不同的 chip 变色 + Tip 悬停全文提示。
  *  - piStudioManifest：数据源不变（GET /api/pi/studio/manifest），但失败按
  *    08 P0-2 纪律显式暴露（piStudioManifestFailed=true → chips 禁用 + 错误条
  *    + 重试），不再静默 null 降级。
@@ -203,14 +203,18 @@ function activeToSelection(active: PiActiveDesignIdentity | null): PiNewIntentSe
   return { modeId: active.modeId, profileId: active.profileId }
 }
 
-/** chips 回显的单一事实源：未确认意向 > active 读穿 > 默认态 */
-export const piChipSelection = computed<PiNewIntentSelection>(
+/** chips 回显（active 读穿，无 active → 默认态）——pending 各字段与它逐项比对出变色锚点 */
+export const piChipEcho = computed<PiNewIntentSelection>(
   () =>
-    piPendingNewIntent.value ??
     activeToSelection(piActiveDesign.value) ?? {
       modeId: PI_DEFAULT_MODE_ID,
       profileId: null
     }
+)
+
+/** chips 显示的单一事实源：未确认意向 > 回显 */
+export const piChipSelection = computed<PiNewIntentSelection>(
+  () => piPendingNewIntent.value ?? piChipEcho.value
 )
 
 function sameSelection(a: PiNewIntentSelection, b: PiNewIntentSelection): boolean {
@@ -222,11 +226,7 @@ function sameSelection(a: PiNewIntentSelection, b: PiNewIntentSelection): boolea
  * 发消息时由 ChatPanel 拦为确认卡（只拨 chip 浏览不发消息 = 无意图事件）。
  */
 export function setPiChipSelection(selection: PiNewIntentSelection): void {
-  const echo = activeToSelection(piActiveDesign.value) ?? {
-    modeId: PI_DEFAULT_MODE_ID,
-    profileId: null
-  }
-  piPendingNewIntent.value = sameSelection(selection, echo) ? null : selection
+  piPendingNewIntent.value = sameSelection(selection, piChipEcho.value) ? null : selection
 }
 
 /** 确认发出 / 取消回滚后清空暂存（chips 回落 active 回显） */
