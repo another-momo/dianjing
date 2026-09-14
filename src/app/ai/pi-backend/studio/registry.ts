@@ -26,9 +26,11 @@
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
+import { readStudioBuiltinDir } from '@/app/orchestration/env'
+
+import { resolveStudioDirs } from '../paths'
 import { splitFrontmatter, type ParsedAsset } from './parse'
 import {
   referenceBucketKey,
@@ -48,9 +50,6 @@ import {
   validateWorkflow,
   type ValidationIssue
 } from './validate'
-
-const BUILTIN_STUDIO_SUBPATH = join('src', 'app', 'ai', 'pi-backend', 'studio')
-const USER_STUDIO_SUBPATH = join('.openpencil', 'studio')
 
 /** P2-9：资产本体文件名（与目录同构——id 挂到目录名） */
 const WORKFLOW_FILENAME = 'workflow.md'
@@ -392,13 +391,10 @@ let current: StudioRegistry | null = null
 let currentKey: string | null = null
 
 function defaultDirs(rootDir: string): { builtinDir: string; userDir: string } {
-  return {
-    // 内置资产目录可被宿主经 env 显式改写：Electron 打包形态下内置资产随
-    // extraResources 平铺到 resources/app/studio，rootDir（=userData）+ 源
-    // 码树子路径的缺省解析找不到，由宿主注入真实位置；未注入时维持缺省。
-    builtinDir: process.env.OPENPENCIL_STUDIO_BUILTIN_DIR || join(rootDir, BUILTIN_STUDIO_SUBPATH),
-    userDir: join(homedir(), USER_STUDIO_SUBPATH)
-  }
+  // 内置资产目录可被宿主经 env 显式改写：Electron 打包形态下内置资产随
+  // extraResources 平铺到 resources/app/studio，rootDir（=userData）+ 源
+  // 码树子路径的缺省解析找不到，由宿主注入真实位置；未注入时维持缺省。
+  return resolveStudioDirs(rootDir, readStudioBuiltinDir())
 }
 
 /** 启动/重载加载（幂等）；rootDir = 仓库根（与 service.ts 的 rootDir 约定一致） */

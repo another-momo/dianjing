@@ -51,9 +51,26 @@ import { spawn } from 'node:child_process'
 import { dirname, extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, shell, utilityProcess, type UtilityProcess } from 'electron'
+import {
+  readDisableSingleInstanceLock,
+  readElectronBackendPort,
+  readElectronBridgePort,
+  readElectronDevURL,
+  readElectronLoopbackPort,
+  readRootDir,
+  readShowWindow,
+  readSmokeMode,
+  readFullSmokeMode
+} from '@/app/orchestration/env'
 import { waitForHealthPolling } from '@/app/orchestration/health'
+import {
+  RUNTIME_AUTOMATION_TOKEN_KEY,
+  RUNTIME_BRIDGE_URL_KEY,
+  RUNTIME_ELECTRON_KEY
+} from '@/app/orchestration/runtime-globals'
 import { MAX_AUTO_RESTARTS, nextRestartDelay } from '@/app/orchestration/restart'
 import { generateToken } from '@/app/orchestration/token'
+import { resolveElectronRootDir } from '@/app/ai/pi-backend/paths'
 import { pickFreePort, randomPort } from '../tools/ports.js'
 import { classifyExternalUrl, isHttpOrHttps, isLoopbackHttpUrl } from './url-safety.js'
 import { loadWindowState, saveWindowState, type WindowState } from './window-state.js'
@@ -68,9 +85,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 // plugin 已经设过的 env，二者不冲突；vite plugin 路径走的是另一套进程。
 // OPENPENCIL_LOOPBACK_PORT：full-smoke 用，把回环服务端口钉住便于外部脚本
 // 经固定 URL 探活（不钉则 smoke 必须 grep 主进程 stdout 解出随机端口）
-const bridgePort = Number(process.env.OPENPENCIL_BRIDGE_PORT) || randomPort()
-const backendPort = Number(process.env.OPENPENCIL_PI_BACKEND_PORT_ELECTRON) || randomPort()
-const pinnedLoopbackPort = Number(process.env.OPENPENCIL_LOOPBACK_PORT) || 0
+const bridgePort = readElectronBridgePort() ?? randomPort()
+const backendPort = readElectronBackendPort() ?? randomPort()
+const pinnedLoopbackPort = readElectronLoopbackPort()
 // 三方对齐不变量（见文件头）
 const bridgeToken = generateToken()
 const piToken = generateToken()
@@ -377,15 +394,15 @@ export function createLoopbackServer(options: LoopbackServerOptions): Promise<{ 
     if (candidate === indexPath) {
       const html = readFileSync(indexPath, 'utf8')
       // spike-electron-spike：双注入——桥 token + 桥 WS URL（运行时全局名见
-      // src/app/bridge/{url,runtime}.ts）。electron 形态下桥在
-      // 随机端口（bridgePort），页面必须拿这个 URL 去连；只有 token 没有 URL
-      // 会让页面去撞 build-time 烘焙的 ws://127.0.0.1:7600，撞主战场 + token
-      // 不符。dev 形态不注入，页面 fallback 到 vite define 烘焙值。
+      // src/app/bridge/{url,runtime}.ts 与 src/app/orchestration/runtime-globals.ts）。
+      // electron 形态下桥在随机端口（bridgePort），页面必须拿这个 URL 去连；
+      // 只有 token 没有 URL 会让页面去撞 build-time 烘焙的 ws://127.0.0.1:7600，
+      // 撞主战场 + token 不符。dev 形态不注入，页面 fallback 到 vite define 烘焙值。
       // shell-polish A1：三键遮挡顶部通栏——前端用 isElectron() 给 editor-root 顶
       // 部通栏右侧预留 titleBarOverlay 宽度；A2：标题栏主题切换——前端把当前主
       // 题色 POST 到 /__openpencil/titlebar-theme，main 调 setTitleBarOverlay。
       // 浏览器形态（含 dev url 路径）不注入——这些功能只在 Electron 壳里生效。
-      const script = `<script>window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__=${JSON.stringify(token)};window.__OPENPENCIL_RUNTIME_BRIDGE_URL__=${JSON.stringify(`ws://127.0.0.1:${bridgePort}`)};window.__OPENPENCIL_ELECTRON__=true</script>`
+      const script = `<script>window.${RUNTIME_AUTOMATION_TOKEN_KEY}=${JSON.stringify(token)};window.${RUNTIME_BRIDGE_URL_KEY}=${JSON.stringify(`ws://127.0.0.1:${bridgePort}`)};window.${RUNTIME_ELECTRON_KEY}=true</script>`
       res.writeHead(200, { 'content-type': MIME_TYPES['.html'] }); res.end(html.replace('<head>', `<head>${script}`)); return
     }
     sendFile(res, candidate)
@@ -645,6 +662,9 @@ const PROBE_SCRIPT = `(async () => {
     } catch (e) { return { ok: false, error: String(e) } }
   })()
   record('idb write+read', out.idb.ok, JSON.stringify(out.idb))
+  // 探针在渲染进程跑——此处字面量必须与 src/app/orchestration/runtime-globals.ts
+  // 的 RUNTIME_AUTOMATION_TOKEN_KEY / RUNTIME_BRIDGE_URL_KEY 同源（拼字符串传过去
+  // 没办法用 const；本探针手改与上面 withRuntimeToken 注入脚本错位即回归）
   out.token = typeof window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__ === 'string' && window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__.length > 0
   record('runtime automation token injected', out.token, window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__ ?? '')
   // spike-electron-spike：桥 URL 运行时全局注入断言（electron 形态必命中；
@@ -689,7 +709,7 @@ function buildSidecars(distDir: string, loopbackOrigin: string): { bridge: Sidec
   // 钉 worktree 根的便利也不受影响；用户日常双击图标落地即默认 userData，
   // 不再依赖「spawn 时所在目录」（既有缺省 distDir 在打包形态下随产物目录
   // 走——既不可读也不跨平台稳定）
-  const rootDir = process.env.OPENPENCIL_ROOT_DIR || app.getPath('userData')
+  const rootDir = resolveElectronRootDir(readRootDir(), app.getPath('userData'))
   // OPENPENCIL_STUDIO_BUILTIN_DIR：studio 内置资产目录的显式解析基准。
   // registry 缺省按 rootDir + 源码树子路径（src/app/ai/pi-backend/studio）
   // 解析——打包形态 rootDir=userData 下没有源码树，必须指向 extraResources
@@ -855,8 +875,7 @@ async function main(): Promise<void> {
   //   (c) CI 上若需真测单实例行为，spike 脚本尚未写——P2 后由测试侧补。
   // 此外保留 OPENPENCIL_DISABLE_SINGLE_INSTANCE=1 作为「我就是要开锁」的
   // 显式旁路（写死/双击图标时也可临时设）。
-  const smokeModeForLock = process.env.OPENPENCIL_SMOKE === '1' || process.env.OPENPENCIL_FULL_SMOKE === '1'
-  const disableLock = smokeModeForLock || process.env.OPENPENCIL_DISABLE_SINGLE_INSTANCE === '1'
+  const disableLock = readDisableSingleInstanceLock()
   if (!disableLock) {
     const got = app.requestSingleInstanceLock()
     if (!got) {
@@ -877,9 +896,9 @@ async function main(): Promise<void> {
   }
 
   await app.whenReady()
-  const devUrl = process.env.OPENPENCIL_DEV_URL
-  const smokeMode = process.env.OPENPENCIL_SMOKE === '1'
-  const fullSmokeMode = process.env.OPENPENCIL_FULL_SMOKE === '1'
+  const devUrl = readElectronDevURL()
+  const smokeMode = readSmokeMode()
+  const fullSmokeMode = readFullSmokeMode()
 
   // full-smoke 模式：sidecar 编排 + 回环 + 隐藏窗 + 让出控制权给父脚本驱动
   // 探针（外部脚本读 FULL_SMOKE_RESULT 后自行 kill 本进程）
@@ -900,7 +919,7 @@ async function main(): Promise<void> {
   // 窗口默认可见（产品形态）。隐藏只剩两个场景：smoke 探针（smokeMode，
   // 探针不等 ready-to-show）与显式 OPENPENCIL_SHOW=0（无头调试）。
   // OPENPENCIL_SHOW=1 保留兼容，等价于缺省。
-  const showWindow = !smokeMode && process.env.OPENPENCIL_SHOW !== '0'
+  const showWindow = readShowWindow()
 
   if (devUrl) {
     const window = new BrowserWindow(baseWindowOptions({ show: showWindow, webPreferences: { contextIsolation: true, sandbox: true } }))
@@ -943,7 +962,7 @@ async function main(): Promise<void> {
 // 不在 smoke 路径下注册：smoke 路径 BrowserWindow 直接调 app.exit(0/1)
 // 走完，无需走 window-all-closed 路径；full-smoke 同理（隐藏探针不期望
 // 关窗语义被干扰）。注册条件收敛到「dev url / 默认形态」分支
-if (process.env.OPENPENCIL_SMOKE !== '1' && process.env.OPENPENCIL_FULL_SMOKE !== '1') {
+if (!readSmokeMode() && !readFullSmokeMode()) {
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit()
   })
@@ -963,7 +982,7 @@ if (process.env.OPENPENCIL_SMOKE !== '1' && process.env.OPENPENCIL_FULL_SMOKE !=
 // 「多窗口共享 sidecar」会顺手处理。当前只覆盖 dev 形态；默认形态下若
 // primaryWindow 被关且 primaryWindow 已 null，则 console.warn 让用户手动重启
 function rebuildPrimaryWindow(): void {
-  const devUrl = process.env.OPENPENCIL_DEV_URL
+  const devUrl = readElectronDevURL()
   if (devUrl) {
     const win = new BrowserWindow(baseWindowOptions({ show: true, webPreferences: { contextIsolation: true, sandbox: true } }))
     restoreBounds(win, loadWindowState())

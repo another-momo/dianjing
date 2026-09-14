@@ -2,6 +2,8 @@ import { chmod, mkdir } from 'node:fs/promises'
 import { homedir, platform } from 'node:os'
 import { dirname, join } from 'node:path'
 
+import { readMCPDiscoveryPathOverride, readMCPSocketPath } from '@/app/orchestration/env'
+
 /**
  * Platform-specific paths for the automation bridge's Unix domain socket
  * and the discovery JSON file.
@@ -81,7 +83,7 @@ async function getPlatformDir(): Promise<string> {
  * OPENPENCIL_MCP_SOCKET. This function should NOT be used to locate it.
  */
 export async function getSocketDir(): Promise<string> {
-  const socketOverride = process.env.OPENPENCIL_MCP_SOCKET?.trim()
+  const socketOverride = readMCPSocketPath()
 
   if (socketOverride) {
     const dir = dirname(socketOverride)
@@ -104,7 +106,7 @@ export async function getSocketDir(): Promise<string> {
  * (no directory resolution needed).
  */
 export async function getSocketPath(): Promise<string> {
-  const socketOverride = process.env.OPENPENCIL_MCP_SOCKET?.trim()
+  const socketOverride = readMCPSocketPath()
   if (socketOverride) {
     // Ensure the override directory exists. getSocketDir() creates the
     // directory for the custom socket path (dirname of the override).
@@ -130,7 +132,7 @@ export async function getSocketPath(): Promise<string> {
  * so writeDiscoveryFile's atomic temp-then-rename succeeds.
  */
 export async function getDiscoveryPath(): Promise<string> {
-  const override = process.env.OPENPENCIL_MCP_DISCOVERY_PATH?.trim()
+  const override = readMCPDiscoveryPathOverride()
   if (override) {
     const dir = dirname(override)
     await mkdir(dir, { recursive: true, mode: 0o700 })

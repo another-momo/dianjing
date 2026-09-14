@@ -175,9 +175,9 @@
     {
       "id": "P10",
       "file": "vite.config.ts",
-      "reason": "remove openPencilPwaPlugin (vite/pwa.ts deleted) T19: 注册 piBackendPlugin T20: 插件改为 spawn 独立后端进程 + server.proxy 转发 /api/pi-chat（不再挂中间件）",
+      "reason": "remove openPencilPwaPlugin (vite/pwa.ts deleted) T19: 注册 piBackendPlugin T20: 插件改为 spawn 独立后端进程 + server.proxy 转发 /api/pi-chat（不再挂中间件）；env 读取收口至 src/app/orchestration/env.ts（orchestration-consolidation 2026-09-14）",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
+      "lastReviewed": "2026-09-14"
     },
     {
       "id": "P11",
@@ -1371,7 +1371,7 @@
     {
       "id": "P241",
       "file": "vite/automation.ts",
-      "reason": "bridge-path-separation（2026-09-14）：两行 import 由 src/app/automation/bridge/* 改指 src/app/bridge/*（devAutomationRoute / automationPlugin 同源迁址）",
+      "reason": "bridge-path-separation（2026-09-14）：两行 import 由 src/app/automation/bridge/* 改指 src/app/bridge/*（devAutomationRoute / automationPlugin 同源迁址）；env 读取收口至 src/app/orchestration/env.ts（orchestration-consolidation 2026-09-14）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-14"
     }

@@ -18,9 +18,9 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   createImageGenProvider,
-  IMAGE_GEN_DEFAULT_TIMEOUT_MS,
-  imageGenTimeoutMs
+  IMAGE_GEN_DEFAULT_TIMEOUT_MS
 } from '@/app/ai/pi-backend/image-gen/provider'
+import { readImageGenTimeoutMs } from '@/app/orchestration/env'
 
 import { mockFetch } from './helpers'
 
@@ -202,12 +202,12 @@ describe('生图 HTTP 超时（独立于桥超时，240s 基线）', () => {
     const saved = process.env.OPENPENCIL_IMAGE_GEN_TIMEOUT_MS
     try {
       delete process.env.OPENPENCIL_IMAGE_GEN_TIMEOUT_MS
-      expect(imageGenTimeoutMs()).toBe(IMAGE_GEN_DEFAULT_TIMEOUT_MS)
+      expect(readImageGenTimeoutMs()).toBe(IMAGE_GEN_DEFAULT_TIMEOUT_MS)
       expect(IMAGE_GEN_DEFAULT_TIMEOUT_MS).toBe(240_000)
       process.env.OPENPENCIL_IMAGE_GEN_TIMEOUT_MS = '90000'
-      expect(imageGenTimeoutMs()).toBe(90_000)
+      expect(readImageGenTimeoutMs()).toBe(90_000)
       process.env.OPENPENCIL_IMAGE_GEN_TIMEOUT_MS = 'not-a-number'
-      expect(imageGenTimeoutMs()).toBe(IMAGE_GEN_DEFAULT_TIMEOUT_MS)
+      expect(readImageGenTimeoutMs()).toBe(IMAGE_GEN_DEFAULT_TIMEOUT_MS)
     } finally {
       if (saved === undefined) delete process.env.OPENPENCIL_IMAGE_GEN_TIMEOUT_MS
       else process.env.OPENPENCIL_IMAGE_GEN_TIMEOUT_MS = saved

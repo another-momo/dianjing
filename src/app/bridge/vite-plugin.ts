@@ -4,13 +4,12 @@ import { join } from 'node:path'
 
 import type { Plugin } from 'vite'
 
-import { devMCPRuntimeDir } from '@/app/orchestration/discovery'
+import { devMCPRuntimeDir } from '../orchestration/discovery'
 import {
   attachStderrPassthrough,
   makeReadyMarker,
   stopChildGracefully
-} from '@/app/orchestration/lifecycle'
-
+} from '../orchestration/lifecycle'
 import { waitForChildReady } from './child-ready'
 import { platformHasUnixSockets } from './server/paths'
 

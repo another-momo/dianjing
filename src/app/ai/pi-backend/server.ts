@@ -45,12 +45,12 @@
  */
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { join } from 'node:path'
 
 import { isAuthorized } from './auth'
 import { PI_BACKEND_DEFAULT_PORT } from './config'
 import { createImageGenCredentialStore } from './image-gen/credentials'
 import { handleImageGenAdminRequest } from './image-gen/routes'
+import { resolveAgentDir } from './paths'
 import { createProviderAdmin, type ModelSpec } from './provider-admin'
 import { createPiChatService } from './service'
 
@@ -487,12 +487,12 @@ export function createPiBackendServer({
   /** T28：bearer 鉴权 token（main.ts 解析）；null = 无配置，fail-close 全拒 */
   authToken: string | null
 }): Server {
-  const admin = createProviderAdmin({ agentDir: join(rootDir, '.openpencil', 'pi-agent') })
+  const admin = createProviderAdmin({ agentDir: resolveAgentDir(rootDir) })
   // T54：generate_image 凭证面（三键存储 + 状态端点）——单实例同时供管理
   // 路由与 service 内 generate_image 工具消费，避免双实例缓存漂移（保存 key
   // 后工具侧立即可见）
   const imageGenCredentials = createImageGenCredentialStore({
-    agentDir: join(rootDir, '.openpencil', 'pi-agent')
+    agentDir: resolveAgentDir(rootDir)
   })
   const service = createPiChatService({ rootDir, admin, imageGenCredentials })
   const server = createServer((req, res) => {

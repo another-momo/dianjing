@@ -5,7 +5,7 @@ import { waitForHealthPolling } from '@/app/orchestration/health'
 describe('orchestration/health', () => {
   test('returns when probe becomes healthy within the timeout', async () => {
     let probeCalls = 0
-    const onReady = (): void => {}
+    let onReadyCalls = 0
     await waitForHealthPolling({
       intervalMs: 5,
       timeoutMs: 200,
@@ -13,9 +13,13 @@ describe('orchestration/health', () => {
         probeCalls++
         return probeCalls >= 3
       },
-      onReady
+      onReady: () => {
+        onReadyCalls++
+      }
     })
     expect(probeCalls).toBeGreaterThanOrEqual(3)
+    // probe 第 3 次返 true 触发 onReady——只触发一次
+    expect(onReadyCalls).toBe(1)
   })
 
   test('calls onTimeout without throwing when probe never becomes healthy (warn mode)', async () => {
@@ -53,6 +57,8 @@ describe('orchestration/health', () => {
     // 探针内连接拒绝/404 即「未就绪」，属预期路径——waitForHealthPolling 内部
     // catch 静默；调用方决定是否在 onReady/onTimeout 内观察副作用
     let probeCalls = 0
+    let onReadyCalls = 0
+    let onTimeoutCalls = 0
     await waitForHealthPolling({
       intervalMs: 5,
       timeoutMs: 30,
@@ -60,10 +66,16 @@ describe('orchestration/health', () => {
         probeCalls++
         throw new Error('ECONNREFUSED')
       },
-      onReady: () => {},
-      onTimeout: () => {}
+      onReady: () => {
+        onReadyCalls++
+      },
+      onTimeout: () => {
+        onTimeoutCalls++
+      }
     })
     expect(probeCalls).toBeGreaterThan(0)
+    expect(onReadyCalls).toBe(0)
+    expect(onTimeoutCalls).toBe(1)
   })
 
   test('aborts early when isAlive returns false (子进程已退出)', async () => {

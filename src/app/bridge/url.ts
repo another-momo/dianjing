@@ -16,15 +16,22 @@
  */
 import { hasWindowGlobal } from '@open-pencil/core/constants'
 
+import { RUNTIME_BRIDGE_URL_KEY } from '@/app/orchestration/runtime-globals'
+
 declare global {
   interface Window {
     __OPENPENCIL_RUNTIME_BRIDGE_URL__?: unknown
   }
 }
+// 编译期锚定：const 与 declare global 字面量必须同源——任一漂移即 TS 编译错。
+type _AssertRuntimeBridgeURLKeyMatches =
+  typeof RUNTIME_BRIDGE_URL_KEY extends '__OPENPENCIL_RUNTIME_BRIDGE_URL__' ? true : never
+const _assertRuntimeBridgeURLKey: _AssertRuntimeBridgeURLKeyMatches = true
+void _assertRuntimeBridgeURLKey
 
 function readRuntimeBridgeURL(): string | null {
   if (!hasWindowGlobal()) return null
-  const value = window.__OPENPENCIL_RUNTIME_BRIDGE_URL__
+  const value = window[RUNTIME_BRIDGE_URL_KEY]
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 

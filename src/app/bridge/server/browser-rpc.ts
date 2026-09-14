@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 
 import type { WebSocket } from 'ws'
 
+import { DEFAULT_RPC_TIMEOUT_MS, readRPCTimeoutMs } from '@/app/orchestration/env'
+
 import { isAuthorized } from './auth'
 import type { RPCJSONObject } from './json'
 import type { PendingRequest } from './rpc-types'
@@ -12,10 +14,8 @@ import type { PendingRequest } from './rpc-types'
 // 否则 240s 级调用被桥层 20s kill（SP-b 探针实证旧默认掐断点）。
 // 调用时读取（非常量快照）：测试与运维可在进程内调整 env 后立即生效。
 // Number(...)||默认值 的写法同时挡住未设置（NaN）与非法值。
-export const DEFAULT_RPC_TIMEOUT_MS = 300_000
-export function rpcTimeoutMs(): number {
-  return Number(process.env.OPENPENCIL_RPC_TIMEOUT_MS) || DEFAULT_RPC_TIMEOUT_MS
-}
+export { DEFAULT_RPC_TIMEOUT_MS }
+
 const APP_WAIT_TIMEOUT = 10_000
 
 const APP_NOT_CONNECTED_MESSAGE =
@@ -236,7 +236,7 @@ export function createBrowserRPCBridge({ authToken, onConnectionChange }: Browse
         }
         const id = randomUUID()
         const settle = createSettler(resolve, reject)
-        const timeoutMs = rpcTimeoutMs()
+        const timeoutMs = readRPCTimeoutMs()
         const timer = setTimeout(() => {
           slot.pending.delete(id)
           settle.reject(new Error(`RPC timeout (${Math.round(timeoutMs / 1000)}s)`))

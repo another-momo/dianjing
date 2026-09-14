@@ -4,6 +4,7 @@ import { reactive } from 'vue'
 import { AUTOMATION_HTTP_PORT, hasWindowGlobal } from '@open-pencil/core/constants'
 
 import type { EditorStore } from '@/app/editor/active-store'
+import { RUNTIME_AUTOMATION_TOKEN_KEY } from '@/app/orchestration/runtime-globals'
 import { isTauri } from '@/app/tauri/env'
 
 import { connectAutomation } from './client'
@@ -207,20 +208,29 @@ export function createMCPRuntimeService(dependencies: MCPRuntimeDependencies) {
 // `<script>window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__=…</script>`，让
 // 非 Tauri 的 localhost 生产形态也能拿到桥 token。运行时值优先；dev 编译期
 // 注入行为不变。
+// 不变量由 RUNTIME_AUTOMATION_TOKEN_KEY 钉扎——Phase 2 改名时同步该常量即可；
+// 下方 type-level 断言保证 const 与 declare global 字面量同步漂移。
 declare global {
   interface Window {
     __OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__?: unknown
   }
 }
+// 编译期锚定：const 与 declare global 字面量必须同源——任一漂移即 TS 编译错。
+type _AssertRuntimeTokenKeyMatches =
+  typeof RUNTIME_AUTOMATION_TOKEN_KEY extends '__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__'
+    ? true
+    : never
+const _assertRuntimeTokenKey: _AssertRuntimeTokenKeyMatches = true
+void _assertRuntimeTokenKey
 
 const RUNTIME_AUTOMATION_AUTH_TOKEN =
-  hasWindowGlobal() && typeof window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__ === 'string'
-    ? window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__
+  hasWindowGlobal() && typeof window[RUNTIME_AUTOMATION_TOKEN_KEY] === 'string'
+    ? window[RUNTIME_AUTOMATION_TOKEN_KEY]
     : null
 
 // spike-electron-spike：HTTP URL 解析——dev 形态走 vite define 烘焙值；
 // 非 dev 形态（vite build 产物 + Electron / host 托管）走运行时全局通道
-// resolveAutomationHTTPURL（与 __OPENPENCIL_RUNTIME_BRIDGE_URL__ 同源）。
+// resolveAutomationHTTPURL（与 RUNTIME_BRIDGE_URL_KEY 同源）。
 // 旧 fallback `http://127.0.0.1:${AUTOMATION_HTTP_PORT}`（=7600）会被主战场
 // dev server 占用、token 也不符，本步彻底放弃。
 const DEV_AUTOMATION_HTTP_URL = import.meta.env.DEV
@@ -310,7 +320,7 @@ const appMCPRuntime = createMCPRuntimeService({
   canConnect: () =>
     import.meta.env.DEV ||
     isTauri() ||
-    (hasWindowGlobal() && typeof window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__ === 'string'),
+    (hasWindowGlobal() && typeof window[RUNTIME_AUTOMATION_TOKEN_KEY] === 'string'),
   readHealth: readAutomationHealth,
   spawn: waitForAutomationBridge
 })

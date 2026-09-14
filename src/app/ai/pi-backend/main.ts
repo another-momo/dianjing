@@ -20,12 +20,19 @@
 
 import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
 
 import { setBedrockProviderModule } from '@earendil-works/pi-ai/api/bedrock-converse-stream.lazy'
 import { bedrockProviderModule } from '@earendil-works/pi-ai/bedrock-provider'
 import { registerBunOAuthFlows } from '@earendil-works/pi-ai/bun-oauth'
 
+import { readPiAuthToken, readPiBackendPort, readRootDir } from '@/app/orchestration/env'
+
+import {
+  PI_BACKEND_TOKEN_FILENAME,
+  resolveKeyEnvPath,
+  resolveRootDir,
+  resolveStateDir
+} from './paths'
 import { createPiBackendServer, PI_BACKEND_DEFAULT_PORT } from './server'
 
 // 单文件打包形态（tsdown/bun build）下 pi SDK 的变量型动态 import 解析不到
@@ -36,12 +43,12 @@ registerBunOAuthFlows()
 
 // Electron sidecar 形态下 cwd 不可依赖——状态根目录由宿主显式注入；
 // 不传时维持现状（dev/standalone 均为 cwd）。
-const rootDir = process.env.OPENPENCIL_ROOT_DIR || process.cwd()
+const rootDir = resolveRootDir(readRootDir())
 
 // T25 D3：key-env 自助注入（仅补缺失项，不覆盖已有 env）
 function injectKeyEnv(): void {
   if (process.env.OPENROUTER_API_KEY) return
-  const keyEnvPath = join(rootDir, '.openpencil', 'key-env')
+  const keyEnvPath = resolveKeyEnvPath(rootDir)
   if (!existsSync(keyEnvPath)) return
   // T27：文件在但不可读（权限/损坏）不应炸启动——降级为「缺 key」路径，
   // service 会在首个 prompt 处如实报错；文案只含路径，不含任何内容
@@ -70,12 +77,12 @@ injectKeyEnv()
 // T28：鉴权 token 解析——env 注入（vite 插件 spawn）优先；standalone 自生成落盘。
 // token 卫生：只写文件/传参，永不打印本体（控制台只给文件路径）。
 function resolveAuthToken(): string {
-  const injected = process.env.OPENPENCIL_PI_TOKEN
+  const injected = readPiAuthToken()
   if (injected) return injected
   const token = randomBytes(16).toString('hex')
-  const stateDir = join(rootDir, '.openpencil')
+  const stateDir = resolveStateDir(rootDir)
   mkdirSync(stateDir, { recursive: true })
-  const tokenPath = join(stateDir, 'pi-backend-token')
+  const tokenPath = `${stateDir}/${PI_BACKEND_TOKEN_FILENAME}`
   // tmp + 同目录 rename 原子替换（同 index.json 先例），防崩溃留半个文件
   const tmpPath = `${tokenPath}.tmp`
   writeFileSync(tmpPath, token, { mode: 0o600 })
@@ -89,7 +96,7 @@ function resolveAuthToken(): string {
 
 const authToken = resolveAuthToken()
 
-const port = Number(process.env.OPENPENCIL_PI_BACKEND_PORT ?? PI_BACKEND_DEFAULT_PORT)
+const port = readPiBackendPort(PI_BACKEND_DEFAULT_PORT)
 
 const server = createPiBackendServer({ rootDir, authToken })
 

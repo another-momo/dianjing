@@ -58,7 +58,8 @@ export async function waitForHealthPolling(options: WaitForHealthPollingOptions)
       }
       // 探针内连接拒绝/4xx 即「未就绪」，属预期路径——不抛
     } catch {
-      // 同上，预期路径
+      // oxlint-disable-next-line open-pencil/no-silent-catch -- 轮询中的连接拒绝即「未就绪」，无需记录
+      void 0
     }
     await new Promise<void>((resolve) => {
       setTimeout(resolve, intervalMs)

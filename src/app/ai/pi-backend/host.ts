@@ -34,16 +34,19 @@ import { AUTOMATION_HTTP_PORT } from '@open-pencil/core/constants'
 
 import { readDiscoveryFile } from '@/app/bridge/server/discovery'
 import { getSocketPath, platformHasUnixSockets } from '@/app/bridge/server/paths'
+import { readPiBackendPort, readServePort } from '@/app/orchestration/env'
 import { waitForHealthPolling } from '@/app/orchestration/health'
 import { attachStderrPassthrough, stopChildGracefully } from '@/app/orchestration/lifecycle'
+import { RUNTIME_AUTOMATION_TOKEN_KEY } from '@/app/orchestration/runtime-globals'
 import { generateToken } from '@/app/orchestration/token'
 
 import { PI_BACKEND_DEFAULT_PORT } from './config'
+import { resolveHostRootDir } from './paths'
 
-const rootDir = process.cwd()
+const rootDir = resolveHostRootDir()
 const distDir = resolve(rootDir, 'dist')
-const servePort = Number(process.env.OPENPENCIL_SERVE_PORT ?? 8080)
-const backendPort = Number(process.env.OPENPENCIL_PI_BACKEND_PORT ?? PI_BACKEND_DEFAULT_PORT)
+const servePort = readServePort()
+const backendPort = readPiBackendPort(PI_BACKEND_DEFAULT_PORT)
 // CORS/WS 都按主服务来源放行（浏览器跨源 fetch 桥 /health 需要它）
 const serveOrigin = `http://localhost:${servePort}`
 
@@ -178,7 +181,7 @@ const MIME_TYPES: Record<string, string> = {
 
 /** index.html 前置注入运行时桥 token（bridge/runtime.ts P104 消费；dev 构建无此需求但注入无害） */
 function withRuntimeToken(html: string): string {
-  const script = `<script>window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__=${JSON.stringify(automationToken)}</script>`
+  const script = `<script>window.${RUNTIME_AUTOMATION_TOKEN_KEY}=${JSON.stringify(automationToken)}</script>`
   const headIndex = html.indexOf('<head>')
   if (headIndex === -1) return script + html
   return html.slice(0, headIndex + 6) + script + html.slice(headIndex + 6)

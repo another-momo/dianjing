@@ -15,19 +15,19 @@
  */
 
 import { readDiscoveryFile } from '@/app/bridge/server/discovery'
+import { DEFAULT_RPC_TIMEOUT_MS, readRPCTimeoutMs } from '@/app/orchestration/env'
 
 import { classifyBridgeFailure, EDITOR_UNREACHABLE_MESSAGE } from '../bridge-errors'
 import type { ToolTargetSource } from '../tools'
 
 /** 桥 RPC 缺省超时本地副本（与 automation/bridge/server/browser-rpc.ts DEFAULT_RPC_TIMEOUT_MS
  * 保持一致，tests/engine/rebuild/image-gen/rpc-timeout.test.ts 钉扎两者一致） */
-export const BRIDGE_RPC_DEFAULT_TIMEOUT_MS = 300_000
+export const BRIDGE_RPC_DEFAULT_TIMEOUT_MS = DEFAULT_RPC_TIMEOUT_MS
 /** fetch 在桥 RPC 超时之上再加的余量（桥内超时先触发并回 502，fetch 兜底防悬挂） */
 export const BRIDGE_FETCH_MARGIN_MS = 60_000
 
 export function bridgeCallTimeoutMs(): number {
-  const rpcTimeout = Number(process.env.OPENPENCIL_RPC_TIMEOUT_MS) || BRIDGE_RPC_DEFAULT_TIMEOUT_MS
-  return rpcTimeout + BRIDGE_FETCH_MARGIN_MS
+  return readRPCTimeoutMs(BRIDGE_RPC_DEFAULT_TIMEOUT_MS) + BRIDGE_FETCH_MARGIN_MS
 }
 
 export type BridgeCallResult = Record<string, unknown>

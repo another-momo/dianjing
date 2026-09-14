@@ -1,0 +1,352 @@
+import { describe, expect, test } from 'bun:test'
+
+import {
+  DEFAULT_IMAGE_GEN_TIMEOUT_MS,
+  DEFAULT_RPC_TIMEOUT_MS,
+  LOCAL_AUTOMATION_APP_VERSION_KEY,
+  LOCAL_AUTOMATION_HTTP_URL_KEY,
+  LOCAL_AUTOMATION_TOKEN_KEY,
+  LOCAL_AUTOMATION_URL_KEY,
+  RUNTIME_AUTOMATION_TOKEN_KEY,
+  RUNTIME_BRIDGE_URL_KEY,
+  RUNTIME_ELECTRON_KEY,
+  RUNTIME_GLOBALS,
+  isRuntimeGlobalKey,
+  readBridgeTcpPort,
+  readDevAutomationAuthToken,
+  readDevMCPPort,
+  readDevOrigin,
+  readElectronBackendPort,
+  readElectronBridgePort,
+  readElectronLoopbackPort,
+  readFullSmokeMode,
+  readImageGenTimeoutMs,
+  readMaxSessions,
+  readMCPAppAttachTimeoutMs,
+  readMCPAuthToken,
+  readMCPCORSOrigin,
+  readMCPDiscoveryPathOverride,
+  readMCPReadyMarker,
+  readMCPRoot,
+  readMCPSocketPath,
+  readPiAuthToken,
+  readPiBackendPort,
+  readPortlessURL,
+  readRootDir,
+  readRPCTimeoutMs,
+  readSessionMaxAgeDays,
+  readShowWindow,
+  readSmokeMode,
+  readStudioBuiltinDir,
+  readTauriDevHost
+} from '@/app/orchestration/env'
+
+// 所有 reader 接受 EnvSource 参数——测试可注入任意键值集合，避开真实 process.env。
+// 每个 test 用小 fresh env，确保互不污染。
+
+describe('orchestration/env — runtime-globals constants', () => {
+  test('constant values match vite define + runtime global names (verbatim source-of-truth)', () => {
+    // 与 bridge/runtime.ts / url.ts / vite.config.ts / desktop-electron/main/main.ts
+    // 的 declare global 与 define 键字面量必须同源——任何漂移即字面量契约破裂。
+    expect(RUNTIME_AUTOMATION_TOKEN_KEY).toBe('__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__')
+    expect(RUNTIME_BRIDGE_URL_KEY).toBe('__OPENPENCIL_RUNTIME_BRIDGE_URL__')
+    expect(RUNTIME_ELECTRON_KEY).toBe('__OPENPENCIL_ELECTRON__')
+    expect(LOCAL_AUTOMATION_TOKEN_KEY).toBe('__OPENPENCIL_LOCAL_AUTOMATION_TOKEN__')
+    expect(LOCAL_AUTOMATION_URL_KEY).toBe('__OPENPENCIL_LOCAL_AUTOMATION_URL__')
+    expect(LOCAL_AUTOMATION_HTTP_URL_KEY).toBe('__OPENPENCIL_LOCAL_AUTOMATION_HTTP_URL__')
+    expect(LOCAL_AUTOMATION_APP_VERSION_KEY).toBe('__OPENPENCIL_APP_VERSION__')
+  })
+
+  test('RUNTIME_GLOBALS aggregates all keys (used by isRuntimeGlobalKey)', () => {
+    expect(Object.keys(RUNTIME_GLOBALS).sort()).toEqual([
+      'LOCAL_AUTOMATION_APP_VERSION_KEY',
+      'LOCAL_AUTOMATION_HTTP_URL_KEY',
+      'LOCAL_AUTOMATION_TOKEN_KEY',
+      'LOCAL_AUTOMATION_URL_KEY',
+      'RUNTIME_AUTOMATION_TOKEN_KEY',
+      'RUNTIME_BRIDGE_URL_KEY',
+      'RUNTIME_ELECTRON_KEY'
+    ])
+  })
+
+  test('isRuntimeGlobalKey returns true for known keys, false for unknown', () => {
+    expect(isRuntimeGlobalKey('__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__')).toBe(true)
+    expect(isRuntimeGlobalKey('__NOT_A_REAL_KEY__')).toBe(false)
+    expect(isRuntimeGlobalKey('')).toBe(false)
+  })
+})
+
+describe('orchestration/env — readBridgeTcpPort', () => {
+  test('defaults to 7600 when env.PORT is undefined', () => {
+    expect(readBridgeTcpPort({})).toBe(7600)
+  })
+
+  test('parses valid port including 0 (disable TCP)', () => {
+    expect(readBridgeTcpPort({ PORT: '0' })).toBe(0)
+    expect(readBridgeTcpPort({ PORT: '7600' })).toBe(7600)
+    expect(readBridgeTcpPort({ PORT: '65535' })).toBe(65535)
+    expect(readBridgeTcpPort({ PORT: '  8080  ' })).toBe(8080)
+  })
+
+  test('throws on non-digit strings (rejects "7600abc" — Number.parseInt would silently parse)', () => {
+    expect(() => readBridgeTcpPort({ PORT: '7600abc' })).toThrow(/PORT must be an integer/)
+    expect(() => readBridgeTcpPort({ PORT: '0x50' })).toThrow(/PORT must be an integer/)
+    expect(() => readBridgeTcpPort({ PORT: '' })).toThrow(/PORT must be an integer/)
+  })
+
+  test('throws when port is out of range (negative or > 65535)', () => {
+    expect(() => readBridgeTcpPort({ PORT: '-1' })).toThrow(/PORT must be an integer/)
+    expect(() => readBridgeTcpPort({ PORT: '65536' })).toThrow(/PORT must be an integer/)
+  })
+})
+
+describe('orchestration/env — readMCPAuthToken', () => {
+  test('undefined → undefined (let startServer auto-generate)', () => {
+    expect(readMCPAuthToken({})).toBeUndefined()
+  })
+
+  test('empty string → null (explicit disable auth)', () => {
+    expect(readMCPAuthToken({ OPENPENCIL_MCP_AUTH_TOKEN: '' })).toBeNull()
+  })
+
+  test('non-empty string is trimmed', () => {
+    expect(readMCPAuthToken({ OPENPENCIL_MCP_AUTH_TOKEN: 'tok-xyz' })).toBe('tok-xyz')
+    expect(readMCPAuthToken({ OPENPENCIL_MCP_AUTH_TOKEN: '  tok  ' })).toBe('tok')
+  })
+
+  test('whitespace-only throws (silent fallback protection)', () => {
+    expect(() => readMCPAuthToken({ OPENPENCIL_MCP_AUTH_TOKEN: '   ' })).toThrow(/whitespace-only/)
+  })
+})
+
+describe('orchestration/env — readMCPCORSOrigin / Socket / Discovery / Root', () => {
+  test('readMCPCORSOrigin returns null for unset/empty and trimmed value otherwise', () => {
+    expect(readMCPCORSOrigin({})).toBeNull()
+    expect(readMCPCORSOrigin({ OPENPENCIL_MCP_CORS_ORIGIN: '' })).toBeNull()
+    expect(readMCPCORSOrigin({ OPENPENCIL_MCP_CORS_ORIGIN: '  http://x  ' })).toBe('http://x')
+  })
+
+  test('readMCPSocketPath trims and treats empty as null', () => {
+    expect(readMCPSocketPath({})).toBeNull()
+    expect(readMCPSocketPath({ OPENPENCIL_MCP_SOCKET: '/tmp/x.sock' })).toBe('/tmp/x.sock')
+    expect(readMCPSocketPath({ OPENPENCIL_MCP_SOCKET: '  ' })).toBeNull()
+  })
+
+  test('readMCPDiscoveryPathOverride trims and treats empty as null', () => {
+    expect(readMCPDiscoveryPathOverride({})).toBeNull()
+    expect(readMCPDiscoveryPathOverride({ OPENPENCIL_MCP_DISCOVERY_PATH: '/tmp/x.json' })).toBe(
+      '/tmp/x.json'
+    )
+  })
+
+  test('readMCPRoot returns null for unset and trimmed value otherwise', () => {
+    expect(readMCPRoot({})).toBeNull()
+    expect(readMCPRoot({ OPENPENCIL_MCP_ROOT: '/path' })).toBe('/path')
+    expect(readMCPRoot({ OPENPENCIL_MCP_ROOT: '  ' })).toBeNull()
+  })
+})
+
+describe('orchestration/env — readMCPAppAttachTimeoutMs', () => {
+  test('undefined / unset → undefined (timeout disabled)', () => {
+    expect(readMCPAppAttachTimeoutMs({})).toBeUndefined()
+    expect(readMCPAppAttachTimeoutMs({ OPENPENCIL_MCP_APP_TIMEOUT_MS: '' })).toBeUndefined()
+    expect(readMCPAppAttachTimeoutMs({ OPENPENCIL_MCP_APP_TIMEOUT_MS: '  ' })).toBeUndefined()
+  })
+
+  test('valid integer returns the value', () => {
+    expect(readMCPAppAttachTimeoutMs({ OPENPENCIL_MCP_APP_TIMEOUT_MS: '5000' })).toBe(5000)
+  })
+
+  test('rejects non-digit strings (mirrors bridge/server/index.ts strict parse)', () => {
+    expect(() => readMCPAppAttachTimeoutMs({ OPENPENCIL_MCP_APP_TIMEOUT_MS: '5s' })).toThrow(
+      /non-negative integer/
+    )
+  })
+})
+
+describe('orchestration/env — readRPCTimeoutMs / DEFAULT_RPC_TIMEOUT_MS', () => {
+  test('DEFAULT_RPC_TIMEOUT_MS is 300_000 (T54 raised from 20s → 300s)', () => {
+    expect(DEFAULT_RPC_TIMEOUT_MS).toBe(300_000)
+  })
+
+  test('returns default when env unset or non-numeric', () => {
+    expect(readRPCTimeoutMs()).toBe(DEFAULT_RPC_TIMEOUT_MS)
+    expect(readRPCTimeoutMs(123, {})).toBe(123)
+    expect(readRPCTimeoutMs(undefined, { OPENPENCIL_RPC_TIMEOUT_MS: 'abc' })).toBe(
+      DEFAULT_RPC_TIMEOUT_MS
+    )
+  })
+
+  test('returns parsed numeric value when set', () => {
+    expect(readRPCTimeoutMs(undefined, { OPENPENCIL_RPC_TIMEOUT_MS: '60000' })).toBe(60_000)
+  })
+
+  test('honors caller-provided fallback override', () => {
+    expect(readRPCTimeoutMs(7, {})).toBe(7)
+  })
+})
+
+describe('orchestration/env — readMCPReadyMarker', () => {
+  test('returns null for unset or empty', () => {
+    expect(readMCPReadyMarker({})).toBeNull()
+    expect(readMCPReadyMarker({ OPENPENCIL_MCP_READY_MARKER: '' })).toBeNull()
+    expect(readMCPReadyMarker({ OPENPENCIL_MCP_READY_MARKER: '   ' })).toBeNull()
+  })
+
+  test('returns trimmed value when set', () => {
+    expect(readMCPReadyMarker({ OPENPENCIL_MCP_READY_MARKER: 'marker-x' })).toBe('marker-x')
+  })
+})
+
+describe('orchestration/env — pi backend readers', () => {
+  test('readPiBackendPort uses fallback when unset', () => {
+    expect(readPiBackendPort(7700, {})).toBe(7700)
+  })
+
+  test('readPiBackendPort parses numeric env value', () => {
+    expect(readPiBackendPort(7700, { OPENPENCIL_PI_BACKEND_PORT: '8800' })).toBe(8800)
+  })
+
+  test('readPiBackendPort falls back on non-numeric (Number(...) form)', () => {
+    // 与原位 Number(env ?? default) 行为一致：非数字走默认
+    expect(readPiBackendPort(7700, { OPENPENCIL_PI_BACKEND_PORT: 'abc' })).toBe(7700)
+  })
+
+  test('readPiAuthToken: undefined → null, trim empty to null', () => {
+    expect(readPiAuthToken({})).toBeNull()
+    expect(readPiAuthToken({ OPENPENCIL_PI_TOKEN: '' })).toBeNull()
+    expect(readPiAuthToken({ OPENPENCIL_PI_TOKEN: '   ' })).toBeNull()
+  })
+
+  test('readPiAuthToken: returns trimmed value', () => {
+    expect(readPiAuthToken({ OPENPENCIL_PI_TOKEN: '  token  ' })).toBe('token')
+  })
+
+  test('readMaxSessions default 200', () => {
+    expect(readMaxSessions({})).toBe(200)
+    expect(readMaxSessions({ OPENPENCIL_MAX_SESSIONS: '50' })).toBe(50)
+  })
+
+  test('readSessionMaxAgeDays default 30', () => {
+    expect(readSessionMaxAgeDays({})).toBe(30)
+    expect(readSessionMaxAgeDays({ OPENPENCIL_SESSION_MAX_AGE_DAYS: '7' })).toBe(7)
+  })
+
+  test('readStudioBuiltinDir: trim and treat empty as null', () => {
+    expect(readStudioBuiltinDir({})).toBeNull()
+    expect(readStudioBuiltinDir({ OPENPENCIL_STUDIO_BUILTIN_DIR: '/opt/studio' })).toBe(
+      '/opt/studio'
+    )
+    expect(readStudioBuiltinDir({ OPENPENCIL_STUDIO_BUILTIN_DIR: '   ' })).toBeNull()
+  })
+
+  test('readRootDir: trim and treat empty as null', () => {
+    expect(readRootDir({})).toBeNull()
+    expect(readRootDir({ OPENPENCIL_ROOT_DIR: '/var/data' })).toBe('/var/data')
+    expect(readRootDir({ OPENPENCIL_ROOT_DIR: '  ' })).toBeNull()
+  })
+})
+
+describe('orchestration/env — readImageGenTimeoutMs', () => {
+  test('DEFAULT_IMAGE_GEN_TIMEOUT_MS is 240_000 (S3 §4 baseline)', () => {
+    expect(DEFAULT_IMAGE_GEN_TIMEOUT_MS).toBe(240_000)
+  })
+
+  test('returns default when env unset or non-numeric', () => {
+    expect(readImageGenTimeoutMs()).toBe(DEFAULT_IMAGE_GEN_TIMEOUT_MS)
+    expect(readImageGenTimeoutMs(undefined, { OPENPENCIL_IMAGE_GEN_TIMEOUT_MS: 'bad' })).toBe(
+      DEFAULT_IMAGE_GEN_TIMEOUT_MS
+    )
+  })
+
+  test('returns parsed numeric value when set', () => {
+    expect(readImageGenTimeoutMs(undefined, { OPENPENCIL_IMAGE_GEN_TIMEOUT_MS: '300000' })).toBe(
+      300_000
+    )
+  })
+})
+
+describe('orchestration/env — dev / vite topology readers', () => {
+  test('readDevAutomationAuthToken: null when unset, trimmed value when set', () => {
+    expect(readDevAutomationAuthToken({})).toBeNull()
+    expect(readDevAutomationAuthToken({ OPENPENCIL_DEV_TOKEN: 'abc' })).toBe('abc')
+    expect(readDevAutomationAuthToken({ OPENPENCIL_DEV_TOKEN: '  xyz  ' })).toBe('xyz')
+  })
+
+  test('readDevMCPPort: defaults to AUTOMATION_HTTP_PORT (7600) when unset', () => {
+    expect(readDevMCPPort({})).toBe(7600)
+    expect(readDevMCPPort({ OPENPENCIL_DEV_MCP_PORT: '7700' })).toBe(7700)
+  })
+
+  test('readDevMCPPort: throws when out of [1024, 65535] range or non-integer', () => {
+    expect(() => readDevMCPPort({ OPENPENCIL_DEV_MCP_PORT: '80' })).toThrow(/between 1024/)
+    expect(() => readDevMCPPort({ OPENPENCIL_DEV_MCP_PORT: '70000' })).toThrow(/between 1024/)
+    expect(() => readDevMCPPort({ OPENPENCIL_DEV_MCP_PORT: '1.5' })).toThrow(/between 1024/)
+  })
+
+  test('readDevOrigin: null when unset, returns origin when valid http(s)', () => {
+    expect(readDevOrigin({})).toBeNull()
+    expect(readDevOrigin({ OPENPENCIL_DEV_ORIGIN: 'http://localhost:1420' })).toBe(
+      'http://localhost:1420'
+    )
+    expect(readDevOrigin({ OPENPENCIL_DEV_ORIGIN: 'https://x.y' })).toBe('https://x.y')
+  })
+
+  test('readDevOrigin: throws on non-http schemes or invalid URLs', () => {
+    expect(() => readDevOrigin({ OPENPENCIL_DEV_ORIGIN: 'ftp://x' })).toThrow(/HTTP\(S\) origin/)
+    expect(() => readDevOrigin({ OPENPENCIL_DEV_ORIGIN: 'not-a-url' })).toThrow(/HTTP\(S\) origin/)
+  })
+
+  test('readPortlessURL: null when unset, value when set', () => {
+    expect(readPortlessURL({})).toBeNull()
+    expect(readPortlessURL({ PORTLESS_URL: 'https://x' })).toBe('https://x')
+    expect(readPortlessURL({ PORTLESS_URL: '' })).toBeNull()
+  })
+
+  test('readTauriDevHost: null when unset, value when set', () => {
+    expect(readTauriDevHost({})).toBeNull()
+    expect(readTauriDevHost({ TAURI_DEV_HOST: 'tauri.local' })).toBe('tauri.local')
+    expect(readTauriDevHost({ TAURI_DEV_HOST: '' })).toBeNull()
+  })
+})
+
+describe('orchestration/env — Electron readers', () => {
+  test('readElectronBridgePort: null when unset, parsed number when set', () => {
+    expect(readElectronBridgePort({})).toBeNull()
+    expect(readElectronBridgePort({ OPENPENCIL_BRIDGE_PORT: '7600' })).toBe(7600)
+    expect(readElectronBridgePort({ OPENPENCIL_BRIDGE_PORT: 'abc' })).toBeNull()
+  })
+
+  test('readElectronBackendPort: null when unset, parsed number when set', () => {
+    expect(readElectronBackendPort({})).toBeNull()
+    expect(readElectronBackendPort({ OPENPENCIL_PI_BACKEND_PORT_ELECTRON: '8800' })).toBe(8800)
+  })
+
+  test('readElectronLoopbackPort: defaults to 0 (random port) when unset', () => {
+    expect(readElectronLoopbackPort({})).toBe(0)
+    expect(readElectronLoopbackPort({ OPENPENCIL_LOOPBACK_PORT: '8080' })).toBe(8080)
+  })
+})
+
+describe('orchestration/env — boolean flag readers (Electron)', () => {
+  test('readSmokeMode: strict === "1" comparison (preserved from main.ts)', () => {
+    expect(readSmokeMode({})).toBe(false)
+    expect(readSmokeMode({ OPENPENCIL_SMOKE: '1' })).toBe(true)
+    expect(readSmokeMode({ OPENPENCIL_SMOKE: 'true' })).toBe(false)
+    expect(readSmokeMode({ OPENPENCIL_SMOKE: '0' })).toBe(false)
+  })
+
+  test('readFullSmokeMode: strict === "1" comparison', () => {
+    expect(readFullSmokeMode({})).toBe(false)
+    expect(readFullSmokeMode({ OPENPENCIL_FULL_SMOKE: '1' })).toBe(true)
+  })
+
+  test('readShowWindow: false only for smoke OR OPENPENCIL_SHOW="0"', () => {
+    expect(readShowWindow({})).toBe(true)
+    expect(readShowWindow({ OPENPENCIL_SHOW: '1' })).toBe(true)
+    expect(readShowWindow({ OPENPENCIL_SHOW: '0' })).toBe(false)
+    expect(readShowWindow({ OPENPENCIL_SMOKE: '1' })).toBe(false)
+    // OPENPENCIL_SHOW=1 保留兼容：与缺省同
+    expect(readShowWindow({ OPENPENCIL_SHOW: '1', OPENPENCIL_SMOKE: '1' })).toBe(false)
+  })
+})

@@ -35,6 +35,8 @@ import { join } from 'node:path'
 
 import { type Skill, loadSkillsFromDir } from '@earendil-works/pi-coding-agent'
 
+import { resolveSkillsDir } from './paths'
+
 /**
  * 持久化形状：版本号字段防升级期旧文件残留。布尔外不留用户可调字段——
  * 扩展面走新键 + 版本号 + 读时兼容（坏文件/缺字段 → 落到 OFF）。
@@ -195,7 +197,7 @@ export function createCapabilitiesStore({
     if (!caps.agentSkills) return []
     // T89：单源扫描 `.openpencil/skills`（私有状态目录，与 key-env/pi-agent 同层）——
     // 不调 loadSkills 全局版，避免引入 cwd/agentDir 之外的隐式来源
-    const userSkillsDir = join(rootDir, '.openpencil', 'skills')
+    const userSkillsDir = resolveSkillsDir(rootDir)
     if (!existsSync(userSkillsDir)) return []
     const result = loadSkillsFromDir({ dir: userSkillsDir, source: 'user' })
     return result.skills.map(projectSkill)
@@ -208,7 +210,7 @@ export function createCapabilitiesStore({
 
   function expandSkillText(text: string): string {
     if (!get().agentSkills) return text
-    const userSkillsDir = join(rootDir, '.openpencil', 'skills')
+    const userSkillsDir = resolveSkillsDir(rootDir)
     if (!existsSync(userSkillsDir)) return text
     const { skills } = loadSkillsFromDir({ dir: userSkillsDir, source: 'user' })
     if (skills.length === 0) return text

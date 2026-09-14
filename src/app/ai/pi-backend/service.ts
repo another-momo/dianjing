@@ -36,7 +36,6 @@
 
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import {
@@ -47,6 +46,12 @@ import {
   type InlineExtension
 } from '@earendil-works/pi-coding-agent'
 import type { UIMessage, UIMessageChunk } from 'ai'
+
+import {
+  readMaxSessions,
+  readSessionMaxAgeDays,
+  readStudioBuiltinDir
+} from '@/app/orchestration/env'
 
 import {
   confirmNewIntentViaBridge,
@@ -63,6 +68,13 @@ import type { ImageGenCredentialStore } from './image-gen/credentials'
 import { createImageGenTool } from './image-gen/generate'
 import { createLoadReferenceTool } from './load-reference'
 import { createPiEventMapper } from './mapping'
+import {
+  resolveAgentDir,
+  resolveArchiveDir,
+  resolveSessionsDir,
+  resolveSkillsDir,
+  resolveStudioDirs
+} from './paths'
 import type { ModelSpec, ProviderAdmin } from './provider-admin'
 import { runSessionGc } from './session-gc'
 import type { PiSessionSummary } from './session-summary'
@@ -156,23 +168,22 @@ export function createPiChatService({
   admin: ProviderAdmin
   imageGenCredentials: ImageGenCredentialStore
 }): PiChatService {
-  const stateDir = join(rootDir, '.openpencil')
-  const agentDir = join(stateDir, 'pi-agent')
-  const sessionsDir = join(stateDir, 'pi-sessions')
+  const agentDir = resolveAgentDir(rootDir)
+  const sessionsDir = resolveSessionsDir(rootDir)
   const indexPath = join(sessionsDir, 'index.json')
   // T28（决策单 #2）：GC 归档目录（不建索引；读取面经 index 解析，天然不扫）
-  const archiveDir = join(stateDir, 'pi-sessions-archive')
-  const maxSessions = Number(process.env.OPENPENCIL_MAX_SESSIONS ?? 200)
-  const sessionMaxAgeDays = Number(process.env.OPENPENCIL_SESSION_MAX_AGE_DAYS ?? 30)
+  const archiveDir = resolveArchiveDir(rootDir)
+  const maxSessions = readMaxSessions()
+  const sessionMaxAgeDays = readSessionMaxAgeDays()
 
   // P2-11：seed 用户 studio 目录——首跑检测无 `_` 前缀模板则复制内置 _example。
   // 失败仅 warn 不阻断（IO 权限 / 磁盘满等不应挂掉整个后端）。
   // 路径与 registry.ts defaultDirs 同源——保持两者对齐，避免下次 reload
   // 时 builtinDir 解析漂移导致 seed 复制出来的引用错位。
-  const builtinStudioDir =
-    process.env.OPENPENCIL_STUDIO_BUILTIN_DIR ||
-    join(rootDir, 'src', 'app', 'ai', 'pi-backend', 'studio')
-  const userStudioDir = join(homedir(), '.openpencil', 'studio')
+  const { builtinDir: builtinStudioDir, userDir: userStudioDir } = resolveStudioDirs(
+    rootDir,
+    readStudioBuiltinDir()
+  )
   try {
     ensureUserStudioSeed(userStudioDir, builtinStudioDir)
   } catch (error) {
@@ -375,7 +386,7 @@ export function createPiChatService({
           noContextFiles: true,
           noSkills: !capabilitiesStore.get().agentSkills,
           noPromptTemplates: true,
-          additionalSkillPaths: [join(rootDir, '.openpencil', 'skills')],
+          additionalSkillPaths: [resolveSkillsDir(rootDir)],
           extensionFactories
         })
         // createAgentSession 只在自构 loader 时才 reload（sdk.js `if (!resourceLoader)`

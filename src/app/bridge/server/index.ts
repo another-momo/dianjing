@@ -1,4 +1,13 @@
 #!/usr/bin/env node
+import {
+  readBridgeTcpPort,
+  readMCPAppAttachTimeoutMs,
+  readMCPAuthToken,
+  readMCPCORSOrigin,
+  readMCPReadyMarker,
+  readMCPSocketPath
+} from '@/app/orchestration/env'
+
 import { startServer } from './server'
 
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
@@ -25,67 +34,41 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
   process.exit(0)
 }
 
-const rawPortText = (process.env.PORT ?? '7600').trim()
-// Reject non-digit strings (including hex like "0x50" and partially-numeric like
-// "7600abc") — Number.parseInt would silently parse these, masking misconfig.
-if (!/^\d+$/.test(rawPortText)) {
-  process.stderr.write(`Error: PORT must be an integer in 0–65535, got "${process.env.PORT}"\n`)
+let port: number
+try {
+  port = readBridgeTcpPort()
+} catch (error) {
+  process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`)
   process.exit(1)
 }
-const rawPort = Number.parseInt(rawPortText, 10)
-// Validate PORT: must be an integer in 0–65535. 0 means "disable TCP".
-if (rawPort < 0 || rawPort > 65535) {
-  process.stderr.write(`Error: PORT must be an integer in 0–65535, got "${process.env.PORT}"\n`)
-  process.exit(1)
-}
-const port = rawPort
 const withTcp = port > 0
 
-const MAX_APP_TIMEOUT_MS = 2_147_483_647
-const rawAppTimeoutText = process.env.OPENPENCIL_MCP_APP_TIMEOUT_MS?.trim()
 let appAttachTimeoutMs: number | undefined
-if (rawAppTimeoutText) {
-  if (!/^\d+$/.test(rawAppTimeoutText)) {
-    process.stderr.write(
-      `Error: OPENPENCIL_MCP_APP_TIMEOUT_MS must be a non-negative integer, got "${rawAppTimeoutText}"\n`
-    )
-    process.exit(1)
-  }
-  appAttachTimeoutMs = Number.parseInt(rawAppTimeoutText, 10)
-  if (!Number.isSafeInteger(appAttachTimeoutMs) || appAttachTimeoutMs > MAX_APP_TIMEOUT_MS) {
-    process.stderr.write(
-      `Error: OPENPENCIL_MCP_APP_TIMEOUT_MS must be an integer in 0–${MAX_APP_TIMEOUT_MS}, got "${rawAppTimeoutText}"\n`
-    )
-    process.exit(1)
-  }
+try {
+  appAttachTimeoutMs = readMCPAppAttachTimeoutMs()
+} catch (error) {
+  process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`)
+  process.exit(1)
+}
+
+let authToken: string | null | undefined
+try {
+  authToken = readMCPAuthToken()
+} catch (error) {
+  process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`)
+  process.exit(1)
 }
 
 const handle = await startServer({
   httpPort: withTcp ? port : 0,
   withTcp,
-  socketPath: process.env.OPENPENCIL_MCP_SOCKET?.trim() || null,
-  // Auth token: undefined → auto-generate, empty string → disable auth,
-  // non-empty → use trimmed value. Whitespace-only is rejected to prevent a
-  // silent fallback to an auto-generated token when the operator intended to
-  // set an explicit one.
-  authToken: (() => {
-    const raw = process.env.OPENPENCIL_MCP_AUTH_TOKEN
-    if (raw === undefined) return undefined
-    if (raw === '') return null
-    const trimmed = raw.trim()
-    if (!trimmed) {
-      process.stderr.write(
-        'Error: OPENPENCIL_MCP_AUTH_TOKEN is whitespace-only. Set a real token, or use an empty string to disable auth.\n'
-      )
-      process.exit(1)
-    }
-    return trimmed
-  })(),
-  corsOrigin: process.env.OPENPENCIL_MCP_CORS_ORIGIN?.trim() || null,
+  socketPath: readMCPSocketPath(),
+  authToken,
+  corsOrigin: readMCPCORSOrigin(),
   appAttachTimeoutMs
 })
 
-const readyMarker = process.env.OPENPENCIL_MCP_READY_MARKER
+const readyMarker = readMCPReadyMarker()
 if (readyMarker && /^open-pencil-ready:[a-f0-9-]{36}$/.test(readyMarker)) {
   process.stderr.write(`${readyMarker}
 `)

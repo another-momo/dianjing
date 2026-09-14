@@ -11,7 +11,7 @@ import {
   BRIDGE_RPC_DEFAULT_TIMEOUT_MS,
   bridgeCallTimeoutMs
 } from '@/app/ai/pi-backend/image-gen/bridge-call'
-import { DEFAULT_RPC_TIMEOUT_MS, rpcTimeoutMs } from '@/app/bridge/server/browser-rpc'
+import { DEFAULT_RPC_TIMEOUT_MS, readRPCTimeoutMs } from '@/app/orchestration/env'
 
 function saveEnv(): string | undefined {
   return process.env.OPENPENCIL_RPC_TIMEOUT_MS
@@ -27,7 +27,7 @@ describe('桥 RPC 超时（automation/bridge/server/browser-rpc.ts）', () => {
     const saved = saveEnv()
     try {
       delete process.env.OPENPENCIL_RPC_TIMEOUT_MS
-      expect(rpcTimeoutMs()).toBe(DEFAULT_RPC_TIMEOUT_MS)
+      expect(readRPCTimeoutMs()).toBe(DEFAULT_RPC_TIMEOUT_MS)
       expect(DEFAULT_RPC_TIMEOUT_MS).toBeGreaterThanOrEqual(240_000 + 30_000)
     } finally {
       restoreEnv(saved)
@@ -38,9 +38,9 @@ describe('桥 RPC 超时（automation/bridge/server/browser-rpc.ts）', () => {
     const saved = saveEnv()
     try {
       process.env.OPENPENCIL_RPC_TIMEOUT_MS = '60000'
-      expect(rpcTimeoutMs()).toBe(60_000)
+      expect(readRPCTimeoutMs()).toBe(60_000)
       process.env.OPENPENCIL_RPC_TIMEOUT_MS = '300000'
-      expect(rpcTimeoutMs()).toBe(300_000)
+      expect(readRPCTimeoutMs()).toBe(300_000)
     } finally {
       restoreEnv(saved)
     }
@@ -50,7 +50,7 @@ describe('桥 RPC 超时（automation/bridge/server/browser-rpc.ts）', () => {
     const saved = saveEnv()
     try {
       process.env.OPENPENCIL_RPC_TIMEOUT_MS = 'abc'
-      expect(rpcTimeoutMs()).toBe(DEFAULT_RPC_TIMEOUT_MS)
+      expect(readRPCTimeoutMs()).toBe(DEFAULT_RPC_TIMEOUT_MS)
     } finally {
       restoreEnv(saved)
     }

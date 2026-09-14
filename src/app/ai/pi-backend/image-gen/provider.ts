@@ -43,14 +43,12 @@ import type {
   ImageGenResult
 } from '@open-pencil/core/tools/fork/image-gen/requests'
 
+import { DEFAULT_IMAGE_GEN_TIMEOUT_MS, readImageGenTimeoutMs } from '@/app/orchestration/env'
+
 import type { ImageGenCredentials } from './credentials'
 
 /** 生图 HTTP 超时基线（S3 §4：240s，独立于桥超时）；env 可覆盖 */
-export const IMAGE_GEN_DEFAULT_TIMEOUT_MS = 240_000
-
-export function imageGenTimeoutMs(): number {
-  return Number(process.env.OPENPENCIL_IMAGE_GEN_TIMEOUT_MS) || IMAGE_GEN_DEFAULT_TIMEOUT_MS
-}
+export const IMAGE_GEN_DEFAULT_TIMEOUT_MS = DEFAULT_IMAGE_GEN_TIMEOUT_MS
 
 interface ImageAPIItem {
   b64_json?: string
@@ -160,7 +158,7 @@ export function createProviderCore(
 ): ImageGenProvider {
   const { credentials } = options
   const fetchImpl: FetchLike = options.fetchImpl ?? fetch
-  const timeoutMs = options.timeoutMs ?? imageGenTimeoutMs()
+  const timeoutMs = options.timeoutMs ?? readImageGenTimeoutMs()
   const baseURL = credentials.baseUrl.replace(/\/$/, '')
 
   return {

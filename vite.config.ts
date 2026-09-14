@@ -1,5 +1,3 @@
-import process from 'node:process'
-
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import IconsResolver from 'unplugin-icons/resolver'
@@ -8,9 +6,15 @@ import Components from 'unplugin-vue-components/vite'
 import { defineConfig } from 'vite'
 
 import packageJson from './package.json'
-import { AUTOMATION_HTTP_PORT } from './packages/core/src/constants'
 import { piBackendPlugin } from './src/app/ai/pi-backend/vite-plugin'
 import { devAutomationRoute } from './src/app/bridge/portless-route'
+import { readTauriDevHost } from './src/app/orchestration/env'
+import {
+  LOCAL_AUTOMATION_HTTP_URL_KEY,
+  LOCAL_AUTOMATION_TOKEN_KEY,
+  LOCAL_AUTOMATION_URL_KEY,
+  LOCAL_AUTOMATION_APP_VERSION_KEY
+} from './src/app/orchestration/runtime-globals'
 import { createOpenPencilAliases } from './vite/aliases'
 import {
   localAutomationRoute,
@@ -21,7 +25,7 @@ import { copyCanvasKitAssetsPlugin } from './vite/canvaskit-assets'
 import { rawMarkdownPlugin } from './vite/raw-markdown'
 import { createDevServerOptions } from './vite/server'
 
-const host = process.env.TAURI_DEV_HOST
+const host = readTauriDevHost() ?? undefined
 const automationRoute = localAutomationRoute(host)
 
 export default defineConfig(async ({ command }) => ({
@@ -29,10 +33,13 @@ export default defineConfig(async ({ command }) => ({
     alias: createOpenPencilAliases(__dirname)
   },
   define: {
-    __OPENPENCIL_APP_VERSION__: JSON.stringify(packageJson.version),
-    __OPENPENCIL_LOCAL_AUTOMATION_TOKEN__: JSON.stringify(localAutomationToken(command)),
-    __OPENPENCIL_LOCAL_AUTOMATION_URL__: JSON.stringify(automationRoute.browserURL),
-    __OPENPENCIL_LOCAL_AUTOMATION_HTTP_URL__: JSON.stringify(
+    // 键名以计算键引用 runtime-globals.ts 常量——config 加载期求值出与
+    // 原字面量相同的字符串键，vite 字符串替换语义不变；Phase 2 改名只动
+    // src/app/orchestration/runtime-globals.ts。
+    [LOCAL_AUTOMATION_APP_VERSION_KEY]: JSON.stringify(packageJson.version),
+    [LOCAL_AUTOMATION_TOKEN_KEY]: JSON.stringify(localAutomationToken(command)),
+    [LOCAL_AUTOMATION_URL_KEY]: JSON.stringify(automationRoute.browserURL),
+    [LOCAL_AUTOMATION_HTTP_URL_KEY]: JSON.stringify(
       automationRoute.browserURL.replace(/^ws/, 'http')
     )
   },

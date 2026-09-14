@@ -1,12 +1,16 @@
 import { randomUUID } from 'node:crypto'
-import process from 'node:process'
-
-import { AUTOMATION_HTTP_PORT } from '@open-pencil/core/constants'
 
 import { devAutomationRoute } from '../src/app/bridge/portless-route'
 import { automationPlugin } from '../src/app/bridge/vite-plugin'
+import {
+  readDevAutomationAuthToken,
+  readDevMCPPort,
+  readDevOrigin,
+  readPortlessURL
+} from '../src/app/orchestration/env'
 
-const devAutomationAuthToken = process.env.OPENPENCIL_DEV_TOKEN ?? randomUUID()
+// 缺省 randomUUID 与原位 `?? randomUUID()` 语义一致；测试环境用 env 注入。
+const devAutomationAuthToken = readDevAutomationAuthToken() ?? randomUUID()
 
 export function localAutomationToken(command: string): string | null {
   return command === 'serve' ? devAutomationAuthToken : null
@@ -17,16 +21,21 @@ export function automationCORSOrigin(host: string | undefined): string {
 }
 
 export function localAutomationRoute(host: string | undefined) {
-  const port = Number(process.env.OPENPENCIL_DEV_MCP_PORT ?? AUTOMATION_HTTP_PORT)
-  if (!Number.isInteger(port) || port < 1024 || port > 65535) {
-    throw new Error('OPENPENCIL_DEV_MCP_PORT must be an integer between 1024 and 65535')
-  }
-  const origin = process.env.OPENPENCIL_DEV_ORIGIN ?? automationCORSOrigin(host)
+  // 解析 dev 端口 + 端口范围校验抛错（与原位 throw 等价）；reader 自身抛错，
+  // 调用方让 vite plugin 启动失败——与原位 throw 同一时序。
+  const port = readDevMCPPort()
+  const envOrigin = readDevOrigin()
+  const origin = envOrigin ?? automationCORSOrigin(host)
+  // origin 校验在 reader 阶段完成（readDevOrigin 已抛非 http(s)），
+  // 这里再二次校验兜底 default 拼接结果。
   const url = new URL(origin)
   if (!['http:', 'https:'].includes(url.protocol) || url.origin !== origin) {
     throw new Error('OPENPENCIL_DEV_ORIGIN must be an HTTP(S) origin')
   }
-  return { ...devAutomationRoute(process.env.PORTLESS_URL, port, origin), httpPort: port }
+  return {
+    ...devAutomationRoute(readPortlessURL() ?? undefined, port, origin),
+    httpPort: port
+  }
 }
 
 export function openPencilAutomationPlugin(command: string, host: string | undefined) {

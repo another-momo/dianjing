@@ -28,12 +28,21 @@ import { spawn } from 'node:child_process'
 
 import type { Plugin } from 'vite'
 
-import { devMCPDiscoveryPath } from '@/app/orchestration/discovery'
-import { waitForHealthPolling } from '@/app/orchestration/health'
-import { attachStderrPassthrough, stopChildGracefully } from '@/app/orchestration/lifecycle'
-import { MAX_AUTO_RESTARTS, nextRestartDelay } from '@/app/orchestration/restart'
-import { generateToken } from '@/app/orchestration/token'
-
+// vite.config.ts 加载链文件——Storybook 配置 loader 不注册 @/ 别名，@/ 引用会断链
+// （orchestration-consolidation 2026-09-14 CI 修红）。本文件改用相对 import，
+// 配合下方逐行 oxlint-disable 绕过 no-deep-parent-relative-imports 规则。
+// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
+import { devMCPDiscoveryPath } from '../../orchestration/discovery'
+// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
+import { readPiBackendPort } from '../../orchestration/env'
+// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
+import { waitForHealthPolling } from '../../orchestration/health'
+// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
+import { attachStderrPassthrough, stopChildGracefully } from '../../orchestration/lifecycle'
+// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
+import { MAX_AUTO_RESTARTS, nextRestartDelay } from '../../orchestration/restart'
+// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
+import { generateToken } from '../../orchestration/token'
 import { PI_BACKEND_DEFAULT_PORT } from './config'
 
 const CHILD_EXIT_TIMEOUT_MS = 2_000
@@ -59,7 +68,7 @@ export interface PiBackendPluginOptions {
 export { devMCPDiscoveryPath }
 
 export function piBackendPlugin(options: PiBackendPluginOptions = {}): Plugin {
-  const port = Number(process.env.OPENPENCIL_PI_BACKEND_PORT ?? PI_BACKEND_DEFAULT_PORT)
+  const port = readPiBackendPort(PI_BACKEND_DEFAULT_PORT)
   // T28：每 vite 进程一枚鉴权 token（子进程 env 注入 + proxy 补头，两侧共享）
   const authToken = generateToken()
   // T38：dev 桥 discovery 路径（同源推导；无 runtimeId 时不注入，后端落平台默认路径）
