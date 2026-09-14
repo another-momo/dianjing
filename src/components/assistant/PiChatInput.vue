@@ -91,7 +91,7 @@ import {
   retryPiStudioManifest
 } from '@/app/ai/pi-backend/mode-selection'
 import { getActiveEditorStoreOrNull } from '@/app/editor/active-store'
-import { useForkChips, useForkPi } from '@/app/i18n/fork'
+import { useForkChips } from '@/app/i18n/fork'
 import { openSettingsDialog } from '@/app/settings/dialog'
 import ChatModeChips from '@/components/assistant/ChatModeChips.vue'
 import ChatNodePreview from '@/components/assistant/ChatNodePreview.vue'
@@ -121,7 +121,6 @@ import {
 import IconButton from '@/components/ui/button/IconButton.vue'
 import InputGroup from '@/components/ui/input/InputGroup.vue'
 const { ai } = useI18n()
-const piDialogs = useForkPi()
 const chipsText = useForkChips()
 
 const { status, disabled = false } = defineProps<{
@@ -844,10 +843,10 @@ function handleChipMouseDown(event: MouseEvent) {
 // 模型名 label 暂留）；设计/需求单/gallery 三面板按钮移出，状态查看归 header 的
 // 画布工作状态面板（ChatContextBar），gallery 组件删除
 
-const piModelLabel = computed(
-  // T38：useForkPi() 返回 Ref——script 内访问必须 .value（T35 曾丢 .value 致标签空白）
-  () => piDesignAssignment.value?.modelId ?? piDialogs.value.designModelDefault
-)
+// pi-model-explicit-config（§3 落地清单 4）—— piChatInput 现在只在引导门 ready 渲染
+//（ChatPanel v-if=isGateReady），指派必然存在；designModelDefault fallback 分支死亡。
+// i18n 键 designModelDefault 的删除由主 agent 统一处理（见汇报）。
+const piModelLabel = computed(() => piDesignAssignment.value?.modelId ?? '')
 
 // T91p：skill chip（钉头单例内联芯片，替代 T89 文本内 token）——owner 决议：
 // skill 是命令不是引用，与选区 token（任意位置、多实例）本质不同；chip 恒钉

@@ -236,9 +236,6 @@ const zhCN = {
     designModelSave: '保存',
     designModelDirty: '未保存',
     designModelSaved: '已保存',
-    // T97：保留以兼容 PiChatInput 输入条 fallback 标签；PiModelsPanel 合并面板
-    // 已不再展示该 sentinel item（哨兵 `__pi_backend_default__` 随之消解）
-    designModelDefault: '默认模型（由本地服务配置）',
     designPickerEmpty: '没有匹配项。',
     // T97：合并面板摘要条文案
     currentAssignmentLabel: '当前设计模型',
@@ -275,7 +272,18 @@ const zhCN = {
     // T100：D1 source 回显（catalog 仅透传 stored/environment 字符串，shadow 提示
     // 需 catalog 额外透传 env 并存标志，超出本单范围——见讨论稿 §5.D1）
     providerAuthSourceStored: '设置存储',
-    providerAuthSourceEnvironment: '环境变量'
+    providerAuthSourceEnvironment: '环境变量',
+    // T100：引导门——needs-setup / needs-credential 两变体 + 加载骨架条 + 卡脚 hint；
+    // 带 {name} 占位的键对应 en 侧 params function（providerModels 先例）；
+    // Translations 扁平禁嵌套——键名带 providerGate 前缀分组
+    providerGateSetupTitle: '设置设计模型',
+    providerGateSetupDescription: '打开 AI 设置选择 provider 与模型，即可开始对话。',
+    providerGateSetupCta: '打开设置',
+    providerGateCredentialTitle: '{name} 还没配置 key',
+    providerGateCredentialDescription: '模型已选，但还需要为该 provider 配置 API key。',
+    providerGateCredentialCta: '打开 {name} 设置',
+    providerGateLoading: '正在加载模型目录…',
+    providerGateHint: '模型在「设置 → AI」中管理'
   },
   toolbar: {
     addImage: '添加图片',

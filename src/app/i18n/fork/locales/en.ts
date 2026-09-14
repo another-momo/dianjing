@@ -38,9 +38,6 @@ export const piMessageDefaults = {
   designModelSave: 'Save',
   designModelDirty: 'Unsaved',
   designModelSaved: 'Saved',
-  // T97：保留以兼容 PiChatInput 输入条 fallback 标签（无指派时的占位文案）；
-  // PiModelsPanel 合并面板已不再展示该 Combobox sentinel item。
-  designModelDefault: 'Default model (configured by the local service)',
   designPickerEmpty: 'No matches.',
   // T97：合并面板摘要条文案（讨论稿 §4.2 段 b）
   currentAssignmentLabel: 'Current design model',
@@ -78,7 +75,19 @@ export const piMessageDefaults = {
   // T100：D1 source 回显——stored/environment 标签文案；shadow 提示不在 catalog 透传范围，
   // 仅做 source 标签（key-env 拍板见讨论稿 §6.3，本单范围内）
   providerAuthSourceStored: 'Settings storage',
-  providerAuthSourceEnvironment: 'Environment variable'
+  providerAuthSourceEnvironment: 'Environment variable',
+  // T100：引导门（讨论稿 §3 落地清单 1）——needs-setup / needs-credential 两变体 +
+  // catalog 加载中骨架条 + 卡脚 hint；function 键走 params 占位（providerModels 先例）。
+  // 注：Translations 扁平（string | TranslationFunction），禁嵌套对象——键名带前缀分组
+  providerGateSetupTitle: 'Set up design model',
+  providerGateSetupDescription: 'Open AI settings to pick a provider and model to start chatting.',
+  providerGateSetupCta: 'Open settings',
+  providerGateCredentialTitle: params("{name} isn't configured yet"),
+  providerGateCredentialDescription:
+    'The model is picked, but this provider still needs an API key.',
+  providerGateCredentialCta: params('Open {name} settings'),
+  providerGateLoading: 'Loading model catalog…',
+  providerGateHint: 'Manage models in Settings → AI'
 } as const
 
 /** T54→T66：generate_image 凭证面板（SettingsDialog media 分区；Provider 类型下拉 + baseUrl/model/key 输入 + 测试连接）英文默认值 */

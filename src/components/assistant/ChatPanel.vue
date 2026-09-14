@@ -17,7 +17,7 @@ import {
   ScrollAreaThumb,
   ScrollAreaViewport
 } from 'reka-ui'
-import { computed, markRaw, nextTick, onErrorCaptured, ref, watch } from 'vue'
+import { computed, markRaw, nextTick, onErrorCaptured, onMounted, ref, watch } from 'vue'
 
 import {
   parseAskAnswer,
@@ -30,6 +30,8 @@ import { useI18n } from '@open-pencil/vue'
 import { copyChatLog } from '@/app/ai/fork/debug'
 import { isAbortShapedError, markIntentionalStop } from '@/app/ai/fork/transports'
 import { useAIChat } from '@/app/ai/fork/use'
+import { piDesignAssignment } from '@/app/ai/pi-backend/assignment'
+import { piCatalog, refreshPiCatalog } from '@/app/ai/pi-backend/client'
 import {
   getPiCurrentSessionId,
   hasPiDocId,
@@ -44,8 +46,9 @@ import {
   piStudioManifest,
   resyncPiActiveDesign
 } from '@/app/ai/pi-backend/mode-selection'
+import { deriveGateState, type GateState } from '@/app/ai/pi-backend/provider-gate'
 import { getActiveEditorStore } from '@/app/editor/active-store'
-import { useForkConfirm } from '@/app/i18n/fork'
+import { useForkConfirm, useForkPi } from '@/app/i18n/fork'
 import { useNotificationMessages } from '@/app/i18n/notifications'
 import { toast } from '@/app/shell/ui'
 import { activeTab } from '@/app/tabs'
@@ -73,6 +76,7 @@ import ChatBriefDialog from './ChatBriefDialog.vue'
 import ChatContextBar from './ChatContextBar.vue'
 import PiChatInput from './PiChatInput.vue'
 import PiChatMessage from './PiChatMessage.vue'
+import PiProviderGateCard from './PiProviderGateCard.vue'
 
 const IS_DEV = import.meta.env.DEV
 
@@ -80,6 +84,7 @@ const { ensureChat, resetChat, chatFailure, clearChatFailure } = useAIChat()
 const { ai } = useI18n()
 const notifications = useNotificationMessages()
 const confirmText = useForkConfirm()
+const piDialogs = useForkPi()
 
 const chat = ref<Chat<UIMessage> | null>(null)
 // T27：提交失败时经此把草稿回填进输入框（PiChatInput 提交即清空——见 restoreDraft）；
@@ -143,6 +148,42 @@ const isUserStopped = ref(false)
 const justStopped = refAutoReset(false, 4000)
 
 const messages = computed(() => chat.value?.messages ?? [])
+
+// pi-model-explicit-config（§3 落地清单 1）—— 引导门生态状态机：
+// 派生四态：loading / ready / needs-setup / needs-credential。
+// 派生函数是 src/app/ai/pi-backend/provider-gate.ts 的纯函数（测试可桩）。
+// 派生输入只读 piDesignAssignment + piCatalog；不读 storage/window。
+const gateState = computed<GateState>(() =>
+  deriveGateState({
+    assignment: piDesignAssignment.value,
+    catalog: piCatalog.value
+  })
+)
+const isGateReady = computed(() => gateState.value.kind === 'ready')
+// 引导卡只接 needs-* 两态（prop 契约是 Extract 收窄联合）；模板 v-else 链不做类型
+// 收窄，经本 computed 显式过滤——非 needs-* 时为 null，v-else-if 真值守卫顺带收窄
+const gateCardState = computed(() => {
+  const state = gateState.value
+  return state.kind === 'needs-setup' || state.kind === 'needs-credential' ? state : null
+})
+
+/**
+ * §3 落地清单 3：应用启动时拉一次 catalog。
+ *
+ * 落点论证：ChatPanel 是聊天面板的入口，是 catalog 第一消费者（门渲 + 后续输入条 label
+ * 派生），挂在这里最合理——其他消费者（PiModelsPanel）只在自己 onMounted 时拉，
+ * ChatPanel 此刻提前发起，刚好盖住「用户首开面板」与「用户首开发消息」两个最早触点。
+ * 不放 app 根（main.ts）的原因：main.ts 在 vite SPA 启动期跑、无 DOM/路由上下文、
+ * 与 Vue 生命周期耦合（inject 不到 i18n/pi catalog ref）；放 ChatPanel 内 onMounted
+ * 是最稳的单点。
+ *
+ * 失败处理：refreshPiCatalog 内 try/catch 已经把错误写进 piCatalogError 并把
+ * piCatalog 置 null——本处不需再 catch；门态派生会自然停在 loading（catalog 为 null）。
+ * 用户后续打开设置面板（PiModelsPanel onMounted 也会再拉）有机会恢复。
+ */
+onMounted(() => {
+  void refreshPiCatalog()
+})
 
 // T56：已作答/已跳过表单 formId 集——扫 user 消息文本首行信封标记
 // （重载后已答表单置灰的唯一信号，formId 相关性降级口径见 T56-plan §1 定谳 6）
@@ -868,7 +909,12 @@ function handleClearChat() {
       </AppTextButton>
     </div>
 
+    <!-- pi-model-explicit-config（§3 落地清单 1）—— 引导门：
+         ready 才渲染输入框；loading / needs-setup / needs-credential 三态由派生
+         门态 gateState 决定——loading 显示骨架占位，needs-* 显示引导卡。
+         输入框不渲染 = 从根上消灭未配置发送的死路（spec b）。 -->
     <PiChatInput
+      v-if="isGateReady"
       :key="chatInputRemountKey"
       ref="chatInputRef"
       :status="status"
@@ -877,6 +923,15 @@ function handleClearChat() {
       @error="toast.error"
       @seg-root-lost="handleSegRootLost"
     />
+    <div
+      v-else-if="gateState.kind === 'loading'"
+      data-test-id="pi-provider-gate-loading"
+      class="flex shrink-0 items-center gap-2 border-t border-border px-4 py-3 text-xs text-muted"
+    >
+      <icon-lucide-loader-2 class="size-3 animate-spin" />
+      {{ piDialogs.providerGateLoading }}
+    </div>
+    <PiProviderGateCard v-else-if="gateCardState" :state="gateCardState" />
 
     <!-- T66（决策②）：需求单大面板——ChatContextBar 列表条目点击打开；
          开关状态在 chat/active-design.ts 模块级 ref（settings/dialog.ts 先例） -->
