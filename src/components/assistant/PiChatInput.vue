@@ -505,15 +505,39 @@ function readTextFromDom(): string {
   return text.replace(/\u200B/g, '').replace(/\r\n?/g, '\n')
 }
 
+/** 子树文本长度——与 domOffsetToTextOffset / syncTextFromDom 的 walk 计长
+ *  同规则（chip → token 字面长、非 lone <br> → 1、其余元素递归子节点）。 */
+function nodeTextLength(n: Node): number {
+  if (n.nodeType === Node.TEXT_NODE) return (n.textContent ?? '').length
+  if (n.nodeType !== Node.ELEMENT_NODE) return 0
+  const el = n as HTMLElement
+  if (el.tagName === 'BR') return isLoneBr(el) ? 0 : 1
+  if (el.dataset.tokenN) return selectionTokenText(Number(el.dataset.tokenN)).length
+  let len = 0
+  for (const child of Array.from(el.childNodes)) len += nodeTextLength(child)
+  return len
+}
+
 /** DOM 文本位置 → 模型文本偏移：扫描 DOM 子节点累计文本/BR/token 长度，
- *  命中目标节点后返回累计 + offset。 */
+ *  命中目标节点后返回累计 + offset。
+ *  Selection offset 双语义（Range 契约）：锚点是 Text 节点时 offset = 字符
+ *  偏移；锚点是 Element 节点时 offset = 子节点索引（restoreCaret 把 caret
+ *  落在 chip 之后产生的正是 Element 锚点）——后者必须累加前 offset 个
+ *  子节点的文本长度；当字符数直接加会把插入点算进 token 字面中间
+ *  （2026-09-14 实测：连采两次，第二个 token 在偏移 4 处劈开第一个）。 */
 function domOffsetToTextOffset(root: HTMLElement, node: Node, offset: number): number {
   let acc = 0
   let found = false
   const walk = (n: Node): boolean => {
     if (found) return true
     if (n === node) {
-      acc += offset
+      if (n.nodeType === Node.ELEMENT_NODE) {
+        for (const child of Array.from(n.childNodes).slice(0, offset)) {
+          acc += nodeTextLength(child)
+        }
+      } else {
+        acc += offset
+      }
       found = true
       return true
     }
