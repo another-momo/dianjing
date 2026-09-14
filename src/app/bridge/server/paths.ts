@@ -2,7 +2,10 @@ import { chmod, mkdir } from 'node:fs/promises'
 import { homedir, platform } from 'node:os'
 import { dirname, join } from 'node:path'
 
-import { readMCPDiscoveryPathOverride, readMCPSocketPath } from '@/app/orchestration/env'
+// 本文件经 bridge/vite-plugin.ts 处于 vite.config.ts 加载链上——Storybook/vite
+// 配置 loader 不注册 @/ 别名（2026-09-14 CI+dev L3 实证），链上文件禁 @/。
+// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
+import { readMCPDiscoveryPathOverride, readMCPSocketPath } from '../../orchestration/env'
 
 /**
  * Platform-specific paths for the automation bridge's Unix domain socket
