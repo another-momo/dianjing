@@ -14,7 +14,7 @@
 - 主 agent 唯一允许：git 写（commit / merge-back）、browser 实测、gh 操作。
 - worker（subagent）：限定范围实现 + 目标测试文件；**禁**全量 test / dev / build、commit / push、`gh run rerun`；browser 默认禁——Playwright MCP 与主 agent 共享浏览器单例，派单显式授权时方可自验证且须互斥。commit / push 可经 owner 专项派单授权解禁（授权范围以派单文本为准）。
 - push：主 agent 每次收口 commit 后顺势推；失败允许重试 3 次、每次间隔 30s，仍败即积压归 owner 后续处理。worker 禁 push。
-- gh 命令一律带 `-R another-momo/open-pencil`。
+- gh 命令一律带 `-R another-momo/dianjing`。
 
 ## 3. zone 纪律（改代码前必读）
 
@@ -34,6 +34,7 @@
 - 注意：本机 oxlint 目录取文件为 0（静默假绿，2026-09-07 起未定位）——本地 lint 结果不可信，lint 类门禁以 CI 为准。本地复现 CI lint 的替代法：`bunx oxlint -c oxlint.json --type-aware --type-check <单文件>`（单文件参数不受 0 文件问题影响；prefer-optional-chain 等 type-aware 规则只在 lint 第二段跑，第一段失败会屏蔽它）。
 - 大改动（≥10 文件或 ≥200 行）收口跑全量 `bun run check`，跑前停 dev server。
 - studio 资产增删改名的耦合断言不止 tests/engine——`spikes/s-pi/backend-smoke/`（CI smoke:pi 契约层）直拷真资产目录并断言具体 id/数量/顺序；改资产同步扫 spikes/（2026-09-08 Phase 2 事故：派单 scope 只圈 tests/engine，CI 红一轮才浮出）。
+- 状态根/目录布局/路径契约类改动同样必扫 spikes：`spikes/s-pi/backend-smoke/` 钉死 token/状态文件相对布局，且冒烟 spawn 后端不带 env 时后端状态根不再跟 cwd（2026-09-14 D2 实证：15 处布局钉 + 7 处 env 注入漏扫，CI 红一轮）。**sweep 输出禁截断**——`grep | head` 截断漏掉 t28 archiveDir 钉，本地复现二轮才兜住。
 - commit message：中文 conventional（`type(scope): 主题`）+ 正文写清 why——背景、方案取舍、验证证据。
 - pre-commit = check:zones；post-commit = 机制复盘计数提醒（advisory，永不阻塞）。
 
@@ -52,6 +53,7 @@
 - Window API 增强归编译边界：app 声明在 `src/global.d.ts`、包级 DOM 缺口在属包 `global.d.ts`；禁在 spec 或实现模块里 `declare global`（本轮合并实证：browser-bridge 声明随上游重构迁居即此规则）。
 - import 禁 `../` 逃逸 alias 根（`#tests/../vite` 式）；模块归属错位修归属，不修路径。
 - vite.config.ts 加载链文件禁 `@/` alias：链 = vite.config → `vite/automation` + pi-backend/bridge 两个 vite-plugin → 其传递 import（如 `bridge/server/paths.ts`）——Storybook/vite config loader 不注册别名（2026-09-14 CI+dev 双实证漏网）。用相对 import：单个 `../` 直接写，`../../` 逐行注 `// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports`。
+- Electron 主进程/sidecar 单文件产物必须显式 `deps.alwaysBundle` 兜底：tsdown 默认把根 package.json dependencies（含 workspace:* 的 `@open-pencil/*`）external 化，而打包形态 resources/app/ 无 node_modules（electron-builder.yml files 显式排除）——产物留裸 import，安装版主进程启动即炸 ERR_MODULE_NOT_FOUND；dev 形态仓根 node_modules 兜底会完美掩盖，只有打包 L3 能兜住（2026-09-14 ④ 实证，ff1b44d8d 修复）。
 
 ## 6. 测试纪律
 
