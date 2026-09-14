@@ -10,7 +10,7 @@ import { defineConfig } from 'vite'
 import packageJson from './package.json'
 import { AUTOMATION_HTTP_PORT } from './packages/core/src/constants'
 import { piBackendPlugin } from './src/app/ai/pi-backend/vite-plugin'
-import { devAutomationRoute } from './src/app/automation/bridge/portless-route'
+import { devAutomationRoute } from './src/app/bridge/portless-route'
 import { createOpenPencilAliases } from './vite/aliases'
 import {
   localAutomationRoute,

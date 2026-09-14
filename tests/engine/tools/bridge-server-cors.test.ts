@@ -8,7 +8,7 @@ import { mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { startServer } from '@/app/automation/bridge/server/server'
+import { startServer } from '@/app/bridge/server/server'
 
 const TEST_AUTH_TOKEN = 'test-cors-token'
 const SOCKET_DIR = join(tmpdir(), 'open-pencil-bridge-cors')

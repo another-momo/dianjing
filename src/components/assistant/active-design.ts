@@ -44,8 +44,8 @@ import type {
 } from '@open-pencil/core/tools/fork/marketing/setup'
 import { findPlacementPosition } from '@open-pencil/core/tools/fork/placement'
 
-import { makeFigmaFromStore } from '@/app/automation/bridge/figma-factory'
-import { getWindowId } from '@/app/automation/window-id'
+import { makeFigmaFromStore } from '@/app/bridge/figma-factory'
+import { getWindowId } from '@/app/bridge/window-id'
 import type { EditorStore } from '@/app/editor/active-store'
 import { ensureGraphFonts } from '@/app/editor/fonts'
 

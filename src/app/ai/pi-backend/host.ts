@@ -6,7 +6,7 @@
  * 职责（对齐两个 vite 插件的行为，env 语义刻意复制而非共享导入——automation
  * 面在 pendingReclass 区且有「只允许相对导入」约束，重分类仪式未到不动它；
  * 复制面各约 10 行，来源注释见 spawnBridge/spawnBackend）：
- *  1. spawn 自动化桥（src/app/automation/bridge/server/index.ts，TCP 7600 + token）
+ *  1. spawn 自动化桥（src/app/bridge/server/index.ts，TCP 7600 + token）
  *  2. spawn pi 后端（src/app/ai/pi-backend/main.ts，7700 + token env 注入）
  *  3. 托管 dist/（MIME 表 + SPA fallback），index.html 注入桥 token 运行时
  *     全局（配合 bridge/runtime.ts P104 的 window.__OPENPENCIL_RUNTIME_AUTOMATION_TOKEN__
@@ -33,8 +33,8 @@ import { extname, join, normalize, resolve } from 'node:path'
 
 import { AUTOMATION_HTTP_PORT } from '@open-pencil/core/constants'
 
-import { readDiscoveryFile } from '@/app/automation/bridge/server/discovery'
-import { getSocketPath, platformHasUnixSockets } from '@/app/automation/bridge/server/paths'
+import { readDiscoveryFile } from '@/app/bridge/server/discovery'
+import { getSocketPath, platformHasUnixSockets } from '@/app/bridge/server/paths'
 
 import { PI_BACKEND_DEFAULT_PORT } from './config'
 
@@ -99,7 +99,7 @@ async function spawnBridge(): Promise<void> {
   // 构成冲突；若未来扩成同主机多 host.ts 实例，再补 OPENPENCIL_MCP_DISCOVERY_PATH
   // 临时目录隔离——届时复用 vite-plugin 的 sha256(runtimeId) 方案即可。
   const socketPath = platformHasUnixSockets() ? await getSocketPath() : null
-  bridge = spawn('bun', ['run', 'src/app/automation/bridge/server/index.ts'], {
+  bridge = spawn('bun', ['run', 'src/app/bridge/server/index.ts'], {
     stdio: ['ignore', 'inherit', 'pipe'],
     env: {
       ...process.env,

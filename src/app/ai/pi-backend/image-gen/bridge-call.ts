@@ -14,7 +14,7 @@
  * 凭证永不进桥 payload（红线）。
  */
 
-import { readDiscoveryFile } from '@/app/automation/bridge/server/discovery'
+import { readDiscoveryFile } from '@/app/bridge/server/discovery'
 
 import { classifyBridgeFailure, EDITOR_UNREACHABLE_MESSAGE } from '../bridge-errors'
 import type { ToolTargetSource } from '../tools'

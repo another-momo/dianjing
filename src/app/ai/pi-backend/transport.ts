@@ -15,7 +15,7 @@ import type { ChatTransport, UIMessage, UIMessageChunk } from 'ai'
 
 import type { PiModelSpec } from '@/app/ai/pi-backend/client'
 import type { PiRequestContext } from '@/app/ai/pi-backend/document-key'
-import { getWindowId } from '@/app/automation/window-id'
+import { getWindowId } from '@/app/bridge/window-id'
 
 export class PiBackendChatTransport implements ChatTransport<UIMessage> {
   constructor(

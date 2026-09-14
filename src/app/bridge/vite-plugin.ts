@@ -121,7 +121,7 @@ export function automationPlugin(
     await mkdir(runtimeDir, { recursive: true, mode: 0o700 })
     const socketPath = platformHasUnixSockets() ? join(runtimeDir, 'mcp.sock') : null
     const discoveryPath = join(runtimeDir, 'mcp.json')
-    const command = ['bun', 'run', 'src/app/automation/bridge/server/index.ts']
+    const command = ['bun', 'run', 'src/app/bridge/server/index.ts']
     const spawnCommand = options.portlessServiceName ? 'portless' : command[0]
     const spawnArgs = options.portlessServiceName
       ? ['run', '--name', options.portlessServiceName, ...command]

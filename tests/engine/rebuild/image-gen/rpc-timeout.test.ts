@@ -11,7 +11,7 @@ import {
   BRIDGE_RPC_DEFAULT_TIMEOUT_MS,
   bridgeCallTimeoutMs
 } from '@/app/ai/pi-backend/image-gen/bridge-call'
-import { DEFAULT_RPC_TIMEOUT_MS, rpcTimeoutMs } from '@/app/automation/bridge/server/browser-rpc'
+import { DEFAULT_RPC_TIMEOUT_MS, rpcTimeoutMs } from '@/app/bridge/server/browser-rpc'
 
 function saveEnv(): string | undefined {
   return process.env.OPENPENCIL_RPC_TIMEOUT_MS

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { spawn } from 'node:child_process'
 
-import { waitForChildReady } from '@/app/automation/bridge/child-ready'
+import { waitForChildReady } from '@/app/bridge/child-ready'
 
 test('accepts a readiness marker split across child output chunks', async () => {
   const child = spawn(

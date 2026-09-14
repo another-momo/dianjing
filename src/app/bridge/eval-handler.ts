@@ -1,7 +1,7 @@
 import type { FigmaAPI } from '@open-pencil/core/figma-api'
 import { wrapEvalCode } from '@open-pencil/core/tools'
 
-import type { AutomationTarget } from '@/app/automation/bridge/target'
+import type { AutomationTarget } from '@/app/bridge/target'
 import { ensureGraphFonts } from '@/app/editor/fonts'
 
 type FigmaFactory = (store: AutomationTarget['store'], pageId?: string) => FigmaAPI

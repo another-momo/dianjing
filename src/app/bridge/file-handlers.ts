@@ -2,7 +2,7 @@ import {
   resolveAutomationTarget,
   responseWithTarget,
   type AutomationTarget
-} from '@/app/automation/bridge/target'
+} from '@/app/bridge/target'
 import { resolveBrowserFileURL } from '@/app/document/io/browser'
 import { openFileFromPath } from '@/app/shell/menu/use'
 import { createTab, getActiveStore, openFileInNewTab } from '@/app/tabs'

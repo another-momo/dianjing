@@ -6,7 +6,7 @@ import {
   createMCPRuntimeService,
   MCP_STARTUP_RETRY_DELAYS_MS,
   type MCPRuntimeDependencies
-} from '@/app/automation/bridge/runtime'
+} from '@/app/bridge/runtime'
 
 // T74：钉扎 dev 启动时序 race 的退避重试——vite configureServer 的 startChild
 // 异步 spawn 桥子进程，WorkspaceView.onMounted 起跑 startMCPRuntime 时桥可能还没
@@ -60,7 +60,7 @@ function createHarness(failHealthTimes: number): RuntimeHarness {
   return harness
 }
 
-// 与 tests/engine/app/automation/mcp-runtime.test.ts 同款：never 可赋给任意返回类型
+// 与 tests/engine/app/bridge/mcp-runtime.test.ts 同款：never 可赋给任意返回类型
 const getStore = () => ({}) as never
 
 test('startup race: bridge slow to listen → retries until running', async () => {

@@ -3,8 +3,8 @@ import process from 'node:process'
 
 import { AUTOMATION_HTTP_PORT } from '@open-pencil/core/constants'
 
-import { devAutomationRoute } from '../src/app/automation/bridge/portless-route'
-import { automationPlugin } from '../src/app/automation/bridge/vite-plugin'
+import { devAutomationRoute } from '../src/app/bridge/portless-route'
+import { automationPlugin } from '../src/app/bridge/vite-plugin'
 
 const devAutomationAuthToken = process.env.OPENPENCIL_DEV_TOKEN ?? randomUUID()
 

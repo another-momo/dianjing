@@ -1,7 +1,7 @@
 import { encodeBase64 } from '@open-pencil/core/bytes'
 import { selectionToJSX, sceneNodeToJSX, type RasterExportFormat } from '@open-pencil/core/io'
 
-import type { AutomationTarget } from '@/app/automation/bridge/target'
+import type { AutomationTarget } from '@/app/bridge/target'
 
 export async function handleExport(target: AutomationTarget, args: unknown): Promise<unknown> {
   const store = target.store

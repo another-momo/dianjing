@@ -5,7 +5,7 @@ import { ALL_TOOLS, registerComponentCatalog } from '@open-pencil/core/tools'
 import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 import type { JSONObject } from '@open-pencil/scene-graph/primitives'
 
-import type { AutomationTarget } from '@/app/automation/bridge/target'
+import type { AutomationTarget } from '@/app/bridge/target'
 import { ensureGraphFonts } from '@/app/editor/fonts'
 import { useLibraryService } from '@/app/libraries'
 

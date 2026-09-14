@@ -1,9 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import {
-  createMCPRuntimeService,
-  type MCPRuntimeDependencies
-} from '@/app/automation/bridge/runtime'
+import { createMCPRuntimeService, type MCPRuntimeDependencies } from '@/app/bridge/runtime'
 
 function setup(overrides: Partial<MCPRuntimeDependencies> = {}) {
   const calls: string[] = []

@@ -63,7 +63,7 @@
 
 - `src/app/ai/pi-backend/` —— AI 后端（ownedRoot）：service / server / tools / transport / active-design-host / image-gen
 - `src/app/ai/fork/` —— AI 前端 fork 层（ownedRoot）：transports / session 管理
-- `src/app/automation/` —— 自动化桥（ownedRoot）：server（browser-rpc 窗口路由）/ client / vite-plugin / runtime
+- `src/app/bridge/` —— 自动化桥（ownedRoot）：server（browser-rpc 窗口路由）/ client / vite-plugin / runtime
 - `src/components/assistant/` —— AI 助手 UI（ownedRoot）：ChatPanel / active-design / markdown
 - `packages/core/src/text/` —— 文本与字体：font/cn-catalog（CN 目录）、web-font、fonts.ts 管理器
 - `packages/core/src/tools/fork/` —— 工具 fork 层（ownedRoot）：marketing / brief / active-design

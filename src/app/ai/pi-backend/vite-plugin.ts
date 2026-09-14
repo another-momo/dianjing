@@ -1,7 +1,7 @@
 /**
  * T20 vite 插件：pi 后端进程管理器（owner 拍板 2026-08-23：后端是独立进程）。
  *
- * 形态照抄 automation 桥（src/app/automation/bridge/vite-plugin.ts，2026-08-23
+ * 形态照抄 automation 桥（src/app/bridge/vite-plugin.ts，2026-08-23
  * 实证）：configureServer spawn `bun run src/app/ai/pi-backend/main.ts` 子进程，
  * buildEnd 回收（kill + 超时 SIGKILL 兜底）；/api/pi-chat 经 config() hook 注入
  * server.proxy 转发到后端端口——前端 transport 保持同源调用零改动。
@@ -52,7 +52,7 @@ export interface PiBackendPluginOptions {
 /**
  * T38：与桥 vite 插件 startChild 同源的 discovery 路径推导——
  * tmpdir()/open-pencil-mcp/sha256(runtimeId)[:16]/mcp.json。
- * 算法必须与 src/app/automation/bridge/vite-plugin.ts 保持一致；
+ * 算法必须与 src/app/bridge/vite-plugin.ts 保持一致；
  * 一致性由 pi-dev-discovery.test.ts 的硬编码 digest 钉扎（上游改算法即红）。
  */
 export function devMCPDiscoveryPath(runtimeId: string): string {

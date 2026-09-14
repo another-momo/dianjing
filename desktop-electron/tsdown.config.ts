@@ -165,5 +165,5 @@ function sidecar(name: string, entry: string) {
 
 export default defineConfig([
   sidecar('pi-backend', join(root, 'src/app/ai/pi-backend/main.ts')),
-  sidecar('bridge', join(root, 'src/app/automation/bridge/server/index.ts'))
+  sidecar('bridge', join(root, 'src/app/bridge/server/index.ts'))
 ])

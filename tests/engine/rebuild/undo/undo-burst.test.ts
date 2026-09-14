@@ -1,7 +1,7 @@
 /**
  * T59（S3 §9 undo burst / PD-19）：一 AI 回合的 mutating 调用按设计区合并为
  * 一个撤销单元。桥侧机制 = undo_group begin/end 边界信号 + UndoManager 既有
- * coalesceKey 相邻合并（见 src/app/automation/bridge/tool-handlers.ts 头注）。
+ * coalesceKey 相邻合并（见 src/app/bridge/tool-handlers.ts 头注）。
  *
  * 覆盖验收（T59-plan §3）：
  *  1. 同回合同区 3 次 mutating → 撤销栈净增 1 单元，单次 undo 整体回退
@@ -30,8 +30,8 @@ mock.module('@/app/libraries', () => ({
   })
 }))
 
-import type { AutomationTarget } from '@/app/automation/bridge/target'
-import { createAutomationToolHandler } from '@/app/automation/bridge/tool-handlers'
+import type { AutomationTarget } from '@/app/bridge/target'
+import { createAutomationToolHandler } from '@/app/bridge/tool-handlers'
 
 type ToolResult = Record<string, unknown>
 

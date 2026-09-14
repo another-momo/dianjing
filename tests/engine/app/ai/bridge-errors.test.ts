@@ -26,7 +26,7 @@ import {
   EDITOR_UNREACHABLE_MESSAGE,
   sanitizeToolErrorMessage
 } from '@/app/ai/pi-backend/bridge-errors'
-import { startServer } from '@/app/automation/bridge/server/server'
+import { startServer } from '@/app/bridge/server/server'
 
 const OWNER_CASE_JSX = '<Rectangle w={200} h={120} bg="#3B82F6" rounded={8} /></jsx>'
 

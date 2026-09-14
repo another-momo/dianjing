@@ -51,7 +51,7 @@ import {
   type ToolDef
 } from '@open-pencil/core/tools'
 
-import { readDiscoveryFile } from '@/app/automation/bridge/server/discovery'
+import { readDiscoveryFile } from '@/app/bridge/server/discovery'
 
 import { classifyBridgeFailure, EDITOR_UNREACHABLE_MESSAGE } from './bridge-errors'
 import { postBridgeRPC } from './bridge-rpc'

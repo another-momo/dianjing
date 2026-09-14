@@ -29,7 +29,7 @@
  */
 import { afterEach, describe, expect, test } from 'bun:test'
 
-import { startServer } from '@/app/automation/bridge/server/server'
+import { startServer } from '@/app/bridge/server/server'
 
 const TEST_AUTH_TOKEN = 'test-window-routing-token'
 

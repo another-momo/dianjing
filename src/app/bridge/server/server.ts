@@ -5,7 +5,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { WebSocketServer, type WebSocket } from 'ws'
 
-import packageJSON from '../../../../../package.json' with { type: 'json' }
+import packageJSON from '../../../../package.json' with { type: 'json' }
 import { bearerToken, isAuthorized } from './auth'
 import { createBrowserRPCBridge, ToolExecutionError } from './browser-rpc'
 import { MCP_CORS_HEADERS, MCP_CORS_METHODS, MCP_EXPOSED_HEADERS } from './http-options'

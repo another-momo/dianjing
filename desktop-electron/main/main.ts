@@ -406,7 +406,7 @@ export function createLoopbackServer(options: LoopbackServerOptions): Promise<{ 
     if (candidate === indexPath) {
       const html = readFileSync(indexPath, 'utf8')
       // spike-electron-spike：双注入——桥 token + 桥 WS URL（运行时全局名见
-      // src/app/automation/bridge/{url,runtime}.ts）。electron 形态下桥在
+      // src/app/bridge/{url,runtime}.ts）。electron 形态下桥在
       // 随机端口（bridgePort），页面必须拿这个 URL 去连；只有 token 没有 URL
       // 会让页面去撞 build-time 烘焙的 ws://127.0.0.1:7600，撞主战场 + token
       // 不符。dev 形态不注入，页面 fallback 到 vite define 烘焙值。

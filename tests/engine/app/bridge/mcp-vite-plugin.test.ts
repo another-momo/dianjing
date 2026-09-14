@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { createAutomationEnvironment } from '@/app/automation/bridge/vite-plugin'
+import { createAutomationEnvironment } from '@/app/bridge/vite-plugin'
 
 describe('automation bridge Vite development server', () => {
   test('passes the dev auth token and runtime paths to the bridge child', () => {

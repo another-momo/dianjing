@@ -118,7 +118,7 @@ async function waitForBridgeExecutorOk(bridgeBase: string, authToken: string, ti
   // 等**页面自己**连上桥后，/health.status 从 'no_app' 翻到 'ok'。
   // spike-electron-spike 起：smoke 不再自起 WS 注册；URL 解析靠运行时全局
   // __OPENPENCIL_RUNTIME_BRIDGE_URL__（main.ts 注入），页面经
-  // src/app/automation/bridge/client.ts connectAutomation 自动 register。
+  // src/app/bridge/client.ts connectAutomation 自动 register。
   // 翻 'ok' 即证：①运行时 URL 通道连通（页面拿到了 bridgePort）；②token
   // 三方对齐（页面用注入的 token 鉴权成功）。
   const deadline = Date.now() + timeoutMs
@@ -252,7 +252,7 @@ async function main(): Promise<void> {
   })
 
   // spike-electron-spike 起：smoke 不再自起 WS——执行器注册必须来自页面
-  // connectAutomation（见 src/app/automation/bridge/{url,client}.ts 运行时
+  // connectAutomation（见 src/app/bridge/{url,client}.ts 运行时
   // 通道）；本页 finally 直接走 pageProbe 关闭路径。
 
   try {

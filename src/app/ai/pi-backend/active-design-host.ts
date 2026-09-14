@@ -54,7 +54,7 @@ import { parseAskAnswer } from '@open-pencil/core/tools/fork/marketing/ask-user-
 import type { NewIntentState } from '@open-pencil/core/tools/fork/marketing/brief'
 import { ACTIVE_DESIGN_TEXTS } from '@open-pencil/core/tools/fork/marketing/texts'
 
-import { readDiscoveryFile } from '@/app/automation/bridge/server/discovery'
+import { readDiscoveryFile } from '@/app/bridge/server/discovery'
 
 import { postBridgeRPC } from './bridge-rpc'
 import { referenceBucketKey } from './studio/types'

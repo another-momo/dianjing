@@ -303,7 +303,7 @@ const preferVueUseIntervals = {
     // （无 Vue 运行时），WebSocket 心跳只能手写 setInterval/clearInterval
     const applies =
       (file.includes('/src/app/') || file.includes('/packages/vue/src/')) &&
-      !file.includes('/src/app/automation/bridge/server/')
+      !file.includes('/src/app/bridge/server/')
     if (!applies) return {}
 
     function intervalName(callee: TSESTree.Expression): string | null {

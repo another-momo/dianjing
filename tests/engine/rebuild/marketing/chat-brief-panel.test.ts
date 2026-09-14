@@ -23,7 +23,7 @@
 
 import { describe, expect, mock, test } from 'bun:test'
 
-import { makeFigmaFromStore } from '@/app/automation/bridge/figma-factory'
+import { makeFigmaFromStore } from '@/app/bridge/figma-factory'
 import { createEditorStore } from '@/app/editor/session'
 import {
   addBriefMaterialFromUpload,

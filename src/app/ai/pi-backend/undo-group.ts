@@ -17,7 +17,7 @@
  * 仅运行于独立后端进程；token 只经 discovery 文件读取，不打印、不落盘他处。
  */
 
-import { readDiscoveryFile } from '@/app/automation/bridge/server/discovery'
+import { readDiscoveryFile } from '@/app/bridge/server/discovery'
 
 import { postBridgeRPC } from './bridge-rpc'
 

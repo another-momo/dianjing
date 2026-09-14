@@ -1,6 +1,6 @@
 import { nodeToXPath } from '@open-pencil/core/xpath'
 
-import type { AutomationTarget } from '@/app/automation/bridge/target'
+import type { AutomationTarget } from '@/app/bridge/target'
 
 export async function handleSelection(target: AutomationTarget): Promise<unknown> {
   const store = target.store

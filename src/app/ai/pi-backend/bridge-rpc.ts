@@ -10,7 +10,7 @@
  * windowId 缺省时不出现在 body 中（向后兼容，缺省落最后注册窗）。
  */
 
-import type { DiscoveryInfo } from '@/app/automation/bridge/server/discovery'
+import type { DiscoveryInfo } from '@/app/bridge/server/discovery'
 
 export function postBridgeRPC(
   discovery: DiscoveryInfo,

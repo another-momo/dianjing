@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { devAutomationRoute } from '@/app/automation/bridge/portless-route'
+import { devAutomationRoute } from '@/app/bridge/portless-route'
 
 describe('Portless MCP routing', () => {
   test('uses the fixed localhost bridge outside Portless', () => {

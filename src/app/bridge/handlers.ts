@@ -1,22 +1,18 @@
 import type { FigmaAPI } from '@open-pencil/core/figma-api'
 
-import { createAutomationEvalHandler } from '@/app/automation/bridge/eval-handler'
-import { handleExport, handleExportJSX } from '@/app/automation/bridge/export-handlers'
-import {
-  handleNewDocument,
-  handleOpenFile,
-  handleSaveFile
-} from '@/app/automation/bridge/file-handlers'
-import { handleRPCFallback } from '@/app/automation/bridge/rpc-handler'
-import { handleSelection } from '@/app/automation/bridge/selection-handler'
+import { createAutomationEvalHandler } from '@/app/bridge/eval-handler'
+import { handleExport, handleExportJSX } from '@/app/bridge/export-handlers'
+import { handleNewDocument, handleOpenFile, handleSaveFile } from '@/app/bridge/file-handlers'
+import { handleRPCFallback } from '@/app/bridge/rpc-handler'
+import { handleSelection } from '@/app/bridge/selection-handler'
 import {
   isUnknownRecord,
   listAutomationDocuments,
   resolveAutomationTarget,
   responseWithTarget,
   stripAutomationTargetArgs
-} from '@/app/automation/bridge/target'
-import { createAutomationToolHandler } from '@/app/automation/bridge/tool-handlers'
+} from '@/app/bridge/target'
+import { createAutomationToolHandler } from '@/app/bridge/tool-handlers'
 import type { EditorStore } from '@/app/editor/active-store'
 
 type FigmaFactory = (store: EditorStore, pageId?: string) => FigmaAPI

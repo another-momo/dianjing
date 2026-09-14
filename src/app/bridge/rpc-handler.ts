@@ -1,6 +1,6 @@
 import { executeRPCCommand } from '@open-pencil/core/rpc'
 
-import type { AutomationTarget } from '@/app/automation/bridge/target'
+import type { AutomationTarget } from '@/app/bridge/target'
 
 export async function handleRPCFallback(
   target: AutomationTarget,

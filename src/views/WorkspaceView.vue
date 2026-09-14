@@ -3,7 +3,7 @@ import { useEventListener, useUrlSearchParams } from '@vueuse/core'
 import { computed, onMounted, onUnmounted, provide, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
-import { startMCPRuntime, stopMCPRuntime } from '@/app/automation/bridge/runtime'
+import { startMCPRuntime, stopMCPRuntime } from '@/app/bridge/runtime'
 import { exposeCollaborationActions } from '@/app/browser-bridge'
 import { COLLAB_KEY, useCollab } from '@/app/collab/use'
 import { isElectron } from '@/app/shell/electron'
