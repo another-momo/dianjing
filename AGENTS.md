@@ -20,6 +20,7 @@
 
 - `tools/zone-registry/zones.json` 是唯一所有权真相：`ownedRoots` / `ownedFiles` 内自由改；改动其他（上游供血）文件必须登记 `patches`；删除走 `deletedPaths`；搬移登记 `relocations`。台账登记与代码改动同批提交——漏登 = 交付不完整。
 - pre-commit 强制 `check:zones`；`bun run check:zones:drift` 查看对上游漂移明细。
+- `disposition: "revoked"` 的 patch **不提供覆盖**——改动曾 revoked 退役的文件（回 follow-pure）须新登 P-id，往 revoked 条目上追加备注不算登记（2026-09-14 合并 P144 实证）。
 - 上游合并 SOP：合并前 check:zones 绿 → 按 zone 裁定冲突 → 合并窗口内每次 check:zones 输出的 RELOCATION_WATCH advisory 必读（上游残迹落进 ownedRoot 的最早信号），逐条裁定后再 commit → 合并后 ownedFiles 字节审计 + relocations / tarball 台账更新。裁撤目录必须以目录条目登记 deletedPaths——逐文件条目挡不住上游新增，目录条目才有 checkDeletedAbsent 复活硬拦截。
 - `tools/zone-registry/` 自身与 `.github/workflows/` 均为 ownedRoot，fork 治理设施自由改。
 - 设置类工作流归各业务域自己的 `settings/` 目录（`use.ts` 编排 + 兄弟模块分工、持久化留在 domain services），不建全局 composables 桶——采上游 2026-09 family 重组语义（上游原文以 src/app/ai/models/ 为例，该域 fork 已裁，语义仍适用于健在域）。
