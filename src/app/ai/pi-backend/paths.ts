@@ -88,7 +88,7 @@ export function resolveStateDir(rootDir: string): string {
  */
 export function resolveRootDir(
   envOverride: string | null,
-  envSource?: { readonly [key: string]: string | undefined } | null | undefined,
+  envSource?: { readonly [key: string]: string | undefined } | null,
   runtimePlatform?: string
 ): string {
   if (envOverride !== null) return envOverride
