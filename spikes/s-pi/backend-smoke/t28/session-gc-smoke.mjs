@@ -198,7 +198,12 @@ try {
   // ── A 相：铸新会话触发 GC——5 条 > 3，最老 A1/A2 归档
   const drainA = await sendPrompt(
     BASE_A,
-    { sessionId: SID_NEW, messages: [{ role: 'user', parts: [{ type: 'text', text: '触发 GC' }] }] },
+    {
+      sessionId: SID_NEW,
+      // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' },
+      messages: [{ role: 'user', parts: [{ type: 'text', text: '触发 GC' }] }]
+    },
     tokenA
   )
   check('A 相：新会话 prompt 排空（provider 失败不影响 GC）', drainA === 'done', drainA)
@@ -262,7 +267,12 @@ try {
     const tokenB = readBackendToken(tempRoot)
     const drainB = await sendPrompt(
       BASE_B,
-      { sessionId: SID_NEW2, messages: [{ role: 'user', parts: [{ type: 'text', text: '触发 GC' }] }] },
+      {
+        sessionId: SID_NEW2,
+        // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
+        model: { providerId: 'openrouter', modelId: 'openrouter/free' },
+        messages: [{ role: 'user', parts: [{ type: 'text', text: '触发 GC' }] }]
+      },
       tokenB
     )
     check('B 相：新会话 prompt 排空', drainB === 'done', drainB)

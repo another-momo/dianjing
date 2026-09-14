@@ -169,6 +169,8 @@ try {
   const sessionId = 't87-smoke-session-' + Date.now()
   const ok = await sendPrompt(BASE, {
     sessionId,
+    // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
+    model: { providerId: 'openrouter', modelId: 'openrouter/free' },
     messages: [{ role: 'user', parts: [{ type: 'text', text: '/skill:t87-demo T87_USER_ARG_HELLO' }] }]
   }, token)
   check('T87 端到端③：POST /skill:t87-demo <text> → 200（SSE 收尾）', ok)
@@ -210,6 +212,8 @@ try {
   const sessionId2 = 't87-smoke-off-' + Date.now()
   await sendPrompt(BASE, {
     sessionId: sessionId2,
+    // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
+    model: { providerId: 'openrouter', modelId: 'openrouter/free' },
     messages: [{ role: 'user', parts: [{ type: 'text', text: 'OFF 态普通文本' }] }]
   }, token)
   const hist2 = await (

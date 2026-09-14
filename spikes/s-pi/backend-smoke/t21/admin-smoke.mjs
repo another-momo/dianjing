@@ -159,6 +159,8 @@ try {
     headers: { 'content-type': 'application/json', ...authHeaders(token) },
     body: JSON.stringify({
       sessionId: `t21-admin-${Date.now()}`,
+      // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' },
       messages: [{ role: 'user', parts: [{ type: 'text', text: '1+1等于几？只回答一个数字。' }] }]
     })
   })

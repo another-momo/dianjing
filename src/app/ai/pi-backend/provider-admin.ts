@@ -20,6 +20,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { builtinProviders } from '@earendil-works/pi-ai/providers/all'
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'
 
 // T27：catalog DTO 单源在 ./catalog（type-only，与前端 client.ts 共享契约）
@@ -298,30 +299,146 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
     await ensureRuntime()
   }
 
-  async function resolveModel(spec?: ModelSpec): Promise<{
+  /**
+   * T100 C1：删除自定义 provider——只删「非 SDK 内建 + models.json 中存在」的条目；
+   * 内建 provider（pi SDK 40 家）拒绝 400，避免误删 SDK 自带支持。
+   * 同清 auth.json 凭据（logout）+ models.json 条目 + models-store.json 缓存条目
+   * （能定位时同清；不能定位不影响正确性，记注释），重建 runtime。
+   */
+  async function deleteProvider(providerId: string): Promise<void> {
+    if (!PROVIDER_ID_PATTERN.test(providerId)) {
+      throw new Error(`provider id 非法：${providerId}（仅小写字母/数字/连字符）`)
+    }
+    // 内建 = pi SDK builtinProviders() 注册的 id（包含 openrouter/anthropic/openai 等 40 家）
+    const builtinIds = new Set(builtinProviders().map((p) => p.id))
+    if (builtinIds.has(providerId)) {
+      throw new Error(
+        `${providerId} 是内建 provider，不可删除——只能删除设置中添加的自定义 provider`
+      )
+    }
+    await ensureRuntime()
+    let doc: { providers?: Record<string, unknown> } = {}
+    try {
+      doc = JSON.parse(readFileSync(modelsPath, 'utf8')) as typeof doc
+    } catch {
+      doc = {}
+    }
+    const providers = doc.providers ?? {}
+    if (!(providerId in providers)) {
+      throw new Error(`${providerId} 不在 models.json 中，无需删除（确认 providerId 是否正确）`)
+    }
+    // 1. 从 models.json 删除该 provider 条目
+    delete providers[providerId]
+    doc.providers = providers
+    writeFileSync(modelsPath, JSON.stringify(doc, null, 2))
+
+    // 2. 凭据清理——logout 对未配凭据的 provider 是 no-op，对已配的会清 auth.json 条目
+    const runtime = await ensureRuntime()
+    try {
+      await runtime.logout(providerId)
+    } catch (error) {
+      // 凭据清理失败不应阻断 provider 删除——但记 warn 以便诊断
+      console.warn(
+        `[pi-backend] deleteProvider: logout(${providerId}) 失败（已删除 models.json 条目）：` +
+          (error instanceof Error ? error.message : String(error))
+      )
+    }
+
+    // 3. models-store.json 缓存条目清理（best-effort）——定位则同清、否则记注释
+    //    pi SDK 把动态 provider 远程 catalog 缓存写到这里，按 providerId key。
+    //    文件不存在/读失败/格式异常时静默跳过：缓存只是加速，残留条目不会
+    //    影响下次 getCatalog（custom provider 已被删，缓存条目成孤儿）。
+    const modelsStorePath = join(agentDir, 'models-store.json')
+    try {
+      const raw = readFileSync(modelsStorePath, 'utf8')
+      const store = JSON.parse(raw) as Record<string, unknown>
+      if (providerId in store) {
+        delete store[providerId]
+        writeFileSync(modelsStorePath, JSON.stringify(store, null, 2))
+      }
+    } catch {
+      // 文件不存在/坏 JSON 静默跳过
+    }
+
+    // 4. 重建 runtime——provider 目录变更的同一通路（与 upsertProvider 一致）
+    resetRuntime()
+    await ensureRuntime()
+  }
+
+  /**
+   * T100 B1：凭据验证——对该 provider 发最小 chat 请求（catalog 首模型 + maxTokens=1）。
+   * SDK 无现成 verify/ping 接口（checkAuth 只查凭据存在性，不打网络），故
+   * 走 ModelRuntime.completeSimple 直发。返回 {ok:true} 或 {ok:false, error:中文}，
+   * 异常 catch 后翻译为可行动错误文案（不动原始 SDK 错误，避免泄 key 风险）。
+   * 跨 provider 差异（bedrock/azure/oauth-only 等）暂未做特化处理——错 key
+   * 路径实测可收敛（SDK 报 auth 错），其它异常归入通用错误文案。
+   */
+  async function verifyCredential(providerId: string): Promise<{ ok: boolean; error?: string }> {
+    if (!PROVIDER_ID_PATTERN.test(providerId)) {
+      return { ok: false, error: `provider id 非法：${providerId}（仅小写字母/数字/连字符）` }
+    }
+    const runtime = await ensureRuntime()
+    // 先看凭据是否存在——checkAuth 只查本地解析，不打网络（避免误判）
+    const auth = await runtime.checkAuth(providerId).catch(() => undefined)
+    if (!auth) {
+      return { ok: false, error: `尚未为 ${providerId} 配置 API key——请先保存凭据后再验证` }
+    }
+    // 拿该 provider 第一个可用模型——getAvailable 已过滤"未配凭据不可用"
+    const available = await runtime.getAvailable(providerId)
+    if (available.length === 0) {
+      return {
+        ok: false,
+        error: `${providerId} 没有可用模型（凭据可能无效或模型清单为空）——请检查凭据或模型配置`
+      }
+    }
+    const model = available[0]
+    // 发最小请求——空 systemPrompt、单 user 消息、maxTokens=1 限流降到最低
+    try {
+      await runtime.completeSimple(
+        model,
+        // UserMessage 必带 timestamp（pi SDK types.d.ts UserMessage）
+        { messages: [{ role: 'user', content: 'ping', timestamp: Date.now() }] },
+        {
+          maxTokens: 1
+        }
+      )
+      return { ok: true }
+    } catch (error) {
+      // 文案翻译：异常 message 已被 SDK 内含 ModelsError 转中文友好提示，
+      // 此处保留原始信息（不含 key），按 providerId 拼成完整可行动文案
+      const reason = error instanceof Error ? error.message : String(error)
+      return { ok: false, error: `${providerId} 凭据验证失败：${reason}` }
+    }
+  }
+
+  async function resolveModel(spec: ModelSpec): Promise<{
     modelRuntime: ModelRuntime
     model: NonNullable<ReturnType<ModelRuntime['getModel']>>
   }> {
     const modelRuntime = await ensureRuntime()
-    if (spec) {
-      const model = modelRuntime.getModel(spec.providerId, spec.modelId)
-      if (!model) {
-        throw new Error(
-          `模型 ${spec.providerId}/${spec.modelId} 不在目录中——请打开设置检查 provider 配置（GET /api/pi/catalog 可查全量目录）`
-        )
-      }
-      return { modelRuntime, model }
+    // T100：spec 必填——无 spec 即"未指派"，直接报可行动错误，引导用户去设置面板
+    // 指派（前端引导门是第一道闸，此处是兜底路径，前端被绕过时给出可定位的文案）
+    if (!spec) {
+      throw new Error('未指派设计模型——请打开设置→AI 选择 provider 与模型后再试')
     }
-    const fallback = modelRuntime.getModel('openrouter', 'openrouter/free')
-    if (fallback) return { modelRuntime, model: fallback }
-    const available = await modelRuntime.getAvailable()
-    if (available.length === 0) {
-      throw new Error('未配置任何可用模型/凭据——请打开设置→模型配置 provider 凭据后再试')
+    const model = modelRuntime.getModel(spec.providerId, spec.modelId)
+    if (!model) {
+      throw new Error(
+        `模型 ${spec.providerId}/${spec.modelId} 不在目录中——请打开设置检查 provider 配置（GET /api/pi/catalog 可查全量目录）`
+      )
     }
-    return { modelRuntime, model: available[0] }
+    return { modelRuntime, model }
   }
 
-  return { getCatalog, setCredential, deleteCredential, upsertProvider, resolveModel }
+  return {
+    getCatalog,
+    setCredential,
+    deleteCredential,
+    upsertProvider,
+    deleteProvider,
+    verifyCredential,
+    resolveModel
+  }
 }
 
 export type ProviderAdmin = ReturnType<typeof createProviderAdmin>

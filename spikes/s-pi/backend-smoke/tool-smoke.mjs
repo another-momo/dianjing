@@ -83,6 +83,8 @@ async function post(text, sid = sessionId, target = base, token = null) {
     headers: { 'content-type': 'application/json', ...(token ? authHeaders(token) : {}) },
     body: JSON.stringify({
       sessionId: sid,
+      // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' },
       messages: [{ role: 'user', parts: [{ type: 'text', text }] }]
     })
   })

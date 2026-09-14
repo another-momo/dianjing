@@ -380,7 +380,12 @@ try {
   // ── C1：空槽（无桥）→ 探针 == base.md body byte 级一致（钩子整体替换，无 cwd 尾巴）
   await sendPrompt(
     BASE,
-    { sessionId: 't60-probe-empty-slot', messages: userMessage('你好') },
+    {
+      sessionId: 't60-probe-empty-slot',
+      // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' },
+      messages: userMessage('你好')
+    },
     token
   )
   const emptySlotProbe = probeText(tempRoot)
@@ -400,6 +405,8 @@ try {
     BASE,
     {
       sessionId: 't60-envelope',
+      // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' },
       messages: userMessage(
         '[新建意图确认 modeId=longform-hero-kv-first profileId=watercolor_poster_v2]\n帮我做一张长图'
       )
@@ -416,7 +423,16 @@ try {
   // ── C2：表单作答信封不剥离（AI 须读答案原文；无映射不移槽——未知 formId 静默）
   const answerText =
     '[表单作答 formId=form-smoke-aaaaaa]\n{"aborted":false,"answers":{"q1":"清爽方向"}}'
-  await sendPrompt(BASE, { sessionId: 't60-answer', messages: userMessage(answerText) }, token)
+  await sendPrompt(
+    BASE,
+    {
+      sessionId: 't60-answer',
+      // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' },
+      messages: userMessage(answerText)
+    },
+    token
+  )
   const answerReadBack = await lastUserText(BASE, 't60-answer', token)
   check(
     'C2 表单作答：信封原文不剥离（run 终止续跑语义，T56 链不动）',
@@ -429,6 +445,8 @@ try {
     BASE,
     {
       sessionId: 't60-legacy-fields',
+      // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' },
       messages: userMessage('兼容窗消息'),
       chatMode: 'marketing',
       pickedProfileId: 'watercolor_poster_v2'
@@ -473,7 +491,12 @@ try {
   // ── 无资产后端：base 缺失 → 空槽组装 = 空 systemPrompt（failures 数据面已断言）
   await sendPrompt(
     BASE2,
-    { sessionId: 't60-probe-empty', messages: userMessage('probe empty') },
+    {
+      sessionId: 't60-probe-empty',
+      // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' },
+      messages: userMessage('probe empty')
+    },
     token2
   )
   const noBaseProbe = probeText(emptyAssetsRoot)

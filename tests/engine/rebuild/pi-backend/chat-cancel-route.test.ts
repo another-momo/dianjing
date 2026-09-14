@@ -80,6 +80,8 @@ async function postChat(sessionId: string): Promise<void> {
     headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
     body: JSON.stringify({
       sessionId,
+      // T100：spec 必填——seed openrouter/free，与测试夹具自洽
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' },
       messages: [{ role: 'user', parts: [{ type: 'text', text: 'hello' }] }]
     })
   })

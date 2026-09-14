@@ -28,8 +28,9 @@ export function setPiDesignAssignment(assignment: PiDesignAssignment | null): vo
 
 /**
  * 指派的 provider 是否在后端已有凭据（catalog 为准）。
- * 未指派或凭据缺失时，后端 resolveModel 会在请求时给出可行动报错，
- * 这里的状态只用于设置页提示，不阻塞发送。
+ * 未指派或凭据缺失时，前端引导门（assistant/ChatPanel 派生态）是第一道闸，
+ * 直接拦截发送、引导用户去设置面板；此处 computed 仅供设置页/输入条 label 提示用，
+ * 即便绕过引导门，后端 resolveModel（T100 起 spec 必填）也会抛可行动错误兜底。
  */
 export const piDesignCredentialConfigured = computed(() => {
   const assignment = piDesignAssignment.value
@@ -39,7 +40,11 @@ export const piDesignCredentialConfigured = computed(() => {
   return provider?.auth.configured ?? false
 })
 
-/** transport 每次发消息前调用，取当前指派（未指派 → undefined，后端走默认路由）。 */
+/** transport 每次发消息前调用，取当前指派。
+ *  T100：未指派 → undefined → 后端 provider-admin.resolveModel 报
+ *  「未指派设计模型——请打开设置→AI 选择 provider 与模型」可行动错误。
+ *  引导门在前端拦截（assistant/ChatPanel 派生态，未配置不渲染输入框），
+ *  此函数返回 undefined 是兜底路径——绕过 UI 的手工调用会拿到错误而非静默 fallback。 */
 export function getPiDesignModelSpec(): PiModelSpec | undefined {
   const assignment = piDesignAssignment.value
   if (!assignment) return undefined

@@ -10,6 +10,9 @@
  *    GET /api/pi/catalog（目录 + auth 状态，脱敏）、POST /api/pi/credentials、
  *    DELETE /api/pi/credentials、POST /api/pi/providers（自定义 provider）
  *    ——无任何回读 key 的端点
+ *  - T100：POST /api/pi/credentials/verify {providerId}（B1，最小 chat 验真）
+ *  - T100：DELETE /api/pi/providers/{providerId}（C1，仅自定义；内建 400）
+ *  - T100：model 必填——无 spec 走 SSE errorText 通道，透传可行动错误
  *
  * 请求体：{ sessionId: string, messages: UIMessage[], model?: ModelSpec,
  * documentId?: string, windowId?: string }
@@ -146,6 +149,11 @@ async function handlePiChatRequest(
   }
 
   try {
+    // T100：spec 必填——无 spec 抛可行动错误（文案与 provider-admin.resolveModel 同源），
+    // 走 SSE errorText 通道；前端引导门是第一道闸，此处兜底
+    if (!body.model || !body.model.providerId || !body.model.modelId) {
+      throw new Error('未指派设计模型——请打开设置→AI 选择 provider 与模型后再试')
+    }
     await service.prompt(sessionId, text, emit, {
       model: body.model,
       documentId: body.documentId,
@@ -415,6 +423,40 @@ async function handleAdminRequest(
       >[0]
       await admin.upsertProvider(body)
       sendJSON(res, 200, { ok: true })
+      return
+    }
+    // T100 C1：DELETE /api/pi/providers/{providerId}——只删自定义 provider，
+    // 内建 providerId 抛 400（provider-admin 兜底）；错误文案走 handleAdminRequest
+    // catch 统一返 400 JSON
+    if (pathname.startsWith('/api/pi/providers/')) {
+      if (req.method !== 'DELETE') {
+        res.writeHead(405).end('Method Not Allowed')
+        return
+      }
+      const providerId = decodeURIComponent(pathname.slice('/api/pi/providers/'.length))
+      if (!providerId) {
+        res.writeHead(400).end('Bad Request: providerId required')
+        return
+      }
+      await admin.deleteProvider(providerId)
+      sendJSON(res, 200, { ok: true })
+      return
+    }
+    // T100 B1：POST /api/pi/credentials/verify {providerId}——对该 provider 发
+    // 最小 chat 请求（maxTokens=1）验真。返回 {ok:true} 或 {ok:false, error:中文}；
+    // 不抛错（异常已被 provider-admin.verifyCredential 内部捕获翻译为 error 字段）
+    if (pathname === '/api/pi/credentials/verify') {
+      if (req.method !== 'POST') {
+        res.writeHead(405).end('Method Not Allowed')
+        return
+      }
+      const body = JSON.parse((await readBody(req)) || '{}') as { providerId?: string }
+      if (!body.providerId) {
+        sendJSON(res, 400, { error: 'providerId required' })
+        return
+      }
+      const result = await admin.verifyCredential(body.providerId)
+      sendJSON(res, 200, result)
       return
     }
     res.writeHead(404).end('Not Found')

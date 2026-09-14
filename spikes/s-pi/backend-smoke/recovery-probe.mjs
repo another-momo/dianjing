@@ -19,6 +19,8 @@ const res = await fetch(`${base}/api/pi-chat`, {
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
     sessionId,
+    // T100：spec 必填——seed openrouter/free，与前置 smoke 一致
+    model: { providerId: 'openrouter', modelId: 'openrouter/free' },
     messages: [
       {
         role: 'user',

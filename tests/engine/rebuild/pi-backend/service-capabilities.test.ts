@@ -164,7 +164,9 @@ description: x
 
   test('T96 装配门控：builtinTools off（缺省）→ noTools:"builtin"，无 tools 键', async () => {
     const svc = makeService(rootDir)
-    await svc.prompt('s-off', 'hi', () => undefined)
+    await svc.prompt('s-off', 'hi', () => undefined, {
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' }
+    })
     const opts = capturedSessionOptions.at(-1)
     expect(opts).toBeDefined()
     expect(opts?.noTools).toBe('builtin')
@@ -174,7 +176,9 @@ description: x
   test('T96 装配门控：builtinTools readonly → tools 只读四件 + 全部自定义工具，无 noTools 键', async () => {
     const svc = makeService(rootDir)
     svc.setCapabilities({ agentSkills: false, builtinTools: 'readonly' })
-    await svc.prompt('s-ro', 'hi', () => undefined)
+    await svc.prompt('s-ro', 'hi', () => undefined, {
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' }
+    })
     const opts = capturedSessionOptions.at(-1)
     // SDK tools 语义是全局白名单（只激活名单内工具）——readonly 档必须把
     // customTools 名一并列入，否则设计工具全丢（owner 实测回归实证）
@@ -189,7 +193,9 @@ description: x
   test('T96 装配门控：builtinTools full → noTools/tools 两键全省略（SDK 默认）', async () => {
     const svc = makeService(rootDir)
     svc.setCapabilities({ agentSkills: true, builtinTools: 'full' })
-    await svc.prompt('s-full', 'hi', () => undefined)
+    await svc.prompt('s-full', 'hi', () => undefined, {
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' }
+    })
     const opts = capturedSessionOptions.at(-1)
     expect('noTools' in (opts ?? {})).toBe(false)
     expect('tools' in (opts ?? {})).toBe(false)
@@ -199,11 +205,15 @@ description: x
     const svc = makeService(rootDir)
     // builtinTools full + agentSkills false → loader noSkills 仍 true
     svc.setCapabilities({ agentSkills: false, builtinTools: 'full' })
-    await svc.prompt('s-noskills', 'hi', () => undefined)
+    await svc.prompt('s-noskills', 'hi', () => undefined, {
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' }
+    })
     expect(capturedLoaderOptions.at(-1)?.noSkills).toBe(true)
     // agentSkills true + builtinTools off → loader noSkills false，session 仍 noTools
     svc.setCapabilities({ agentSkills: true, builtinTools: 'off' })
-    await svc.prompt('s-skills-only', 'hi', () => undefined)
+    await svc.prompt('s-skills-only', 'hi', () => undefined, {
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' }
+    })
     expect(capturedLoaderOptions.at(-1)?.noSkills).toBe(false)
     expect(capturedSessionOptions.at(-1)?.noTools).toBe('builtin')
   })

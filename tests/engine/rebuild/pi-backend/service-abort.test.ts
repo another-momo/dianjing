@@ -91,7 +91,9 @@ describe('pi-backend service.abort（T66 ④ 守卫去 running 依赖）', () =>
   test('run 已收尾（entry.running 复位）后 abort → session.abort 仍送达', async () => {
     const service = makeService()
     // 完整跑完一个 prompt run——finally 已把 entry.running 复位 false
-    await service.prompt('sess-finished', 'hello', () => undefined)
+    await service.prompt('sess-finished', 'hello', () => undefined, {
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' }
+    })
     expect(abortSpy).toHaveBeenCalledTimes(0)
 
     // 客户端断连（res.on('close')）晚于 run 收尾的场景：旧守卫会跳过 abort
@@ -111,7 +113,9 @@ describe('pi-backend service.abort（T66 ④ 守卫去 running 依赖）', () =>
         release = resolve
         started()
       })
-    const pending = service.prompt('sess-running', 'hi', () => undefined)
+    const pending = service.prompt('sess-running', 'hi', () => undefined, {
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' }
+    })
     // 确定性等到 run 进行中（假 session.prompt 已被调起 → entry 已建、
     // running 已置真）——不定长 sleep 在慢 CI 上有假阴性风险
     await runStarted
@@ -131,7 +135,9 @@ describe('pi-backend service.abort（T66 ④ 守卫去 running 依赖）', () =>
 
   test('session.abort 抛错 → 吞掉不冒 unhandled rejection', async () => {
     const service = makeService()
-    await service.prompt('sess-throwing', 'hello', () => undefined)
+    await service.prompt('sess-throwing', 'hello', () => undefined, {
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' }
+    })
     abortSpy.mockImplementation(() => Promise.reject(new Error('session disposed')))
     await expect(service.abort('sess-throwing')).resolves.toBeUndefined()
     expect(abortSpy).toHaveBeenCalledTimes(1)

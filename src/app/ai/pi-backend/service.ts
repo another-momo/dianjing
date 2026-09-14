@@ -10,8 +10,9 @@
  *  - T20：customTools 注册（tools.ts，hello-tool create_shape 经 7600 桥执行），
  *    noTools: 'builtin' 禁内建保留自定义
  *  - T21：模型/凭据装配移交 provider-admin.ts（pi 原生 ModelRuntime +
- *    auth.json，无 key 可起服务）；prompt 可带 model 档位（前端 design role
- *    解析结果），缺省回退 openrouter/free 种子路由
+ *    auth.json，无 key 可起服务）；prompt 必带 model 档位（前端 design role
+ *    解析结果），T100 起 spec 必填——无 spec 由 provider-admin.resolveModel
+ *    抛可行动错误（前端引导门是第一道闸，此处兜底）
  *  - T60（S3 §9 / PD-19）：active_design 单槽宿主路由——chatMode 双模式链
  *    （T24 注册表烘焙 + 驱逐重建）退役；每回合组装 = base + workflow(落盘
  *    mode body) + profile 全文（active-design-host.ts，before_agent_start
@@ -93,7 +94,8 @@ export type { PiSessionSummary }
  * 单槽取代请求级模式）；请求面残留字段由 server.ts 兼容窗忽略不报错。
  */
 export type PiPromptOptions = {
-  model?: ModelSpec
+  /** T100：model 必填——前端指派态是必备条件，无 spec 由 resolveModel 抛可行动错误 */
+  model: ModelSpec
   documentId?: string
   /** T98-路由：桥按发起窗口路由 RPC；缺省落最后注册窗 */
   windowId?: string
@@ -250,10 +252,10 @@ export function createPiChatService({
     }
   }
 
-  async function createSession(
-    sessionId: string,
-    modelSpec: ModelSpec | undefined
-  ): Promise<SessionEntry> {
+  async function createSession(sessionId: string, modelSpec: ModelSpec): Promise<SessionEntry> {
+    // T100：spec 必填——无 spec 由 resolveModel 直接抛可行动错误，
+    // 经 prompt → server.ts catch → SSE errorText 透传给前端（前端引导门未拦时
+    // 兜底，措辞已在 provider-admin.ts 钉死）
     const { modelRuntime, model } = await admin.resolveModel(modelSpec)
     mkdirSync(sessionsDir, { recursive: true })
 
@@ -430,7 +432,7 @@ export function createPiChatService({
     sessionId: string,
     text: string,
     emit: (chunk: UIMessageChunk) => void,
-    options: PiPromptOptions = {}
+    options: PiPromptOptions
   ): Promise<void> {
     // T27/B1 复核（2026-08-25）：`get ?? await createSession` 之间的并发双创建窗口
     // 在 dev 单用户拓扑下不可达——前端流式/提交中禁发（ChatInput isStreaming +
