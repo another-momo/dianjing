@@ -223,7 +223,7 @@
       "file": "tools/unit-tests/src/shards.ts",
       "reason": "app group: drop acp/tauri dirs, add tests/engine/rebuild；2026-09-08 上游合并：上游扩 app group（acp/cli/collab/tauri）未采——四目录均为 fork deletedPaths；按其归组语义吸收既有未覆盖目录：core→editor、bytes/library→scene（新版严格分片测试要求每测试恰好一片）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-08"
+      "lastReviewed": "2026-09-14"
     },
     {
       "id": "P20",

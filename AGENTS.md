@@ -46,12 +46,17 @@
 - 同形对象类型用别名复用，不另立字面量（type-shapes 门禁）。
 - ≥10 行级相似块抽 helper，不复制粘贴（jscpd 克隆门禁）。
 - 测试不读真实 env/浏览器全局，走注入与桩（引擎测试）。
+- 第一方运行时校验用 Valibot；Zod 只留在要求它的 SDK 集成边界，不并行维护双 schema（采上游 2026-09-14 约定）。
+- 多行 prompt 组合用 `dedent` 包，不手写转义换行串；成段散文留在属主 Markdown 源，组合不复制（studio 谱系同此原则）。
+- Window API 增强归编译边界：app 声明在 `src/global.d.ts`、包级 DOM 缺口在属包 `global.d.ts`；禁在 spec 或实现模块里 `declare global`（本轮合并实证：browser-bridge 声明随上游重构迁居即此规则）。
+- import 禁 `../` 逃逸 alias 根（`#tests/../vite` 式）；模块归属错位修归属，不修路径。
 
 ## 6. 测试纪律
 
 - bun:test 框架；**禁引入 DOM 测试基建**（happy-dom/jsdom 一律不许）——浏览器行为用真浏览器实测（主 agent）。
 - worker 只跑目标测试文件；全量单测用 `bun run test:unit:serial`（套件分批串行，带 `(i/N)` 批次进度），禁单次全仓 `bun test tests/engine`（单进程内存累积）。serial 可按批次过滤（`bun tools/unit-tests/src/serial.ts editor scene`，批次 = tests/engine 一级目录）——改动域明确时本地只跑受影响批次，全量交 CI（分片并行）或后台长跑。
 - playwright（`test` / `test:figma`）主 agent 独占，与任何重型任务互斥。
+- bun mock 生命周期：`mock.restore()` 只恢复 spy，**不撤销 `mock.module()` 覆盖**——模块级 mock 不随 cleanup 钩子隔离；引入全局/模块级插桩前先读现装 runner 的 mock 文档（采上游 2026-09-14 约定）。
 
 ## 7. 仓库地图
 
