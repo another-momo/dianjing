@@ -3,12 +3,12 @@
  *  - resolveModel spec 必填 + 不在目录报错保留（a）
  *  - DELETE /api/pi/providers/{id} 三态（b）：自定义可删 / 内建拒绝 /
  *    凭据同清（models.json + auth.json + models-store.json）
- *  - POST /api/pi/credentials/verify 两态（c）：未配凭据 ok=false /
- *    配错凭据 completeSimple 抛错 → ok=false 中文错误
+ *  - POST /api/pi/credentials/verify 状态码分档（c）：未配凭据 ok=false /
+ *    401 ok=false / 200/400 ok=true / 5xx 与网络异常不确定 / 非 openai 形态不支持
  *
  * 测试拓扑：真 createProviderAdmin（与 production 同源）+ 真 ModelRuntime
- * （seed models.json 自动写盘）；stub completeSimple 控验真态，
- * 禁打真实网络。无 vueuse/DOM 依赖，无 dev server 联动。
+ * （seed models.json 自动写盘）；stub 全局 fetch 控验真状态码，禁打真实网络。
+ * 无 vueuse/DOM 依赖，无 dev server 联动。
  *
  * 注：resolveModel 类型已收紧为 spec: ModelSpec；测无 spec 路径需 `as never`。
  */
@@ -165,10 +165,55 @@ describe('b. deleteProvider 三态（T100 C1）', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────
-// c. verifyCredential 两态（stub completeSimple 控验真态，禁打真实网络）
+// c. verifyCredential 状态码分档（stub 全局 fetch 控状态码，禁打真实网络）
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('c. verifyCredential 两态（T100 B1）', () => {
+describe('c. verifyCredential 状态码分档（T100 B1）', () => {
+  /** 写 openrouter seed（auth.json + models.json） */
+  function writeOpenrouterSeed(key: string): void {
+    mkdirSync(agentDir, { recursive: true })
+    writeFileSync(
+      join(agentDir, 'auth.json'),
+      JSON.stringify({ openrouter: { type: 'api_key', key } }, null, 2)
+    )
+    writeFileSync(
+      join(agentDir, 'models.json'),
+      JSON.stringify({
+        providers: {
+          openrouter: {
+            apiKey: '$OPENROUTER_API_KEY',
+            models: [
+              {
+                id: 'openrouter/free',
+                name: 'OpenRouter Free',
+                api: 'openai-completions',
+                reasoning: false,
+                input: ['text'],
+                cost: { input: 0, output: 0 },
+                contextWindow: 65536,
+                maxTokens: 8192
+              }
+            ]
+          }
+        }
+      })
+    )
+  }
+
+  /** 全局 fetch 桩置换 + finally 保归还（桩外泄会污染同进程后续用例） */
+  async function withFetchStub(
+    stub: (url: string | URL | Request, init?: RequestInit) => Promise<Response>,
+    run: () => Promise<void>
+  ): Promise<void> {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (url, init) => stub(url, init)
+    try {
+      await run()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  }
+
   test('未配凭据 → ok=false + 中文错误「尚未为 ... 配置 API key」', async () => {
     const admin = createProviderAdmin({ agentDir })
     const result = await admin.verifyCredential('openrouter')
@@ -183,93 +228,93 @@ describe('c. verifyCredential 两态（T100 B1）', () => {
     expect(result.error).toMatch(/provider id 非法/)
   })
 
-  test('配 key + stub completeSimple 成功 → ok=true', async () => {
-    // 先写凭据（直写 auth.json 路径——不走 login/refresh，避开 SDK 启动期 IO）
-    mkdirSync(agentDir, { recursive: true })
-    writeFileSync(
-      join(agentDir, 'auth.json'),
-      JSON.stringify({ openrouter: { type: 'api_key', key: 'sk-or-test' } }, null, 2)
-    )
-    // 写入一份 seed-style models.json 让 runtime 启动
-    writeFileSync(
-      join(agentDir, 'models.json'),
-      JSON.stringify({
-        providers: {
-          openrouter: {
-            apiKey: '$OPENROUTER_API_KEY',
-            models: [
-              {
-                id: 'openrouter/free',
-                name: 'OpenRouter Free',
-                api: 'openai-completions',
-                reasoning: false,
-                input: ['text'],
-                cost: { input: 0, output: 0 },
-                contextWindow: 65536,
-                maxTokens: 8192
-              }
-            ]
-          }
-        }
-      })
-    )
-    // 触发 runtime 初始化后再 stub completeSimple（runtime 已建，stub 走 method
-    // 替换路径——verifyCredential 调 runtime.completeSimple，runtime 是
-    // ModelRuntime 实例，stub instance method）
+  test('200 → ok=true；请求带 Bearer 头 + /chat/completions 端点', async () => {
+    writeOpenrouterSeed('sk-or-test')
     const admin = createProviderAdmin({ agentDir })
-    const runtime = await admin
-      .resolveModel({
-        providerId: 'openrouter',
-        modelId: 'openrouter/free'
-      })
-      .then((r) => r.modelRuntime)
-
-    const completeStub = mock(async () => ({
-      role: 'assistant',
-      content: [{ type: 'text', text: 'ok' }],
-      api: 'openai-completions',
-      provider: 'openrouter',
-      model: 'openrouter/free',
-      stopReason: 'stop',
-      usage: {
-        input: 1,
-        output: 1,
-        cacheRead: 0,
-        cacheWrite: 0,
-        totalTokens: 2,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
-      },
-      timestamp: Date.now()
-    }))
-    ;(runtime as unknown as { completeSimple: typeof completeStub }).completeSimple = completeStub
-
-    const result = await admin.verifyCredential('openrouter')
-    expect(result.ok).toBe(true)
-    expect(result.error).toBeUndefined()
-    expect(completeStub).toHaveBeenCalledTimes(1)
+    const fetchStub = mock((url: string | URL | Request, init?: RequestInit) =>
+      Promise.resolve(new Response('{}', { status: 200 }))
+    )
+    await withFetchStub(fetchStub, async () => {
+      const result = await admin.verifyCredential('openrouter')
+      expect(result.ok).toBe(true)
+      expect(result.error).toBeUndefined()
+    })
+    expect(fetchStub).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchStub.mock.calls[0]
+    expect(String(url)).toContain('/chat/completions')
+    expect((init?.headers as Record<string, string>).authorization).toBe('Bearer sk-or-test')
   })
 
-  test('配 key + stub completeSimple 抛错 → ok=false + 中文错误「凭据验证失败」', async () => {
+  test('401 → ok=false + 「凭据被拒绝（HTTP 401）」', async () => {
+    writeOpenrouterSeed('sk-or-bad')
+    const admin = createProviderAdmin({ agentDir })
+    const fetchStub = mock(() => Promise.resolve(new Response('Unauthorized', { status: 401 })))
+    await withFetchStub(fetchStub, async () => {
+      const result = await admin.verifyCredential('openrouter')
+      expect(result.ok).toBe(false)
+      expect(result.error).toMatch(/凭据被拒绝（HTTP 401）/)
+    })
+  })
+
+  test('400 → ok=true（已过鉴权——参数问题与 key 无关）', async () => {
+    writeOpenrouterSeed('sk-or-test')
+    const admin = createProviderAdmin({ agentDir })
+    const fetchStub = mock(() =>
+      Promise.resolve(new Response('{"error":"bad request"}', { status: 400 }))
+    )
+    await withFetchStub(fetchStub, async () => {
+      const result = await admin.verifyCredential('openrouter')
+      expect(result.ok).toBe(true)
+    })
+  })
+
+  test('503 → ok=false + 「服务异常」不确定文案', async () => {
+    writeOpenrouterSeed('sk-or-test')
+    const admin = createProviderAdmin({ agentDir })
+    const fetchStub = mock(() => Promise.resolve(new Response('oops', { status: 503 })))
+    await withFetchStub(fetchStub, async () => {
+      const result = await admin.verifyCredential('openrouter')
+      expect(result.ok).toBe(false)
+      expect(result.error).toMatch(/服务异常（HTTP 503）/)
+    })
+  })
+
+  test('fetch 抛错（网络不通）→ ok=false + 「验证请求失败」', async () => {
+    writeOpenrouterSeed('sk-or-test')
+    const admin = createProviderAdmin({ agentDir })
+    const fetchStub = mock(() => Promise.reject<Response>(new Error('fetch failed')))
+    await withFetchStub(fetchStub, async () => {
+      const result = await admin.verifyCredential('openrouter')
+      expect(result.ok).toBe(false)
+      expect(result.error).toMatch(/验证请求失败/)
+    })
+  })
+
+  test('非 openai 系 api 形态 → ok=false + 「暂不支持在线验证」', async () => {
+    // 自定义 provider（其 models 全来自 models.json，api 覆写才生效——openrouter
+    // 内建 getModels()[0] 是远程缓存目录首项，seed api 覆写浮不到第一位）；
+    // 该分支在 fetch 之前返回，无需网络桩
     mkdirSync(agentDir, { recursive: true })
     writeFileSync(
       join(agentDir, 'auth.json'),
-      JSON.stringify({ openrouter: { type: 'api_key', key: 'sk-or-bad' } }, null, 2)
+      JSON.stringify({ 'test-anthropic': { type: 'api_key', key: 'sk-ant-test' } }, null, 2)
     )
     writeFileSync(
       join(agentDir, 'models.json'),
       JSON.stringify({
         providers: {
-          openrouter: {
-            apiKey: '$OPENROUTER_API_KEY',
+          'test-anthropic': {
+            baseUrl: 'https://example.com/v1',
+            api: 'anthropic-messages',
             models: [
               {
-                id: 'openrouter/free',
-                name: 'OpenRouter Free',
-                api: 'openai-completions',
+                id: 'claude-test',
+                name: 'Claude Test',
+                api: 'anthropic-messages',
                 reasoning: false,
                 input: ['text'],
                 cost: { input: 0, output: 0 },
-                contextWindow: 65536,
+                contextWindow: 32768,
                 maxTokens: 8192
               }
             ]
@@ -278,22 +323,8 @@ describe('c. verifyCredential 两态（T100 B1）', () => {
       })
     )
     const admin = createProviderAdmin({ agentDir })
-    const runtime = await admin
-      .resolveModel({
-        providerId: 'openrouter',
-        modelId: 'openrouter/free'
-      })
-      .then((r) => r.modelRuntime)
-
-    const authError = new Error('401 Unauthorized')
-    const completeStub = mock(async () => {
-      throw authError
-    })
-    ;(runtime as unknown as { completeSimple: typeof completeStub }).completeSimple = completeStub
-
-    const result = await admin.verifyCredential('openrouter')
+    const result = await admin.verifyCredential('test-anthropic')
     expect(result.ok).toBe(false)
-    expect(result.error).toMatch(/openrouter 凭据验证失败/)
-    expect(result.error).toMatch(/401 Unauthorized/)
+    expect(result.error).toMatch(/暂不支持在线验证/)
   })
 })

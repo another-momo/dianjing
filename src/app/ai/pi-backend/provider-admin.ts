@@ -370,48 +370,78 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
   }
 
   /**
-   * T100 B1：凭据验证——对该 provider 发最小 chat 请求（catalog 首模型 + maxTokens=1）。
-   * SDK 无现成 verify/ping 接口（checkAuth 只查凭据存在性，不打网络），故
-   * 走 ModelRuntime.completeSimple 直发。返回 {ok:true} 或 {ok:false, error:中文}，
-   * 异常 catch 后翻译为可行动错误文案（不动原始 SDK 错误，避免泄 key 风险）。
-   * 跨 provider 差异（bedrock/azure/oauth-only 等）暂未做特化处理——错 key
-   * 路径实测可收敛（SDK 报 auth 错），其它异常归入通用错误文案。
+   * T100 B1：凭据验证——openai 系（openai-completions / openai-responses）裸发
+   * /chat/completions 看 HTTP 状态码验真（max_tokens=1 最小成本，body 不消费）：
+   *   401/403 → key 被拒（确定失败）；其余 <500（200/400/422/429）→ 已过鉴权
+   *   即 key 有效（400/422 是请求参数问题与 key 无关，429 限流但 key 真）；
+   *   5xx / 网络异常 → 不确定，诚实文案收尾，不误判 key。
+   * 非 openai 系 api 形态（anthropic-messages/bedrock/oauth 等）无通用验真
+   * 端点 → 不确定文案「以实际对话为准」。
+   *
+   * 为什么不走 runtime.completeSimple：SDK openai-completions 实现会吞掉
+   * HTTP 错误状态、把 401 响应当空 choices 解析成 content:[] 的"成功"
+   * （2026-09-14 L3 实测：假 key completeSimple 返回成功，裸 fetch 同 key
+   * 拿到 401）——验真必须自己看状态码。测试侧的 fetch 桩同步替换（原
+   * completeSimple 桩永远遵守 throw/成功契约，盖不住 SDK 吞状态）。
    */
   async function verifyCredential(providerId: string): Promise<{ ok: boolean; error?: string }> {
     if (!PROVIDER_ID_PATTERN.test(providerId)) {
       return { ok: false, error: `provider id 非法：${providerId}（仅小写字母/数字/连字符）` }
     }
     const runtime = await ensureRuntime()
-    // 先看凭据是否存在——checkAuth 只查本地解析，不打网络（避免误判）
-    const auth = await runtime.checkAuth(providerId).catch(() => undefined)
-    if (!auth) {
-      return { ok: false, error: `尚未为 ${providerId} 配置 API key——请先保存凭据后再验证` }
-    }
-    // 拿该 provider 第一个可用模型——getAvailable 已过滤"未配凭据不可用"
-    const available = await runtime.getAvailable(providerId)
-    if (available.length === 0) {
+    // 先拿解析后的 key——getAuth 含 models.json $VAR 环境变量解析（setCredential 同路径）
+    const auth = await runtime.getAuth(providerId).catch(() => undefined)
+    const apiKey = auth?.auth.apiKey
+    if (!apiKey) {
       return {
         ok: false,
-        error: `${providerId} 没有可用模型（凭据可能无效或模型清单为空）——请检查凭据或模型配置`
+        error: `尚未为 ${providerId} 配置 API key——请先保存凭据后再验证（oauth 等类型暂不支持在线验证）`
       }
     }
-    const model = available[0]
-    // 发最小请求——空 systemPrompt、单 user 消息、maxTokens=1 限流降到最低
+    const provider = runtime.getProviders().find((entry) => entry.id === providerId)
+    const firstModel = provider?.getModels()[0]
+    const baseUrl = provider?.baseUrl
+    if (!provider || !firstModel || !baseUrl) {
+      return {
+        ok: false,
+        error: `${providerId} 缺少 baseUrl 或模型定义，无法在线验证——key 已保存，以实际对话为准`
+      }
+    }
+    if (firstModel.api !== 'openai-completions' && firstModel.api !== 'openai-responses') {
+      return {
+        ok: false,
+        error: `${providerId} 的接口形态（${firstModel.api}）暂不支持在线验证——key 已保存，以实际对话为准`
+      }
+    }
     try {
-      await runtime.completeSimple(
-        model,
-        // UserMessage 必带 timestamp（pi SDK types.d.ts UserMessage）
-        { messages: [{ role: 'user', content: 'ping', timestamp: Date.now() }] },
-        {
-          maxTokens: 1
+      const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: firstModel.id,
+          messages: [{ role: 'user', content: 'ping' }],
+          max_tokens: 1
+        }),
+        signal: AbortSignal.timeout(10_000)
+      })
+      await response.body?.cancel().catch(() => undefined)
+      if (response.status === 401 || response.status === 403) {
+        return {
+          ok: false,
+          error: `${providerId} 凭据被拒绝（HTTP ${response.status}）——key 错误、已过期或无权限`
         }
-      )
-      return { ok: true }
+      }
+      if (response.status < 500) return { ok: true }
+      return {
+        ok: false,
+        error: `${providerId} 验证端点服务异常（HTTP ${response.status}）——稍后再试，或以实际对话为准`
+      }
     } catch (error) {
-      // 文案翻译：异常 message 已被 SDK 内含 ModelsError 转中文友好提示，
-      // 此处保留原始信息（不含 key），按 providerId 拼成完整可行动文案
       const reason = error instanceof Error ? error.message : String(error)
-      return { ok: false, error: `${providerId} 凭据验证失败：${reason}` }
+      return {
+        ok: false,
+        error: `${providerId} 验证请求失败（${reason}）——检查网络连通性后以实际对话为准`
+      }
     }
   }
 
