@@ -51,6 +51,7 @@
 - 多行 prompt 组合用 `dedent` 包，不手写转义换行串；成段散文留在属主 Markdown 源，组合不复制（studio 谱系同此原则）。
 - Window API 增强归编译边界：app 声明在 `src/global.d.ts`、包级 DOM 缺口在属包 `global.d.ts`；禁在 spec 或实现模块里 `declare global`（本轮合并实证：browser-bridge 声明随上游重构迁居即此规则）。
 - import 禁 `../` 逃逸 alias 根（`#tests/../vite` 式）；模块归属错位修归属，不修路径。
+- vite.config.ts 加载链文件禁 `@/` alias：链 = vite.config → `vite/automation` + pi-backend/bridge 两个 vite-plugin → 其传递 import（如 `bridge/server/paths.ts`）——Storybook/vite config loader 不注册别名（2026-09-14 CI+dev 双实证漏网）。用相对 import：单个 `../` 直接写，`../../` 逐行注 `// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports`。
 
 ## 6. 测试纪律
 
