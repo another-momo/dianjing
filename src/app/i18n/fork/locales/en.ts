@@ -38,8 +38,13 @@ export const piMessageDefaults = {
   designModelSave: 'Save',
   designModelDirty: 'Unsaved',
   designModelSaved: 'Saved',
+  // T97：保留以兼容 PiChatInput 输入条 fallback 标签（无指派时的占位文案）；
+  // PiModelsPanel 合并面板已不再展示该 Combobox sentinel item。
   designModelDefault: 'Default model (configured by the local service)',
   designPickerEmpty: 'No matches.',
+  // T97：合并面板摘要条文案（讨论稿 §4.2 段 b）
+  currentAssignmentLabel: 'Current design model',
+  currentAssignmentCurrent: 'Current',
   thinkingLevel: 'Thinking level',
   thinkingOff: 'Off',
   thinkingMinimal: 'Minimal',

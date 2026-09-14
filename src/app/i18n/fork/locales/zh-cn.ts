@@ -236,8 +236,13 @@ const zhCN = {
     designModelSave: '保存',
     designModelDirty: '未保存',
     designModelSaved: '已保存',
+    // T97：保留以兼容 PiChatInput 输入条 fallback 标签；PiModelsPanel 合并面板
+    // 已不再展示该 sentinel item（哨兵 `__pi_backend_default__` 随之消解）
     designModelDefault: '默认模型（由本地服务配置）',
     designPickerEmpty: '没有匹配项。',
+    // T97：合并面板摘要条文案
+    currentAssignmentLabel: '当前设计模型',
+    currentAssignmentCurrent: '当前',
     thinkingLevel: '思考级别',
     thinkingOff: '关闭',
     thinkingMinimal: '最低',

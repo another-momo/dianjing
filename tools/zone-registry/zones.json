@@ -400,9 +400,9 @@
     {
       "id": "P45",
       "file": "src/app/settings/dialog.ts",
-      "reason": "T25: SettingsSection 去 mcp（登记后未实做或被 T34 git merge 把 base 的 'mcp' 成员带回——T36 实测与 base 字节一致，成幻影 patch） T36(2026-08-28): 实做删除 'mcp' 成员（owner 拍板③），本 patch 自此有真实 diff；T41：SettingsSection 增加 fonts 分区",
+      "reason": "T25: SettingsSection 去 mcp（登记后未实做或被 T34 git merge 把 base 的 'mcp' 成员带回——T36 实测与 base 字节一致，成幻影 patch） T36(2026-08-28): 实做删除 'mcp' 成员（owner 拍板③），本 patch 自此有真实 diff；T41：SettingsSection 增加 fonts 分区；pi-model-explicit-config（2026-09-15）：openSettingsDialog 增 anchor 参数 + settingsDialogAnchor（引导门深链展开 provider 行）",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-30"
+      "lastReviewed": "2026-09-15"
     },
     {
       "id": "P46",
