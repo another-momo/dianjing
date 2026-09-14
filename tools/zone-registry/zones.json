@@ -1115,16 +1115,16 @@
     {
       "id": "P205",
       "file": "tools/i18n/translation-baseline.txt",
-      "reason": "T98：域下线配套——剔除 7 个已删 locale 目录（de/es/fr/it/ja/pl/ru）的 216 条死 baseline 条目（checker  stale 规则），zh-cn/en 保留",
+      "reason": "T98：域下线配套——剔除 7 个已删 locale 目录（de/es/fr/it/ja/pl/ru）的 216 条死 baseline 条目（checker  stale 规则），zh-cn/en 保留；2026-09-14 合并：摘 de/es/it:ai.chatSettings 三条 stale（ChatSettingsSection 随域裁撤）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-06"
+      "lastReviewed": "2026-09-14"
     },
     {
       "id": "P206",
       "file": "tools/i18n/mixed-script-baseline.txt",
-      "reason": "T98：域下线配套——剔除 ja 110 条 + zh-cn diagnostics 域 9 条死 baseline 条目",
+      "reason": "T98：域下线配套——剔除 ja 110 条 + zh-cn diagnostics 域 9 条死 baseline 条目；2026-09-14 合并：摘 ja:ai.copyACPLog/credentials.settingsTitle/rememberDevice 三条 stale",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-06"
+      "lastReviewed": "2026-09-14"
     },
     {
       "id": "P207",
@@ -1312,7 +1312,7 @@
     {
       "id": "P233",
       "file": "packages/core/src/canvaskit.ts",
-      "reason": "2026-09-14 合并：Windows 下 import.meta.resolve 的 file URL pathname 带前导斜杠（/D:/...），Emscripten 读 wasm ENOENT——剥 /^\/[A-Za-z]:\// 前导斜杠。上游同病未修（其 CI 全 Linux 无感）；暴露路径=上游新 clipboard 测试首次在本机触发 CanvasKit 加载。适机回敬上游；同日 T40 延展：node 分支判定换 hasWindowGlobal 活探",
+      "reason": "2026-09-14 合并：Windows 下 import.meta.resolve 的 file URL pathname 带前导斜杠（/D:/...），Emscripten 读 wasm ENOENT——剥 /^\/[A-Za-z]:\// 前导斜杠。上游同病未修（其 CI 全 Linux 无感）；暴露路径=上游新 clipboard 测试首次在本机触发 CanvasKit 加载。适机回敬上游；node/浏览器分支判定用 'Bun' in globalThis + hasWindowGlobal 复合——纯活探在 bun 测试 window stub 下返真误走 fetch 分支挂起（render 批次 30s 超时实证，同日修正）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-14"
     },
@@ -1522,7 +1522,8 @@
     "tests/engine/app/ai/harness/transport.test.ts",
     "tests/engine/app/chat/history/continuation.test.ts",
     "tests/engine/app/chat/history/controller.test.ts",
-    "tests/engine/app/chat/history/idb.test.ts"
+    "tests/engine/app/chat/history/idb.test.ts",
+    "tests/engine/render/jsx/reference.test.ts"
   ],
   "upstreamMergeTarball": []
 }
