@@ -21,7 +21,6 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process'
-import { randomBytes } from 'node:crypto'
 import { createReadStream, readFileSync, statSync } from 'node:fs'
 import {
   createServer,
@@ -35,6 +34,9 @@ import { AUTOMATION_HTTP_PORT } from '@open-pencil/core/constants'
 
 import { readDiscoveryFile } from '@/app/bridge/server/discovery'
 import { getSocketPath, platformHasUnixSockets } from '@/app/bridge/server/paths'
+import { waitForHealthPolling } from '@/app/orchestration/health'
+import { attachStderrPassthrough, stopChildGracefully } from '@/app/orchestration/lifecycle'
+import { generateToken } from '@/app/orchestration/token'
 
 import { PI_BACKEND_DEFAULT_PORT } from './config'
 
@@ -45,12 +47,8 @@ const backendPort = Number(process.env.OPENPENCIL_PI_BACKEND_PORT ?? PI_BACKEND_
 // CORS/WS 都按主服务来源放行（浏览器跨源 fetch 桥 /health 需要它）
 const serveOrigin = `http://localhost:${servePort}`
 
-function randomToken(): string {
-  return randomBytes(16).toString('hex')
-}
-
-const automationToken = randomToken()
-const piToken = randomToken()
+const automationToken = generateToken()
+const piToken = generateToken()
 
 // ── 子进程编排（语义复制自 automation/bridge/vite-plugin.ts startChild）──
 
@@ -58,33 +56,20 @@ let bridge: ChildProcess | null = null
 let backend: ChildProcess | null = null
 
 function passthroughStderr(child: ChildProcess, label: string): void {
-  child.stderr?.on('data', (data: Buffer) => {
-    const text = data.toString()
-    if (text.includes('EADDRINUSE')) {
+  attachStderrPassthrough(child, {
+    label,
+    onEaddrinuse: () => {
       console.error(
         `[host] ${label} 端口绑定失败（可能另一个 OpenPencil 实例/dev server 正在运行）——先停掉占用 ${AUTOMATION_HTTP_PORT}/${backendPort} 的进程`
       )
       child.kill()
-      return
     }
-    process.stderr.write(data)
   })
 }
 
 async function stopChild(child: ChildProcess | null, label: string): Promise<void> {
   if (!child) return
-  // 经函数读 exitCode：直读会被 type-aware 收窄定死、循环比较判「不可能」（lint
-  // 实证），函数调用每次取实时值——同 automation/bridge/vite-plugin.ts hasExited 先例
-  const hasExited = (): boolean => child.exitCode !== null
-  if (hasExited()) return
-  child.kill()
-  const deadline = Date.now() + 2_000
-  while (!hasExited() && Date.now() < deadline) {
-    await new Promise((r) => {
-      setTimeout(r, 50)
-    })
-  }
-  if (!hasExited()) child.kill('SIGKILL')
+  await stopChildGracefully(child, { timeoutMs: 2_000 })
   console.error(`[host] ${label} 已停止`)
 }
 
@@ -110,7 +95,7 @@ async function spawnBridge(): Promise<void> {
     }
   })
   bridge.on('error', (err) => console.error(`[host] 无法 spawn 自动化桥：${err.message}`))
-  passthroughStderr(bridge, '自动化桥')
+  if (bridge.stderr) passthroughStderr(bridge, '自动化桥')
 }
 
 async function spawnBackend(): Promise<void> {
@@ -124,7 +109,7 @@ async function spawnBackend(): Promise<void> {
     }
   })
   backend.on('error', (err) => console.error(`[host] 无法 spawn pi 后端：${err.message}`))
-  passthroughStderr(backend, 'pi 后端')
+  if (backend.stderr) passthroughStderr(backend, 'pi 后端')
 }
 
 // ── 就绪探针 ──
@@ -134,23 +119,28 @@ async function waitFor(
   timeoutMs: number,
   probe: () => Promise<boolean>
 ): Promise<void> {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    try {
-      if (await probe()) return
-      // 探针内的连接拒绝/404 即「未就绪」，属预期路径
-    } catch (error) {
-      console.warn(
-        `[host] ${label} 探针异常（继续等待）：${error instanceof Error ? error.message : String(error)}`
+  await waitForHealthPolling({
+    intervalMs: 200,
+    timeoutMs,
+    // host.ts 历史语义：探针内异常不视作失败（连接拒绝属预期），但要打 warn
+    // 以便排查；waitForHealthPolling 默认 catch 静默——这里在 probe 内部吞
+    // 异常并打 warn，保持行为一致
+    probe: async () => {
+      try {
+        return await probe()
+      } catch (error) {
+        console.warn(
+          `[host] ${label} 探针异常（继续等待）：${error instanceof Error ? error.message : String(error)}`
+        )
+        return false
+      }
+    },
+    onTimeout: () => {
+      throw new Error(
+        `[host] ${timeoutMs}ms 内未等到 ${label} 就绪——查看上方子进程日志定位启动失败原因`
       )
     }
-    await new Promise((r) => {
-      setTimeout(r, 200)
-    })
-  }
-  throw new Error(
-    `[host] ${timeoutMs}ms 内未等到 ${label} 就绪——查看上方子进程日志定位启动失败原因`
-  )
+  })
 }
 
 async function backendReadyProbe(): Promise<boolean> {

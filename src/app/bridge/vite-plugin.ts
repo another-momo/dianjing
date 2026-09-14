@@ -1,10 +1,15 @@
 import { spawn } from 'node:child_process'
-import { createHash, randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import type { Plugin } from 'vite'
+
+import { devMCPRuntimeDir } from '@/app/orchestration/discovery'
+import {
+  attachStderrPassthrough,
+  makeReadyMarker,
+  stopChildGracefully
+} from '@/app/orchestration/lifecycle'
 
 import { waitForChildReady } from './child-ready'
 import { platformHasUnixSockets } from './server/paths'
@@ -78,10 +83,6 @@ interface AutomationPluginOptions {
   runtimeId: string
 }
 
-function safeRuntimeId(value: string): string {
-  return createHash('sha256').update(value).digest('hex').slice(0, 16)
-}
-
 // TODO: production — bundle the bridge as Tauri sidecar or spawn via shell plugin
 export function automationPlugin(
   authToken: string | null,
@@ -100,24 +101,11 @@ export function automationPlugin(
     const running = child
     if (!running) return
     child = null
-    const exited = new Promise<void>((resolve) => {
-      running.once('exit', () => resolve())
-    })
-    running.kill()
-    let timeout: ReturnType<typeof setTimeout> | undefined
-    const timedOut = new Promise<boolean>((resolve) => {
-      timeout = setTimeout(() => resolve(true), CHILD_EXIT_TIMEOUT_MS)
-    })
-    const exitedGracefully = await Promise.race([exited.then(() => false), timedOut])
-    if (timeout) clearTimeout(timeout)
-    if (!exitedGracefully && running.exitCode === null) {
-      running.kill('SIGKILL')
-      await exited
-    }
+    await stopChildGracefully(running, { timeoutMs: CHILD_EXIT_TIMEOUT_MS })
   }
 
   async function startChild(): Promise<void> {
-    const runtimeDir = join(tmpdir(), 'open-pencil-mcp', safeRuntimeId(options.runtimeId))
+    const runtimeDir = devMCPRuntimeDir(options.runtimeId)
     await mkdir(runtimeDir, { recursive: true, mode: 0o700 })
     const socketPath = platformHasUnixSockets() ? join(runtimeDir, 'mcp.sock') : null
     const discoveryPath = join(runtimeDir, 'mcp.json')
@@ -126,7 +114,7 @@ export function automationPlugin(
     const spawnArgs = options.portlessServiceName
       ? ['run', '--name', options.portlessServiceName, ...command]
       : command.slice(1)
-    const readyMarker = `open-pencil-ready:${randomUUID()}`
+    const readyMarker = makeReadyMarker()
     const spawned = spawn(spawnCommand, spawnArgs, {
       stdio: ['ignore', 'inherit', 'pipe'],
       env: {
@@ -149,17 +137,14 @@ export function automationPlugin(
       if (child === spawned) child = null
     })
 
-    spawned.stderr.on('data', (data: Buffer) => {
-      const text = data.toString()
-      if (text.includes('EADDRINUSE')) {
+    attachStderrPassthrough(spawned, {
+      onEaddrinuse: () => {
         console.error(
           `\x1b[31m[automation] Bridge bind failed (${options.browserURL}${socketPath ? ` or socket ${socketPath}` : ''}). Is another OpenPencil instance running?\x1b[0m`
         )
         spawned.kill()
         if (child === spawned) child = null
-        return
       }
-      process.stderr.write(data)
     })
 
     spawned.on('exit', (code) => {

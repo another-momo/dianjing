@@ -51,41 +51,16 @@ import { spawn } from 'node:child_process'
 import { dirname, extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, shell, utilityProcess, type UtilityProcess } from 'electron'
+import { waitForHealthPolling } from '@/app/orchestration/health'
+import { MAX_AUTO_RESTARTS, nextRestartDelay } from '@/app/orchestration/restart'
+import { generateToken } from '@/app/orchestration/token'
+import { pickFreePort, randomPort } from '../tools/ports.js'
 import { classifyExternalUrl, isHttpOrHttps, isLoopbackHttpUrl } from './url-safety.js'
 import { loadWindowState, saveWindowState, type WindowState } from './window-state.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 // ── 端口 + token 自举 ──
-
-// 端口随机化——避免碰主战场 7600/7700，与 sidecar-smoke 的 20000-49000 段策略同源
-function randomPort(): number {
-  // 排除 1420/7600/7700：再 rand 一次撞到就再 rand
-  for (let i = 0; i < 8; i++) {
-    const candidate = 20000 + Math.floor(Math.random() * 29000)
-    if (candidate !== 1420 && candidate !== 7600 && candidate !== 7700) return candidate
-  }
-  return 27900
-}
-
-// spike-electron-spike：挑一个真空闲端口（先 probe-bind 再 close），让回环
-// 服务能确定性地 listen 在已知端口（给 sidecar CORS origin 用）。pin 模式
-// （OPENPENCIL_LOOPBACK_PORT > 0）跳过 probe。
-async function pickFreePort(): Promise<number> {
-  const { createServer } = await import('node:net')
-  for (let attempt = 0; attempt < 32; attempt++) {
-    const candidate = randomPort()
-    const ok = await new Promise<boolean>((resolveProbe) => {
-      const probe = createServer()
-      probe.once('error', () => resolveProbe(false))
-      probe.listen(candidate, '127.0.0.1', () => {
-        probe.close(() => resolveProbe(true))
-      })
-    })
-    if (ok) return candidate
-  }
-  throw new Error('无可用空闲端口（20000-49000 段已耗尽）')
-}
 
 // OPENPENCIL_PI_BACKEND_PORT / OPENPENCIL_MCP_PORT 是 sidecar 自身 env 名（见
 // pi-backend/main.ts:92 + bridge/server/index.ts:28）。与 vite plugin 命名错开
@@ -97,13 +72,11 @@ const bridgePort = Number(process.env.OPENPENCIL_BRIDGE_PORT) || randomPort()
 const backendPort = Number(process.env.OPENPENCIL_PI_BACKEND_PORT_ELECTRON) || randomPort()
 const pinnedLoopbackPort = Number(process.env.OPENPENCIL_LOOPBACK_PORT) || 0
 // 三方对齐不变量（见文件头）
-const bridgeToken = randomBytes(16).toString('hex')
-const piToken = randomBytes(16).toString('hex')
+const bridgeToken = generateToken()
+const piToken = generateToken()
 
 // ── sidecar 子进程编排（移植 vite-plugin.ts T27 退避 + host.ts spawn 语义）──
 
-const MAX_AUTO_RESTARTS = 3
-const RESTART_BACKOFF_MS = [500, 1_500, 4_000] as const
 const CHILD_EXIT_TIMEOUT_MS = 2_000
 const HEALTH_TIMEOUT_MS = 15_000
 const HEALTH_INTERVAL_MS = 150
@@ -136,23 +109,21 @@ async function waitForHealth(
   healthUrl: string,
   onReady: () => void
 ): Promise<void> {
-  const deadline = Date.now() + HEALTH_TIMEOUT_MS
-  while (Date.now() < deadline) {
+  await waitForHealthPolling({
+    intervalMs: HEALTH_INTERVAL_MS,
+    timeoutMs: HEALTH_TIMEOUT_MS,
     // pid 变 undefined = 子进程已退出（utilityProcess 退出后 pid 会置 undefined，
     // 见 electron.d.ts L15940），立刻放弃等待
-    if (child.pid === undefined) return
-    try {
+    isAlive: () => child.pid !== undefined,
+    probe: async () => {
       const res = await fetch(healthUrl)
-      if (res.ok) {
-        onReady()
-        return
-      }
-    } catch {
-      // 未就绪——继续轮询
+      return res.ok
+    },
+    onReady,
+    onTimeout: () => {
+      console.warn(`[sidecar] ${HEALTH_TIMEOUT_MS}ms 内未等到 ${healthUrl} 就绪`)
     }
-    await new Promise((r) => setTimeout(r, HEALTH_INTERVAL_MS))
-  }
-  console.warn(`[sidecar] ${HEALTH_TIMEOUT_MS}ms 内未等到 ${healthUrl} 就绪`)
+  })
 }
 
 function passthroughStream(stream: NodeJS.ReadableStream | null, label: string): void {
@@ -165,14 +136,14 @@ function passthroughStream(stream: NodeJS.ReadableStream | null, label: string):
 
 function scheduleRestart(handle: SidecarHandle): void {
   if (handle.stopping) return
-  if (handle.restartCount >= MAX_AUTO_RESTARTS) {
+  const delay = nextRestartDelay(handle.restartCount)
+  if (delay === null) {
     console.error(
       `[sidecar] ${handle.name} 已连续崩溃 ${MAX_AUTO_RESTARTS} 次，停止自动复活——` +
         `修复后重启 Electron，或 bun run spike:sidecar:smoke 单起 sidecar 看启动报错`
     )
     return
   }
-  const delay = RESTART_BACKOFF_MS[handle.restartCount]!
   handle.restartCount++
   console.error(`[sidecar] ${handle.name} ${delay}ms 后自动重启（第 ${handle.restartCount}/${MAX_AUTO_RESTARTS} 次）`)
   handle.restartTimer = setTimeout(() => {

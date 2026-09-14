@@ -29,9 +29,10 @@
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
-import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+
+import { pickFreePort } from '../tools/ports.js'
 
 // 这里含 CJK——按编码纪律用 Buffer 读写避免 CRLF 被 strip
 function here(): string {
@@ -49,23 +50,6 @@ if (!existsSync(mainBundle)) {
 
 // 上游 key-env 路径（仓外，本步提交物外）
 const SOURCE_KEY_ENV = 'D:\\Desktop\\AgentLearn\\00_DIYProjects\\0720openpencil\\open-pencil-mode\\.openpencil\\key-env'
-
-async function freePort(): Promise<number> {
-  // 20000-49000 随机段；避开 1420/7600/7700
-  for (let attempt = 0; attempt < 32; attempt++) {
-    const candidate = 20000 + Math.floor(Math.random() * 29000)
-    if (candidate === 1420 || candidate === 7600 || candidate === 7700) continue
-    const ok = await new Promise<boolean>((resolveProbe) => {
-      const probe = createServer()
-      probe.once('error', () => resolveProbe(false))
-      probe.listen(candidate, '127.0.0.1', () => {
-        probe.close(() => resolveProbe(true))
-      })
-    })
-    if (ok) return candidate
-  }
-  throw new Error('无可用空闲端口（20000-49000 段已耗尽）')
-}
 
 function taskkill(pid: number): Promise<{ code: number | null; aliveAfter: boolean }> {
   // /T = 杀子树（含 utilityProcess 派生的 helper），/F = 强杀。
@@ -169,9 +153,9 @@ async function main(): Promise<void> {
   }
 
   // 1. 端口自举（3 个：loopback / bridge / backend）
-  const loopbackPort = await freePort()
-  const bridgePort = await freePort()
-  const backendPort = await freePort()
+  const loopbackPort = await pickFreePort()
+  const bridgePort = await pickFreePort()
+  const backendPort = await pickFreePort()
   console.log(`[smoke] loopback=${loopbackPort} bridge=${bridgePort} backend=${backendPort} rootDir=${electronRootDir}`)
 
   // 2. spawn electron main（OPENPENCIL_FULL_SMOKE=1）

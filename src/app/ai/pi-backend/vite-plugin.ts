@@ -25,20 +25,20 @@
  */
 
 import { spawn } from 'node:child_process'
-import { createHash, randomBytes } from 'node:crypto'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 
 import type { Plugin } from 'vite'
+
+import { devMCPDiscoveryPath } from '@/app/orchestration/discovery'
+import { waitForHealthPolling } from '@/app/orchestration/health'
+import { attachStderrPassthrough, stopChildGracefully } from '@/app/orchestration/lifecycle'
+import { MAX_AUTO_RESTARTS, nextRestartDelay } from '@/app/orchestration/restart'
+import { generateToken } from '@/app/orchestration/token'
 
 import { PI_BACKEND_DEFAULT_PORT } from './config'
 
 const CHILD_EXIT_TIMEOUT_MS = 2_000
 const HEALTH_TIMEOUT_MS = 15_000
 const HEALTH_INTERVAL_MS = 150
-// T27：崩溃自动复活——最多 3 次、间隔退避；超过即停手并给明确指引（防复活风暴）
-const MAX_AUTO_RESTARTS = 3
-const RESTART_BACKOFF_MS = [500, 1_500, 4_000]
 
 export interface PiBackendPluginOptions {
   /**
@@ -52,18 +52,16 @@ export interface PiBackendPluginOptions {
 /**
  * T38：与桥 vite 插件 startChild 同源的 discovery 路径推导——
  * tmpdir()/open-pencil-mcp/sha256(runtimeId)[:16]/mcp.json。
- * 算法必须与 src/app/bridge/vite-plugin.ts 保持一致；
- * 一致性由 pi-dev-discovery.test.ts 的硬编码 digest 钉扎（上游改算法即红）。
+ * 算法实现已迁入 @/app/orchestration/discovery，本处 re-export 保持既有
+ * 测试（tests/engine/rebuild/pi-dev-discovery.test.ts）的 import 路径与硬
+ * 编码 digest 钉扎不变。一致性由该测试钉扎。
  */
-export function devMCPDiscoveryPath(runtimeId: string): string {
-  const hash = createHash('sha256').update(runtimeId).digest('hex').slice(0, 16)
-  return join(tmpdir(), 'open-pencil-mcp', hash, 'mcp.json')
-}
+export { devMCPDiscoveryPath }
 
 export function piBackendPlugin(options: PiBackendPluginOptions = {}): Plugin {
   const port = Number(process.env.OPENPENCIL_PI_BACKEND_PORT ?? PI_BACKEND_DEFAULT_PORT)
   // T28：每 vite 进程一枚鉴权 token（子进程 env 注入 + proxy 补头，两侧共享）
-  const authToken = randomBytes(16).toString('hex')
+  const authToken = generateToken()
   // T38：dev 桥 discovery 路径（同源推导；无 runtimeId 时不注入，后端落平台默认路径）
   const mcpDiscoveryPath = options.mcpRuntimeId
     ? devMCPDiscoveryPath(options.mcpRuntimeId)
@@ -75,56 +73,39 @@ export function piBackendPlugin(options: PiBackendPluginOptions = {}): Plugin {
   async function stopChild(): Promise<void> {
     const running = child
     child = null
-    if (running?.exitCode !== null) return
-    // 经函数读 exitCode：属性收窄会把 exitCode 定死在 null（type-aware lint 实证），
-    // 函数调用每次取实时值
-    const hasExited = () => running.exitCode !== null
-    running.kill()
-    // 轮询等优雅退出，超时 SIGKILL 兜底
-    const deadline = Date.now() + CHILD_EXIT_TIMEOUT_MS
-    while (!hasExited() && Date.now() < deadline) {
-      await new Promise((resolve) => {
-        setTimeout(resolve, 50)
-      })
-    }
-    if (!hasExited()) running.kill('SIGKILL')
+    await stopChildGracefully(running, { timeoutMs: CHILD_EXIT_TIMEOUT_MS })
   }
 
   async function waitForHealth(spawned: ReturnType<typeof spawn>): Promise<void> {
-    const deadline = Date.now() + HEALTH_TIMEOUT_MS
-    while (Date.now() < deadline) {
-      // 直接读子进程 exitCode 而非自维 flag（回调内赋值对 TS 收窄不可见，type-aware lint 实证）
-      if (spawned.exitCode !== null) return // 启动失败信息已由 stderr 透传，不再重复报错
-      try {
+    await waitForHealthPolling({
+      intervalMs: HEALTH_INTERVAL_MS,
+      timeoutMs: HEALTH_TIMEOUT_MS,
+      isAlive: () => spawned.exitCode === null,
+      probe: async () => {
         const res = await fetch(`http://127.0.0.1:${port}/health`)
-        if (res.ok) {
-          // T27：一次健康就绪即清零崩溃计数——自动复活只针对「连续」崩溃
-          restartCount = 0
-          console.error(`[pi-backend] ready (http://127.0.0.1:${port})`)
-          return
-        }
-        // oxlint-disable-next-line open-pencil/no-silent-catch -- 轮询中的拒绝连接即「未就绪」，无需记录
-      } catch {
-        // 尚未就绪，继续等
+        return res.ok
+      },
+      onReady: () => {
+        // T27：一次健康就绪即清零崩溃计数——自动复活只针对「连续」崩溃
+        restartCount = 0
+        console.error(`[pi-backend] ready (http://127.0.0.1:${port})`)
+      },
+      onTimeout: () => {
+        console.warn(`[pi-backend] ${HEALTH_TIMEOUT_MS}ms 内未等到 /health 就绪（端口 ${port}）`)
       }
-      await new Promise((resolve) => {
-        setTimeout(resolve, HEALTH_INTERVAL_MS)
-      })
-    }
-    console.warn(`[pi-backend] ${HEALTH_TIMEOUT_MS}ms 内未等到 /health 就绪（端口 ${port}）`)
+    })
   }
 
   // T27：崩溃后的有限次自动复活（退避间隔见 RESTART_BACKOFF_MS）
   function scheduleRestart(): void {
-    if (restartCount >= MAX_AUTO_RESTARTS) {
+    const delay = nextRestartDelay(restartCount)
+    if (delay === null) {
       console.error(
         `[pi-backend] 后端进程已连续崩溃 ${MAX_AUTO_RESTARTS} 次，停止自动复活——` +
           `修复后重启 vite dev server，或 bun run dev:backend 单起后端看启动报错`
       )
       return
     }
-    // 上方已 guard restartCount < MAX_AUTO_RESTARTS，索引必然有值
-    const delay = RESTART_BACKOFF_MS[restartCount]
     restartCount++
     console.error(
       `[pi-backend] ${delay}ms 后自动重启后端进程（第 ${restartCount}/${MAX_AUTO_RESTARTS} 次）`
@@ -158,9 +139,7 @@ export function piBackendPlugin(options: PiBackendPluginOptions = {}): Plugin {
         scheduleRestart()
       }
     })
-    spawned.stderr.on('data', (data: Buffer) => {
-      process.stderr.write(data)
-    })
+    attachStderrPassthrough(spawned)
     spawned.on('exit', (code) => {
       // child 已被 stopChild 置 null = 主动回收（buildEnd/重启 vite），不复活
       if (child !== spawned) return

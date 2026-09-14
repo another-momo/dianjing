@@ -19,9 +19,10 @@
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
-import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+
+import { pickFreePort } from '../tools/ports.js'
 
 const here = decodeURIComponent(new URL('.', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
 const root = join(here, '..', '..')
@@ -45,18 +46,6 @@ const failures: string[] = []
 function check(name: string, ok: boolean, detail = ''): void {
   console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` —— ${detail}` : ''}`)
   if (!ok) failures.push(`${name}${detail ? ` —— ${detail}` : ''}`)
-}
-
-async function freePort(): Promise<number> {
-  // 20000-49000 随机段内找空闲端口；避开 1420/7600/7700 主战场
-  const candidate = 20000 + Math.floor(Math.random() * 29000)
-  return new Promise((resolve) => {
-    const probe = createServer()
-    probe.once('error', () => resolve(freePort()))
-    probe.listen(candidate, '127.0.0.1', () => {
-      probe.close(() => resolve(candidate))
-    })
-  })
 }
 
 async function waitForHealth(url: string, timeoutMs: number): Promise<boolean> {
@@ -111,8 +100,8 @@ async function main(): Promise<void> {
   const scratch = mkdtempSync(join(tmpdir(), 'openpencil-sidecar-smoke-'))
   const piRoot = join(scratch, 'pi-root')
   const bridgeDiscovery = join(scratch, 'bridge', 'mcp.json')
-  const piPort = await freePort()
-  const bridgePort = await freePort()
+  const piPort = await pickFreePort()
+  const bridgePort = await pickFreePort()
   const piToken = 'smoke-pi-token-32hex-padding00'
   const bridgeToken = 'smoke-bridge-token'
   console.log(`[smoke] scratch=${scratch} piPort=${piPort} bridgePort=${bridgePort}`)

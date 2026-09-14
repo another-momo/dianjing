@@ -13,6 +13,10 @@
     "/src/app/tabs/index.ts",
     "/packages/core/src/text/index.ts"
   ],
+  "entry": [
+    "src/app/orchestration/**/*.ts",
+    "desktop-electron/tools/ports.ts"
+  ],
   "ignoreBinaries": [
     "open",
     "taskkill",

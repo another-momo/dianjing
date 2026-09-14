@@ -15,6 +15,7 @@
     "src/components/assistant/",
     "src/app/ai/fork/",
     "src/app/bridge/",
+    "src/app/orchestration/",
     ".github/workflows/",
     "tools/unit-tests/",
     "desktop-electron/"
