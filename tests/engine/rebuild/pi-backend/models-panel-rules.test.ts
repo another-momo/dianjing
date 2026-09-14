@@ -20,6 +20,7 @@ import {
   OPENROUTER_FREE_MODEL_ID,
   OPENROUTER_PROVIDER_ID,
   buildAssignment,
+  classifyAuthSource,
   classifyVerifyResult,
   filterCatalogModels,
   filterCatalogProviders,
@@ -364,5 +365,31 @@ describe('isCustomProvider', () => {
 
   test('kind 缺失（旧 catalog 缓存）→ false（保守视为内建，不显示删除入口）', () => {
     expect(isCustomProvider({})).toBe(false)
+  })
+})
+
+describe('classifyAuthSource（T100 D1 补钉：SDK 真实 source 值）', () => {
+  test("'stored credential'（SDK stored key 命中字面）→ 'stored'", () => {
+    expect(classifyAuthSource('stored credential')).toBe('stored')
+  })
+
+  test('环境变量名本身（env 命中时 SDK 返回变量名）→ environment', () => {
+    expect(classifyAuthSource('OPENROUTER_API_KEY')).toBe('environment')
+    expect(classifyAuthSource('ANTHROPIC_API_KEY')).toBe('environment')
+  })
+
+  test("'environment variable'（bedrock 形态字面）→ 'environment'", () => {
+    expect(classifyAuthSource('environment variable')).toBe('environment')
+  })
+
+  test('undefined / 空串 → null（不渲染标签）', () => {
+    expect(classifyAuthSource(undefined)).toBe(null)
+    expect(classifyAuthSource('')).toBe(null)
+  })
+
+  test('未知形态（oauth 来源串、小写自由值）→ null（保守不渲染）', () => {
+    expect(classifyAuthSource('oauth')).toBe(null)
+    expect(classifyAuthSource('stored')).toBe(null)
+    expect(classifyAuthSource('environment')).toBe(null)
   })
 })

@@ -212,3 +212,23 @@ export function classifyVerifyResult(
   if (typeof result.error === 'string' && result.error.length > 0) return 'failed'
   return 'unknown-error'
 }
+
+/**
+ * T100 D1 补钉：auth.source 归类——SDK 实际返回值（pi-ai auth/helpers.js）：
+ *   stored key 命中 → 'stored credential'；env 命中 → 环境变量名本身
+ *   （如 'OPENROUTER_API_KEY'）；bedrock 等另有 'environment variable' 字面。
+ * 归类口径：'stored credential' → 'stored'；'environment variable' 或环境变量
+ * 形态（全大写下划线数字）→ 'environment'；空值 / 未知形态（oauth 来源串等）
+ * → null（保守不渲染标签，同 catalog.kind 缺失的让位语义）。
+ *
+ * 单3 原稿按字面 'stored'/'environment' 匹配——与 SDK 真实值不符，标签永不
+ * 渲染（L3 实测浮出）；真实值钉在本函数与测试中。
+ */
+export type PiAuthSourceClass = 'stored' | 'environment'
+
+export function classifyAuthSource(source: string | undefined): PiAuthSourceClass | null {
+  if (!source) return null
+  if (source === 'stored credential') return 'stored'
+  if (source === 'environment variable' || /^[A-Z][A-Z0-9_]+$/.test(source)) return 'environment'
+  return null
+}

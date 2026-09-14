@@ -52,6 +52,7 @@ import type { PiThinkingLevel } from '@/app/ai/pi-backend/client'
 import {
   OPENROUTER_PROVIDER_ID,
   buildAssignment,
+  classifyAuthSource,
   classifyVerifyResult,
   filterCatalogModels,
   filterCatalogProviders,
@@ -438,12 +439,14 @@ async function submitCustomForm(): Promise<void> {
   }
 }
 
-/** T100 D1：source 标签文案——catalog.auth.source 是字符串自由值，仅 'stored'/'environment'
- *  两种已知语义；其它未知值不渲染标签（保守处理）。catalog 未透传 env 并存标志，
- *  shadow 提示超出本单范围（讨论稿 §5.D1 + §6.3 key-env 拍板联动项）。 */
+/** T100 D1：source 标签文案——归类走 classifyAuthSource（SDK 真实 source 值钉在
+ *  规则层：'stored credential' / 环境变量名本身）；未知形态不渲染（保守）。
+ *  catalog 未透传 env 并存标志，shadow 提示超出本单范围（讨论稿 §5.D1 +
+ *  §6.3 key-env 拍板联动项）。 */
 function sourceLabel(source: string | undefined): string | null {
-  if (source === 'stored') return dialogs.value.providerAuthSourceStored
-  if (source === 'environment') return dialogs.value.providerAuthSourceEnvironment
+  const sourceClass = classifyAuthSource(source)
+  if (sourceClass === 'stored') return dialogs.value.providerAuthSourceStored
+  if (sourceClass === 'environment') return dialogs.value.providerAuthSourceEnvironment
   return null
 }
 

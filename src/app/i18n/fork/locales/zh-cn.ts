@@ -269,7 +269,7 @@ const zhCN = {
     providerFormTitleEdit: '编辑自定义 Provider',
     providerFormIdReadonlyHint: 'Provider ID 不可修改。',
     providerFormSaveEdit: '保存修改',
-    // T100：D1 source 回显（catalog 仅透传 stored/environment 字符串，shadow 提示
+    // T100：D1 source 回显（SDK 真实 source 值经 classifyAuthSource 归类；shadow 提示
     // 需 catalog 额外透传 env 并存标志，超出本单范围——见讨论稿 §5.D1）
     providerAuthSourceStored: '设置存储',
     providerAuthSourceEnvironment: '环境变量',

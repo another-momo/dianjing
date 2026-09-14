@@ -72,8 +72,9 @@ export const piMessageDefaults = {
   providerFormTitleEdit: 'Edit custom provider',
   providerFormIdReadonlyHint: 'Provider ID cannot be changed.',
   providerFormSaveEdit: 'Save changes',
-  // T100：D1 source 回显——stored/environment 标签文案；shadow 提示不在 catalog 透传范围，
-  // 仅做 source 标签（key-env 拍板见讨论稿 §6.3，本单范围内）
+  // T100：D1 source 回显——stored/environment 标签文案；SDK 真实 source 值
+  // （'stored credential' / 环境变量名本身）经 classifyAuthSource 归类；
+  // shadow 提示不在 catalog 透传范围（key-env 拍板见讨论稿 §6.3，本单范围内）
   providerAuthSourceStored: 'Settings storage',
   providerAuthSourceEnvironment: 'Environment variable',
   // T100：引导门（讨论稿 §3 落地清单 1）——needs-setup / needs-credential 两变体 +
