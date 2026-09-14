@@ -76,11 +76,12 @@ copyFileSync(
   join(repoRoot, 'src/app/ai/pi-backend/studio/base.md'),
   join(tempRoot, 'src/app/ai/pi-backend/studio/base.md')
 )
-const agentDir = join(tempRoot, '.dianjing', 'pi-agent')
+const agentDir = join(tempRoot, 'pi-agent')
 const authPath = join(agentDir, 'auth.json')
 
 // 后端进程 env 显式剔除 key——全链只能走 auth.json
-const backendEnv = { ...process.env, DIANJING_PI_BACKEND_PORT: String(PORT) }
+// D2：后端状态根不再跟 cwd——显式 override 钉 tempRoot（直指根本身）
+const backendEnv = { ...process.env, DIANJING_PI_BACKEND_PORT: String(PORT), DIANJING_ROOT_DIR: tempRoot }
 delete backendEnv.OPENROUTER_API_KEY
 const backend = spawn('bun', ['run', join(repoRoot, 'src/app/ai/pi-backend/main.ts')], {
   cwd: tempRoot,
@@ -103,7 +104,7 @@ try {
   const token = readBackendToken(tempRoot)
   check('T28 前置：token 文件可读', typeof token === 'string' && token.length > 0)
   if (process.platform !== 'win32') {
-    const tokenMode = statSync(join(tempRoot, '.dianjing', 'pi-backend-token')).mode & 0o777
+    const tokenMode = statSync(join(tempRoot, 'pi-backend-token')).mode & 0o777
     check('T28 token 文件权限 0600', tokenMode === 0o600, `mode=${tokenMode.toString(8)}`)
   }
 

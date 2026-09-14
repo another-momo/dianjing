@@ -99,7 +99,7 @@ try {
   await page.screenshot({ path: join(root, '.dianjing', 'p5b-turn2.png') })
 
   // 前后端 session 对账：浏览器 sessionId 出现在后端 index.json
-  const indexPath = join(root, '.dianjing', 'pi-sessions', 'index.json')
+  const indexPath = join(root, 'pi-sessions', 'index.json')
   const index = existsSync(indexPath) ? JSON.parse(readFileSync(indexPath, 'utf8')) : {}
   check('后端 index.json 记录浏览器 sessionId', !!index[sessionId], Object.keys(index).join(','))
   const jsonlFile = index[sessionId]?.file

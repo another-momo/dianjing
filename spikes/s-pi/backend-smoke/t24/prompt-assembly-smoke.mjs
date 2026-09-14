@@ -117,6 +117,8 @@ const baseBody = stripFrontmatter(
 const backendEnv = {
   ...process.env,
   DIANJING_PI_BACKEND_PORT: String(PORT),
+  // D2：后端状态根不再跟 cwd——显式 override 钉 tempRoot（直指根本身）
+  DIANJING_ROOT_DIR: tempRoot,
   PI_PROMPT_PROBE_DIR: join(tempRoot, 'probe')
 }
 delete backendEnv.OPENROUTER_API_KEY
@@ -137,6 +139,7 @@ const BASE2 = `http://127.0.0.1:${PORT2}`
 const backendEnv2 = {
   ...process.env,
   DIANJING_PI_BACKEND_PORT: String(PORT2),
+  DIANJING_ROOT_DIR: emptyAssetsRoot,
   PI_PROMPT_PROBE_DIR: join(emptyAssetsRoot, 'probe')
 }
 delete backendEnv2.OPENROUTER_API_KEY

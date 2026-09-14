@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 export function readBackendToken(backendRoot) {
-  return readFileSync(join(backendRoot, '.dianjing', 'pi-backend-token'), 'utf8').trim()
+  return readFileSync(join(backendRoot, 'pi-backend-token'), 'utf8').trim()
 }
 
 export function authHeaders(token) {

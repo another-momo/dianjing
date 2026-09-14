@@ -62,7 +62,7 @@ const fileB = 'fx-b.jsonl'
 
 // ── ② 临时 rootDir + 合成会话族谱
 const tempRoot = mkdtempSync(join(tmpdir(), 't22-history-'))
-const sessionsDir = join(tempRoot, '.dianjing', 'pi-sessions')
+const sessionsDir = join(tempRoot, 'pi-sessions')
 mkdirSync(sessionsDir, { recursive: true })
 // pi-backend/studio/base.md：service 读盘需要（本冒烟不触发 prompt，仅为启动完整）
 mkdirSync(join(tempRoot, 'src/app/ai/pi-backend/studio'), { recursive: true })
@@ -130,7 +130,8 @@ writeFileSync(join(sessionsDir, 'index.json'), JSON.stringify(index, null, 2))
 const indexBefore = readFileSync(join(sessionsDir, 'index.json'), 'utf8')
 
 // ── ③ 起后端（无 LLM 调用，env 无需 key；显式剔除防环境泄漏干扰）
-const backendEnv = { ...process.env, DIANJING_PI_BACKEND_PORT: String(PORT) }
+// D2：后端状态根不再跟 cwd——显式 override 钉 tempRoot（直指根本身）
+const backendEnv = { ...process.env, DIANJING_PI_BACKEND_PORT: String(PORT), DIANJING_ROOT_DIR: tempRoot }
 delete backendEnv.OPENROUTER_API_KEY
 const backend = spawn('bun', ['run', join(repoRoot, 'src/app/ai/pi-backend/main.ts')], {
   cwd: tempRoot,

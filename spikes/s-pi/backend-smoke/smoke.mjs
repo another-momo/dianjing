@@ -110,7 +110,7 @@ check(
 )
 
 // 落盘：index.json 记录 + JSONL 文件存在且非空 + 管道侧 UTF-8 确定性断言
-const sessionsDir = join(root, '.dianjing', 'pi-sessions')
+const sessionsDir = join(root, 'pi-sessions')
 const indexPath = join(sessionsDir, 'index.json')
 check('index.json 存在', existsSync(indexPath))
 const index = existsSync(indexPath) ? JSON.parse(readFileSync(indexPath, 'utf8')) : {}

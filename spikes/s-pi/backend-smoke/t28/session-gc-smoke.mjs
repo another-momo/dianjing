@@ -9,7 +9,7 @@
  *  A 数量规则：DIANJING_MAX_SESSIONS=3，4 条存量 + 1 条新建 → 最老 2 条归档
  *  B 年龄规则：DIANJING_MAX_SESSIONS=100（数量不触发），backdate 一条 mtime
  *    到 40 天前（默认 MAX_AGE_DAYS=30）→ 仅该条归档
- * 归档语义：移动到 .dianjing/pi-sessions-archive/（保持文件名、不建索引），
+ * 归档语义：移动到 <rootDir>/pi-sessions-archive/（保持文件名、不建索引），
  * index.json 同步除条；listSessionFamily 不含归档、readHistory 归档返回空、
  * 未归档会话不受影响。
  *
@@ -70,8 +70,8 @@ const DAY = 24 * HOUR
 
 // ── 临时 rootDir + 4 条合成会话（mtime 递增：A1 最老 … A4 最新）
 const tempRoot = mkdtempSync(join(tmpdir(), 't28-gc-'))
-const sessionsDir = join(tempRoot, '.dianjing', 'pi-sessions')
-const archiveDir = join(tempRoot, '.dianjing', 'pi-sessions-archive')
+const sessionsDir = join(tempRoot, 'pi-sessions')
+const archiveDir = join(tempRoot, 'pi-sessions-archive')
 mkdirSync(sessionsDir, { recursive: true })
 // pi-backend/studio/base.md：service 读盘需要
 mkdirSync(join(tempRoot, 'src/app/ai/pi-backend/studio'), { recursive: true })
@@ -111,6 +111,7 @@ function spawnBackend(port, envExtra) {
   const backendEnv = {
     ...process.env,
     DIANJING_PI_BACKEND_PORT: String(port),
+    DIANJING_ROOT_DIR: tempRoot,
     ...envExtra
   }
   delete backendEnv.OPENROUTER_API_KEY

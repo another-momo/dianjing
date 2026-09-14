@@ -21,7 +21,7 @@ import { chromium } from "@playwright/test";
 const base = process.argv[2] ?? "http://localhost:1420";
 const root = process.cwd();
 const KEY = process.env.OPENROUTER_API_KEY ?? "";
-const authPath = join(root, ".dianjing", "pi-agent", "auth.json");
+const authPath = join(root, "pi-agent", "auth.json");
 
 function resolveChromiumExecutable() {
   if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {

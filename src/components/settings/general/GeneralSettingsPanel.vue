@@ -57,11 +57,12 @@ const snapToPixelGrid = computed({
 // 直接粘贴识别）；判不出的平台回退 Linux 形态。
 const isWindowsUA = navigator.userAgent.includes('Windows')
 const isMacUA = !isWindowsUA && navigator.userAgent.includes('Mac')
-const studioFolderPath = isWindowsUA
-  ? '%APPDATA%\\Dianjing\\studio'
-  : isMacUA
-    ? '~/Library/Application Support/Dianjing/studio'
-    : '~/.config/Dianjing/studio'
+function platformStudioFolderPath(): string {
+  if (isWindowsUA) return '%APPDATA%\\Dianjing\\studio'
+  if (isMacUA) return '~/Library/Application Support/Dianjing/studio'
+  return '~/.config/Dianjing/studio'
+}
+const studioFolderPath = platformStudioFolderPath()
 const copyStatus = ref<'idle' | 'copied' | 'failed'>('idle')
 
 async function copyStudioFolderPath(): Promise<void> {

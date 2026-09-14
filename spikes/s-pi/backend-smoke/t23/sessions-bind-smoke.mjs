@@ -46,7 +46,7 @@ selectors.setTestIdAttribute('data-test-id')
 
 const base = process.argv[2] ?? 'http://localhost:1420'
 const root = process.cwd()
-const sessionsDir = join(root, '.dianjing', 'pi-sessions')
+const sessionsDir = join(root, 'pi-sessions')
 const indexPath = join(sessionsDir, 'index.json')
 
 let passed = 0
