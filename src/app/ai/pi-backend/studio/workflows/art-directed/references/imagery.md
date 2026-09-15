@@ -1,105 +1,146 @@
-# 图像（生图 prompt 构造与回图诊断）
+# Imagery
 
-写任何交付资产 prompt 前读本篇；回图出错时再读一遍：图内出现文字、构图不符槽位、
-该空的带放了东西、镂空脏边、裁切不符计划区。资产拓扑、数量、批量纪律归
-本 mode 正文阶段 2；本篇管 prompt 构造与回图诊断。
+Read this before writing any shipping-asset prompt, and again when generated
+artwork comes back wrong: lettering appeared in the image, the composition does
+not match its slot, a band that should be empty has objects in it, a cutout has
+a dirty matte, or the crop does not fit its planned region. The workflow
+section above owns asset topology, count, batching, and import policy; this
+reference owns prompt construction and returned-image diagnostics.
 
-## 预留空间：只描述外观
+## Reserved space: describe appearance only
 
-先定哪些区域会被文字覆盖，然后**纯按物理属性描述那些区域**：
-
-```
-错：「顶部留出干净的深色负空间给标题」
-对：「上三分之一是连续、低细节、较暗的天空，其中没有物体、符号、
-    边框或高对比记号」
-```
-
-**实测：点名占据者 10 次出 10 次人造物；只描述外观 13 次出 0 次。** 跨两个场景、
-两种取景名词成立。
-
-触发词是「给标题」「给 logo 留位」「放价格的地方」「文案区」。告诉模型那里有东西，
-它就画东西——有时是真文字，有时是空椭圆或空条。后者同样有害：你的 Text 节点压
-上去，双双不可读。
-
-只说那区域**是什么**：天空、墙面、虚化枝叶、平影、均匀纸纹——并且它是空的、
-均匀的。
-
-## 声明的比例是意图，不是契约
-
-点名画面份额得到的是「大致那类区域」，不是「那个尺寸的区域」。同一后端实测两次：
-一次要右侧 16% 给了 22%；另一次要 34% 给了 **11%**。过供与欠供，同一措辞模式。
-
-所以永不按你要来的数字排版。二选一：生成后先量——横向或纵向扫描条带，找墨迹
-实际起止——再定坐标；或留远超版面所需的边距、接受浪费。靠边距恰好够大才活下来
-的版面是运气，不是规划。
-
-## 带式写法
-
-全幅背景按水平带描述，每带一句话给四样：**位置与高度份额、材质、亮度、细节密度**。
+Work out which regions text will cover, then **describe those regions purely by
+their physical properties**:
 
 ```
-构图读作三条水平带。
-顶部 35%：连绵均匀的淡灰白雾天，完全平滑均匀——无云、无鸟、无日轮、
-无物体、无记号，整带无高对比细节。
-中带（约 37% 高）：层叠的茶田山脊退入雾中，深蓝绿剪影，柔和空气透视，
-全帧最强细节集中于此。
-底部 28%：平坦均匀的低伏淡雾，极低纹理，亮度均匀，空。
+WRONG: "leave clean dark negative space at the top for the headline"
+RIGHT: "the top third is a continuous, low-detail, darker sky with no objects,
+        symbols, borders, or high-contrast marks in it"
 ```
 
-两到四带都合理，让版面决定。要载文的带，亮度须与文字色明显拉开；不载文的带才
-是主体与细节的去处。
+**Measured: naming the occupant produced an artefact 10 times out of 10;
+describing appearance only, 0 times out of 13.** Holds across two scenes and two
+framing nouns.
 
-**prompt 用英文写，即使海报是别的语言。** 图像模型跟英文更稳，prompt 永不上画布。
+The trigger phrases are "for the headline", "space for the logo", "room for the
+price", "space for copy". Tell the model something goes there and it draws
+something — sometimes real lettering, sometimes an empty oval or bar. The second
+is just as harmful: your live text node lands on it and both become unreadable.
 
-注意上面「无云、无鸟、无物体」与负向指令的区别：这些子句修饰的是已正面描述的
-东西——说那片雾天有多干净。「无文字」无所修饰。
+Say what the region **is**: sky, a wall, blurred foliage, flat shadow, an even
+wash of paper — and that it is empty and uniform.
 
-## 负向指令无效
+## A stated proportion is an intent, not a contract
 
-「no text, no lettering」实测无效。多数现行图像后端不是扩散模型：扩散模型的负向
-prompt 在 CFG 里真实减去负嵌入，而多模态模型生图没有这条通道——否定只是多几个
-token，模型本来就不擅长处理否定。
+Naming a share of the frame gets you a region of roughly that kind, not a region
+of that size. Measured across two backdrops from the same model: one asked for a
+clean right-hand 16 percent and got 22 percent; the other asked for 34 percent and
+got **11**. Over-delivery and under-delivery, same wording pattern, same backend.
 
-真正起作用的机制是描述外观。
+So never lay out against the number you asked for. Either measure the generated
+backdrop before writing any coordinates — scan it in horizontal or vertical strips
+and find where the ink actually starts — or leave far more margin than the layout
+needs and accept the wasted space. A layout that survives only because the margin
+happened to be generous was saved by luck, not by planning.
 
-## 尺寸
+## Band phrasing
 
-**工具有尺寸参数就用参数；不用散文描述画幅。** 参数是确定的，散文是概率的。
+Describe a full-bleed backdrop as horizontal bands, one sentence each, giving
+four things: position and share of the height, the material, the brightness, and
+the detail density.
 
-- 全幅图给画布比例（generate_image 的 `width` / `height`）
-- 槽位图给槽位自身尺寸
-- 宽高会被 16px 对齐并裁剪到 API 约束（保持比例），调整在结果 note 里报告——
-  落位后用 describe 核实实际尺寸
+```
+The composition reads as three horizontal bands.
+Top 35 percent: an unbroken, even, pale grey-white fog sky, completely smooth
+and uniform, no clouds, no birds, no sun disc, no objects, no marks, and no
+high-contrast detail anywhere in it.
+Middle band, about 37 percent of the height: layered ridgelines of tea terraces
+receding into mist, dark blue-green silhouettes, soft atmospheric perspective,
+the strongest detail of the whole frame concentrated here.
+Bottom 28 percent: a flat, even wash of low-lying pale mist, extremely low
+texture, uniform brightness, empty.
+```
 
-回图比例不符计划区时**裁剪不拉伸**：容器 `overflow="hidden"` 承裁、图像按填充落位。
-**裁向不载文的带**——保住标题所在的平静带，放弃没有文字落的带。
+Two to four bands are both reasonable; let the layout decide. Bands that will
+carry text need brightness well separated from the text colour. Bands that carry
+no text are where the subject and the detail belong.
 
-## 透明资产
+**Write the prompt in English even when the poster is in another language.**
+Image models follow English more reliably and the prompt never appears in the
+poster.
 
-原生透明是输出控制，不是视觉 prompt 风格。本环境 generate_image 无独立
-background 参数——在 prompt 里要求真正透明的背景（永不要棋盘格描述），主体紧致、
-四周留空，便于落位与裁切。
+Note the difference between the "no clouds, no birds, no objects" above and a
+negative instruction. Those clauses modify something already described
+positively — they say how clean that fog sky is. "no text" modifies nothing.
 
-落位前用 look 确认：空角是真透明、alpha 边缘干净。把棋盘格画进像素 = 烘焙假透明。
-主体正确但透明检查失败时，不再为同一主体浪费生成重试：改设计绕开（带底槽位化
-或换 stock_photo / 用户素材），或向用户报告该槽缺位。
+## Negative instructions do not work
 
-每个独立可动镂空主体一次调用一张图。一次调用要多个分离主体仍只回一张位图，
-变不出多个透明资产。
+"no text, no lettering" has been measured to have no effect. Most current
+image backends are not diffusion models: a diffusion model's negative prompt
+genuinely subtracts a negative embedding inside CFG, whereas a multimodal model
+generating an image has no such channel — the negation is just a few more tokens,
+and models handle negation poorly to begin with.
 
-## 图上文字的对比度
+Describing appearance is the mechanism that actually works.
 
-显式处理、按文字块定尺寸：实色面板、scrim 或定向渐变。不赌图在你需要的位置恰好
-够暗——换个尺度就不暗了。
+## Size
 
-留意 scrim 边缘：半透明矩形的硬边在渲染里显形——拉到画布边，或渐隐收尾。
+**Use the size parameter when the tool has one; do not describe the frame in
+prose.** A parameter is deterministic, prose is probabilistic.
 
-## 可控与不可控
+- A full-bleed image gets the canvas proportions
+- Slot artwork gets the slot's own dimensions
+- If the tool only accepts an aspect ratio, give the ratio
+- With no size control at all, the frame can only be implied in prose ("tall
+  vertical portrait composition"), and the same prompt may return 1408x768 one
+  time and 896x1200 the next. Expect to retry
 
-**可控**：散文描述、参考图（generate_image references——图生图与局部编辑）、
-镂空、输出尺寸。
+When the returned image has the wrong proportions, crop it deliberately: clip
+in the container with `overflow="hidden"` and let the image fill toward the
+planned region. **Crop toward the bands that carry no text** — keep the flat
+band the headline sits on and give up the one nothing lands on.
 
-**不可控**：种子与可复现性（同 prompt 每次都不同，重试是唯一杠杆）、负向 prompt、
-一次调用出多个独立可编辑文件。
+## Transparent assets
 
-两列与底层是哪个图像工具无关。
+Native transparency is an output control, not a visual prompt style. Follow the
+active image-generation capability's transparency workflow. When the API
+accepts a per-request `background` value, pass `transparent` explicitly and
+use PNG or WebP; do not rely on prompt wording alone. When the API does not
+expose that parameter (or accepts only fixed values), ask for a genuinely
+transparent background in the prompt, never describe a checkerboard, preserve
+any returned alpha channel, and treat the result as provisional until
+inspected.
+
+Before placing a transparent asset on the canvas, confirm that its empty corners
+are truly transparent and its alpha edges are clean. An RGB file that visibly
+contains a checkerboard has baked pixels, not transparency. If the subject is
+correct but the alpha check fails, do not spend another generation retry on the
+same subject: change the design around it (switch to a backplate slot or to
+stock_photo / user-supplied material), or report the missing slot to the user.
+
+Generate each independently movable cutout as its own file. One call containing
+several separated subjects still returns one bitmap and does not create several
+transparent assets.
+
+Ask for a compact subject with room around it so it can be positioned and
+cropped cleanly.
+
+## Contrast where text sits over artwork
+
+Use an explicit treatment sized to the text block: a solid panel, a scrim, or a
+directional gradient. Do not count on the image being dark enough exactly where
+you need it — change the scale and it no longer is.
+
+Watch the edges of a scrim: the hard edge of a semi-transparent rectangle is
+visible in the render. Either run it to the canvas edge or fade it out.
+
+## Controllable and not
+
+**Controllable**: the prose description, reference images (`generate_image`
+`references` — image-to-image and local edits), cutouts, output size or ratio.
+
+**Not controllable**: seed and reproducibility (the same prompt differs every
+time; retrying is the only lever), negative prompts, or several independently
+editable files from one built-in call.
+
+Neither column depends on which image tool is behind it.

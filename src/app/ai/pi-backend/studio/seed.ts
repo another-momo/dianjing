@@ -57,6 +57,14 @@ const README_CONTENT = `# 自定义拓展目录
   \`SKILL.md\` 是另一份 skill。frontmatter 必填 \`description\`（\`name\`
   缺省回退父目录名）。无 description 的 SKILL.md 直接被 SDK 拒收。
 
+## base.md 与按需参考
+
+\`base.md\` 也可覆盖（放本目录根）：所有 mode 共享的行为基座，每回合注入。
+base / workflow / profile 的 frontmatter 均可声明 \`references\` 按需参考
+（\`[{path, description}]\`），agent 经 \`load_reference\` 工具按需读取——
+path 相对该资产文件所在目录解析：用户覆盖 base.md 时，其 references 相对
+**本目录**解析（如声明 \`references/xxx.md\` 即读本目录 \`references/xxx.md\`）。
+
 ## 起步
 
 首跑已把内置 \`_example\` 复制到 \`workflows/\` 与 \`profiles/\`——

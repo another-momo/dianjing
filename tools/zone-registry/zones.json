@@ -124,7 +124,7 @@
       "oldPath": "src/app/ai/chat/system-prompt.md",
       "newPaths": ["src/app/ai/pi-backend/studio/base.md"],
       "since": "T46 (2026-08)",
-      "note": "提示词谱系：T46 转写副本 2026-09-05 退役，studio/ 唯一真源；2026-09-14 上游转 compose 架构（17+/569-，system-prompt.ts + design-jsx/reference），不采；内容净增量扫描另行"
+      "note": "提示词谱系：T46 转写副本 2026-09-05 退役，studio/ 唯一真源；2026-09-14 上游转 compose 架构（17+/569-，system-prompt.ts + design-jsx/reference），不采；内容净增量扫描另行；2026-09-15 studio-assets-import：base.md 双姿态重写 + JSX 语法下沉 studio/references/render-jsx.md（base references 按需机制首个消费者；与 design-jsx/reference/authoring.md 按三分法对账——schema 清单全用/教义改写用/我方纪律自留，变量组件层缓入待吸收评估）"
     },
     {
       "oldPath": "src/components/settings/models/ModelsPanel.vue",

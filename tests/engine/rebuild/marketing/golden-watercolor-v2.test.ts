@@ -83,17 +83,19 @@ interface Tier750 {
 
 function readTier750(): Tier750 {
   const text = readFileSync(PROFILE_PATH, 'utf8')
-  const m =
-    /At W=750[^:]*: hero title (\d+)–(\d+)px, section titles (\d+)–(\d+), body (\d+)–(\d+), captions (\d+)–(\d+)/.exec(
-      text
-    )
-  if (!m) throw new Error('profile 的 W=750 字阶句未匹配——Typography 节字阶表述被改写？')
-  const nums = m.slice(1).map(Number) as number[]
+  // 2026-09-15 调优版 Typography 节改按要素逐行表述（hero title/section titles/
+  // body/captions 四行各带 750 与 1080 两档）——按行提取 750 档数值，行结构改写
+  // 即抛错守门（与旧单句正则同语义：字阶表述改写需人工核对门禁）
+  const grab = (label: string): [number, number] => {
+    const m = new RegExp(`\\*\\*${label}\\*\\*[^\\n]*?(\\d+)–(\\d+)px`).exec(text)
+    if (!m) throw new Error(`profile 的 ${label} 750 档字阶行未匹配——Typography 节字阶表述被改写？`)
+    return [Number(m[1]), Number(m[2])]
+  }
   return {
-    hero: [nums[0], nums[1]],
-    section: [nums[2], nums[3]],
-    body: [nums[4], nums[5]],
-    caption: [nums[6], nums[7]]
+    hero: grab('Hero title'),
+    section: grab('Section titles'),
+    body: grab('Body'),
+    caption: grab('Captions')
   }
 }
 

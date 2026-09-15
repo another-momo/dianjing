@@ -38,7 +38,7 @@ const TOKEN_PATTERN_SOURCE = '「@画布选区-(\\d+)」'
 /** 全局扫描用（matchAll 要求 g flag；每次新建实例避免 lastIndex 串扰） */
 const TOKEN_PATTERN_GLOBAL = new RegExp(TOKEN_PATTERN_SOURCE, 'g')
 
-/** 清单头（与 longform-hero-kv-first.md 通用纪律第 4 则 `[画布选区]` 前缀一致） */
+/** 清单头字面量——选区清单的序列化契约：前端以此前缀产出清单块，prompt 侧按此前缀识别（改动需与 prompt 资产同步） */
 export const SELECTION_MANIFEST_HEADER = '[画布选区]'
 
 /** 生成占位串字面量 */

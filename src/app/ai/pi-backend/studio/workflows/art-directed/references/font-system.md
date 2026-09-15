@@ -1,49 +1,79 @@
-# 字体系统
+# Font system
 
-排印担纲设计、brief 需要独特编辑声部、或手头选择太泛（默认无衬线一对了事）时
-读本篇。
+Read this when typography carries the design, when the brief needs a distinctive
+editorial voice, or when the defaults feel generic.
 
-## 两种计数
+## Two different counts
 
-**构图用字系统**与「可供替换的字体清单」不是一回事。本环境交付物是画布成品，
-只认前者：一张成品海报通常用**两到三个族**——一个展示声部、一个正文声部、
-可选一个效用/点缀声部。海报、封面、传单、活动稿不许只排一族通用无衬线了事，
-除非 brief 或品牌刻意要求单族身份（base 的「单一家族」缺省纪律在本 mode 按此
-细化；与 profile 冲突时以 profile 为准）。正文 sans、另一个几乎一样的 sans、
-同一 sans 换个字重——不算三个声部。
+The **active type system** and the **editable font palette** are not the same.
 
-## 可用字体选型（单源 = 本环境字体清单）
+- A finished poster normally uses two or three families: one display voice, one
+  text voice, and optionally one utility or accent voice.
+- The canvas may expose many more families so a user has meaningful
+  alternatives. Do not use every exposed family in the composition.
 
-从可用字体清单选族（清单为唯一来源——profile 声明的字体也须落在清单内）。按声部角色选：
+For a poster, cover, flyer, or campaign, declare at least three meaningfully
+different selectable font roles unless the brief deliberately specifies a
+single-family identity. A body sans, another nearly identical sans, and the
+same sans at a different weight are not three roles.
 
-| 家族                   | 声部                          | 最佳用途                                                    |
-| ---------------------- | ----------------------------- | ----------------------------------------------------------- |
-| Inter                  | 拉丁无衬线（bundled，5 字重） | 拉丁正文/标签/数字声部；不排中文                            |
-| Alibaba PuHuiTi        | 中文无衬线（bundled，9 字重） | 中文正文到展示的全能基座（Heavy/Black 慎用，主要展示/装饰） |
-| Source Han Serif CN VF | 中文宋体（可变 250–900）      | 中文编辑感、文化、文学、高级感展示与正文                    |
-| LXGW WenKai            | 中文楷体手写（3 字重）        | 短句手写点缀与标题——结构性偏细，撑不住大标题                |
-| Xiaolai SC             | 中文宋体衍生（Regular）       | 中文编辑感正文与内文标题                                    |
-| Yozai                  | 中文黑体衍生（4 字重）        | 中文信息设计、活动稿正文与副标                              |
-| MaokenAssortedSans     | 中文手写展示（Regular）       | 玩趣、年轻、短句展示                                        |
-| 寒蝉全圆体             | 中文圆体（Regular/Bold）      | 亲和、儿童、轻量活动稿                                      |
-| Noto Naskh Arabic      | 阿拉伯文（Regular）           | 阿拉伯文种专用                                              |
+## Voice roles
 
-## 配对求结构对比，不只是字重对比
+Design by voice first, then commit to a family only after verifying it is in
+the host. The table below names the design voices the kit was curated for, and
+the concrete Fontsource / system family that fills each role — but the host's
+actual list may differ. Use `list_available_fonts` to enumerate what is
+currently renderable; the family you commit to is the intersection of the role
+recommendation and the host's available list.
 
-- 中文编辑/文化：Source Han Serif CN VF（展示）+ Alibaba PuHuiTi（正文）
-- 中文表达性海报：LXGW WenKai 或 MaokenAssortedSans（短句展示）+ Yozai 或
-  Alibaba PuHuiTi（一切更长文字）
-- 技术/信息：Alibaba PuHuiTi + Inter（中西分族——拉丁与数字声部归 Inter）
-- 亲和/轻量：寒蝉全圆体（展示）+ Alibaba PuHuiTi（正文）
+| ID                     | Voice                            | Family                    | Best use                                                |
+| ---------------------- | -------------------------------- | ------------------------- | ------------------------------------------------------- |
+| `editorial-serif`      | high-contrast editorial serif    | Fraunces Variable         | expressive editorial and cultural headlines             |
+| `luxury-serif`         | high-contrast didone-style serif | Bodoni Moda Variable      | fashion, beauty, luxury, magazine covers                |
+| `clean-sans`           | quiet grotesque sans             | Instrument Sans Variable  | refined campaigns and editorial body copy               |
+| `geometric-sans`       | geometric sans                   | Space Grotesk Variable    | technology, information, contemporary labels            |
+| `condensed-sans`       | condensed sans                   | Roboto Condensed Variable | dense layouts, deck lines, prices, utilities            |
+| `experimental-display` | variable display face            | Unbounded Variable        | art, music, youth, experimental display                 |
+| `cjk-sans`             | Chinese sans                     | Noto Sans SC              | Chinese body copy, campaigns, information design        |
+| `cjk-serif`            | Chinese serif                    | Noto Serif SC             | Chinese editorial, culture, literature, premium display |
+| `cjk-calligraphy`      | Chinese handwritten              | Ma Shan Zheng             | short Chinese handwritten accents and titles            |
+| `cjk-display`          | Chinese display face             | ZCOOL XiaoWei             | distinctive Chinese editorial display titles            |
 
-不用展示族或手写族排段落。不给缺对应样式的 CJK 族用合成粗体/斜体。中西混排的
-展示行可分设族（分段 Text 节点或 set_font_range）——要让拉丁声部不消失在 CJK
-族背后。
+When a recommended family is not in the host, fall back to another family
+matching the same voice (e.g. any high-contrast didone for `luxury-serif`,
+any quiet grotesque for `clean-sans`). When no family in the host matches
+the voice well enough, relax the role constraint — the design should not be
+shipped on a missing family.
 
-## 落地纪律
+System fonts pass through unchanged when they appear in a font name — those
+are user assets. If design intent depends on a specific voice, name a family
+that matches the role and confirm it exists in the host before committing.
 
-- 只用清单内家族；系统本地字体是用户资产（不受清单约束），但设计意图依赖它
-  时向用户声明该依赖。
-- 每族有明确角色与文种覆盖；渲染后 describe 树摘要行逐文本节点核对字族/字号
-  （`"文本" Npx 字族`），落地错配当场修（set_font / update_node / batch_update）。
-- 字重名对不上会回退 400 并告警（base 已定）——describe 的 warning 里认这件事。
+## Pairing by contrast
+
+Choose pairs that differ in structure, not merely in weight:
+
+- luxury campaign: `luxury-serif` + `clean-sans`
+- editorial or culture: `editorial-serif` + `clean-sans`
+- technical information: `geometric-sans` + `condensed-sans`
+- Chinese editorial: `cjk-serif` + `cjk-sans`, optionally a Latin display face
+- Chinese expressive poster: `cjk-display` or `cjk-calligraphy` for short display
+  copy, with `cjk-sans` or `cjk-serif` for everything longer
+- experimental art: `experimental-display` + a quiet sans or serif
+
+Do not set paragraphs in a display or calligraphic face. Do not use synthetic
+bold or italics on CJK fonts that do not supply those styles. Mixed Chinese and
+Latin display lines may use separate text spans (multi-node text or
+`set_font_range`) when the intended Latin voice would otherwise disappear
+behind the CJK family.
+
+## Shipping rules
+
+- Use only families present in the host. System-local fonts pass through
+  unchanged, but declaring a design dependency on one should be told to the
+  user.
+- Each family has a defined role and script coverage. After render, run
+  `describe` once and read its tree summary's per-node family-and-size lines;
+  fix any mismatch in place (`set_font` / `set_font_range`).
+- A weight name that the family does not provide silently falls back to 400 and
+  emits a `describe` warning. Recognise this in the warning list.

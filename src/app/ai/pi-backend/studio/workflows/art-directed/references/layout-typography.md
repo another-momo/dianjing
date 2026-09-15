@@ -1,81 +1,114 @@
-# 版式与排印
+# Layout and typography
 
-版式拿不准时、以及渲染「处处正确但没设计感」时读本篇。入口是本 mode 正文
-的「一体化设计决策」（阶段 1）与「JSX 构建约定」节（阶段 3）。
+Read this before rendering when the layout is unclear, and again when the
+result is "correct everywhere but does not look designed". The "Shape the
+poster" section of the workflow is the entry point.
 
-海报从远处读、只扫一遍、顺序固定。以下一切服务于此。
+A poster is read from a distance, scanned once, and taken in a fixed order.
+Everything below serves that.
 
-## 版式
+## Layout
 
-**层级即全部工作。** 观众三遍吸收一张海报：钩子 → 主张 → 细节。用尺寸、字重、
-色彩、留白砌出这架阶梯，每级真的不同。两个视觉重量相近的元素互相打架、双双皆输。
-强调一切 = 强调零。
+**Hierarchy is the whole job.** A viewer should absorb a poster in three passes:
+the hook, then the claim, then the detail. Build that staircase with size,
+weight, colour, and white space, and make the steps genuinely different. Two
+elements of similar visual weight compete and both lose. Emphasising everything
+emphasises nothing.
 
-**留白是结构，不是剩余。** 慷慨、刻意的边距与 gutter 是「设计过的海报」与
-「填满的海报」的分界。
+**White space is structure, not what is left over.** Generous, deliberate margins
+and gutters are the line between a designed poster and a filled one.
 
-**对齐网格。** 先定边距与列，再让一切落上去。视觉对齐胜过凭记忆敲的偏移；
-几乎对齐的边读起来就是错误。
+**Align to a grid.** Fix the margins and columns first, then place everything on
+them. Optical alignment beats an offset you typed from memory; an edge that
+is almost aligned reads as a mistake.
 
-**调色板按角色管，不按数量管。** 先定场、文字、强调、语义态角色。克制海报也许
-只需很少色；品牌、参考主导或信息密集的海报也许要更多。每色必须有构图或语义职责。
+**Control the palette by role, not count.** Define the field, text, accent, and
+semantic roles first. A restrained poster may need very few colours; a brand,
+reference-led, or information-dense poster may need more. Every colour must
+have a compositional or semantic job.
 
-**认准一个方向**——编辑感、奢侈、粗野、玩趣、技术感。选一个让它驱动每个决定。
-在两个方向之间对冲的海报读起来两者皆不是。
+**Commit to one direction** — editorial, luxury, brutalist, playful, technical.
+Pick one and let it drive every decision. A poster hedging between two reads as
+neither.
 
-**反模式：**
+**Anti-patterns:**
 
-- 默认一切居中
-- 不相关块之间等距，把层级压平
-- 文字直压忙图、无对比处理
-- 用边框、徽章、规则线填空代替真结构
-- 用投影与渐变给弱版式打补丁
-- 卖场风：爆炸贴、没来由的斜缎带、剪贴画
+- Centring everything by default
+- Equal spacing between unrelated blocks, flattening the hierarchy
+- Text straight over busy artwork with no contrast treatment
+- Borders, badges, and rules filling space in place of real structure
+- Drop shadows and gradients patching a weak layout
+- Marketplace styling: starbursts, unmotivated diagonal ribbons, clip art
 
-海报在全尺寸下要显得讲究，缩略图下仍读得出结构。
+A poster should look considered at full size and still read structurally as a
+thumbnail.
 
-## 与背景图共事
+## Working with the backdrop
 
-全幅背景存在后，你不是在白纸上排版——是在那张图的带上排版。
+Once the full-bleed backdrop exists, you are not laying out on white paper — you
+are laying out on that image's bands.
 
-- 文字块落在**平静**带上；主体与细节守自己的带
-- 文字边距随图的构图呼吸；别沿主体边缘排字
-- 一条带内超过两级层级，就浪费了你向那带要的平静
-- 背景换了就重排版面——同一组坐标在另一张图上 rarely 成立
+- Text blocks land on the **flat** bands; the subject and the detail keep their own
+- Let the text margins breathe with the image's composition; do not run type
+  along the edge of the subject
+- More than two levels of hierarchy inside one band wastes the flatness you
+  asked the band for
+- If the backdrop changes, revisit the layout. The same coordinates rarely hold
+  on a different image
 
-## 排印
+## Typography
 
-给每个字族明确角色与文种覆盖（选族与配对详见 `font-system.md`）。加族是因为
-品牌、参考、文种或排印对比需要，不是装饰。别把视觉一致误当排印单一：成品海报
-通常激活两到三个族。
+Give every family a distinct job and valid script coverage. Add a family when
+the brand, reference, script, or typographic contrast requires it, not as
+decoration. Read [Font system](font-system.md) for the available families,
+pairing patterns, and shipping rules.
 
-**砌真字阶。** display、headline、subhead、body、caption，每档明显区别于上一档。
-10% 级差的字阶读起来像事故。
+Do not confuse visual consistency with typographic sameness. A finished poster
+usually activates two or three families, even when the available list exposes
+many more.
 
-- 大展示字收字距；小写全大写略放字距
-- **单行块加 letterSpacing 留意宽度**：字距加在末字之后，量得的内容宽比字形
-  所需宽一点——任何按量宽回写的操作都会把末字挤到第二行，块高翻倍且无人报错
-- 行高：展示级 1.1–1.2、正文 1.5–1.7（lineHeight 给 px 值，calc 算）
-- 海报正文每行 20–40 字
-- 不把文字跑到边；守住定下的边距
-- 渲染后无过小字——小字也是给人读的
+**Build a real size ramp.** display, headline, subhead, body, caption, each
+clearly different from the last. A ramp with 10 percent steps reads as an error.
 
-## CJK 排印
+- Tighten tracking on large display type; open it slightly on small caps
+- **A single-line block with `letter-spacing` needs explicit width awareness.**
+  Tracking adds space after the last character too, so the measured content
+  width is a fraction wider than the glyphs need. Anything that later writes that
+  measured width back — a layout pass converting the block to absolute
+  positioning, for instance — pushes the last character onto a second line.
+  The block's height doubles and nothing reports an error
+- Line height: 1.1–1.2 for display, 1.5–1.7 for body
+- Keep poster body copy to 20–40 characters per line
+- Do not run text to the edge; respect the margins you set
+- Nothing below 9px after rendering. Small type is still meant to be read
 
-- **选真覆盖该文种的族。** Latin-only 族不排中文；栈里须有 CJK 能力的族
-- **不用合成斜体/合成粗体。** 用真字重，或另一个族
-- **字重是选族，不只是选 weight。** 楷、行、手写体结构性偏细，任何字号都偏细
-  ——要压住页面的标题，从家族本身取字重
-- **CJK 展示字容紧字距；正文不容**
-- **中西混排把拉丁声部单独设族**（分段 Text 节点或 set_font_range），否则数字与
-  罗马字符继承 CJK 族的比例
+## CJK typography
 
-## 画布构建约定（render JSX）
+- **Choose a family that genuinely covers the script.** A Latin-only family must
+  not set CJK text; use a CJK-capable family in that stack
+- **No synthetic italics or synthetic bold.** Use a real weight, or another family
+- **Weight is a choice of family, not only of `font-weight`.** Kai, running-script,
+  and handwriting faces are structurally thin and stay thin at any size, so a
+  headline set in one looks weightless however large. When a headline has to hold
+  the page, take the weight from the family itself
+- **CJK display type tolerates tight tracking; body copy does not**
+- **In mixed settings put the Latin family first in the stack**, otherwise digits
+  and roman characters inherit the CJK face's proportions
+- **For vertical CJK type, give the single-line block an explicit width and
+  centre it; do not let the text ride the frame edge.** A block whose width
+  is left to the text engine can end up flush against the right margin, so
+  always declare the column width and centre inside it
 
-- 画布内一切承载布局的尺寸/位置/间距 = 固定 px（JSX 本就无 vw/vh/%——base 已定）
-- 调色板与字体族角色全稿一致引用
-- 图层位置显式（auto-layout 或绝对定位皆可——按该块的语义选，「JSX 构建约定」节）
-- 语义命名描述块在海报里的角色
-- 图像以节点填充落位，路径/URL 概念不存在于画布——素材经 brief 素材区与
-  generate_image / stock_photo 进场
-- 永不向画布嵌密钥/凭据
+## Markup conventions
+
+- Fixed px for every dimension, position, and gap that carries layout. No
+  vw/vh/vmin/vmax/%. Decorative values — gradient stops, radii, shadow spread —
+  are unrestricted
+- Palette and font roles referenced consistently throughout the canvas
+- Layers positioned inside the canvas (auto-layout where it carries the
+  semantic; absolute positioning when each coordinate is explicit)
+- Semantic `name` attributes describing the block's role on the poster
+- Images are placed as node fills (`set_image_fill`), not referenced by path or
+  URL — assets enter through the brief's assets region and `generate_image` /
+  `stock_photo`
+- Never embed, print, or commit a key or credential

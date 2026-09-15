@@ -1,51 +1,74 @@
-# 资产架构（多资产成组纪律）
+# Asset architecture
 
-仅当 art-directed 阶段 1 决策选定**槽位矩阵、镂空叠层或分层拼贴**时读本篇。
-拓扑选型与资产数量归 workflow 正文（阶段 1 一体化决策）；本篇管多资产成组纪律与
-资产计划的记录口径。每件资产怎么写 prompt、回图怎么诊断归 `imagery.md`。
+Read this only after the workflow's "integrated design decision" selects a slot
+matrix, cutout stack, or layered collage. The workflow section owns topology
+and asset count; this reference owns multi-asset cohesion and the
+asset-plan recording. [Imagery](imagery.md) controls how each asset is prompted
+and validated.
 
-## 多资产成组
+## Multi-asset cohesion
 
-### 槽位矩阵
+### Slot matrix
 
-产品家族、目录网格、对比、标本、菜单、时间线适用。每个有界格一张资产，网格、
-间距、标签、对齐由 JSX 定义（全格同几何）。
+Use for product families, catalog grids, comparisons, specimens, menus, and
+timelines. Give every bounded cell its own asset and let JSX define identical
+cell geometry, gutters, labels, and alignment.
 
-**冻结一块共享艺术指导**供全组 prompt 复用：机位 / 渲染风格、视角、光影、背景
-处理、尺度、配色、裁切——每条 prompt 只加主体差异。散文锁不住一组图：材质、
-机位、布景连续性要紧时，给每槽同一视觉风格锚——优先用 art-directed 构图参考
-当锚（经 generate_image references 传入并在 prompt 明写用法）；否则先生成并
-验收一张标杆槽位图，作其余槽的 references。风格锚记进资产计划。品牌实物产品
-必须用用户给的包装图（brief 素材区），不编造包装、标签或产品变体。
+Freeze one shared art-direction block for all prompts: camera, lens or rendering
+style, viewpoint, lighting, background treatment, scale, palette, and crop. Add
+only the subject-specific difference to each prompt. Prose alone does not lock a
+series: when material, camera, and set continuity matter, give every slot the
+same visual style anchor. Prefer the non-shipping art-directed reference when it
+already defines the set; otherwise generate and approve one canonical slot,
+then use it as the style reference for the remaining slots. Record the anchor
+in the asset plan. If exact branded products are required, use supplied
+packshots; do not invent packaging, labels, or product variants.
 
-### 镂空叠层
+### Cutout stack
 
-主体浮于场上、互相叠压、或穿过文字时用。**显式规划层序**，如：背景 → 后景装饰
-→ 标题 → 主体 → 前景细节 → 元信息；文字以真 Text 节点落在正确层序位置，永不
-烘进镂空图。
+Use when subjects float over a field, overlap one another, or cross typography.
+Plan the order explicitly, for example: backdrop, rear decoration, headline,
+main subject, foreground detail, metadata. Put exact text as live text nodes at
+the correct position in that order; never bake it into a cutout.
 
-每个独立可动主体一张透明图（透明纪律见 `imagery.md`），主体周围留足干净
-padding 便于落位与裁切。
+Use one transparent file per independently movable subject. Follow the
+transparency workflow in [Imagery](imagery.md), and keep enough clean padding
+around each subject for reliable positioning and cropping.
 
-### 分层拼贴
+### Layered collage
 
-克制基底场 + 有目的的碎片集。只拆叠压/角度/裁切/替换有所谓的碎片。摄影或材质
-复杂的碎片走生成；简单胶带、规则线、平纸多边形、相框用 JSX 几何直做。碎片复用
-仅当重复 visibly 是设计语言的一部分。
+Use a restrained base field plus a purposeful set of fragments. Split only
+pieces whose overlap, angle, crop, or replacement matters. Generate photographic
+or materially complex fragments; make simple tape, rules, flat paper polygons,
+and frames in JSX. Reuse a fragment only when repetition is visibly part of
+the design language.
 
-变化尺度、角度、边缘处理、纵深，但守住一个调色板、一套材质逻辑。不填满每个空
-——拼贴也要层级与负空间。
+Vary scale, angle, edge treatment, and depth, but preserve one palette and one
+material logic. Avoid filling every gap: collage still needs hierarchy and
+negative space.
 
-## 资产计划（两条以上交付资产时先记）
+## Asset plan
 
-不落文件——写进 brief AI 结论区（append_brief_conclusion 一行一条）。每件资产记：
-id 与形态（`backdrop` / `slot` / `cutout` / `fragment`）、目标矩形（画布上
-x/y/宽/高）、层序位、prompt 摘要、风格锚（共同参照的节点 id 或无）、依赖
-（仅当需要另一件的回图像素）、来源（`generated` / `user` / `provided-reference`）。
-JSX 文字与几何层单列一行，让叠压次序显式。
+Record this in the brief's conclusion area (one line per asset, append-only)
+when two or more shipping assets are required. Keep it small. For every asset
+record:
 
-## 组装检查
+- `id` and `form`: `backdrop`, `slot`, `cutout`, or `fragment`;
+- `rect`: intended `x`, `y`, `width`, and `height` on the poster canvas;
+- `layer`: its named position in the back-to-front order;
+- `prompt`: the prompt identifier used to write that asset's prompt;
+- `style_reference`: the common visual anchor node id or `null`;
+- `depends_on`: the prerequisite asset only when returned pixels from it are
+  required, otherwise empty;
+- `source`: `generated`, `user`, or `provided-reference`.
 
-- 每件资产落位前单独 look 查验——尤其 alpha 边缘与多余生成文字。
-- 整帧 look 查：矩形接缝、光向不一致、尺度错配、意外相切、文字被忙层夹住。
-- 若构图只能靠渐变与阴影遮缝才成立 = 拆错了——重生成连续场景或换架构，不遮。
+List text and geometry layers separately so the overlap order is explicit.
+
+## Assembly checks
+
+- Inspect every asset alone before assembly, especially alpha edges and unwanted
+  generated lettering.
+- Inspect the final canvas for rectangular seams, inconsistent light direction,
+  mismatched scale, accidental tangencies, and text trapped between busy layers.
+- If the composition only works after hiding seams with gradients and shadows,
+  the split was wrong. Regenerate a continuous scene or change the architecture.
