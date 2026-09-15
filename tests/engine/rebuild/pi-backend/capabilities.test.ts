@@ -311,3 +311,56 @@ test('T91o expandSkillText：未知 skill 名透传；无 /skill: 提及原文�
   expect(store.expandSkillText('/skill:ghost 不存在')).toBe('/skill:ghost 不存在')
   expect(store.expandSkillText('普通消息')).toBe('普通消息')
 })
+
+// ── 内置层合并（layer-splitting 等内置 skill 进 chips 清单 + 宿主展开面） ──
+
+/** 造一个内置层临时 skill（builtinSkillsDir/<name>/SKILL.md） */
+function writeBuiltinSkill(builtinSkillsDir: string, name: string, body: string): void {
+  const dir = join(builtinSkillsDir, name)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(
+    join(dir, 'SKILL.md'),
+    `---\nname: ${name}\ndescription: ${name} 内置描述\n---\n\n${body}\n`,
+    'utf8'
+  )
+}
+
+test('内置层 listSkills：用户层为空时内置 skill 也进清单（脱敏白名单同约束）', () => {
+  const builtinSkillsDir = join(rootDir, 'builtin-studio', 'skills')
+  writeBuiltinSkill(builtinSkillsDir, 'layer-splitting', '内置正文')
+  const store = createCapabilitiesStore({ agentDir, rootDir, builtinSkillsDir })
+  store.set({ agentSkills: true })
+  const skills = store.listSkills()
+  expect(skills).toEqual([{ name: 'layer-splitting', description: 'layer-splitting 内置描述' }])
+})
+
+test('内置层 listSkills：同名冲突用户层赢（与 SDK collision 先扫者赢同语义）', () => {
+  const builtinSkillsDir = join(rootDir, 'builtin-studio', 'skills')
+  writeSkill('demo', '用户侧正文')
+  writeBuiltinSkill(builtinSkillsDir, 'demo', '内置侧正文')
+  const store = createCapabilitiesStore({ agentDir, rootDir, builtinSkillsDir })
+  store.set({ agentSkills: true })
+  const skills = store.listSkills()
+  expect(skills).toEqual([{ name: 'demo', description: 'demo 描述' }])
+})
+
+test('内置层 expandSkillText：内置 skill 就地展开，location 指内置文件、引用相对内置目录', () => {
+  const builtinSkillsDir = join(rootDir, 'builtin-studio', 'skills')
+  writeBuiltinSkill(builtinSkillsDir, 'layer-splitting', 'BUILTIN 正文')
+  const store = createCapabilitiesStore({ agentDir, rootDir, builtinSkillsDir })
+  store.set({ agentSkills: true })
+  const out = store.expandSkillText('/skill:layer-splitting 拆这张图')
+  expect(out).toContain('<skill name="layer-splitting"')
+  expect(out).toContain('BUILTIN 正文')
+  expect(out).toContain(join(builtinSkillsDir, 'layer-splitting', 'SKILL.md'))
+  expect(out).toContain(`References are relative to ${join(builtinSkillsDir, 'layer-splitting')}`)
+})
+
+test('内置层 OFF 兜底：agentSkills OFF 时内置 skill 不进清单、不展开', () => {
+  const builtinSkillsDir = join(rootDir, 'builtin-studio', 'skills')
+  writeBuiltinSkill(builtinSkillsDir, 'layer-splitting', '内置正文')
+  const store = createCapabilitiesStore({ agentDir, rootDir, builtinSkillsDir })
+  store.set({ agentSkills: false })
+  expect(store.listSkills()).toEqual([])
+  expect(store.expandSkillText('/skill:layer-splitting 拆图')).toBe('/skill:layer-splitting 拆图')
+})

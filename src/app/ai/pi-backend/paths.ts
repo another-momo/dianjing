@@ -147,6 +147,14 @@ export function resolvePiBackendTokenPath(rootDir: string): string {
   return join(rootDir, PI_BACKEND_TOKEN_FILENAME)
 }
 
+/** `<builtinStudioDir>/skills/` —— 与 resolveSkillsDir 同构：内置 studio
+ *  资产下的 skills/ 子路径（layer-splitting 等内置 skill 落点）。入参即
+ *  readStudioBuiltinDir() 的产物（env.ts:221）；与 resolveSkillsDir(rootDir)
+ *  构成 additionalSkillPaths 的双源。 */
+export function resolveBuiltinSkillsDir(builtinStudioDir: string): string {
+  return join(builtinStudioDir, SKILLS_SUBDIR)
+}
+
 /** `rootDir/image-gen-output/` —— generate_image 「图片本地留存」目录（owner 拍板）；
  *  本地副本与画布 IMAGE fill 是同一份 bytes（透明背景后处理之后）。 */
 export const IMAGE_GEN_OUTPUT_SUBDIR = 'image-gen-output'

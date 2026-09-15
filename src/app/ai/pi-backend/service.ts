@@ -73,6 +73,7 @@ import { createPiEventMapper } from './mapping'
 import {
   resolveAgentDir,
   resolveArchiveDir,
+  resolveBuiltinSkillsDir,
   resolveImageGenOutputDir,
   resolveSessionsDir,
   resolveSkillsDir,
@@ -207,8 +208,14 @@ export function createPiChatService({
   const activeDesignBridge = createBridgeSlotIO()
   // T87：capabilities store 单例（与 stateDir/agentDir 同源）；session 装配按
   // builtinTools 切换 noTools/tools、按 agentSkills 切换 noSkills（T96 解耦）；
-  // manifest 投影/GET/PUT 共用此实例
-  const capabilitiesStore = createCapabilitiesStore({ agentDir, rootDir })
+  // manifest 投影/GET/PUT 共用此实例。builtinSkillsDir 与用户层同构（同闭包
+  // 上方 resolveStudioDirs 的产物）——内置 skill 进 chips 清单与宿主展开面，
+  // 与 DefaultResourceLoader additionalSkillPaths 双源对齐
+  const capabilitiesStore = createCapabilitiesStore({
+    agentDir,
+    rootDir,
+    builtinSkillsDir: builtinStudioDir ? resolveBuiltinSkillsDir(builtinStudioDir) : undefined
+  })
 
   const sessions = new Map<string, SessionEntry>()
 
@@ -402,7 +409,12 @@ export function createPiChatService({
           noContextFiles: true,
           noSkills: !capabilitiesStore.get().agentSkills,
           noPromptTemplates: true,
-          additionalSkillPaths: [resolveSkillsDir(rootDir)],
+          additionalSkillPaths: [
+            resolveSkillsDir(rootDir),
+            // 内置层：studio 内置资产下的 skills/（layer-splitting 等内置 skill）——与用户层同构；
+            // builtinStudioDir 来自同闭包上方 resolveStudioDirs(rootDir, readStudioBuiltinDir())。
+            ...(builtinStudioDir ? [resolveBuiltinSkillsDir(builtinStudioDir)] : [])
+          ],
           extensionFactories
         })
         // createAgentSession 只在自构 loader 时才 reload（sdk.js `if (!resourceLoader)`

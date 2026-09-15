@@ -24,11 +24,13 @@
  *  - getCapabilitiesForManifest() 投影只用 name + description，**绝不返回**
  *    filePath / baseDir / sourceInfo——这些是宿主内部坐标系，下发前端
  *    即泄漏内部路径（与 T45 §信任边界同质）。
- *  - T89：扫描目录改为单源 `${rootDir}/.dianjing/skills`（与 key-env /
- *    pi-agent / pi-sessions 同层私有状态目录），原 `${cwd}/.pi/skills` 与
- *    「pi coding agent」生态位冲突，已删除；agentDir/skills 也删除（agentDir
- *    仅用于 capabilities.json 持久化，不再承担 skill 扫描）。
- *  - 用 loadSkillsFromDir 单目录扫描，不暴露 SDK 默认扫描假设。
+ *  - 扫描面双源：用户层 `${rootDir}/studio/skills`（resolveSkillsDir）+
+ *    内置层 builtinSkillsDir（resolveBuiltinSkillsDir 的产物，可选——缺省
+ *    即无内置层）；合并先到先得（用户层赢同名），与 SDK loadSkills 的
+ *    collision 语义（skillMap 先扫者赢）及 service.ts additionalSkillPaths
+ *    [userDir, builtinDir] 顺序一致，用户层可覆盖内置默认。
+ *    agentDir 仅用于 capabilities.json 持久化，不承担 skill 扫描。
+ *  - 用 loadSkillsFromDir 逐目录扫描，不暴露 SDK 默认扫描假设。
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -103,10 +105,13 @@ export type CapabilitiesStore = {
 
 export function createCapabilitiesStore({
   agentDir,
-  rootDir
+  rootDir,
+  builtinSkillsDir
 }: {
   agentDir: string
   rootDir: string
+  /** 内置层 skills 目录（resolveBuiltinSkillsDir 的产物）；缺省 = 无内置层、单源用户层 */
+  builtinSkillsDir?: string
 }): CapabilitiesStore {
   const filePath = join(agentDir, 'capabilities.json')
   let cache: Capabilities | null | undefined
@@ -192,15 +197,31 @@ export function createCapabilitiesStore({
     }
   }
 
+  /**
+   * 可见 skill 合集（双源合并）：用户层先于内置层扫描，同名先到先得——
+   * 与 SDK loadSkills 的 collision 语义（skillMap 先扫者赢）及 service.ts
+   * additionalSkillPaths [userDir, builtinDir] 顺序一致；chips 清单、宿主
+   * 展开、SDK 运行时装配三面因此看到同一份赢家。
+   */
+  function loadVisibleSkills(): Skill[] {
+    const merged = new Map<string, Skill>()
+    const sources = [
+      [resolveSkillsDir(rootDir), 'user'],
+      [builtinSkillsDir, 'builtin']
+    ] as const
+    for (const [dir, source] of sources) {
+      if (!dir || !existsSync(dir)) continue
+      for (const skill of loadSkillsFromDir({ dir, source }).skills) {
+        if (!merged.has(skill.name)) merged.set(skill.name, skill)
+      }
+    }
+    return [...merged.values()]
+  }
+
   function listSkills(): ManifestSkillEntry[] {
     const caps = get()
     if (!caps.agentSkills) return []
-    // T89：单源扫描 `.dianjing/skills`（私有状态目录，与 key-env/pi-agent 同层）——
-    // 不调 loadSkills 全局版，避免引入 cwd/agentDir 之外的隐式来源
-    const userSkillsDir = resolveSkillsDir(rootDir)
-    if (!existsSync(userSkillsDir)) return []
-    const result = loadSkillsFromDir({ dir: userSkillsDir, source: 'user' })
-    return result.skills.map(projectSkill)
+    return loadVisibleSkills().map(projectSkill)
   }
 
   /** SKILL.md frontmatter 剥离（SDK stripFrontmatter 未导出；frontmatter = 文件头 --- 包裹块） */
@@ -210,9 +231,7 @@ export function createCapabilitiesStore({
 
   function expandSkillText(text: string): string {
     if (!get().agentSkills) return text
-    const userSkillsDir = resolveSkillsDir(rootDir)
-    if (!existsSync(userSkillsDir)) return text
-    const { skills } = loadSkillsFromDir({ dir: userSkillsDir, source: 'user' })
+    const skills = loadVisibleSkills()
     if (skills.length === 0) return text
     return text.replace(
       /\/skill:([A-Za-z0-9_-]+)/g,
