@@ -8,7 +8,7 @@
  * 每步 sha 与本地对象比对，任何一步不符即抛错中止。
  *
  * 前置条件：HEAD = 要推的提交；其父提交已在远端；与远端是 FF 关系。
- * 用法：bun tools/git-rescue/data-api-push.ts（仓内任意 cwd 可跑）。
+ * 用法：bun tools/git-rescue/src/data-api-push.ts（仓内任意 cwd 可跑）。
  * 实证：2026-09-09 .git 灭失重建；2026-09-15 两度 github.com:443 四连败兜底成功。
  */
 import { execSync } from 'node:child_process'

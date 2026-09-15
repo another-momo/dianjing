@@ -13,7 +13,7 @@
 
 - 主 agent 唯一允许：git 写（commit / merge-back）、browser 实测、gh 操作。
 - worker（subagent）：限定范围实现 + 目标测试文件；**禁**全量 test / dev / build、commit / push、`gh run rerun`；browser 默认禁——Playwright MCP 与主 agent 共享浏览器单例，派单显式授权时方可自验证且须互斥。commit / push 可经 owner 专项派单授权解禁（授权范围以派单文本为准）。
-- push：主 agent 每次收口 commit 后顺势推；失败允许重试 3 次、每次间隔 30s，仍败走 Data API 兜底脚本（`tools/git-rescue/data-api-push.ts`，api.github.com 通路独立于 git 传输层），再败积压归 owner。worker 禁 push。
+- push：主 agent 每次收口 commit 后顺势推；失败允许重试 3 次、每次间隔 30s，仍败走 Data API 兜底脚本（`tools/git-rescue/src/data-api-push.ts`，api.github.com 通路独立于 git 传输层），再败积压归 owner。worker 禁 push。
 - gh 命令一律带 `-R another-momo/dianjing`。
 
 ## 3. zone 纪律（改代码前必读）
@@ -57,7 +57,7 @@
 - Electron 主进程/sidecar 单文件产物必须显式 `deps.alwaysBundle` 兜底：tsdown 默认把根 package.json dependencies（含 workspace:* 的 `@open-pencil/*`）external 化，而打包形态 resources/app/ 无 node_modules（electron-builder.yml files 显式排除）——产物留裸 import，安装版主进程启动即炸 ERR_MODULE_NOT_FOUND；dev 形态仓根 node_modules 兜底会完美掩盖，只有打包 L3 能兜住（2026-09-14 ④ 实证，ff1b44d8d 修复）。
 - type-aware `no-unnecessary-condition` 狙 Record 防御性索引访问：非 noUncheckedIndexedAccess 配置下索引访问类型恒非空，`current?.x` / `if (!x)` 皆报「不必要」；「`| undefined` 注解 + 非空初值」会被 CFA 赋值窄化窄回非空照狙——用 `in` 守卫产真并型（2026-09-15 ask reducer 抽纯 3 错实证）。
 - `.vue` SFC 不进 type-aware 覆盖（实证盲区）——同一段防御写法在 .vue 里历年全绿、抽纯成 .ts 即被狙；.vue → .ts 抽纯后按 .ts 口径逐文件过 `--type-aware`（同上实证）。
-- steiger（check:arch）FSD 同前缀兄弟文件阈值 = 3（非 4）：同目录 ≥3 个同前缀文件即红——归域目录（ask/ 式）或错开前缀（2026-09-15 ask 测试四件归域实证）。
+- steiger（check:arch）FSD 同前缀兄弟文件阈值 = 3（非 4）：同目录 ≥3 个同前缀文件即红——归域目录（ask/ 式）或错开前缀（2026-09-15 ask 测试四件归域实证）。tools/<domain>/ 布局契约：工具文件必须落 `tools/<domain>/src/**`（strict-tools-layout），且域目录必须有 package.json 标记（test:tools 逐域读取，缺即 ENOENT——2026-09-15 git-rescue 入库首轮 CI 双红实证）。
 - ai SDK 就地改 tool part 对象（引用不变）——卡片状态门禁 computed 读 `part.state` 恒陈旧，须父级重渲染直传原值 prop（`:part-state` 模式；2026-09-15 ask 波2 实证：作答摘要此前只在历史重载时渲染）。
 
 ## 6. 测试纪律
