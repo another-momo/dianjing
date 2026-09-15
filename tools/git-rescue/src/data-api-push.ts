@@ -10,8 +10,8 @@
  * 前置条件：HEAD = 要推的提交；其父提交已在远端；与远端是 FF 关系。
  * 用法：bun tools/git-rescue/src/data-api-push.ts（仓内任意 cwd 可跑）。
  * 实证：2026-09-09 .git 灭失重建；2026-09-15 两度 github.com:443 四连败兜底成功；
- * 同日三连败首用本仓版，撞删除/重命名盲区（--name-only 对 D 侧 rev-parse 即炸），
- * 已补 --name-status 分流（D → sha:null 删条目，R 经 --no-renames 拆 D+A）。
+ * 同日三连败首用本仓版连撞三盲区（删除/重命名、脏树、detached HEAD 复用脚本
+ * 须 commit 化），皆已修。
  */
 import { execSync } from 'node:child_process'
 import { writeFileSync, unlinkSync } from 'node:fs'
@@ -65,8 +65,9 @@ console.log(
   `本地对象：commit=${localCommit.slice(0, 9)} tree=${localTree.slice(0, 9)} parent=${parent.slice(0, 9)} 文件 ${files.length} 件`
 )
 
-// 1) 逐文件 blob——A/M 字节级 base64 上传，sha 必须与本地一致；
-//    D 以 sha:null 条目从树中删除（--no-renames 使 R 自然拆 D+A，无需专判）
+// 1) 逐文件 blob——A/M 按 sha 取对象库内容（工作树脏时盘读与 HEAD 分叉、
+//    blob sha 校验必炸），D 以 sha:null 条目从树中删除；
+//    --no-renames 使 R 自然拆 D+A 无需专判
 const entries: Array<{ path: string; mode: string; type: string; sha: string | null }> = []
 for (const line of files) {
   const [status, path] = line.split('\t')
@@ -76,8 +77,6 @@ for (const line of files) {
     continue
   }
   const localBlob = git(`rev-parse "HEAD:${path}"`).trim()
-  // 内容必须取自 git 对象库而非工作树——工作树脏（未提交改动）时盘读与 HEAD 分叉，
-  // blob sha 必然不符；cat-file 按 sha 取内容，构造上恒一致
   const content = gitBytes(`cat-file blob ${localBlob}`).toString('base64')
   const blob = ghAPI('POST', `repos/${REPO}/git/blobs`, {
     content,
