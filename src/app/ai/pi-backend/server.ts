@@ -96,19 +96,27 @@ function lastUserText(body: PiChatRequestBody): string {
     .join('\n')
 }
 
+/**
+ * POST JSON handler 公共头（jscpd 0 阈值纪律——各 handler 不再各自铺开
+ * 405 + parseJSONBody 序列）：非 POST 写 405 返 null；body 解析失败
+ * （parseJSONBody 已写 400）返 null；成功返 body。
+ */
+async function parsePostBody<T>(req: IncomingMessage, res: ServerResponse): Promise<T | null> {
+  if (req.method !== 'POST') {
+    res.writeHead(405).end('Method Not Allowed')
+    return null
+  }
+  const parsed = await parseJSONBody(req, res)
+  return parsed.ok ? (parsed.body as T) : null
+}
+
 async function handlePiChatRequest(
   service: ReturnType<typeof createPiChatService>,
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<void> {
-  if (req.method !== 'POST') {
-    res.writeHead(405).end('Method Not Allowed')
-    return
-  }
-
-  const parsed = await parseJSONBody(req, res)
-  if (!parsed.ok) return
-  const body = parsed.body as PiChatRequestBody
+  const body = await parsePostBody<PiChatRequestBody>(req, res)
+  if (body === null) return
 
   const sessionId = body.sessionId
   const text = lastUserText(body)
@@ -289,21 +297,16 @@ async function handleActiveDesignRequest(
  * setPiCredential 同律（非 2xx 抛错带后端 message）。
  */
 async function handleAskAnswerRequest(
-  service: ReturnType<typeof createPiChatService>,
+  service: Pick<ReturnType<typeof createPiChatService>, 'askAnswer'>,
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<void> {
-  if (req.method !== 'POST') {
-    res.writeHead(405).end('Method Not Allowed')
-    return
-  }
-  const parsed = await parseJSONBody(req, res)
-  if (!parsed.ok) return
-  const body = parsed.body as {
+  const body = await parsePostBody<{
     formId?: unknown
     answers?: unknown
     skip?: unknown
-  }
+  }>(req, res)
+  if (body === null) return
   if (typeof body.formId !== 'string' || body.formId === '') {
     sendJSON(res, 400, { error: 'invalid_args', message: 'formId 必须为非空字符串' })
     return

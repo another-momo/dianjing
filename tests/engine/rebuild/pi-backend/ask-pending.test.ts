@@ -57,6 +57,7 @@ describe('AskPendingStore.register', () => {
     let resolved = false
     void b.promise.then(() => {
       resolved = true
+      return null
     })
     await Promise.resolve()
     expect(resolved).toBe(false)

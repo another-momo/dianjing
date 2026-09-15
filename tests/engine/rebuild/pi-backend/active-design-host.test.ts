@@ -878,7 +878,9 @@ describe('新流：recordAskForm + answered 结果点移槽', () => {
     })
     // observeToolExecution 是同步契约，移槽 fire-and-forget；轮询等待
     for (let i = 0; i < 20 && bridge.writes.length === 0; i++) {
-      await new Promise((r) => setTimeout(r, 5))
+      await new Promise((r) => {
+        setTimeout(r, 5)
+      })
     }
     expect(bridge.writes).toEqual(['d1'])
   })
@@ -898,7 +900,9 @@ describe('新流：recordAskForm + answered 结果点移槽', () => {
       answers: { q1: { value: 'a' } }
     })
     for (let i = 0; i < 20 && bridge.writes.length === 0; i++) {
-      await new Promise((r) => setTimeout(r, 5))
+      await new Promise((r) => {
+        setTimeout(r, 5)
+      })
     }
     const writesAfterFirst = bridge.writes.length
     // 重复 observe 不应再移槽（映射已删）
@@ -908,7 +912,9 @@ describe('新流：recordAskForm + answered 结果点移槽', () => {
       questions: [],
       answers: { q1: { value: 'a' } }
     })
-    await new Promise((r) => setTimeout(r, 20))
+    await new Promise((r) => {
+      setTimeout(r, 20)
+    })
     expect(bridge.writes.length).toBe(writesAfterFirst)
   })
 
@@ -924,7 +930,9 @@ describe('新流：recordAskForm + answered 结果点移槽', () => {
       questions: [],
       answers: {}
     })
-    await new Promise((r) => setTimeout(r, 20))
+    await new Promise((r) => {
+      setTimeout(r, 20)
+    })
     // 未注册 formId → 不发起 probeCandidate → writes 不变
     expect(bridge.writes).toEqual([])
   })
@@ -945,7 +953,9 @@ describe('新流：recordAskForm + answered 结果点移槽', () => {
       answers: { q1: { value: 'a' } }
     })
     for (let i = 0; i < 20; i++) {
-      await new Promise((r) => setTimeout(r, 5))
+      await new Promise((r) => {
+        setTimeout(r, 5)
+      })
       if (bridge.candidateCalls.includes('d1')) break
     }
     expect(bridge.candidateCalls).toContain('d1') // probe 发起
