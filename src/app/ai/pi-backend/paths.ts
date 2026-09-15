@@ -14,7 +14,7 @@
  *
  * 行为纪律（搬迁 = 纯重构）：
  *  - 子目录名（`pi-agent` / `pi-sessions` / `key-env` / `skills` / `studio` /
- *    `pi-backend-token` / `pi-sessions-archive`）单源——搬家时只动本文件
+ *    `pi-backend-token` / `pi-sessions-archive` / `workspace`）单源——搬家时只动本文件
  *  - `DIANJING_ROOT_DIR` override 直指根（smoke/spike 配套重写）
  *  - studio 双源（builtinDir / userDir）解析语义保留；userDir 与 rootDir
  *    一致（D2 起不再独立于 rootDir）
@@ -53,6 +53,14 @@ export const PI_BACKEND_TOKEN_FILENAME = 'pi-backend-token'
 
 /** studio 用户扩展目录子路径（D2 起相对 rootDir，无双层嵌套） */
 export const USER_STUDIO_SUBPATH = 'studio'
+
+/**
+ * 会话工作目录子目录（agent 文件工具/bash 的相对路径基点）——与凭据文件所在根隔离
+ * （2026-09-16 key 守卫 B 案，须配 key-guard A 案）。createAgentSession options.cwd 下沉
+ * 此处后，老会话 JSONL header cwd 与 options.cwd 不一致也不再走老 cwd（sdk.js:67
+ * `options.cwd ?? options.sessionManager?.getCwd()` 实证，options 优先）。
+ */
+export const PI_WORKSPACE_SUBDIR = 'workspace'
 
 /**
  * studio 内置资产目录相对仓库根的子路径——三形态 spawn 方（vite-plugin /
@@ -188,4 +196,9 @@ export function resolveStudioDirs(rootDir: string, envBuiltinOverride: string | 
     builtinDir: envBuiltinOverride ?? join(rootDir, BUILTIN_STUDIO_SUBPATH),
     userDir: join(rootDir, USER_STUDIO_SUBPATH)
   }
+}
+
+/** `rootDir/workspace/` —— 凭据守卫 B 案的会话 cwd 下沉落点（与凭据四件所在根隔离） */
+export function resolveWorkspaceDir(rootDir: string): string {
+  return join(rootDir, PI_WORKSPACE_SUBDIR)
 }

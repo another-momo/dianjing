@@ -69,6 +69,7 @@ import { readPiHistoryFile } from './history'
 import type { ImageGenCredentialStore } from './image-gen/credentials'
 import { createImageGenTool } from './image-gen/generate'
 import type { ImageGenSettingsStore } from './image-gen/settings'
+import { createKeyGuardExtension } from './key-guard'
 import { createLoadReferenceTool } from './load-reference'
 import { createPiEventMapper } from './mapping'
 import {
@@ -78,7 +79,8 @@ import {
   resolveImageGenOutputDir,
   resolveSessionsDir,
   resolveSkillsDir,
-  resolveStudioDirs
+  resolveStudioDirs,
+  resolveWorkspaceDir
 } from './paths'
 import type { ModelSpec, ProviderAdmin } from './provider-admin'
 import { runSessionGc } from './session-gc'
@@ -326,12 +328,16 @@ export function createPiChatService({
     // 兜底，措辞已在 provider-admin.ts 钉死）
     const { modelRuntime, model } = await admin.resolveModel(modelSpec)
     mkdirSync(sessionsDir, { recursive: true })
+    // 2026-09-16 key 守卫 B 案：会话 cwd 下沉 rootDir/workspace——凭据文件
+    // 不再挂相对解析根下（绝对路径由 key-guard 堵，两案搭配）
+    const workspaceDir = resolveWorkspaceDir(rootDir)
+    mkdirSync(workspaceDir, { recursive: true })
 
     const indexedFile = readIndex()[sessionId]?.file
     const sessionManager =
       indexedFile && existsSync(indexedFile)
         ? SessionManager.open(indexedFile, sessionsDir)
-        : SessionManager.create(rootDir, sessionsDir)
+        : SessionManager.create(workspaceDir, sessionsDir)
 
     // T21：step budget 每 session 一份（prompt 时清零、turn_start 递增），
     // 工具经闭包读它决定是否注 _warning（tools.ts）
@@ -429,6 +435,10 @@ export function createPiChatService({
     // 到达前继续推工具调用，破坏挂起语义）；pending 时 ask_user_question
     // 自身不 block（其 execute 内部 alreadyPending 错误结果更具体）
     extensionFactories.push(createAskPendingGuardExtension(askPendingStore, sessionId))
+    // 2026-09-16 key 守卫 A 案：tool_call 拦内建文件工具对凭据四件（auth.json /
+    // image-gen.json / key-env / pi-backend-token）的读/写/搜——详见
+    // key-guard.ts 头注与仓外预研稿 docs/202609151649-pi-agent-key-file-guard-research.md
+    extensionFactories.push(createKeyGuardExtension({ rootDir, cwd: workspaceDir }))
     // 冒烟探针（免 key 装配验证）：登记在装配之后，event.systemPrompt 已是
     // 链式最终值；仅 PI_PROMPT_PROBE_DIR 显式设置时生效
     const probeDir = process.env.PI_PROMPT_PROBE_DIR
@@ -452,7 +462,7 @@ export function createPiChatService({
     // 字段 → SDK 默认允许全部内建工具（read/bash/edit/write）。
     const builtinToolsMode = capabilitiesStore.get().builtinTools
     const sessionOpts: Parameters<typeof createAgentSession>[0] = {
-      cwd: rootDir,
+      cwd: workspaceDir,
       agentDir,
       model,
       modelRuntime,
@@ -472,7 +482,7 @@ export function createPiChatService({
       // 保持 T89 单源决策同时让 SDK 实际加载到。
       resourceLoader: await (async () => {
         const loader = new DefaultResourceLoader({
-          cwd: rootDir,
+          cwd: workspaceDir,
           agentDir,
           systemPrompt: getStudioRegistry(rootDir).base?.body ?? '',
           noContextFiles: true,

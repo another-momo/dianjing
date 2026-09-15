@@ -6,8 +6,9 @@ import {
   KEY_ENV_FILENAME,
   PI_AGENT_SUBDIR,
   PI_BACKEND_TOKEN_FILENAME,
-  PI_SESSIONS_ARCHIVE_SUBDIR,
   PI_SESSIONS_SUBDIR,
+  PI_SESSIONS_ARCHIVE_SUBDIR,
+  PI_WORKSPACE_SUBDIR,
   SKILLS_SUBDIR,
   USER_STUDIO_SUBPATH,
   resolveAgentDir,
@@ -19,7 +20,8 @@ import {
   resolveSessionsDir,
   resolveSkillsDir,
   resolveStateDir,
-  resolveStudioDirs
+  resolveStudioDirs,
+  resolveWorkspaceDir
 } from '@/app/ai/pi-backend/paths'
 
 // D2：扁平化——STATE_DIR_NAME 概念消亡，子目录直接挂 rootDir。pi-agent/
@@ -76,6 +78,14 @@ describe('pi-backend/paths — resolveStateDir and friends (D2: flat under rootD
 
   test('resolvePiBackendTokenPath appends pi-backend-token filename directly under rootDir', () => {
     expect(resolvePiBackendTokenPath(rootDir)).toBe(join(rootDir, 'pi-backend-token'))
+  })
+
+  test('PI_WORKSPACE_SUBDIR is "workspace"（key 守卫 B 案，会话 cwd 下沉落点）', () => {
+    expect(PI_WORKSPACE_SUBDIR).toBe('workspace')
+  })
+
+  test('resolveWorkspaceDir appends workspace directly under rootDir', () => {
+    expect(resolveWorkspaceDir(rootDir)).toBe(join(rootDir, 'workspace'))
   })
 })
 
