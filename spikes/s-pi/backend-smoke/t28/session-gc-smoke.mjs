@@ -22,6 +22,7 @@
 import { spawn } from 'node:child_process'
 import {
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -78,6 +79,13 @@ mkdirSync(join(tempRoot, 'src/app/ai/pi-backend/studio'), { recursive: true })
 copyFileSync(
   join(repoRoot, 'src/app/ai/pi-backend/studio/base.md'),
   join(tempRoot, 'src/app/ai/pi-backend/studio/base.md')
+)
+// 2026-09-16：base.md 声明 references/render-jsx.md——references 目录随复制
+//（缺文件进注册表 failures；registry 加载面所有消费方共享此 fixture 纪律）
+cpSync(
+  join(repoRoot, 'src/app/ai/pi-backend/studio/references'),
+  join(tempRoot, 'src/app/ai/pi-backend/studio/references'),
+  { recursive: true }
 )
 
 const USER_A3 = 'A3 会话的用户消息：保留我'
@@ -285,7 +293,10 @@ try {
       `sessions=${readdirSync(sessionsDir).join(',')}`
     )
     const indexB = readIndexFile()
-    check('B 相：index 除条 A3，保留 A4/新会话', !(SID_A3 in indexB) && SID_A4 in indexB && SID_NEW2 in indexB)
+    check(
+      'B 相：index 除条 A3，保留 A4/新会话',
+      !(SID_A3 in indexB) && SID_A4 in indexB && SID_NEW2 in indexB
+    )
     const histA3Archived = await getJson(BASE_B, `/api/pi/history?sessionId=${SID_A3}`, tokenB)
     check('B 相：readHistory 超龄归档 sessionId 返回空', histA3Archived.body.messages?.length === 0)
     const familyB = await getJson(BASE_B, `/api/pi/sessions?docKey=${PREFIX_C}`, tokenB)

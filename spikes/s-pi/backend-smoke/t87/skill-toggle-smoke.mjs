@@ -13,7 +13,16 @@
  */
 
 import { spawn } from 'node:child_process'
-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -77,7 +86,8 @@ copyFileSync(
   join(repoRoot, 'src/app/ai/pi-backend/studio/base.md'),
   join(tempRoot, 'src/app/ai/pi-backend/studio/base.md')
 )
-for (const sub of ['workflows', 'profiles']) {
+// 2026-09-16：base.md 声明 references/render-jsx.md——复制清单补 'references'
+for (const sub of ['workflows', 'profiles', 'references']) {
   const srcDir = join(repoRoot, 'src/app/ai/pi-backend/studio', sub)
   const dstDir = join(tempRoot, 'src/app/ai/pi-backend/studio', sub)
   mkdirSync(dstDir, { recursive: true })
@@ -133,7 +143,9 @@ try {
   const token = readBackendToken(tempRoot)
 
   // ── ① 缺省 OFF：manifest.skills=[]，capabilities.agentSkills=false
-  const m0 = await (await fetch(`${BASE}/api/pi/studio/manifest`, { headers: authHeaders(token) })).json()
+  const m0 = await (
+    await fetch(`${BASE}/api/pi/studio/manifest`, { headers: authHeaders(token) })
+  ).json()
   check(
     'T87 端到端①：缺省 capabilities OFF → manifest.skills=[]',
     m0.capabilities?.agentSkills === false && Array.isArray(m0.skills) && m0.skills.length === 0,
@@ -147,13 +159,20 @@ try {
     body: JSON.stringify({ agentSkills: true })
   })
   const cap = await put.json()
-  check('T87 端到端②：PUT agentSkills=true → 200 + 返 true', put.ok && cap.agentSkills === true, JSON.stringify(cap))
+  check(
+    'T87 端到端②：PUT agentSkills=true → 200 + 返 true',
+    put.ok && cap.agentSkills === true,
+    JSON.stringify(cap)
+  )
 
-  const m1 = await (await fetch(`${BASE}/api/pi/studio/manifest`, { headers: authHeaders(token) })).json()
+  const m1 = await (
+    await fetch(`${BASE}/api/pi/studio/manifest`, { headers: authHeaders(token) })
+  ).json()
   const names = (m1.skills ?? []).map((s) => s.name).sort()
   check(
     'T87 端到端②：manifest.skills 含单源 fixture（仅 t87-demo）且脱敏（无 filePath/baseDir）',
-    names.length === 1 && names[0] === 't87-demo' &&
+    names.length === 1 &&
+      names[0] === 't87-demo' &&
       m1.skills.every((s) => !('filePath' in s) && !('baseDir' in s)),
     JSON.stringify(m1.skills)
   )
@@ -167,12 +186,18 @@ try {
   check('T87 端到端③：dummy 凭据写入（过 auth 预检）', cred.ok)
 
   const sessionId = 't87-smoke-session-' + Date.now()
-  const ok = await sendPrompt(BASE, {
-    sessionId,
-    // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
-    model: { providerId: 'openrouter', modelId: 'openrouter/free' },
-    messages: [{ role: 'user', parts: [{ type: 'text', text: '/skill:t87-demo T87_USER_ARG_HELLO' }] }]
-  }, token)
+  const ok = await sendPrompt(
+    BASE,
+    {
+      sessionId,
+      // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' },
+      messages: [
+        { role: 'user', parts: [{ type: 'text', text: '/skill:t87-demo T87_USER_ARG_HELLO' }] }
+      ]
+    },
+    token
+  )
   check('T87 端到端③：POST /skill:t87-demo <text> → 200（SSE 收尾）', ok)
 
   // ── ④ 经 history 端点回读 user message，断言展开块含 SKILL.md 正文
@@ -186,7 +211,10 @@ try {
     JSON.stringify({ status: histRes.status, sessionId: hist.sessionId })
   )
   const userMessage = (hist.messages ?? []).find((m) => m.role === 'user')
-  const userText = (userMessage?.parts ?? []).filter((p) => p.type === 'text').map((p) => p.text).join('')
+  const userText = (userMessage?.parts ?? [])
+    .filter((p) => p.type === 'text')
+    .map((p) => p.text)
+    .join('')
   check(
     'T87 端到端④：user message 包含 <skill name="t87-demo"> 展开块',
     userText.includes('<skill name="t87-demo"'),
@@ -210,12 +238,16 @@ try {
     body: JSON.stringify({ agentSkills: false })
   })
   const sessionId2 = 't87-smoke-off-' + Date.now()
-  await sendPrompt(BASE, {
-    sessionId: sessionId2,
-    // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
-    model: { providerId: 'openrouter', modelId: 'openrouter/free' },
-    messages: [{ role: 'user', parts: [{ type: 'text', text: 'OFF 态普通文本' }] }]
-  }, token)
+  await sendPrompt(
+    BASE,
+    {
+      sessionId: sessionId2,
+      // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' },
+      messages: [{ role: 'user', parts: [{ type: 'text', text: 'OFF 态普通文本' }] }]
+    },
+    token
+  )
   const hist2 = await (
     await fetch(`${BASE}/api/pi/history?sessionId=${encodeURIComponent(sessionId2)}`, {
       headers: authHeaders(token)

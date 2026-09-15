@@ -14,11 +14,13 @@
  *
  * 断言（冒烟环境无浏览器 → 桥不可达 → 恒空槽组装；有槽/移槽判定归 bun 层
  * tests/engine/rebuild/pi-backend/active-design-host.test.ts）：
- *  C1 空槽组装：探针 == studio base.md body byte 级一致（无 workflow 段、
- *     无 profile、无 cwd 尾巴——钩子 per-run 整体替换，baked 基底不露面）
+ *  C1 空槽组装：探针 == base.md body + 按需参考索引节 byte 级一致（无 workflow
+ *     段、无 profile、无 cwd 尾巴——钩子 per-run 整体替换，baked 基底不露面；
+ *     2026-09-16 起 base.md 声明 references，索引节每回合追加，见下方常量注释）
  *  C2 新建意图信封：首行剥离 → 历史里用户消息 = 剥离后文本（信封不进 JSONL）；
  *     表单作答信封不剥离（AI 须读答案原文）
- *  C3 兼容窗：请求面残留 chatMode/pickedProfileId 字段忽略不报错（正常进 run）
+ *  C3 兼容窗：请求面残留 chatMode/pickedProfileId 字段忽略不报错（正常进 run，
+ *     组装口径同 C1）
  *  端点 POST /api/pi/active-design：401 未鉴权 / 405 非 POST / 400 坏体 /
  *     502 bridge_unavailable（无桥环境显式失败，红线 #8 不静默）
  *  路由 GET /api/pi/studio/manifest 形状 + 脱敏（无正文/无绝对路径）+ 405
@@ -95,7 +97,9 @@ function layoutRoot(withStudioAssets) {
     )
     // T85：workflow references 按资产分目录（workflows/<id>/references/，如 art-directed）——
     // 改递归整目录复制，references 文件随资产进 temp 布局（缺文件会进 manifest failures）
-    for (const sub of ['workflows', 'profiles']) {
+    // 2026-09-16：base.md 声明 references/render-jsx.md（base references 首个消费者）——
+    // 复制清单补 'references'（缺文件会进 manifest failures，CI 34992857596 实证红）
+    for (const sub of ['workflows', 'profiles', 'references']) {
       const srcDir = join(repoRoot, 'src/app/ai/pi-backend/studio', sub)
       const dstDir = join(tempRoot, 'src/app/ai/pi-backend/studio', sub)
       mkdirSync(dstDir, { recursive: true })
@@ -112,6 +116,17 @@ const emptyAssetsRoot = layoutRoot(false)
 const baseBody = stripFrontmatter(
   readFileSync(join(repoRoot, 'src/app/ai/pi-backend/studio/base.md'), 'utf8')
 )
+// 2026-09-16：base.md frontmatter 声明 references/render-jsx.md（base references
+// 首个消费者）→ collectActiveReferences 每回合非空，finishTurn 把索引节拼进
+// systemPrompt 尾段（joinSegments 以 \n\n 连接）。索引节标题与行格式是运行时契约
+// （active-design-host REFERENCES_INDEX_HEADING + `- path —— description（source）`），
+// 此处 byte 级钉住——base.md references 声明或契约格式改动需同步重钉（CI
+// 34992857596 二轮红实证：fixture 补复制 references/ 后陈旧 byte 钉浮出）
+const REFERENCES_INDEX_SECTION = [
+  '## 按需参考（load_reference 工具按需读取）',
+  '- references/render-jsx.md —— render 工具的 JSX 语法大全（props 全集 / 布局规则 / 禁用项 / 修复纪律）——首次 render 调用前必读（base）'
+].join('\n')
+const EMPTY_SLOT_EXPECTED = `${baseBody}\n\n${REFERENCES_INDEX_SECTION}`
 
 // ── 起后端（显式剔除真实 key 防环境泄漏干扰；dummy key 经凭据路由写入）
 const backendEnv = {
@@ -258,20 +273,14 @@ try {
   check(
     // P2-4（2026-09-07）：applicableTo → modes（语义「在哪些 mode 下可用」）；
     // P2-10 启用运行时过滤（chips 菜单 + prompt 注入两层按 modes 筛选）
-    '路由 manifest：profiles 两精品摘要含 watercolor_poster_v2/v2_zh（modes[0]=longform-hero-kv-first；v3 退役 P2-1）',
+    // 2026-09-16：v2_zh 删除（owner 裁决——与调优 v2 已漂移），单精品 v2
+    '路由 manifest：profiles 单精品摘要含 watercolor_poster_v2（modes[0]=longform-hero-kv-first；v2_zh 删除 2026-09-16 owner 裁决）',
     Array.isArray(manifest.profiles) &&
-      manifest.profiles.length === 2 &&
+      manifest.profiles.length === 1 &&
       manifest.profiles.some(
         (p) =>
           p.id === 'watercolor_poster_v2' &&
           p.label === '水彩海报 v2' &&
-          Array.isArray(p.modes) &&
-          p.modes[0] === 'longform-hero-kv-first'
-      ) &&
-      manifest.profiles.some(
-        (p) =>
-          p.id === 'watercolor_poster_v2_zh' &&
-          p.label === '水彩海报 v2（中文）' &&
           Array.isArray(p.modes) &&
           p.modes[0] === 'longform-hero-kv-first'
       )
@@ -317,7 +326,9 @@ try {
   // manifest.skills 同步透传（OFF 时 = []）
   check(
     'T87 路由 manifest：capabilities.agentSkills=false + skills=[] 透传',
-    manifest.capabilities?.agentSkills === false && Array.isArray(manifest.skills) && manifest.skills.length === 0,
+    manifest.capabilities?.agentSkills === false &&
+      Array.isArray(manifest.skills) &&
+      manifest.skills.length === 0,
     JSON.stringify({ capabilities: manifest.capabilities, skills: manifest.skills })
   )
 
@@ -361,7 +372,11 @@ try {
 
   // 负向：未鉴权 → 401
   const capNoAuth = await fetch(`${BASE}/api/pi/capabilities`)
-  check('T87 路由 capabilities：未鉴权 → 401', capNoAuth.status === 401, `status=${capNoAuth.status}`)
+  check(
+    'T87 路由 capabilities：未鉴权 → 401',
+    capNoAuth.status === 401,
+    `status=${capNoAuth.status}`
+  )
 
   // ── dummy 凭据过 auth 预检（写 tempRoot 自带 agentDir，不碰真实 .dianjing）
   const cred = await fetch(`${BASE}/api/pi/credentials`, {
@@ -377,7 +392,7 @@ try {
   })
   check('前置：无资产后端 dummy 凭据写入', cred2.ok)
 
-  // ── C1：空槽（无桥）→ 探针 == base.md body byte 级一致（钩子整体替换，无 cwd 尾巴）
+  // ── C1：空槽（无桥）→ 探针 == base.md body + 按需参考索引节（钩子整体替换，无 cwd 尾巴）
   await sendPrompt(
     BASE,
     {
@@ -391,11 +406,11 @@ try {
   const emptySlotProbe = probeText(tempRoot)
   check('C1 空槽：探针落盘', emptySlotProbe !== null)
   check(
-    'C1 空槽：与 base.md body byte 级一致（无 workflow 段、无 profile、无 cwd 尾巴）',
-    emptySlotProbe === baseBody,
+    'C1 空槽：与 base.md body + 按需参考索引节 byte 级一致（无 workflow 段、无 profile、无 cwd 尾巴）',
+    emptySlotProbe === EMPTY_SLOT_EXPECTED,
     emptySlotProbe === null
       ? 'probe missing'
-      : `len ${emptySlotProbe.length} vs base body ${baseBody.length}`
+      : `len ${emptySlotProbe.length} vs expected ${EMPTY_SLOT_EXPECTED.length}`
   )
   check('C1 空槽：不含旧 marketing 工作流段句式', !(emptySlotProbe ?? '').includes(WORKFLOW_MARKER))
   check('C1 空槽：含 base 正文句式', (emptySlotProbe ?? '').includes(BASE_MARKER))
@@ -456,8 +471,8 @@ try {
   check('C3 兼容窗：带残留字段的请求正常进 run（SSE 排空）', legacyResult === 'done', legacyResult)
   const legacyProbe = probeText(tempRoot)
   check(
-    'C3 兼容窗：残留字段不改变组装（仍空槽 = base body byte 级一致）',
-    legacyProbe === baseBody,
+    'C3 兼容窗：残留字段不改变组装（仍空槽 = 口径同 C1 byte 级一致）',
+    legacyProbe === EMPTY_SLOT_EXPECTED,
     legacyProbe === null ? 'probe missing' : `len ${legacyProbe.length}`
   )
 
