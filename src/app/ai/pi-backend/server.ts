@@ -281,6 +281,99 @@ async function handleActiveDesignRequest(
 }
 
 /**
+ * 2026-09-15：POST /api/pi/ask-answer —— 表单作答/跳过端点（ask_user_question
+ * 硬阻断新流）。body {formId, answers?: {...}, skip?: boolean}；answers 与
+ * skip 二选一；formId 非空 string。'ok' resolve 并 200；'not_found' 表中无
+ * 该 formId（已答/未注册/已 abort）返 404 + {error:'no_pending_form'}；
+ * body 校验失败 400。鉴权走既有 bearer 中间件（路由表之下）。错误处理与
+ * setPiCredential 同律（非 2xx 抛错带后端 message）。
+ */
+async function handleAskAnswerRequest(
+  service: ReturnType<typeof createPiChatService>,
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  if (req.method !== 'POST') {
+    res.writeHead(405).end('Method Not Allowed')
+    return
+  }
+  const parsed = await parseJSONBody(req, res)
+  if (!parsed.ok) return
+  const body = parsed.body as {
+    formId?: unknown
+    answers?: unknown
+    skip?: unknown
+  }
+  if (typeof body.formId !== 'string' || body.formId === '') {
+    sendJSON(res, 400, { error: 'invalid_args', message: 'formId 必须为非空字符串' })
+    return
+  }
+  // answers 与 skip 二选一校验
+  const hasAnswers = body.answers !== undefined
+  const hasSkip = body.skip === true
+  if (hasAnswers === hasSkip) {
+    sendJSON(res, 400, {
+      error: 'invalid_args',
+      message: 'answers 与 skip 必须二选一（skip=true 或 answers 对象）'
+    })
+    return
+  }
+  if (hasSkip) {
+    const result = service.askAnswer(body.formId, { skip: true })
+    if (result === 'not_found') {
+      sendJSON(res, 404, {
+        error: 'no_pending_form',
+        message: '该表单已答/已取消/未注册，无需再答'
+      })
+      return
+    }
+    sendJSON(res, 200, { ok: true })
+    return
+  }
+  // answers 形态校验：{qid: {value:string, freeText?:string}}
+  if (!isRecord(body.answers)) {
+    sendJSON(res, 400, {
+      error: 'invalid_args',
+      message: 'answers 必须为对象（qid → {value, freeText?}）'
+    })
+    return
+  }
+  const answers: Record<string, { value: string; freeText?: string }> = {}
+  for (const [qid, raw] of Object.entries(body.answers)) {
+    if (!isRecord(raw)) {
+      sendJSON(res, 400, {
+        error: 'invalid_args',
+        message: `answers.${qid} 必须为对象 {value, freeText?}`
+      })
+      return
+    }
+    if (typeof raw.value !== 'string') {
+      sendJSON(res, 400, {
+        error: 'invalid_args',
+        message: `answers.${qid}.value 必须为 string`
+      })
+      return
+    }
+    const entry: { value: string; freeText?: string } = { value: raw.value }
+    if (typeof raw.freeText === 'string' && raw.freeText !== '') entry.freeText = raw.freeText
+    answers[qid] = entry
+  }
+  const result = service.askAnswer(body.formId, { answers })
+  if (result === 'not_found') {
+    sendJSON(res, 404, {
+      error: 'no_pending_form',
+      message: '该表单已答/已取消/未注册，无需再答'
+    })
+    return
+  }
+  sendJSON(res, 200, { ok: true })
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
  * T87：GET/PUT /api/pi/capabilities——capabilities 读写。GET 返
  * `{ builtinTools, agentSkills }`（settings 面板初始值）；PUT 校验 agentSkills
  * 布尔 + builtinTools 三档字面量（T96，缺省保留旧值）、落盘、返新态。
@@ -552,6 +645,12 @@ export function createPiBackendServer({
     // T91b：newIntent 确认端点（前端 ChatNewIntentCard 触发，写 pluginData 三键）
     if (url.pathname === '/api/pi/intent-confirm') {
       void handleIntentConfirmRequest(service, req, res)
+      return
+    }
+    // 2026-09-15：表单作答/跳过端点（ask_user_question 硬阻断新流；须在
+    // /api/pi/ 管理面前缀之前匹配）
+    if (url.pathname === '/api/pi/ask-answer') {
+      void handleAskAnswerRequest(service, req, res)
       return
     }
     // T87：capabilities 单开关读写端点（须在 /api/pi/ 管理面前缀之前匹配）

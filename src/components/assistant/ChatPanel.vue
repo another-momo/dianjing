@@ -19,10 +19,7 @@ import {
 } from 'reka-ui'
 import { computed, markRaw, nextTick, onErrorCaptured, onMounted, ref, watch } from 'vue'
 
-import {
-  parseAskAnswer,
-  serializeAskAnswer
-} from '@open-pencil/core/tools/fork/marketing/ask-user-question'
+import { parseAskAnswer } from '@open-pencil/core/tools/fork/marketing/ask-user-question'
 import type { AskFormSubmission } from '@open-pencil/core/tools/fork/marketing/ask-user-question'
 import type { JSONObject } from '@open-pencil/scene-graph/primitives'
 import { useI18n } from '@open-pencil/vue'
@@ -31,7 +28,7 @@ import { copyChatLog } from '@/app/ai/fork/debug'
 import { isAbortShapedError, markIntentionalStop } from '@/app/ai/fork/transports'
 import { useAIChat } from '@/app/ai/fork/use'
 import { piDesignAssignment } from '@/app/ai/pi-backend/assignment'
-import { piCatalog, refreshPiCatalog } from '@/app/ai/pi-backend/client'
+import { piCatalog, postAskAnswer, refreshPiCatalog } from '@/app/ai/pi-backend/client'
 import {
   getPiCurrentSessionId,
   hasPiDocId,
@@ -447,12 +444,41 @@ function finalizeInterruptedToolParts(): void {
   }
 }
 
-// T56：表单作答/跳过 → 文本信封（serializeAskAnswer）→ 复用既有提交路径；
-// streaming guard 与 handleSubmit 同律
+// 2026-09-15：表单作答/跳过 → 直接 POST /api/pi/ask-answer（ask_user_question
+// 硬阻断新流——execute 挂起期间 agent 物理停摆，答案通过新端点 resolve 进
+// 同一工具结果；不再经聊天消息文本信封回流）。
+// 不接 streaming/submitted guard：本端点独立于聊天提交路径，挂起期间
+// ChatPanel 仍可交互作答（disabled 透传已被卡片摘除——见 PiChatMessage）。
+/** core AskQuestionAnswer.value 可空（输入中槽位）；卡片提交时已归一但类型
+ *  不表——此处收窄到端点契约 {value: string}，空值槽丢弃（卡片必填校验兜底） */
+function normalizeAnswers(
+  submission: Extract<AskFormSubmission, { aborted: false }>
+): Record<string, { value: string; freeText?: string }> {
+  const out: Record<string, { value: string; freeText?: string }> = {}
+  for (const [qid, answer] of Object.entries(submission.answers)) {
+    if (typeof answer.value !== 'string') continue
+    out[qid] =
+      typeof answer.freeText === 'string'
+        ? { value: answer.value, freeText: answer.freeText }
+        : { value: answer.value }
+  }
+  return out
+}
+
 async function handleFormSubmit(submission: AskFormSubmission) {
-  if (status.value === 'streaming' || status.value === 'submitted') return
-  const { formId, ...payload } = submission
-  await handleSubmit(serializeAskAnswer(formId, payload))
+  try {
+    if (submission.aborted) {
+      await postAskAnswer({ formId: submission.formId, skip: true })
+      return
+    }
+    await postAskAnswer({ formId: submission.formId, answers: normalizeAnswers(submission) })
+  } catch (error) {
+    // 失败面：后端 pending 已失效（abort/重启）或网络错误——卡片保留本地
+    // submittedKind 早退锁，不重投；留 warn 供诊断（no-silent-catch 纪律）
+    console.warn(
+      '[ask] 表单作答提交失败：' + (error instanceof Error ? error.message : String(error))
+    )
+  }
 }
 
 // ── T61：新建意图确认卡（宿主发起 data part） ──────────────────────────────

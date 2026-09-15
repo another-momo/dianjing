@@ -35,6 +35,16 @@ import { useForkAsk } from '@/app/i18n/fork'
 
 type ToolPart = Extract<UIMessagePart<UIDataTypes, UITools>, { toolCallId: string }>
 
+/** 2026-09-15：resolved 派生复用——答/跳过/awaiting 三态形状兼容（status 收窄） */
+type AskAnswerOutput =
+  | {
+      status: 'answered'
+      questions?: AskQuestionSpec[]
+      answers: Record<string, { value: string; freeText?: string }>
+    }
+  | { status: 'skipped'; questions?: AskQuestionSpec[] }
+  | { status: 'awaiting_user' }
+
 const {
   part,
   answered = false,
@@ -58,12 +68,36 @@ const questions = computed<AskQuestionSpec[]>(() =>
 )
 const definitionError = computed(() => ('error' in parsed.value ? parsed.value.message : null))
 
+// 2026-09-15：formId 双源——新流（part.state === 'output-available' 且
+// output.status === 'answered'|'skipped'）→ 'ask-'+toolCallId 派生
+// （ask-user-question.ts makeId 默认规则，挂起期间 part.output 不存在，
+// 前端按 toolCallId 同串派生保持一致）；旧 awaiting 信封 formId 仍可作
+// fallback（历史会话保留）
 const formId = computed(() => {
+  // 新流：toolCallId 派生（output 未就位时也能给出 formId，提交按钮可交互）
+  if ('toolCallId' in part && typeof part.toolCallId === 'string') {
+    return `ask-${part.toolCallId}`
+  }
+  // 兼容：旧 awaiting 信封 details 里的 formId
+  if (part.state === 'output-available') {
+    const output = part.output
+    if (typeof output === 'object' && output !== null && 'formId' in output) {
+      const id = (output as { formId?: unknown }).formId
+      if (typeof id === 'string') return id
+    }
+  }
+  return null
+})
+
+/** 2026-09-15：resolved 派生——part.state === 'output-available' 即已了结；
+ *  锁定横幅按 status 区分「已作答/已跳过」，答案摘要按 details.answers 渲染 */
+const resolved = computed(() => {
   if (part.state !== 'output-available') return null
   const output = part.output
-  if (typeof output === 'object' && output !== null && 'formId' in output) {
-    const id = (output as { formId?: unknown }).formId
-    return typeof id === 'string' ? id : null
+  if (typeof output !== 'object' || output === null) return null
+  const status = (output as { status?: unknown }).status
+  if (status === 'answered' || status === 'skipped' || status === 'awaiting_user') {
+    return output as AskAnswerOutput
   }
   return null
 })
@@ -74,7 +108,17 @@ const answers = reactive<Record<string, AskQuestionAnswer>>({})
 const submittedKind = ref<'answer' | 'skip' | null>(null)
 const showRequiredHint = ref(false)
 
-const isLocked = computed(() => answered || submittedKind.value !== null || disabled)
+/** 2026-09-15：resolved（output-available 且 status in {answered,skipped,awaiting}）
+ *  即已了结——本地 submittedKind 早退 + 服务端返状态双重锁；output-error
+ *  （停止/abort）也锁定——后端 pending 已随 abort reject，再提交必 404 */
+const isLocked = computed(
+  () =>
+    answered ||
+    submittedKind.value !== null ||
+    disabled ||
+    resolved.value !== null ||
+    part.state === 'output-error'
+)
 
 // 预建每题作答槽（questions 由流式 input 派生，后到题也要补槽）——
 // 模板 v-model="answers[qid].value" 要求槽位恒存在
@@ -192,12 +236,36 @@ onBeforeUnmount(() => {
       <icon-lucide-list-checks class="size-3.5 shrink-0 text-accent" />
       <span class="text-[11px] font-medium text-surface">{{ askDialogs.askFormTitle }}</span>
       <span
-        v-if="isLocked"
+        v-if="
+          submittedKind !== null ||
+          answered ||
+          (resolved !== null && (resolved.status === 'answered' || resolved.status === 'skipped'))
+        "
         data-test-id="ask-form-answered-badge"
         class="rounded bg-hover px-1.5 py-0.5 text-[10px] text-muted"
       >
-        {{ submittedKind === 'skip' ? askDialogs.askSkipped : askDialogs.askAnswered }}
+        <!-- 2026-09-15：服务端返状态优先（'answered'/'skipped'）→ 本地 submittedKind 兜底；
+             历史 awaiting_user 未答表单与 output-error（停止）只锁不标（勿误标「已作答」） -->
+        {{
+          resolved?.status === 'skipped' || submittedKind === 'skip'
+            ? askDialogs.askSkipped
+            : askDialogs.askAnswered
+        }}
       </span>
+    </div>
+
+    <!-- 2026-09-15：resolved 详情（仅 answered 展示逐题答案摘要；skipped 仅状态） -->
+    <div
+      v-if="resolved?.status === 'answered'"
+      data-test-id="ask-form-summary"
+      class="space-y-0.5 text-[10px] text-muted"
+    >
+      <div v-for="(answer, qid) in resolved.answers" :key="qid" class="flex gap-1">
+        <span class="text-surface">{{ qid }}:</span>
+        <span>{{
+          answer.value === FREE_TEXT_OPTION_ID && answer.freeText ? answer.freeText : answer.value
+        }}</span>
+      </div>
     </div>
 
     <div v-if="definitionError" class="text-[11px] text-muted">

@@ -118,3 +118,23 @@ export async function openPiStudioFolder(): Promise<OpenStudioFolderResult> {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
 }
+
+/**
+ * 2026-09-15：POST /api/pi/ask-answer —— 表单作答/跳过端点。
+ *
+ * 契约：formId 非空 string + 二选一（answers 对象 / skip=true）。
+ * 成功 200 {ok:true}；404 {error:'no_pending_form'} 表中无该 formId；
+ * 400 校验失败。错误处理与 setPiCredential 同律（非 2xx 抛错带后端 message）。
+ * 作答形态：answers[qid] = { value: string; freeText?: string }——「其他」
+ * 选项选定时 freeText 是该题自包含的一等答案。
+ */
+export type AskAnswerSubmission =
+  | {
+      formId: string
+      answers: Record<string, { value: string; freeText?: string }>
+    }
+  | { formId: string; skip: true }
+
+export async function postAskAnswer(submission: AskAnswerSubmission): Promise<void> {
+  await requestJSON<{ ok: true }>('/ask-answer', jsonBody(submission))
+}

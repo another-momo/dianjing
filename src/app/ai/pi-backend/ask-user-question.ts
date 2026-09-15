@@ -1,42 +1,60 @@
 /**
- * T56（Phase 3 W2/T-B5）：AI 可见 ask_user_question 的后端工具工厂——全新建。
+ * T56（Phase 3 W2/T-B5）→ 2026-09-15 改造：AI 可见 ask_user_question 的后端工具工厂。
  *
- * 语义（S3 §6 + v5 拍板「run 终止续跑」）：AI 调工具发表单 → execute 校验通过
- * → 返回 `{ formId, status: 'awaiting_user', questions }`（content + details 双带），
- * 结果文本含「回合到此结束、等待用户作答」指令（软终止——pi 无硬停机制）；
- * 前端据 tool part input.questions 渲染聊天内表单卡片，用户作答/跳过经
- * 下一条用户消息的文本信封物化（serializeAskAnswer/parseAskAnswer，core 纯函数层）。
+ * 语义（决策单 §4 Phase 1：软终止→硬阻断）：AI 调工具发表单 → execute 校验
+ * 通过 → 注册 pending 到 AskPendingStore（formId = 'ask-'+toolCallId 双侧
+ * 派生）→ 返回挂起 promise；agent loop await 期间物理停摆。
+ * 用户经新端点 POST /api/pi/ask-answer {formId, answers|skip} → resolve，
+ * 答案作为本工具结果在同一 turn 返回（content 含「The user answered the
+ * form (formId=…).」+ 信封 JSON 原文，保持模型视野形状稳定；details 含
+ * {formId, status:'answered', questions, answers}）。skip 则返 'skipped'。
  *
- * 装配形态：createAskUserQuestionTool(deps) 工厂返回 pi AgentTool——由主 agent
- * 集成期在 service.ts 装配进 customTools（本任务不改 service.ts）。
- * 无桥调用、无凭证、无落盘——纯定义转发 + 校验。
+ * abort / 会话 GC → store.rejectForSession 触发 reject（abort signal 透传
+ * 挂起期 pi run 收尾；execute 接收 signal——generate.ts 已知限制不模仿）。
+ *
+ * 装配形态：createAskUserQuestionTool(deps) 工厂返回 pi AgentTool——service.ts
+ * 装配进 customTools。无桥调用、无凭证、无落盘——纯定义转发 + 校验 +
+ * 挂起（store 单例由 service.ts 注入）。
  */
 
 import { defineTool, type AgentToolResult } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 
 import {
-  makeFormId,
+  serializeAskAnswer,
   validateAskUserQuestions,
   type AskQuestionSpec
 } from '@open-pencil/core/tools/fork/marketing/ask-user-question'
 
+import type { AskPendingStore } from './ask-pending'
 import { toToolResult } from './tool-result'
 
 const ASK_USER_QUESTION_DESCRIPTION =
-  'Present an in-chat form with questions for the user, then END the current turn. The frontend renders a form card (single_select option cards, image_select canvas-node thumbnails, text inputs); every single_select/image_select question additionally offers an "Other" option that reveals a free-text input. In the answer envelope JSON, each question id maps to an object: {"value":"<optionId or text>"} for a normal answer, or {"value":"__freeText","freeText":"<the user\'s own words>"} when the user picked "Other" — treat that freeText as a first-class answer for that question. Returns {formId, status:"awaiting_user", questions}: the run TERMINATES with this call — do not call further tools and do not write any more text after it. The user\'s answers will arrive as the next user message. Rules: 1-8 questions; ids unique and non-empty; labels non-empty; single_select needs options (2-12 items, each {id,label,hint?}) and must not carry imageOptions; image_select needs imageOptions (1-12 items, each {nodeId,label?} referencing canvas nodes) and must not carry options; text carries neither; required defaults to true — set false for optional questions. Batch everything you need to ask into ONE call.'
+  'Present an in-chat form with questions for the user. The frontend renders a form card (single_select option cards, image_select canvas-node thumbnails, text inputs); every single_select/image_select question additionally offers an "Other" option that reveals a free-text input. This tool BLOCKS until the user answers or skips (or the run is aborted) — the answer arrives as THIS tool\'s result, do not assume a follow-up user message and do not call further tools before the result returns. Result content includes the answer envelope JSON where each question id maps to {"value":"<optionId or text>"} for a normal answer, or {"value":"__freeText","freeText":"<the user\'s own words>"} when the user picked "Other" — treat that freeText as a first-class answer for that question. Result details also expose {formId, status, questions, answers}. If the user skipped, status is "skipped" and there are no answers — proceed with your best judgment and do not re-ask the same questions unless necessary. Rules: 1-8 questions; ids unique and non-empty; labels non-empty; single_select needs options (2-12 items, each {id,label,hint?}) and must not carry imageOptions; image_select needs imageOptions (1-12 items, each {nodeId,label?} referencing canvas nodes) and must not carry options; text carries neither; required defaults to true — set false for optional questions. Batch everything you need to ask into ONE call.'
 
-/** awaiting 信封 details 形状（mapping.ts tool-output-available 骑 details 到前端）；
- * type 别名（非 interface）以获得隐式索引签名，免类型断言 */
-export type AskAwaitingDetails = {
-  formId: string
-  status: 'awaiting_user'
-  questions: AskQuestionSpec[]
-}
+/** 答案细节形状（details 字段；mapping.ts tool-output-available 骑 details 到前端） */
+export type AskAnswerDetails =
+  | {
+      formId: string
+      status: 'answered'
+      questions: AskQuestionSpec[]
+      answers: Record<string, { value: string; freeText?: string }>
+    }
+  | {
+      formId: string
+      status: 'skipped'
+      questions: AskQuestionSpec[]
+    }
 
 export interface AskUserQuestionToolDeps {
-  /** formId 源（缺省 makeFormId() 默认源）；测试注入确定性 */
-  makeId?: () => string
+  /** pending-form 注册表（service.ts 单例注入；测试可注入假件） */
+  store: AskPendingStore
+  /** 当前 session id（service.ts 装配闭包注入；同 session 重复 register → alreadyPending 错误结果） */
+  sessionId: string
+  /** formId 注册后回调（宿主 recordAskForm——active-design-host.ts） */
+  onPendingRegistered?: (formId: string) => void
+  /** formId 派生（默认 'ask-'+toolCallId；测试可注入确定性） */
+  makeId?: (toolCallId: string) => string
 }
 
 const QUESTION_SCHEMA = Type.Object({
@@ -69,38 +87,57 @@ const QUESTION_SCHEMA = Type.Object({
   required: Type.Optional(Type.Boolean({ description: 'Default true' }))
 })
 
-export function createAskUserQuestionTool(deps: AskUserQuestionToolDeps = {}) {
+export function createAskUserQuestionTool(deps: AskUserQuestionToolDeps) {
+  const makeId = deps.makeId ?? ((toolCallId: string): string => `ask-${toolCallId}`)
   return defineTool({
     name: 'ask_user_question',
     label: 'Ask User Question',
     description: ASK_USER_QUESTION_DESCRIPTION,
+    // 2026-09-15：顺序约束——挂起期不能与其他工具并行跑（同一 agent run 串行）
+    executionMode: 'sequential' as const,
     parameters: Type.Object({
       questions: Type.Array(QUESTION_SCHEMA, { description: '1-8 form questions' })
     }),
-    async execute(_toolCallId, params): Promise<AgentToolResult<Record<string, unknown>>> {
+    async execute(toolCallId, params, signal): Promise<AgentToolResult<Record<string, unknown>>> {
       const validated = validateAskUserQuestions(params)
       if ('error' in validated) {
         return toToolResult({ error: validated.error, message: validated.message })
       }
 
-      const formId = deps.makeId ? deps.makeId() : makeFormId()
-      const details: AskAwaitingDetails = {
+      const formId = makeId(toolCallId)
+      const { promise, alreadyPending } = deps.store.register(deps.sessionId, formId, signal)
+      if (alreadyPending) {
+        // 同 session 上一表单未答 → 硬错误结果（execute 不挂起）；模型应停手
+        return toToolResult({
+          error: 'ask_pending',
+          message: 'A previous form is still awaiting the user answer.'
+        })
+      }
+      deps.onPendingRegistered?.(formId)
+      const questions = validated.questions
+
+      // 挂起 → resolve/reject → 构造工具结果
+      const payload = await promise
+      if (payload.skip) {
+        const details: AskAnswerDetails = { formId, status: 'skipped', questions }
+        const text =
+          `The user skipped the form (formId=${formId}). ` +
+          'Proceed with your best judgment and do not re-ask the same questions unless necessary.'
+        return { content: [{ type: 'text', text }], details }
+      }
+      const answers = payload.answers ?? {}
+      const details: AskAnswerDetails = {
         formId,
-        status: 'awaiting_user',
-        questions: validated.questions
+        status: 'answered',
+        questions,
+        answers
       }
-      // Soft-stop instructions (English, model-facing): turn ends here, answers
-      // are materialized via the next user message.
-      const text = [
-        `Form rendered to the user (formId=${formId}, ${details.questions.length} question${details.questions.length === 1 ? '' : 's'}).`,
-        'Turn ends here: do not call any more tools and do not write any more text — end this reply immediately.',
-        "The user's answer (or skip) will arrive as the next user message; resume from that content.",
-        'Answer envelope JSON: each question id maps to {"value":"..."} for a chosen option or text answer, or {"value":"__freeText","freeText":"..."} when the user chose "Other" — treat that freeText as a first-class answer for that question.'
-      ].join('\n')
-      return {
-        content: [{ type: 'text', text }],
-        details
-      }
+      const envelopeJSON = serializeAskAnswer(formId, { aborted: false, answers })
+      const text =
+        `The user answered the form (formId=${formId}).\n` +
+        'Answer envelope JSON (per-question; "__freeText" entries carry freeText as a first-class answer):\n' +
+        envelopeJSON
+      return { content: [{ type: 'text', text }], details }
     }
   })
 }

@@ -121,6 +121,8 @@ function designSnap(overrides: Partial<DesignRootSnapshot> = {}): DesignRootSnap
 
 type FakeBridge = ActiveDesignBridgeIO & {
   writes: string[]
+  /** 2026-09-15：probeCandidate 调用记录（验证 answered 移槽是否发起 probe） */
+  candidateCalls: string[]
   setSlot(slotNodeId: string, design: DesignRootSnapshot | null): void
   setCandidate(nodeId: string, design: DesignRootSnapshot | null): void
   /** P0-1：pluginData newIntent 三键（随槽位探针同片段返回） */
@@ -139,8 +141,10 @@ function makeFakeBridge(): FakeBridge {
   }
   const candidateById = new Map<string, DesignRootSnapshot | null>()
   const writes: string[] = []
+  const candidateCalls: string[] = []
   return {
     writes,
+    candidateCalls,
     setSlot(slotNodeId, design) {
       slot = { ...slot, slotNodeId, design }
       if (design) candidateById.set(design.nodeId, design)
@@ -153,6 +157,7 @@ function makeFakeBridge(): FakeBridge {
     },
     probeSlot: () => Promise.resolve(slot),
     probeCandidate: (nodeId) => {
+      candidateCalls.push(nodeId)
       const design = candidateById.get(nodeId) ?? null
       const data: CandidateProbeData = {
         currentPageId: slot.currentPageId,
@@ -851,6 +856,119 @@ describe('事件①：onDesignCreated 移槽', () => {
     const host = makeHost(bridge)
     await host.onDesignCreated('new-root')
     expect(bridge.writes).toEqual(['new-root'])
+  })
+})
+
+// ── 2026-09-15：ask_user_question 硬阻断新流——recordAskForm + answered 结果点移槽
+
+describe('新流：recordAskForm + answered 结果点移槽', () => {
+  test('recordAskForm 注册 → 后续 answered 信封命中映射 → 移槽', async () => {
+    const bridge = makeFakeBridge()
+    bridge.setSlot('d1', designSnap())
+    const host = makeHost(bridge)
+    await host.prepareTurn('第一阶段') // 槽位 d1
+    host.recordAskForm('ask-call-1')
+    host.finalizeTurn()
+
+    host.observeToolExecution('ask_user_question', false, {
+      formId: 'ask-call-1',
+      status: 'answered',
+      questions: [],
+      answers: { q1: { value: 'a' } }
+    })
+    // observeToolExecution 是同步契约，移槽 fire-and-forget；轮询等待
+    for (let i = 0; i < 20 && bridge.writes.length === 0; i++) {
+      await new Promise((r) => setTimeout(r, 5))
+    }
+    expect(bridge.writes).toEqual(['d1'])
+  })
+
+  test('answered 信封 → 移槽后 delete formId 映射（重复 observe 不再触发）', async () => {
+    const bridge = makeFakeBridge()
+    bridge.setSlot('d1', designSnap())
+    const host = makeHost(bridge)
+    await host.prepareTurn('第一阶段')
+    host.recordAskForm('ask-call-1')
+    host.finalizeTurn()
+
+    host.observeToolExecution('ask_user_question', false, {
+      formId: 'ask-call-1',
+      status: 'answered',
+      questions: [],
+      answers: { q1: { value: 'a' } }
+    })
+    for (let i = 0; i < 20 && bridge.writes.length === 0; i++) {
+      await new Promise((r) => setTimeout(r, 5))
+    }
+    const writesAfterFirst = bridge.writes.length
+    // 重复 observe 不应再移槽（映射已删）
+    host.observeToolExecution('ask_user_question', false, {
+      formId: 'ask-call-1',
+      status: 'answered',
+      questions: [],
+      answers: { q1: { value: 'a' } }
+    })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(bridge.writes.length).toBe(writesAfterFirst)
+  })
+
+  test('answered 信封 formId 未在映射 → 静默不触发（fire-and-forget probeCandidate 不发起）', async () => {
+    const bridge = makeFakeBridge()
+    const host = makeHost(bridge)
+    await host.prepareTurn('第一阶段')
+    host.finalizeTurn()
+
+    host.observeToolExecution('ask_user_question', false, {
+      formId: 'ask-unknown',
+      status: 'answered',
+      questions: [],
+      answers: {}
+    })
+    await new Promise((r) => setTimeout(r, 20))
+    // 未注册 formId → 不发起 probeCandidate → writes 不变
+    expect(bridge.writes).toEqual([])
+  })
+
+  test('节点失格 → answered 信封仍走 probe 但移槽失败，映射已删（无副作用）', async () => {
+    const bridge = makeFakeBridge()
+    const host = makeHost(bridge)
+    bridge.setSlot('d1', designSnap())
+    await host.prepareTurn('第一阶段')
+    host.recordAskForm('ask-call-1')
+    host.finalizeTurn()
+
+    bridge.setCandidate('d1', designSnap({ marketingRoot: false }))
+    host.observeToolExecution('ask_user_question', false, {
+      formId: 'ask-call-1',
+      status: 'answered',
+      questions: [],
+      answers: { q1: { value: 'a' } }
+    })
+    for (let i = 0; i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 5))
+      if (bridge.candidateCalls.includes('d1')) break
+    }
+    expect(bridge.candidateCalls).toContain('d1') // probe 发起
+    expect(bridge.writes).toEqual([]) // 节点失格 → 移槽失败
+  })
+
+  test('awaiting 信封路径仍兼容（降级场景）—— 已答信封触发移槽', async () => {
+    const bridge = makeFakeBridge()
+    bridge.setSlot('d1', designSnap())
+    const host = makeHost(bridge)
+    await host.prepareTurn('第一阶段')
+    // 旧 awaiting 信封路径
+    host.observeToolExecution('ask_user_question', false, {
+      formId: 'form-old-aaaaaa',
+      status: 'awaiting_user'
+    })
+    host.finalizeTurn()
+    // 通过序列化信封触发 resolveFormAnswer 移槽（旧路径）
+    await host.prepareTurn(
+      serializeAskAnswer('form-old-aaaaaa', { aborted: false, answers: { q1: { value: 'a' } } })
+    )
+    expect(bridge.writes).toEqual(['d1'])
+    host.finalizeTurn()
   })
 })
 

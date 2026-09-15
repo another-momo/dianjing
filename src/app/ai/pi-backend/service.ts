@@ -62,6 +62,7 @@ import {
   type ConfirmNewIntentResult,
   type SetActiveDesignResult
 } from './active-design-host'
+import { type AskAnswerPayload, createAskPendingStore } from './ask-pending'
 import { createAskUserQuestionTool } from './ask-user-question'
 import { type Capabilities, createCapabilitiesStore } from './capabilities'
 import { readPiHistoryFile } from './history'
@@ -91,6 +92,40 @@ import { createOpenPencilTools } from './tools'
 import { sendUndoGroupSignal } from './undo-group'
 
 export type { PiSessionSummary }
+
+/**
+ * 2026-09-15：ask_user_question 挂起期 tool_call guard——pending 期间拦截非
+ * ask 工具调用（block+reason），强制模型停手等本工具结果返回；ask 自身不
+ * block（其 execute 内部 alreadyPending 错误结果更具体）。
+ * handler 与 extension 分离导出：测试直钉 handler（免 ExtensionAPI 桩件）。
+ */
+export function createAskPendingGuardHandler(
+  store: { hasPendingForSession(sessionId: string): boolean },
+  sessionId: string
+): (event: { toolName: string }) => { block: true; reason: string } | undefined {
+  return (event) => {
+    if (event.toolName === 'ask_user_question') return undefined
+    if (store.hasPendingForSession(sessionId)) {
+      return {
+        block: true,
+        reason:
+          "A form is awaiting the user's answer; wait for ask_user_question to return before calling further tools."
+      }
+    }
+    return undefined
+  }
+}
+
+/** guard 的 inline extension 装配形态——service.ts 注入 extensionFactories */
+export function createAskPendingGuardExtension(
+  store: { hasPendingForSession(sessionId: string): boolean },
+  sessionId: string
+): InlineExtension {
+  const handler = createAskPendingGuardHandler(store, sessionId)
+  return (pi) => {
+    pi.on('tool_call', handler)
+  }
+}
 
 /**
  * prompt 请求的可选装配参数。T60 起 chatMode/pickedProfileId 退役（active_design
@@ -139,8 +174,12 @@ export type PiChatService = {
     documentId?: string,
     windowId?: string
   ): Promise<ConfirmNewIntentResult>
-  /** T27：取消该 session 进行中的 run（SSE 断连锁停后端烧 token）；无活跃 run 时 no-op */
+  /** T27：取消该 session 进行中的 run（SSE 断连锁停后端烧 token）；无活跃 run 时 no-op
+   * 2026-09-15：abort 同时 reject 该 session 的所有 pending ask 表单（挂起 promise 解锁） */
   abort(sessionId: string): Promise<void>
+  /** 2026-09-15：POST /api/pi/ask-answer 端点真源——resolve pending form
+   * (formId 寻址)；'ok' 已答，'not_found' 表中无该 formId（已答/已 abort/未注册） */
+  askAnswer(formId: string, payload: AskAnswerPayload): 'ok' | 'not_found'
 }
 
 type SessionEntry = {
@@ -216,6 +255,8 @@ export function createPiChatService({
     rootDir,
     builtinSkillsDir: builtinStudioDir ? resolveBuiltinSkillsDir(builtinStudioDir) : undefined
   })
+  // 2026-09-15：ask_user_question 挂起期 pending-form 注册表单例（跨 session 共享）
+  const askPendingStore = createAskPendingStore()
 
   const sessions = new Map<string, SessionEntry>()
 
@@ -246,9 +287,13 @@ export function createPiChatService({
   // T28（决策单 #2）：GC 触发封装——两个触发点：①铸新会话后（createSession，
   // 存量清理）；②runPrompt 收尾（新会话 JSONL 此时必然已落盘——createSession
   // 时点 pi 尚未写盘，阈值计数要含新文件必须等这里）。失败不阻断主流程。
+  // 2026-09-15：GC 前后比对 index，被归档的 sessionId 一并 reject 其
+  // pending ask 表单（会话文件已归档 = session 不可恢复，挂着
+  // 的 promise 必须解锁；不 reject 会内存泄漏到下次重启）
   function collectGarbage(): void {
     try {
-      runSessionGc({
+      const before = readIndex()
+      const result = runSessionGc({
         sessionsDir,
         archiveDir,
         maxSessions,
@@ -256,6 +301,17 @@ export function createPiChatService({
         readIndex,
         writeIndex
       })
+      // GC 后 index 与 before 对比：消失的 sessionId 即被归档者——reject 其
+      // pending ask 表单解锁挂起 promise（不 reject 会内存泄漏到下次重启）；
+      // 内存 sessions Map 维持原状（会话驱逐是规格外行为，不动）
+      if (result.archived.length > 0) {
+        const archivedNames = new Set(result.archived)
+        for (const [sessionId, entry] of Object.entries(before)) {
+          const name = entry.file.split(/[\\/]/).pop() ?? ''
+          if (!archivedNames.has(name)) continue
+          askPendingStore.rejectForSession(sessionId, new Error('session_archived'))
+        }
+      }
     } catch (error) {
       console.warn(
         '[pi-backend] session GC 失败（忽略，不阻断主流程）：' +
@@ -324,9 +380,17 @@ export function createPiChatService({
           dir: () => resolveImageGenOutputDir(rootDir)
         }
       }),
-      // T56：ask_user_question 后端本地工具（不经桥——表单卡片由前端读 tool
-      // part 渲染，作答序列化为新回合用户消息回流；run 终止续跑，无挂起态）
-      createAskUserQuestionTool(),
+      // 2026-09-15：ask_user_question 挂起期本地工具（不经桥——表单卡片由前端
+      // 读 tool part 渲染）→ register store → 挂起到 /api/pi/ask-answer 端点
+      // resolve；answer/skip 作为本工具结果在同一 turn 返回。
+      // onPendingRegistered 通知 host 记录 formId→当时槽位（active-design-host
+      // observeToolExecution 不再触发，新流走工具结果 details.status='answered'
+      // 移槽——见 host recordAskForm）。
+      createAskUserQuestionTool({
+        store: askPendingStore,
+        sessionId,
+        onPendingRegistered: (formId) => host.recordAskForm(formId)
+      }),
       // T85：load_reference 后端本地工具（资产 references 按需读取；允许集 =
       // 本回合 active 资产声明并集——assembleTurn 计算、host 持有于 turn 缓存袋、
       // finalizeTurn 随 turn=null 复位；回合外空集，任何 path 皆拒）
@@ -360,6 +424,11 @@ export function createPiChatService({
       })
     }
     const extensionFactories: InlineExtension[] = [assembly]
+    // 2026-09-15：ask_user_question 挂起期 tool_call guard——pending 期间拦截
+    // 非 ask 工具调用，强制模型停手等本工具结果返回（避免模型在前端作答
+    // 到达前继续推工具调用，破坏挂起语义）；pending 时 ask_user_question
+    // 自身不 block（其 execute 内部 alreadyPending 错误结果更具体）
+    extensionFactories.push(createAskPendingGuardExtension(askPendingStore, sessionId))
     // 冒烟探针（免 key 装配验证）：登记在装配之后，event.systemPrompt 已是
     // 链式最终值；仅 PI_PROMPT_PROBE_DIR 显式设置时生效
     const probeDir = process.env.PI_PROMPT_PROBE_DIR
@@ -636,6 +705,13 @@ export function createPiChatService({
     // 信号、等当前工具收尾（agent-loop.js 工具批 `if (signal?.aborted) break`），
     // 不打断进行中的 HTTP——generate.ts execute 未接 pi abort signal，
     // provider（image-gen/provider.ts）用独立 AbortSignal.timeout。工具层 signal 透传留后续。
+    // 2026-09-15：reject 该 session 的所有 pending ask 表单（ask_user_question
+    // 挂起 promise 解锁，execute signal abort 自动 reject 等价路径——双保险）；
+    // entry 不存在时也要清（断连导致 server.ts 早于 createSession 收到 abort）
+    const rejected = askPendingStore.rejectForSession(sessionId, new Error('aborted'))
+    if (rejected > 0) {
+      console.debug(`[pi-backend] abort(${sessionId}) rejected ${rejected} pending ask form(s)`)
+    }
     if (!entry) return
     const hitRunningRun = entry.running
     // T27：pi abort() 语义 = 取消当前操作并等 agent 回 idle
@@ -667,6 +743,7 @@ export function createPiChatService({
     setCapabilities,
     setActiveDesign,
     confirmNewIntent,
-    abort
+    abort,
+    askAnswer: (formId, payload) => askPendingStore.resolveByFormId(formId, payload)
   }
 }

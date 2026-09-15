@@ -151,12 +151,14 @@ function filePartFilename(part: FilePart): string {
     >
       <template v-if="message.role === 'assistant'">
         <template v-for="(part, i) in message.parts" :key="partKey(part, i)">
-          <!-- T56：ask_user_question → 聊天内表单卡片（先于通用折叠工具卡） -->
+          <!-- T56→2026-09-15：ask_user_question → 聊天内表单卡片（先于通用折叠工具卡）
+               摘除 :disabled="streaming"——挂起期卡片必须可交互（聊天处于 streaming
+               是 ask_user_question 工具执行中，是设计预期而非锁定态）；常规锁定
+               由 answered/resolved/submittedKind 兜住 -->
           <AskUserQuestionCard
             v-if="isToolUIPart(part) && getToolName(part) === 'ask_user_question'"
             :part="part"
             :answered="isAskFormAnswered(part)"
-            :disabled="streaming"
             @submit="emit('formSubmit', $event)"
           />
           <!-- T61：set_active_design → 同意卡（同意/不同意均不伪装用户消息） -->

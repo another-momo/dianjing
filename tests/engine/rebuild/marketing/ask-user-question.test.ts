@@ -266,29 +266,7 @@ describe('makeFormId', () => {
   })
 })
 
-describe('createAskUserQuestionTool：awaiting 信封（软终止）', () => {
-  test('合法定义 → {formId, status:awaiting_user, questions 回显} + 英文软终止指令', async () => {
-    const tool = createAskUserQuestionTool({ makeId: () => 'form-test-000000' })
-    const input = { questions: [singleSelect('q1'), { id: 'q2', kind: 'text', label: '补充' }] }
-    // 先例：orchestration.test.ts 以双参直调 execute（signal/onUpdate/ctx 省略）
-    const result = await tool.execute('call-1', input)
-
-    const details = result.details as {
-      formId: string
-      status: string
-      questions: Array<{ id: string; required: boolean }>
-    }
-    expect(details.formId).toBe('form-test-000000')
-    expect(details.status).toBe('awaiting_user')
-    expect(details.questions.map((q) => q.id)).toEqual(['q1', 'q2'])
-    expect(details.questions[1].required).toBe(true)
-
-    const text = result.content[0].type === 'text' ? result.content[0].text : ''
-    expect(text).toContain('formId=form-test-000000')
-    expect(text).toContain('Turn ends here')
-    expect(text).toContain('Form rendered to the user')
-  })
-
+describe('createAskUserQuestionTool：校验拒绝（不挂起、无 formId）', () => {
   test('label 超过 2000 字符 → schema 拒绝（typebox maxLength）', async () => {
     const tool = createAskUserQuestionTool({ makeId: () => 'form-test-000000' })
     const longLabel = 'x'.repeat(2001)

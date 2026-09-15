@@ -530,10 +530,16 @@ export interface ActiveDesignHostDeps {
 export interface ActiveDesignHost {
   /** setup_design 注入缝真源：本回合新建意图旗标（run 结束 finalizeTurn 复位） */
   newIntentConfirmed(): boolean
-  /** 工具结果观察：ask_user_question awaiting 信封 → 记录 formId→当时槽位 */
+  /** 工具结果观察：ask_user_question awaiting 信封 → 记录 formId→当时槽位
+   *  2026-09-15：详情 status='answered' 且 formId 命中映射 → 按合法性检查移槽后
+   *  delete 该 formId 映射（与 awaiting envelope 同判据复用 isFormTargetStillValid） */
   observeToolExecution(toolName: string, isError: boolean, details: unknown): void
   /** 事件①：setup_design 成功（结果含新 root id）→ 移槽（失败只 warn，设计已建不回吐） */
   onDesignCreated(rootId: string, documentId?: string, windowId?: string): Promise<void>
+  /** 2026-09-15：ask_user_question 挂起期注册回调——工具 register 成功即记
+   *  formId→当时 currentSlotNodeId（与 awaiting envelope 路径等价但触发时点
+   *  提前到挂起完成前，answer envelope 不再走聊天回流路径） */
+  recordAskForm(formId: string): void
   /** 回合入口：剥信封 → 置旗标 + 确认参数系统提示行（T65）→ ④移槽 → 槽位读穿/清悬空 → 组装 */
   prepareTurn(text: string, documentId?: string, windowId?: string): Promise<{ promptText: string }>
   /** before_agent_start 钩子读取的当回合组装结果（prepareTurn 后恒非空） */
@@ -624,8 +630,34 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
     newIntentConfirmed: () => intentConfirmed,
     observeToolExecution(toolName, isError, details) {
       if (toolName !== 'ask_user_question' || isError || !isRecord(details)) return
-      if (details.status !== 'awaiting_user' || typeof details.formId !== 'string') return
-      formDesignByFormId.set(details.formId, currentSlotNodeId)
+      // 2026-09-15：新流 awaiting envelope 不再触发（execute register 已在
+      // recordAskForm 提前记录）——保留 awaiting 观察点是为降级兼容（若旧
+      // 版本前端/后端混搭仍可能命中）
+      if (details.status === 'awaiting_user' && typeof details.formId === 'string') {
+        formDesignByFormId.set(details.formId, currentSlotNodeId)
+        return
+      }
+      // 新流：answered 结果点移槽——formId 命中映射 → 合法性检查 → 移槽 → 删映射
+      // 异步移槽无法 await（observeToolExecution 同步契约）；fire-and-forget，
+      // 失败仅 warn，桥不可达按降级（不移槽——下回合探针读穿为准）
+      if (details.status === 'answered' && typeof details.formId === 'string') {
+        const formId = details.formId
+        const mapped = formDesignByFormId.get(formId)
+        formDesignByFormId.delete(formId)
+        if (!mapped) return
+        void (async () => {
+          const probe = await deps.bridge.probeCandidate(mapped)
+          if (probe && isFormTargetStillValid(probe)) await moveSlot(mapped)
+        })().catch((error: unknown) => {
+          console.warn(
+            '[active-design-host] 表单作答结果点移槽失败（降级不移槽）：' +
+              (error instanceof Error ? error.message : String(error))
+          )
+        })
+      }
+    },
+    recordAskForm(formId) {
+      formDesignByFormId.set(formId, currentSlotNodeId)
     },
     async onDesignCreated(rootId, documentId, windowId) {
       await moveSlot(rootId, documentId, windowId)
