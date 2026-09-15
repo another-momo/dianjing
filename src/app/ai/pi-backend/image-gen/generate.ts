@@ -39,6 +39,9 @@
  * 只回画布元数据（无图像字节回 AI，无 key）。
  */
 
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { defineTool, type AgentToolResult } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 
@@ -86,6 +89,16 @@ export interface ImageGenToolDeps {
   createProvider?: (credentials: ImageGenCredentials) => ImageGenProvider
   /** 当次请求的桥目标袋（service 集成期注入，同 tools.ts ToolTargetSource 语义；T98-路由含 windowId） */
   target?: BridgeCallTarget
+  /**
+   * 图片本地留存开关（owner 拍板，默认 OFF）。service.ts 装配期注入——
+   * enabled() 每条 item 实时问 settings store（用户可在 AI 运行期间切换）；
+   * dir() 每次返回绝对路径（resolveImageGenOutputDir(rootDir)），handler
+   * 内 mkdirSync 兜底。
+   *
+   * 失败语义：写盘异常 → 仅 console.warn，不进 toolResult / note / agent
+   * 通道，画布 commit 不受影响（owner 拍板：静默失败，避免污染结果契约）。
+   */
+  retention?: { enabled(): boolean; dir(): string }
 }
 
 interface BeginPayload {
@@ -129,6 +142,8 @@ type PipelineItem = {
   error?: string
   /** T33: 后处理失败原因（仅当 transparent === 'failed' 时存在） */
   transparentError?: string
+  /** 生成段最终生效 outputFormat（transparent 强制 png 已反映）——本地留存扩展名口径 */
+  effectiveFormat?: ImageGenRequest['outputFormat']
 }
 
 function toToolResult(result: Record<string, unknown>): AgentToolResult<Record<string, unknown>> {
@@ -140,6 +155,50 @@ function toToolResult(result: Record<string, unknown>): AgentToolResult<Record<s
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * 本地留存小函数（owner 拍板：writeFileSync 失败静默——只 console.warn，
+ * 不进 toolResult / note / agent 通道）。
+ *
+ * 文件名口径：`YYYYMMDD-hhmmss-<批次内序号>-<宽>x<高>.<ext>`。
+ *   - ext 取生成段最终生效格式（item.effectiveFormat，runGeneratePhase
+ *     落袋）——transparent 强制 png 已反映；直接读 item.req 会在
+ *     jpeg/webp + transparent 组合下把 png 字节写成 .jpeg/.webp 扩展名。
+ *     ImageGenResult 形状无 format 字段（core 抽象），agent 未指定时兜 png。
+ *   - 同秒多 item 靠批次内序号后缀区分；跨调用同秒同尺寸撞名覆盖即可——
+ *     用户语义是「保留最近一次的本地副本」，无版本控制需求。
+ *
+ * 整个写盘 try/catch 包裹——禁空 catch，必须把 msg 透出到 warn；任何 IO
+ * 异常（permission denied / disk full / readonly volume）都不应拖累画布
+ * commit。
+ */
+function maybeRetain(
+  retention: { enabled(): boolean; dir(): string } | undefined,
+  format: ImageGenRequest['outputFormat'],
+  gen: ImageGenResult,
+  batchIndex: number
+): void {
+  if (!retention || !retention.enabled()) return
+  try {
+    const dir = retention.dir()
+    mkdirSync(dir, { recursive: true })
+    const now = new Date()
+    const yyyy = now.getFullYear().toString().padStart(4, '0')
+    const mm = (now.getMonth() + 1).toString().padStart(2, '0')
+    const dd = now.getDate().toString().padStart(2, '0')
+    const HH = now.getHours().toString().padStart(2, '0')
+    const MM = now.getMinutes().toString().padStart(2, '0')
+    const SS = now.getSeconds().toString().padStart(2, '0')
+    const ext = format ?? 'png'
+    const filename = `${yyyy}${mm}${dd}-${HH}${MM}${SS}-${batchIndex}-${gen.width}x${gen.height}.${ext}`
+    writeFileSync(join(dir, filename), gen.bytes)
+  } catch (error) {
+    console.warn(
+      '[pi-backend] image-gen 本地留存失败（忽略）：' +
+        (error instanceof Error ? error.message : String(error))
+    )
+  }
 }
 
 /** begin 段（串行：每次 begin 重读页面 bounds，00 #10 竞态修复） */
@@ -202,6 +261,7 @@ async function runGeneratePhase(items: PipelineItem[], provider: ImageGenProvide
             ? `${item.req.prompt}\n\n${KEY_COLOR_PROMPT_SUFFIX}`
             : item.req.prompt
       }
+      item.effectiveFormat = finalReq.outputFormat
 
       try {
         const generated = await provider.generate(
@@ -235,10 +295,11 @@ async function runCommitPhase(
   items: PipelineItem[],
   provider: ImageGenProvider,
   callBridge: BridgeCaller,
-  target: BridgeCallTarget | undefined
+  target: BridgeCallTarget | undefined,
+  retention?: { enabled(): boolean; dir(): string }
 ): Promise<ItemResult[]> {
   const results: ItemResult[] = []
-  for (const item of items) {
+  for (const [i, item] of items.entries()) {
     if (!item.begin) {
       results.push({ id: item.req.replaceId ?? '', error: item.error ?? 'begin failed' })
       continue
@@ -260,6 +321,9 @@ async function runCommitPhase(
         })
         continue
       }
+      // 本地留存：commit 成功后立刻落盘——bytes 与画布 IMAGE fill 是同一份
+      // （透明背景后处理之后）；序号 = 批次内位置（同秒多 item 区分用）
+      maybeRetain(retention, item.effectiveFormat, item.gen, i)
       const commitResult: {
         id: string
         width?: number
@@ -404,7 +468,7 @@ export function createImageGenTool(deps: ImageGenToolDeps) {
 
       const items = await runBeginPhase(parsed.requests, callBridge, deps.target)
       await runGeneratePhase(items, provider)
-      const results = await runCommitPhase(items, provider, callBridge, deps.target)
+      const results = await runCommitPhase(items, provider, callBridge, deps.target, deps.retention)
 
       const ok = results.filter((result) => result.id && !result.error).length
       const toolResult: {

@@ -60,8 +60,10 @@ import {
 } from './http-utils'
 import { createImageGenCredentialStore } from './image-gen/credentials'
 import { handleImageGenAdminRequest } from './image-gen/routes'
+import { createImageGenSettingsStore } from './image-gen/settings'
 import {
   defaultOpenFolderOpener,
+  handleOpenImageGenFolderRequest,
   handleOpenStudioFolderRequest,
   type OpenFolderOpener
 } from './open-studio-folder'
@@ -510,10 +512,17 @@ export function createPiBackendServer({
   // T54：generate_image 凭证面（三键存储 + 状态端点）——单实例同时供管理
   // 路由与 service 内 generate_image 工具消费，避免双实例缓存漂移（保存 key
   // 后工具侧立即可见）
-  const imageGenCredentials = createImageGenCredentialStore({
-    agentDir: resolveAgentDir(rootDir)
+  const agentDir = resolveAgentDir(rootDir)
+  const imageGenCredentials = createImageGenCredentialStore({ agentDir })
+  // 图片本地留存偏好（retainLocal）——单实例供 settings 路由读 / generate_image
+  // 工具每条 item 实时问开关（同凭证面纪律：保存后工具侧立即可见）
+  const imageGenSettings = createImageGenSettingsStore({ agentDir })
+  const service = createPiChatService({
+    rootDir,
+    admin,
+    imageGenCredentials,
+    imageGenSettings
   })
-  const service = createPiChatService({ rootDir, admin, imageGenCredentials })
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1')
     if (url.pathname === '/health') {
@@ -554,13 +563,23 @@ export function createPiBackendServer({
     if (handleReadonlyPiRequest(service, req, res, url)) return
     // T54：生图凭证面（须在 /api/pi/ 管理面前缀之前匹配；只进不出）
     if (url.pathname.startsWith('/api/pi/image-gen/')) {
-      void handleImageGenAdminRequest(imageGenCredentials, req, res, url.pathname)
+      void handleImageGenAdminRequest(
+        { credentials: imageGenCredentials, settings: imageGenSettings, rootDir },
+        req,
+        res,
+        url.pathname
+      )
       return
     }
     // ai-panel-ux-consolidation：打开用户拓展目录端点（exact match，独立 handler
     // 兜复杂度；须在 /api/pi/ 管理面前缀之前匹配）
     if (url.pathname === '/api/pi/open-studio-folder') {
       void handleOpenStudioFolderRequest(rootDir, req, res, sendJSON, openFolder)
+      return
+    }
+    // 图片本地留存目录打开端点（exact match；同 open-studio-folder 形态但目录不同）
+    if (url.pathname === '/api/pi/open-image-gen-folder') {
+      void handleOpenImageGenFolderRequest(rootDir, req, res, sendJSON, openFolder)
       return
     }
     if (url.pathname.startsWith('/api/pi/')) {

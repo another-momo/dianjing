@@ -147,6 +147,15 @@ export function resolvePiBackendTokenPath(rootDir: string): string {
   return join(rootDir, PI_BACKEND_TOKEN_FILENAME)
 }
 
+/** `rootDir/image-gen-output/` —— generate_image 「图片本地留存」目录（owner 拍板）；
+ *  本地副本与画布 IMAGE fill 是同一份 bytes（透明背景后处理之后）。 */
+export const IMAGE_GEN_OUTPUT_SUBDIR = 'image-gen-output'
+
+/** `rootDir/image-gen-output/` */
+export function resolveImageGenOutputDir(rootDir: string): string {
+  return join(rootDir, IMAGE_GEN_OUTPUT_SUBDIR)
+}
+
 // ── studio 双源 resolver ──
 
 /**

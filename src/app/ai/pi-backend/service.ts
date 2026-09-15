@@ -67,11 +67,13 @@ import { type Capabilities, createCapabilitiesStore } from './capabilities'
 import { readPiHistoryFile } from './history'
 import type { ImageGenCredentialStore } from './image-gen/credentials'
 import { createImageGenTool } from './image-gen/generate'
+import type { ImageGenSettingsStore } from './image-gen/settings'
 import { createLoadReferenceTool } from './load-reference'
 import { createPiEventMapper } from './mapping'
 import {
   resolveAgentDir,
   resolveArchiveDir,
+  resolveImageGenOutputDir,
   resolveSessionsDir,
   resolveSkillsDir,
   resolveStudioDirs
@@ -164,11 +166,14 @@ const EMPTY_REFERENCES: ReadonlyMap<string, string> = new Map()
 export function createPiChatService({
   rootDir,
   admin,
-  imageGenCredentials
+  imageGenCredentials,
+  imageGenSettings
 }: {
   rootDir: string
   admin: ProviderAdmin
   imageGenCredentials: ImageGenCredentialStore
+  /** 图片本地留存偏好（retainLocal）——settings 路由读、generate_image 实时问开关 */
+  imageGenSettings: ImageGenSettingsStore
 }): PiChatService {
   const agentDir = resolveAgentDir(rootDir)
   const sessionsDir = resolveSessionsDir(rootDir)
@@ -301,8 +306,17 @@ export function createPiChatService({
         () => Array.isArray(model.input) && model.input.includes('image')
       ),
       // T54：generate_image 后端段（生成 HTTP 不经桥、落图经桥；凭证单实例
-      // 由 server.ts 注入，与设置路由同视图）
-      createImageGenTool({ credentials: imageGenCredentials, target }),
+      // 由 server.ts 注入，与设置路由同视图）。图片本地留存：每条 item 实时
+      // 问 settings.get().retainLocal，dir() 拼 resolveImageGenOutputDir(rootDir)——
+      // 用户可在 AI 运行期间切换开关，下一条 item 即跟随
+      createImageGenTool({
+        credentials: imageGenCredentials,
+        target,
+        retention: {
+          enabled: () => imageGenSettings.get().retainLocal,
+          dir: () => resolveImageGenOutputDir(rootDir)
+        }
+      }),
       // T56：ask_user_question 后端本地工具（不经桥——表单卡片由前端读 tool
       // part 渲染，作答序列化为新回合用户消息回流；run 终止续跑，无挂起态）
       createAskUserQuestionTool(),

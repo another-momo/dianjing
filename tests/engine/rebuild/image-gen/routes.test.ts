@@ -18,6 +18,10 @@ import {
   type ImageGenCredentialStore
 } from '@/app/ai/pi-backend/image-gen/credentials'
 import { handleImageGenAdminRequest } from '@/app/ai/pi-backend/image-gen/routes'
+import {
+  createImageGenSettingsStore,
+  type ImageGenSettingsStore
+} from '@/app/ai/pi-backend/image-gen/settings'
 
 const VALID_BODY = {
   providerType: 'openai-compatible',
@@ -33,12 +37,12 @@ function tempAgentDir(): { agentDir: string; cleanup: () => void } {
 
 /** 挂 handler 起真 server；handler 返回 false 时落 404（钉路径分派契约） */
 async function withServer(
-  store: ImageGenCredentialStore,
+  args: { credentials: ImageGenCredentialStore; settings: ImageGenSettingsStore; rootDir: string },
   run: (baseURL: string) => Promise<void>
 ): Promise<void> {
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1')
-    void handleImageGenAdminRequest(store, req, res, url.pathname).then((handled) => {
+    void handleImageGenAdminRequest(args, req, res, url.pathname).then((handled) => {
       if (!handled) res.writeHead(404).end('Not Found')
       return undefined
     })
@@ -69,7 +73,8 @@ describe('POST /api/pi/image-gen/credentials（四键）', () => {
     const { agentDir, cleanup } = tempAgentDir()
     try {
       const store = createImageGenCredentialStore({ agentDir })
-      await withServer(store, async (baseURL) => {
+      const settings = createImageGenSettingsStore({ agentDir })
+      await withServer({ credentials: store, settings, rootDir: agentDir }, async (baseURL) => {
         const saved = await postJSON(baseURL, '/api/pi/image-gen/credentials', VALID_BODY)
         expect(saved.status).toBe(200)
         expect(store.get()?.model).toBe('gpt-image-1')
@@ -90,7 +95,8 @@ describe('POST /api/pi/image-gen/credentials（四键）', () => {
     const { agentDir, cleanup } = tempAgentDir()
     try {
       const store = createImageGenCredentialStore({ agentDir })
-      await withServer(store, async (baseURL) => {
+      const settings = createImageGenSettingsStore({ agentDir })
+      await withServer({ credentials: store, settings, rootDir: agentDir }, async (baseURL) => {
         for (const body of [
           { apiKey: 'sk-x' },
           { providerType: 'openai-compatible', apiKey: 'sk-x' },
@@ -114,9 +120,12 @@ describe('POST /api/pi/image-gen/credentials（四键）', () => {
     const { agentDir, cleanup } = tempAgentDir()
     try {
       const store = createImageGenCredentialStore({ agentDir })
+      const settings = createImageGenSettingsStore({ agentDir })
       store.set(VALID_BODY)
-      await withServer(store, async (baseURL) => {
-        const response = await postJSON(baseURL, '/api/pi/image-gen/credentials', { apiKey: '  ' })
+      await withServer({ credentials: store, settings, rootDir: agentDir }, async (baseURL) => {
+        const response = await postJSON(baseURL, '/api/pi/image-gen/credentials', {
+          apiKey: '  '
+        })
         expect(response.status).toBe(200)
         expect(store.get()).toBeNull()
       })
@@ -129,8 +138,9 @@ describe('POST /api/pi/image-gen/credentials（四键）', () => {
     const { agentDir, cleanup } = tempAgentDir()
     try {
       const store = createImageGenCredentialStore({ agentDir })
+      const settings = createImageGenSettingsStore({ agentDir })
       store.set(VALID_BODY)
-      await withServer(store, async (baseURL) => {
+      await withServer({ credentials: store, settings, rootDir: agentDir }, async (baseURL) => {
         const deleted = await fetch(`${baseURL}/api/pi/image-gen/credentials`, {
           method: 'DELETE'
         })
@@ -148,7 +158,8 @@ describe('POST /api/pi/image-gen/credentials（四键）', () => {
     const { agentDir, cleanup } = tempAgentDir()
     try {
       const store = createImageGenCredentialStore({ agentDir })
-      await withServer(store, async (baseURL) => {
+      const settings = createImageGenSettingsStore({ agentDir })
+      await withServer({ credentials: store, settings, rootDir: agentDir }, async (baseURL) => {
         const response = await postJSON(baseURL, '/api/pi/image-gen/test', {
           baseUrl: 'https://api.example.com/v1',
           apiKey: 'sk-x'

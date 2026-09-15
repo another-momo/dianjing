@@ -13,7 +13,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import { readStudioBuiltinDir } from '@/app/orchestration/env'
 
-import { resolveStudioDirs } from './paths'
+import { resolveImageGenOutputDir, resolveStudioDirs } from './paths'
 
 /** opener 注入形态——测试桩掉真 spawn，避免 explorer/open/xdg-open 跨平台
  *  副作用。返回子进程在同步抛错 / error 事件时由 handler 兜底翻译为
@@ -69,6 +69,45 @@ export async function handleOpenStudioFolderRequest(
   child.once('error', (error) => {
     console.warn(
       `[pi-backend] 打开文件夹失败（忽略，响应已发）：${userDir}：` +
+        (error instanceof Error ? error.message : String(error))
+    )
+  })
+  sendJSON(res, 200, { ok: true })
+}
+
+/**
+ * POST /api/pi/open-image-gen-folder——按 OS 唤起资源管理器 / Finder /
+ * xdg-open 打开 image-gen 本地留存目录（rootDir/image-gen-output/）。
+ * 与 handleOpenStudioFolderRequest 同形：目录不存在时兜底 mkdir（用户首次
+ * 开启留存开关前目录可能不存在；首次留存落盘时也会 mkdir，但 handler 独立
+ * 兜底让用户在开关 OFF 时也能预览目录 / 手动清空旧文件）。
+ */
+export async function handleOpenImageGenFolderRequest(
+  rootDir: string,
+  req: IncomingMessage,
+  res: ServerResponse,
+  sendJSON: (res: ServerResponse, status: number, payload: unknown) => void,
+  openFolder: OpenFolderOpener
+): Promise<void> {
+  if (req.method !== 'POST') {
+    res.writeHead(405).end('Method Not Allowed')
+    return
+  }
+  const dir = resolveImageGenOutputDir(rootDir)
+  mkdirSync(dir, { recursive: true })
+  let child: ChildProcess
+  try {
+    child = openFolder(dir)
+  } catch (error) {
+    sendJSON(res, 200, {
+      ok: false,
+      error: `打开文件夹失败：${error instanceof Error ? error.message : String(error)}`
+    })
+    return
+  }
+  child.once('error', (error) => {
+    console.warn(
+      `[pi-backend] 打开文件夹失败（忽略，响应已发）：${dir}：` +
         (error instanceof Error ? error.message : String(error))
     )
   })

@@ -68,7 +68,8 @@ function makeService(rootDir: string) {
   return createPiChatService({
     rootDir,
     admin: { resolveModel: async () => ({ modelRuntime: null, model: null }) } as never,
-    imageGenCredentials: {} as never
+    imageGenCredentials: {} as never,
+    imageGenSettings: {} as never
   })
 }
 

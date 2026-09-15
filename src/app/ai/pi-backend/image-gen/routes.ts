@@ -3,12 +3,15 @@
  * T66（P0/P1）：presetId 退役——POST 收 providerType/baseUrl/model/apiKey
  * 四键（全部用户手填）。T71（owner 裁决 2026-09-01）：POST .../test 连接探针
  * 端点移除——并非所有 provider 实现 /models 列表端点，探针结论不可靠。
+ * 图片本地留存：GET/PUT /api/pi/image-gen/settings（retainLocal + dir）。
  *
  * 端点（与 /api/pi/credentials 同纪律：只进不出，无任何回读 key 的路径）：
  *   GET    /api/pi/image-gen/credentials → { configured, providerType?, baseUrl?, model? }
  *   POST   /api/pi/image-gen/credentials { providerType, baseUrl, model, apiKey }
  *          （空 apiKey = 清除，00 #7；此时其余字段不校验）
  *   DELETE /api/pi/image-gen/credentials
+ *   GET    /api/pi/image-gen/settings → { retainLocal, dir }
+ *   PUT    /api/pi/image-gen/settings  { retainLocal } （非 boolean → 400 JSON 信封）
  *
  * server.ts 在 /api/pi/ 管理面前缀之前挂本处理器（bearer 鉴权由 server.ts
  * 统一前置）。错误文案只含公共信息，绝不含 key；全部 4xx 一律 JSON 信封
@@ -18,9 +21,12 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
+import { resolveImageGenOutputDir } from '../paths'
 import type { ImageGenCredentialStore } from './credentials'
+import type { ImageGenSettingsStore } from './settings'
 
-const PATHNAME = '/api/pi/image-gen/credentials'
+const CREDENTIALS_PATHNAME = '/api/pi/image-gen/credentials'
+const SETTINGS_PATHNAME = '/api/pi/image-gen/settings'
 
 function sendJSON(res: ServerResponse, status: number, payload: unknown): void {
   res.writeHead(status, { 'content-type': 'application/json' })
@@ -83,16 +89,58 @@ async function handleCredentialsRequest(
   sendJSON(res, 200, { ok: true })
 }
 
+/**
+ * 图片本地留存偏好 GET/PUT——retainLocal 布尔（fail-safe 缺省 false），
+ * dir 由路由层填（resolveImageGenOutputDir(rootDir)）——不落盘，跟着状态根走。
+ */
+async function handleSettingsRequest(
+  settings: ImageGenSettingsStore,
+  rootDir: string,
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  if (req.method === 'GET') {
+    sendJSON(res, 200, {
+      retainLocal: settings.get().retainLocal,
+      dir: resolveImageGenOutputDir(rootDir)
+    })
+    return
+  }
+  if (req.method !== 'PUT') {
+    sendJSON(res, 405, { error: 'Method Not Allowed' })
+    return
+  }
+  const body = (JSON.parse((await readBody(req)) || '{}') ?? {}) as {
+    retainLocal?: unknown
+  }
+  if (typeof body.retainLocal !== 'boolean') {
+    sendJSON(res, 400, { error: 'retainLocal must be boolean' })
+    return
+  }
+  const next = settings.setRetainLocal(body.retainLocal)
+  sendJSON(res, 200, { retainLocal: next.retainLocal, dir: resolveImageGenOutputDir(rootDir) })
+}
+
+export interface ImageGenAdminDeps {
+  credentials: ImageGenCredentialStore
+  settings: ImageGenSettingsStore
+  rootDir: string
+}
+
 /** 返回是否已处理（false = 非本面路径，交后续路由） */
 export async function handleImageGenAdminRequest(
-  store: ImageGenCredentialStore,
+  deps: ImageGenAdminDeps,
   req: IncomingMessage,
   res: ServerResponse,
   pathname: string
 ): Promise<boolean> {
-  if (pathname !== PATHNAME) return false
+  if (pathname !== CREDENTIALS_PATHNAME && pathname !== SETTINGS_PATHNAME) return false
   try {
-    await handleCredentialsRequest(store, req, res)
+    if (pathname === CREDENTIALS_PATHNAME) {
+      await handleCredentialsRequest(deps.credentials, req, res)
+    } else {
+      await handleSettingsRequest(deps.settings, deps.rootDir, req, res)
+    }
   } catch (error) {
     sendJSON(res, 400, { error: error instanceof Error ? error.message : String(error) })
   }

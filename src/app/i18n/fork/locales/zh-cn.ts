@@ -179,7 +179,11 @@ const zhCN = {
     imageGenKeyClear: '清除密钥',
     imageGenConfigured: '已配置',
     imageGenNotConfigured: '未配置',
-    imageGenOffline: '无法连接本地 AI 服务——请重启应用；浏览器开发模式请先启动本地服务。'
+    imageGenOffline: '无法连接本地 AI 服务——请重启应用；浏览器开发模式请先启动本地服务。',
+    // 图片本地留存偏好——默认关闭；写盘失败静默，不污染画布 commit
+    imageGenRetainLocal: '图片本地留存',
+    imageGenRetainLocalHint: '生成图同时留存一份到本地目录',
+    imageGenOpenFolder: '打开文件夹'
   },
   fonts: {
     settingsFonts: '字体',

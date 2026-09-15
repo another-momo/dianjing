@@ -8,6 +8,9 @@
  * key 直送 pi 后端凭证面（image-gen/routes.ts），前端不持久化、不回显
  * （状态只有 configured/providerType/baseUrl/model 元数据）。
  * 空 key 保存 = 清除（00 #7：清除必须生效）。
+ * 图片本地留存（owner 拍板）：retainLocal 开关 + dir 行 + 「打开文件夹」按钮——
+ * 默认关，开启后 generate_image 工具落盘一份与画布同 bytes 的副本；
+ * 写盘失败静默（后端 console.warn 不返前端）。
  */
 import { computed, onMounted, ref, watch } from 'vue'
 
@@ -18,11 +21,16 @@ import {
   imageGenCredentialError,
   imageGenCredentialLoading,
   imageGenCredentialStatus,
+  imageGenSettings,
+  openImageGenFolder,
   refreshImageGenCredentialStatus,
+  refreshImageGenSettings,
   setImageGenCredential,
+  setImageGenRetainLocal,
   type ImageGenProviderType
 } from '@/app/ai/pi-backend/image-gen/client'
 import { useForkImageGen } from '@/app/i18n/fork'
+import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
 
 const msgs = useForkImageGen()
 
@@ -35,6 +43,13 @@ const model = ref(imageGenCredentialStatus.value?.model ?? '')
 const keyInput = ref('')
 const busy = ref(false)
 const actionError = ref<string | null>(null)
+
+// 图片本地留存开关本地状态（避免在 PUT 进行中闪烁）——初值取后端 GET 快照
+const retainLocal = ref(imageGenSettings.value?.retainLocal ?? false)
+// 切换开关的瞬态错误（PUT 失败时显示一行红字，与凭证面 actionError 同形态）
+const retainError = ref<string | null>(null)
+// 打开目录的瞬态状态（与 AgentSettingsPanel 三态机对齐：idle/opened/failed）
+const openStatus = ref<'idle' | 'opened' | 'failed'>('idle')
 
 const configured = computed(() => imageGenCredentialStatus.value?.configured === true)
 
@@ -61,6 +76,15 @@ watch(
     }
   },
   { immediate: false }
+)
+
+// 后端 settings 拉回时同步本地开关初值（首次加载完成后生效）
+watch(
+  imageGenSettings,
+  (settings) => {
+    if (settings) retainLocal.value = settings.retainLocal
+  },
+  { immediate: true }
 )
 
 async function save(): Promise<void> {
@@ -95,7 +119,33 @@ async function clear(): Promise<void> {
   }
 }
 
-onMounted(() => void refreshImageGenCredentialStatus())
+// 切换开关——PUT 失败保留旧值并把错误显示一行（不阻塞 UI）
+async function toggleRetainLocal(next: boolean): Promise<void> {
+  const prev = retainLocal.value
+  retainLocal.value = next
+  retainError.value = null
+  try {
+    await setImageGenRetainLocal(next)
+  } catch (error) {
+    retainLocal.value = prev
+    retainError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
+// 打开目录按钮——后端 ok:false 时前端不报错（留 openStatus=failed 提示）；
+// 1.2s 后回归 idle，与 AgentSettingsPanel 同节奏
+async function handleOpenFolder(): Promise<void> {
+  const result = await openImageGenFolder()
+  openStatus.value = result.ok ? 'opened' : 'failed'
+  setTimeout(() => {
+    openStatus.value = 'idle'
+  }, 1200)
+}
+
+onMounted(() => {
+  void refreshImageGenCredentialStatus()
+  void refreshImageGenSettings()
+})
 </script>
 
 <template>
@@ -188,6 +238,48 @@ onMounted(() => void refreshImageGenCredentialStatus())
           · {{ imageGenCredentialStatus.model }}
         </template>
       </p>
+
+      <!-- 图片本地留存：开关 + dir 行 + 打开文件夹按钮（owner 拍板；默认关） -->
+      <label class="mt-1 flex items-center justify-between gap-4 border-t border-border pt-2">
+        <span>
+          <span class="block text-[11px] text-surface">{{ msgs.imageGenRetainLocal }}</span>
+          <span class="block text-[10px] text-muted">{{ msgs.imageGenRetainLocalHint }}</span>
+        </span>
+        <AppSwitch
+          :model-value="retainLocal"
+          :label="msgs.imageGenRetainLocal"
+          data-test-id="image-gen-retain-local"
+          @update:model-value="toggleRetainLocal"
+        />
+      </label>
+
+      <p
+        v-if="imageGenSettings"
+        class="break-all font-mono text-[10px] text-muted"
+        data-test-id="image-gen-retain-dir"
+      >
+        {{ imageGenSettings.dir }}
+      </p>
+
+      <div class="flex items-center justify-between gap-2">
+        <p
+          v-if="retainError"
+          class="text-[10px] text-red-400"
+          data-test-id="image-gen-retain-error"
+        >
+          {{ retainError }}
+        </p>
+        <span v-else />
+        <button
+          type="button"
+          class="shrink-0 rounded border border-border px-2 py-1 text-[11px] text-surface transition-colors hover:bg-panel-field disabled:opacity-50"
+          :disabled="openStatus !== 'idle'"
+          data-test-id="image-gen-open-folder"
+          @click="handleOpenFolder"
+        >
+          {{ msgs.imageGenOpenFolder }}
+        </button>
+      </div>
 
       <p v-if="actionError" class="text-[10px] text-red-400" data-test-id="image-gen-action-error">
         {{ actionError }}

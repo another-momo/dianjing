@@ -114,7 +114,11 @@ export const imageGenMessageDefaults = {
   imageGenConfigured: 'Configured',
   imageGenNotConfigured: 'Not configured',
   imageGenOffline:
-    'Local AI service unreachable — restart the app; in browser dev mode, start the local service first.'
+    'Local AI service unreachable — restart the app; in browser dev mode, start the local service first.',
+  // 图片本地留存偏好——off by default；写盘失败静默，不污染画布 commit
+  imageGenRetainLocal: 'Save images locally',
+  imageGenRetainLocalHint: 'Keep a local copy of generated images',
+  imageGenOpenFolder: 'Open folder'
 } as const
 
 /** T56：ask_user_question 聊天内表单卡片（AskUserQuestionCard）英文默认值；
