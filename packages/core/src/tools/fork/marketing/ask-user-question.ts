@@ -4,9 +4,10 @@
  *
  * 职责：
  *  - 表单定义校验（validateAskUserQuestions）：questions 1..8、id 唯一非空、
- *    label 非空、kind 三值互斥（single_select → options 2..12 且无 imageOptions；
- *    image_select → imageOptions 1..12 且无 options；text 两者皆无）、
- *    required 缺省 true。失败返回 { error, message }，不 throw——
+ *    label 非空、kind 四值互斥（single_select/multi_select → options 2..12
+ *    且无 imageOptions；image_select → imageOptions 1..12 且无 options；
+ *    text 两者皆无）、required 缺省 true、notes（波2 #8）可选布尔。
+ *    失败返回 { error, message }，不 throw——
  *    pi 后端 execute 与前端卡片渲染共用本层。
  *  - formId 生成（makeFormId）：`form-<时间戳36进制>-<随机6位>`，now/rand 可注入
  *    （测试确定性）。
@@ -26,7 +27,7 @@
  * 纯函数、零 figma/pi 依赖——bun 直接可测。
  */
 
-export type AskQuestionKind = 'single_select' | 'image_select' | 'text'
+export type AskQuestionKind = 'single_select' | 'multi_select' | 'image_select' | 'text'
 
 export interface AskSelectOption {
   id: string
@@ -47,6 +48,8 @@ export interface AskQuestionSpec {
   required: boolean
   options?: AskSelectOption[]
   imageOptions?: AskImageOption[]
+  /** 波2 #8：该题附带笔记输入区（与作答解耦，不影响 required 判定） */
+  notes?: boolean
 }
 
 export type AskValidation = { questions: AskQuestionSpec[] } | { error: string; message: string }
@@ -145,6 +148,13 @@ function validateImageOptions(
   return imageOptions
 }
 
+const ASK_QUESTION_KINDS: ReadonlySet<string> = new Set([
+  'single_select',
+  'multi_select',
+  'image_select',
+  'text'
+])
+
 function validateQuestion(
   item: unknown,
   index: number,
@@ -168,24 +178,23 @@ function validateQuestion(
   }
 
   const kind = item.kind
-  if (kind !== 'single_select' && kind !== 'image_select' && kind !== 'text') {
+  if (typeof kind !== 'string' || !ASK_QUESTION_KINDS.has(kind)) {
     return fail(
       'question_kind',
-      `question "${id}" kind must be single_select | image_select | text`
+      `question "${id}" kind must be single_select | multi_select | image_select | text`
     )
   }
   const required = item.required !== false
+  // 复杂度纪律：notes 散布一次计算（三处 kind 返回共用），site 零三元
+  const notesProp: { notes?: true } = item.notes === true ? { notes: true } : {}
 
-  if (kind === 'single_select') {
+  if (kind === 'single_select' || kind === 'multi_select') {
     if (item.imageOptions !== undefined) {
-      return fail(
-        'kind_mixed_fields',
-        `question "${id}" (single_select) must not carry imageOptions`
-      )
+      return fail('kind_mixed_fields', `question "${id}" (${kind}) must not carry imageOptions`)
     }
     const options = validateSelectOptions(id, item.options)
     if ('error' in options) return options
-    return { id, kind, label, required, options }
+    return { id, kind, label, required, options, ...notesProp }
   }
   if (kind === 'image_select') {
     if (item.options !== undefined) {
@@ -193,12 +202,12 @@ function validateQuestion(
     }
     const imageOptions = validateImageOptions(id, item.imageOptions)
     if ('error' in imageOptions) return imageOptions
-    return { id, kind, label, required, imageOptions }
+    return { id, kind, label, required, imageOptions, ...notesProp }
   }
   if (item.options !== undefined || item.imageOptions !== undefined) {
     return fail('kind_mixed_fields', `question "${id}" (text) must not carry options`)
   }
-  return { id, kind, label, required }
+  return { id, kind, label, required, ...notesProp }
 }
 
 /**
@@ -252,15 +261,20 @@ export const FREE_TEXT_OPTION_ID = '__freeText'
 
 /**
  * per-question 作答（T95）：普通选项/文本 → { value }；
- * 「其他」→ { value: FREE_TEXT_OPTION_ID, freeText }（freeText 非空白才算有效作答）
+ * 「其他」→ { value: FREE_TEXT_OPTION_ID, freeText }（freeText 非空白才算有效作答）。
+ * 波2 增量：multi_select → { values: 选项id数组 }（含「其他」时数组含
+ * FREE_TEXT_OPTION_ID 且 freeText 非空白才算有效）；notes = 该题笔记
+ * （与作答解耦，仅在该题 spec.notes=true 时由 UI 采集）。
  */
 export interface AskQuestionAnswer {
   value?: string
+  values?: string[]
   freeText?: string
+  notes?: string
 }
 
 export type AskAnswerPayload =
-  | { aborted: false; answers: Record<string, AskQuestionAnswer> }
+  | { aborted: false; answers: Record<string, AskQuestionAnswer>; notes?: string }
   | { aborted: true; freeText: string }
 
 /** 前端提交路径用的完整载荷（formId + 判别联合） */
@@ -281,10 +295,12 @@ export type ParsedAskAnswer =
       aborted: false
       answers: Record<string, AskQuestionAnswer>
       freeText?: string
+      /** 波2 #9：提交时附加的全局备注（非空白才出现） */
+      notes?: string
     }
   | { formId: string; aborted: true; freeText: string }
 
-/** 单键归一：旧格式裸 string → { value }；新格式对象取非空白 value/freeText；空键丢弃 */
+/** 单键归一：旧格式裸 string → { value }；新格式对象取非空白 value/values/freeText/notes；空键丢弃 */
 function normalizeQuestionAnswer(value: unknown): AskQuestionAnswer | null {
   if (typeof value === 'string') {
     return value.trim() !== '' ? { value } : null
@@ -292,10 +308,22 @@ function normalizeQuestionAnswer(value: unknown): AskQuestionAnswer | null {
   if (!isRecord(value)) return null
   const answer: AskQuestionAnswer = {}
   if (typeof value.value === 'string' && value.value.trim() !== '') answer.value = value.value
+  if (Array.isArray(value.values)) {
+    const list = value.values.filter((v): v is string => typeof v === 'string' && v.trim() !== '')
+    if (list.length > 0) answer.values = list
+  }
   if (typeof value.freeText === 'string' && value.freeText.trim() !== '') {
     answer.freeText = value.freeText
   }
-  return answer.value !== undefined || answer.freeText !== undefined ? answer : null
+  if (typeof value.notes === 'string' && value.notes.trim() !== '') {
+    answer.notes = value.notes
+  }
+  return answer.value !== undefined ||
+    answer.values !== undefined ||
+    answer.freeText !== undefined ||
+    answer.notes !== undefined
+    ? answer
+    : null
 }
 
 /**
@@ -358,6 +386,9 @@ export function parseAskAnswer(
     }
   }
   const parsed: ParsedAskAnswer = { formId, aborted: false, answers }
+  // 波2 #9：全局备注（非空白才收；nonEmptyString 调用点单分支，复杂度纪律）
+  const globalNotes = nonEmptyString(payload.notes)
+  if (globalNotes !== null) parsed.notes = globalNotes
   // 旧格式迁移（T95）：全局 freeText 非空白才处理；空白直接丢弃（T83 同律）
   if (typeof payload.freeText === 'string' && payload.freeText.trim() !== '') {
     const legacy = migrateLegacyFreeText(answers, payload.freeText, questions)
@@ -369,7 +400,8 @@ export function parseAskAnswer(
 // ── 作答校验（前端卡片共用；审查文档 §4.4/§5.2） ──
 
 /**
- * 单题是否已有效作答：text → value 非空白；选择类普通选项 → value 非空且非
+ * 单题是否已有效作答：text → value 非空白；multi_select → values 非空
+ * （含「其他」时 freeText 非空白）；选择类普通选项 → value 非空且非
  * FREE_TEXT_OPTION_ID；「其他」→ value === FREE_TEXT_OPTION_ID 且 freeText 非空白。
  */
 export function isAskQuestionAnswered(
@@ -379,6 +411,13 @@ export function isAskQuestionAnswered(
   if (!answer) return false
   if (question.kind === 'text') {
     return typeof answer.value === 'string' && answer.value.trim() !== ''
+  }
+  if (question.kind === 'multi_select') {
+    if (!Array.isArray(answer.values) || answer.values.length === 0) return false
+    if (answer.values.includes(FREE_TEXT_OPTION_ID)) {
+      return typeof answer.freeText === 'string' && answer.freeText.trim() !== ''
+    }
+    return true
   }
   if (answer.value === FREE_TEXT_OPTION_ID) {
     return typeof answer.freeText === 'string' && answer.freeText.trim() !== ''

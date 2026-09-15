@@ -90,7 +90,7 @@ describe('validateAskUserQuestions 校验矩阵', () => {
 
   test('非法 kind → error', () => {
     const result = validateAskUserQuestions({
-      questions: [{ id: 'q1', kind: 'multi_select', label: 'x' }]
+      questions: [{ id: 'q1', kind: 'ranking', label: 'x' }]
     })
     expect('error' in result).toBe(true)
     if ('error' in result) expect(result.error).toBe('question_kind')
