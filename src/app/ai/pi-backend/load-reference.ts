@@ -21,6 +21,11 @@
  *
  * P2-3a（2026-09-07）：path 校验与 validate.ts 同口径放宽为白名单
  * [.md,.txt,.json,.yaml,.csv]；50KB 截断逻辑不变。
+ *
+ * 2026-09-15（layer-splitting 实跑误用复盘）：pi skill 经 SDK additionalSkillPaths
+ * 加载、其 references 不进本机制白名单——agent 见「reference」字样易误拿本工具
+ * 读 skill 引用。描述与 not_allowed 错误文案双双点名「skill references 不在覆盖
+ * 面、改用 read 工具」；并补「索引节缺席 = 本回合无可读项，勿调」防空调用。
  */
 
 import { readFileSync } from 'node:fs'
@@ -35,7 +40,11 @@ import { toToolResult } from './tool-result'
 export const LOAD_REFERENCE_MAX_BYTES = 50 * 1024
 
 const LOAD_REFERENCE_DESCRIPTION =
-  'Load one on-demand reference file declared by the active studio assets (base/workflow/profile). The readable paths for THIS turn are listed in the system prompt section "按需参考（load_reference 工具按需读取）" — pass `path` exactly as listed there (relative; .md/.txt/.json/.yaml/.csv). Reads are whitelisted per turn: any other path is rejected and the error echoes the readable list. Returns the file text (truncated past 50KB with a trailing note). Use it to pull detailed design guidance only when the current step actually needs it — do not pre-read everything.'
+  'Load one on-demand reference file declared by the active studio assets (base/workflow/profile). The readable paths for THIS turn are listed in the system prompt section "按需参考（load_reference 工具按需读取）" — pass `path` exactly as listed there (relative; .md/.txt/.json/.yaml/.csv); if that section is absent, nothing is readable this turn — do not call this tool. Reads are whitelisted per turn: any other path is rejected and the error echoes the readable list. Only studio assets are ever whitelisted — agent-skill references (paths inside a <skill> block, relative to the skill baseDir) are never readable here; use the `read` tool for those instead. Returns the file text (truncated past 50KB with a trailing note). Use it to pull detailed design guidance only when the current step actually needs it — do not pre-read everything.'
+
+/** not_allowed 错误文案共用尾句——skill references 永不进白名单，指往 read（2026-09-15 误用复盘） */
+const NOT_ALLOWED_SKILL_HINT =
+  '；agent skill 的 references 不在本工具覆盖面——请改用 read 工具（绝对路径 = skill 块 baseDir + 相对路径）'
 
 export interface LoadReferenceToolDeps {
   /** 本回合允许集（声明 path → 加载期解析绝对路径）；宿主每回合装配、finalizeTurn 复位 */
@@ -82,8 +91,8 @@ export function createLoadReferenceTool(deps: LoadReferenceToolDeps) {
           error: 'reference_not_allowed',
           message:
             available.length === 0
-              ? `path「${normalized}」不在本回合可读清单——本回合 active 资产未声明任何 references（无可读项）`
-              : `path「${normalized}」不在本回合可读清单——仅可读：${available.join('、')}`,
+              ? `path「${normalized}」不在本回合可读清单——本回合 active 资产未声明任何 references（无可读项）${NOT_ALLOWED_SKILL_HINT}`
+              : `path「${normalized}」不在本回合可读清单——仅可读：${available.join('、')}${NOT_ALLOWED_SKILL_HINT}`,
           available
         })
       }
