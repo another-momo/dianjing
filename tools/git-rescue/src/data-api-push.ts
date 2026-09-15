@@ -9,10 +9,12 @@
  *
  * 前置条件：HEAD = 要推的提交；其父提交已在远端；与远端是 FF 关系。
  * 用法：bun tools/git-rescue/src/data-api-push.ts（仓内任意 cwd 可跑）。
- * 实证：2026-09-09 .git 灭失重建；2026-09-15 两度 github.com:443 四连败兜底成功。
+ * 实证：2026-09-09 .git 灭失重建；2026-09-15 两度 github.com:443 四连败兜底成功；
+ * 同日三连败首用本仓版，撞删除/重命名盲区（--name-only 对 D 侧 rev-parse 即炸），
+ * 已补 --name-status 分流（D → sha:null 删条目，R 经 --no-renames 拆 D+A）。
  */
 import { execSync } from 'node:child_process'
-import { readFileSync, writeFileSync, unlinkSync } from 'node:fs'
+import { writeFileSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -25,6 +27,9 @@ const PAYLOAD = join(tmpdir(), `data-api-push-payload-${process.pid}.json`)
 
 function git(args: string): string {
   return execSync(`git ${args}`, { cwd: REPO_ROOT }).toString()
+}
+function gitBytes(args: string): Buffer {
+  return execSync(`git ${args}`, { cwd: REPO_ROOT })
 }
 interface GhShaResponse {
   sha: string
@@ -52,16 +57,28 @@ const localTree = git('rev-parse "HEAD^{tree}"').trim()
 const localCommit = git('rev-parse HEAD').trim()
 const parent = git('rev-parse "HEAD^"').trim()
 const parentTree = git(`rev-parse "${parent}^{tree}"`).trim()
-const files = git('diff-tree --no-commit-id --name-only -r HEAD').trim().split('\n').filter(Boolean)
+const files = git('diff-tree --no-commit-id --no-renames --name-status -r HEAD')
+  .trim()
+  .split('\n')
+  .filter(Boolean)
 console.log(
   `本地对象：commit=${localCommit.slice(0, 9)} tree=${localTree.slice(0, 9)} parent=${parent.slice(0, 9)} 文件 ${files.length} 件`
 )
 
-// 1) 逐文件 blob——字节级 base64 上传，sha 必须与本地一致
-const entries: Array<{ path: string; mode: string; type: string; sha: string }> = []
-for (const path of files) {
+// 1) 逐文件 blob——A/M 字节级 base64 上传，sha 必须与本地一致；
+//    D 以 sha:null 条目从树中删除（--no-renames 使 R 自然拆 D+A，无需专判）
+const entries: Array<{ path: string; mode: string; type: string; sha: string | null }> = []
+for (const line of files) {
+  const [status, path] = line.split('\t')
+  if (status === 'D') {
+    entries.push({ path, mode: '100644', type: 'blob', sha: null })
+    console.log('delete ✅', path)
+    continue
+  }
   const localBlob = git(`rev-parse "HEAD:${path}"`).trim()
-  const content = readFileSync(join(REPO_ROOT, path)).toString('base64')
+  // 内容必须取自 git 对象库而非工作树——工作树脏（未提交改动）时盘读与 HEAD 分叉，
+  // blob sha 必然不符；cat-file 按 sha 取内容，构造上恒一致
+  const content = gitBytes(`cat-file blob ${localBlob}`).toString('base64')
   const blob = ghAPI('POST', `repos/${REPO}/git/blobs`, {
     content,
     encoding: 'base64'
