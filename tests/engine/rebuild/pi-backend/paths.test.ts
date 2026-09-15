@@ -70,8 +70,8 @@ describe('pi-backend/paths — resolveStateDir and friends (D2: flat under rootD
     expect(resolveKeyEnvPath(rootDir)).toBe(join(rootDir, 'key-env'))
   })
 
-  test('resolveSkillsDir appends skills directly under rootDir', () => {
-    expect(resolveSkillsDir(rootDir)).toBe(join(rootDir, 'skills'))
+  test('resolveSkillsDir appends skills under rootDir/studio (与 workflows/profiles 同根)', () => {
+    expect(resolveSkillsDir(rootDir)).toBe(join(rootDir, 'studio', 'skills'))
   })
 
   test('resolvePiBackendTokenPath appends pi-backend-token filename directly under rootDir', () => {

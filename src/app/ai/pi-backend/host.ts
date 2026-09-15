@@ -41,6 +41,7 @@ import { RUNTIME_AUTOMATION_TOKEN_KEY } from '@/app/orchestration/runtime-global
 import { generateToken } from '@/app/orchestration/token'
 
 import { PI_BACKEND_DEFAULT_PORT } from './config'
+import { BUILTIN_STUDIO_SUBPATH } from './paths'
 
 // D2：状态根收口——host 进程自身没有状态根（旧 rootDir 唯一消费者是 dist
 // 解析基准）；状态根由 backend 子进程 main.ts 走 resolveAppDataRoot 单源
@@ -111,7 +112,11 @@ async function spawnBackend(): Promise<void> {
     env: {
       ...process.env,
       DIANJING_PI_BACKEND_PORT: String(backendPort),
-      DIANJING_PI_TOKEN: piToken
+      DIANJING_PI_TOKEN: piToken,
+      // studio 内置资产目录：serve 形态指向仓内源目录（与 Electron main /
+      // vite-plugin 注入同名 env 对齐）；缺省时 paths.ts 兜底落进状态根，
+      // 永不存在 → ensureUserStudioSeed 早返，seed 从不生效
+      DIANJING_STUDIO_BUILTIN_DIR: resolve(process.cwd(), BUILTIN_STUDIO_SUBPATH)
     }
   })
   backend.on('error', (err) => console.error(`[host] 无法 spawn pi 后端：${err.message}`))

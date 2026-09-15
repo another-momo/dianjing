@@ -14,9 +14,11 @@
  *   路误读事故。
  * - 幂等：检测到任一 `_` 前缀已存在即 no-op 返回 `{seeded: false}`；不增量
  *   覆盖（用户已改写的内容一律保留）。
+ * - ai-panel-ux-consolidation：seed 同时落地 README.md（用户操作手册）；已存
+ *   在则跳过（不覆盖用户改写）——与 `_example` 复制同纪律。
  */
 
-import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 export interface SeedResult {
@@ -31,6 +33,39 @@ export interface SeedResult {
 /** 触发 seed 复制的内置资产顶层目录名清单。预留扩展位：未来加更多示例
  * 只需在此数组追加，不动调用方。 */
 const SEED_TOP_DIRS = ['_example'] as const
+
+/** 用户目录首次启动时落地的 README——中文操作手册（内嵌字符串，避免依赖
+ *  额外文件）。SDK 真实加载约定见同模块头注（SKILL.md + frontmatter
+ *  `description` 必填，`name` 可省略回退父目录名；顶层平铺或子目录递归）。 */
+const README_CONTENT = `# 自定义拓展目录
+
+这是 Dianjing / OpenPencil 的本地扩展存放目录。把
+\`workflows/<id>/workflow.md\` / \`profiles/<id>/profile.md\` /
+\`skills/<id>/SKILL.md\` 三类资产放在这里，AI 聊天代理会按内置 + 用户
+两层覆盖规则读取——同名 id 用户版覆盖内置版。
+
+## 三种资产形态
+
+- **workflow**（agent mode）：\`workflows/<id>/workflow.md\`
+  每个子目录是一份独立的 agent mode。\`id\` = 目录名（小写字母 / 数字 /
+  连字符）；frontmatter 必填 \`label\` / 可选 \`subtitle\` / \`step_budget\` /
+  \`sizes\`。
+- **profile**（style profile）：\`profiles/<id>/profile.md\`
+  每个子目录是一份独立风格档案。结构同 workflow，与 mode 配对使用。
+- **skill**：\`skills/\` 下平铺 \`SKILL.md\` 或 \`<id>/SKILL.md\`
+  SDK 扫到 \`SKILL.md\` 立即作为 skill 根（不继续递归）；子目录里再找
+  \`SKILL.md\` 是另一份 skill。frontmatter 必填 \`description\`（\`name\`
+  缺省回退父目录名）。无 description 的 SKILL.md 直接被 SDK 拒收。
+
+## 起步
+
+首跑已把内置 \`_example\` 复制到 \`workflows/\` 与 \`profiles/\`——
+复制即改名改写（去掉 \`_\` 前缀、改目录名与 frontmatter \`id\` 即可
+注册）。详细字段说明与可调样式见各文件头部注释。
+
+> 本目录是单向用户面——删 \`_example\`、改写资产本体都不影响内置副本。
+> 想要复位示例：删 \`_example\` 后重启应用即可重新复制。
+`
 
 /**
  * 把 `srcDir` 下 `entries` 命名的子目录递归复制到 `dstDir`。
@@ -114,6 +149,12 @@ export function ensureUserStudioSeed(userStudioDir: string, builtinStudioDir: st
   // 检测用户目录：先建目录（首跑 userStudioDir 不存在是正常的，不是错误），
   // 再扫是否已有 `_` 前缀的子目录（workflows 或 profiles 任一侧即视为已 seed）。
   mkdirSync(userStudioDir, { recursive: true })
+
+  // 写 README（已存在则跳过——不覆盖用户改写；与 `_example` 复制同纪律）
+  const readmePath = join(userStudioDir, 'README.md')
+  if (!existsSync(readmePath)) {
+    writeFileSync(readmePath, README_CONTENT, 'utf8')
+  }
 
   if (hasAnyUnderscoreDir(userStudioDir)) {
     return {

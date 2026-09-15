@@ -127,7 +127,12 @@ const navigationClass =
         >
           <!-- T91k：去 h-full——本区与 Agent 能力同流，由外层对话框容器统一滚动 -->
           <PiModelsPanel />
-          <!-- T96：ModelsPanel 与 Agent 能力分区之间的视觉分隔（预研 §5.3） -->
+          <!-- T96：ModelsPanel 与下一节之间的视觉分隔（预研 §5.3） -->
+          <div class="border-t border-border" />
+          <!-- ai-panel-ux-consolidation：图像生成凭证由 media 段迁入 ai 段
+               （与 PiModelsPanel / AgentSettingsPanel 同流——三件 AI 相关） -->
+          <ImageGenKeysSection />
+          <!-- ai-panel-ux-consolidation：图像生成与 Agent 能力之间的视觉分隔 -->
           <div class="border-t border-border" />
           <!-- T87：Agent 能力配置（T96：builtinTools 三档位 + agentSkills 开关） -->
           <AgentSettingsPanel />
@@ -140,7 +145,6 @@ const navigationClass =
         >
           <h3 class="text-xs font-semibold text-surface">{{ settings.media }}</h3>
           <StockPhotoKeysSection />
-          <ImageGenKeysSection />
           <VectorizeSettingsSection />
         </section>
 

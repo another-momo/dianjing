@@ -54,7 +54,12 @@ export const PI_BACKEND_TOKEN_FILENAME = 'pi-backend-token'
 /** studio 用户扩展目录子路径（D2 起相对 rootDir，无双层嵌套） */
 export const USER_STUDIO_SUBPATH = 'studio'
 
-/** studio 内置资产目录相对仓库根的子路径（dev/wt 形态；打包形态由 env 覆盖） */
+/**
+ * studio 内置资产目录相对仓库根的子路径——三形态 spawn 方（vite-plugin /
+ * host.ts / Electron main）据此经 DIANJING_STUDIO_BUILTIN_DIR 注入；join
+ * (rootDir, …) 兜底仅覆盖「无 env 直跑 main.ts」场景（此时 rootDir 是状态
+ * 根，拼出的路径实际不存在，seed 早返为空——已知限制，不走该形态交付）。
+ */
 export const BUILTIN_STUDIO_SUBPATH = join('src', 'app', 'ai', 'pi-backend', 'studio')
 
 // ── stateDir 拼接 helper（D2 起 rootDir 即状态根本身，无 STATE_DIR_NAME 层）──
@@ -128,9 +133,13 @@ export function resolveKeyEnvPath(rootDir: string): string {
   return join(rootDir, KEY_ENV_FILENAME)
 }
 
-/** `rootDir/skills/` */
+/** `rootDir/studio/skills/` —— skills 与 studio workflows/profiles 同根：
+ *  上层 studio 双源解析（builtin/user）已承载资产覆盖语义；skills 也按 user 覆盖
+ *  builtin 加载（service.ts 的 DefaultResourceLoader.additionalSkillPaths 喂同一 userDir
+ *  路径，SDK 跑默认扫描仅看 builtin 模板目录）。把 skills 收进 studio/ 后三类资产
+ *  同一目录根——用户复制内置 `_example` 即可看到完整样例。 */
 export function resolveSkillsDir(rootDir: string): string {
-  return join(rootDir, SKILLS_SUBDIR)
+  return join(rootDir, USER_STUDIO_SUBPATH, SKILLS_SUBDIR)
 }
 
 /** `rootDir/pi-backend-token` */

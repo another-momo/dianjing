@@ -43,7 +43,7 @@ export const piMessageDefaults = {
   currentAssignmentLabel: 'Current design model',
   currentAssignmentCurrent: 'Current',
   thinkingLevel: 'Thinking level',
-  thinkingOff: 'Off',
+  thinkingOff: 'Default',
   thinkingMinimal: 'Minimal',
   thinkingLow: 'Low',
   thinkingMedium: 'Medium',
@@ -91,11 +91,9 @@ export const piMessageDefaults = {
   providerGateHint: 'Manage models in Settings → AI'
 } as const
 
-/** T54→T66：generate_image 凭证面板（SettingsDialog media 分区；Provider 类型下拉 + baseUrl/model/key 输入 + 测试连接）英文默认值 */
+/** T54→T66：generate_image 凭证面板（SettingsDialog ai 分区；Provider 类型下拉 + baseUrl/model/key 输入 + 测试连接）英文默认值 */
 export const imageGenMessageDefaults = {
   imageGenTitle: 'Image generation',
-  imageGenDescription:
-    'Credentials for image generation, held by the local AI service (separate from the chat key). Pick the provider type, then enter its base URL, model and API key.',
   imageGenProvider: 'Provider type',
   imageGenBaseUrl: 'Base URL',
   imageGenBaseUrlPlaceholder: 'https://api.openai.com/v1',
@@ -167,7 +165,16 @@ export const agentCapabilitiesMessageDefaults = {
   agentSkillsLabel: 'Skill System',
   agentSkillsDescription: 'Enable AI to use specialized skills',
   agentCapabilitiesSaving: 'Saving…',
-  agentCapabilitiesError: params('Failed to save: {message}')
+  agentCapabilitiesError: params('Failed to save: {message}'),
+  // ai-panel-ux-consolidation：自定义拓展（workflow / profile / skill 资产根目录入口）
+  customExtensionsTitle: 'Custom extensions',
+  customExtensionsDescription:
+    'Folder for custom agent mode workflows, style profiles, and agent skills — copy the built-in `_example` and edit it. See the README inside the folder for details.',
+  customExtensionsFolderLabel: 'Extensions folder',
+  customExtensionsOpen: 'Open folder',
+  customExtensionsOpened: 'Opened',
+  customExtensionsCopied: 'Copied',
+  customExtensionsCopyFailed: 'Copy failed'
 } as const
 
 /**

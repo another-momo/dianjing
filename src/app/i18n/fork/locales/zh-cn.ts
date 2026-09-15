@@ -55,7 +55,15 @@ const zhCN = {
     agentSkillsLabel: '技能系统',
     agentSkillsDescription: '启用 AI 使用专业技能',
     agentCapabilitiesSaving: '保存中…',
-    agentCapabilitiesError: '保存失败：{message}'
+    agentCapabilitiesError: '保存失败：{message}',
+    customExtensionsTitle: '自定义拓展',
+    customExtensionsDescription:
+      '自定义 agent mode workflow / style profile / agent skill 的存放目录——照着 `_example` 改名改写即可，完整说明见文件夹内 README。',
+    customExtensionsFolderLabel: '自定义拓展目录',
+    customExtensionsOpen: '打开文件夹',
+    customExtensionsOpened: '已打开',
+    customExtensionsCopied: '已复制',
+    customExtensionsCopyFailed: '复制失败'
   },
   panels: {
     contextTriggerLabel: '画布状态',
@@ -160,8 +168,6 @@ const zhCN = {
   },
   imagegen: {
     imageGenTitle: '图像生成',
-    imageGenDescription:
-      '图片生成功能的凭证由本地 AI 服务持有（与聊天密钥分开）。选择服务商类型，然后填写 Base URL、模型名与 API 密钥。',
     imageGenProvider: '服务商类型',
     imageGenBaseUrl: 'Base URL',
     imageGenBaseUrlPlaceholder: 'https://api.openai.com/v1',
@@ -241,7 +247,7 @@ const zhCN = {
     currentAssignmentLabel: '当前设计模型',
     currentAssignmentCurrent: '当前',
     thinkingLevel: '思考级别',
-    thinkingOff: '关闭',
+    thinkingOff: '默认',
     thinkingMinimal: '最低',
     thinkingLow: '低',
     thinkingMedium: '中',

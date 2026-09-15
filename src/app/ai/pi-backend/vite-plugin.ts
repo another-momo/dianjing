@@ -25,6 +25,7 @@
  */
 
 import { spawn } from 'node:child_process'
+import { resolve } from 'node:path'
 
 import type { Plugin } from 'vite'
 
@@ -44,6 +45,7 @@ import { MAX_AUTO_RESTARTS, nextRestartDelay } from '../../orchestration/restart
 // oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
 import { generateToken } from '../../orchestration/token'
 import { PI_BACKEND_DEFAULT_PORT } from './config'
+import { BUILTIN_STUDIO_SUBPATH } from './paths'
 
 const CHILD_EXIT_TIMEOUT_MS = 2_000
 const HEALTH_TIMEOUT_MS = 15_000
@@ -133,6 +135,11 @@ export function piBackendPlugin(options: PiBackendPluginOptions = {}): Plugin {
         DIANJING_PI_BACKEND_PORT: String(port),
         // T28：鉴权 token 经 env 注入（后端见 token 即不走 standalone 落盘路径）
         DIANJING_PI_TOKEN: authToken,
+        // studio 内置资产目录：dev 形态指向仓内源目录（与 Electron main 注入
+        // 同名 env 对齐）。缺省时 paths.ts 兜底 join(rootDir, 内置子路径） 落进
+        // 状态根——该路径永不存在，ensureUserStudioSeed 早返，seed 从不生效。
+        // spawn 的相对入口路径本已硬假设 cwd=仓根，此处同源。
+        DIANJING_STUDIO_BUILTIN_DIR: resolve(process.cwd(), BUILTIN_STUDIO_SUBPATH),
         // T38：dev 桥 discovery 隔离路径注入（后端 readDiscoveryFile 经
         // getDiscoveryPath 吃该 env；不注入则盲读平台默认路径找不到活桥）
         ...(mcpDiscoveryPath ? { DIANJING_MCP_DISCOVERY_PATH: mcpDiscoveryPath } : {})

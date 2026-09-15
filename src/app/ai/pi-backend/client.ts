@@ -102,3 +102,19 @@ export type PiVerifyResult = { ok: boolean; error?: string }
 export async function verifyPiCredential(providerId: string): Promise<PiVerifyResult> {
   return requestJSON<PiVerifyResult>('/credentials/verify', jsonBody({ providerId }))
 }
+
+/** ai-panel-ux-consolidation：打开用户拓展目录结果——成功 `{ok:true}` 或
+ *  后端兜底翻译的 `{ok:false, error:中文文案}`。前端在 ok=false 时回退
+ *  旧「复制路径」通路（copyStatus 三态机保留）。
+ *  复用 PiVerifyResult 形态避免 type-shapes 重复门禁——两形态语义同（ok + 可选
+ *  error 字段）。 */
+export type OpenStudioFolderResult = PiVerifyResult
+
+export async function openPiStudioFolder(): Promise<OpenStudioFolderResult> {
+  try {
+    return await requestJSON<OpenStudioFolderResult>('/open-studio-folder', { method: 'POST' })
+  } catch (error) {
+    // fetch / 反序列化失败 → 透传成 ok:false，与服务端 ok:false 同形
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}

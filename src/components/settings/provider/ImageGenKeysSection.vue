@@ -100,10 +100,7 @@ onMounted(() => void refreshImageGenCredentialStatus())
 
 <template>
   <section class="flex flex-col gap-1.5" data-test-id="image-gen-keys-section">
-    <div>
-      <h3 class="text-xs font-semibold text-surface">{{ msgs.imageGenTitle }}</h3>
-      <p class="text-[10px] text-muted">{{ msgs.imageGenDescription }}</p>
-    </div>
+    <h3 class="text-xs font-semibold text-surface">{{ msgs.imageGenTitle }}</h3>
 
     <p
       v-if="imageGenCredentialError"

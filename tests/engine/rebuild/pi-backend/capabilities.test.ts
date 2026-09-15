@@ -144,7 +144,7 @@ test('T96 set 缺省 builtinTools → 保留旧值（部分更新语义）', () 
 
 test('T87 listSkills：OFF 时空集（不泄露已扫到 skill 存在性）', () => {
   // 即便 skills/ 有 SKILL.md，OFF 时 listSkills 也必须空集
-  const userSkillsDir = join(rootDir, 'skills', 'demo')
+  const userSkillsDir = join(rootDir, 'studio', 'skills', 'demo')
   mkdirSync(userSkillsDir, { recursive: true })
   writeFileSync(
     join(userSkillsDir, 'SKILL.md'),
@@ -162,10 +162,10 @@ description: 测试
   expect(store.listSkills()).toEqual([])
 })
 
-test('T87 listSkills：ON 时扫 cwd/skills（D2 扁平化单源）+ 脱敏', () => {
+test('T87 listSkills：ON 时扫 studio/skills（D2 扁平化单源）+ 脱敏', () => {
   // T89 → D2：单源扫描 skills（扁平化后直接挂 rootDir）；原双源去重测试
   // 不再适用（同名 demo 在单源下不可能双份；保留 name 投影 + 脱敏两条核心断言）
-  const userDir = join(rootDir, 'skills', 'demo')
+  const userDir = join(rootDir, 'studio', 'skills', 'demo')
   mkdirSync(userDir, { recursive: true })
   writeFileSync(
     join(userDir, 'SKILL.md'),
@@ -178,7 +178,7 @@ description: 用户侧 demo
 `,
     'utf8'
   )
-  const otherDir = join(rootDir, 'skills', 'other')
+  const otherDir = join(rootDir, 'studio', 'skills', 'other')
   mkdirSync(otherDir, { recursive: true })
   writeFileSync(
     join(otherDir, 'SKILL.md'),
@@ -208,7 +208,7 @@ description: 另一份
 })
 
 test('T87 listSkills：disable-model-invocation 的 skill 也进清单（描述可空兜底）', () => {
-  const userDir = join(rootDir, 'skills', 'hidden')
+  const userDir = join(rootDir, 'studio', 'skills', 'hidden')
   mkdirSync(userDir, { recursive: true })
   writeFileSync(
     join(userDir, 'SKILL.md'),
@@ -233,7 +233,7 @@ test('T87 listSkills：缺 description → SDK 拒收不进清单（description 
   // pi SDK 实证：loadSkillsFromDir 要求 SKILL.md frontmatter name + description
   // 齐备；缺 description 即非法，被丢弃不进结果。我们的脱敏兜空只兜 store
   // 收到非法描述的情况（manifest 投影层），不进 SDK 扫描。
-  const userDir = join(rootDir, 'skills', 'no-desc')
+  const userDir = join(rootDir, 'studio', 'skills', 'no-desc')
   mkdirSync(userDir, { recursive: true })
   writeFileSync(
     join(userDir, 'SKILL.md'),
@@ -254,7 +254,7 @@ name: no-desc
 
 /** 造一个含 frontmatter + 正文的临时 skill，返其目录 */
 function writeSkill(name: string, body: string): void {
-  const dir = join(rootDir, 'skills', name)
+  const dir = join(rootDir, 'studio', 'skills', name)
   mkdirSync(dir, { recursive: true })
   writeFileSync(
     join(dir, 'SKILL.md'),

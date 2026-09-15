@@ -8,6 +8,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
+import { openPiStudioFolder } from '@/app/ai/pi-backend/client'
 import { applyPiCapabilities, piCapabilities } from '@/app/ai/pi-backend/mode-selection'
 import { useForkAgentCapabilities } from '@/app/i18n/fork'
 import SettingsGroup from '@/components/settings/layout/SettingsGroup.vue'
@@ -87,26 +88,46 @@ function platformStudioFolderPath(): string {
   return '~/.config/Dianjing/studio'
 }
 const studioFolderPath = platformStudioFolderPath()
-const copyStatus = ref<'idle' | 'copied' | 'failed'>('idle')
+// ai-panel-ux-consolidation：按钮态机——idle 默认「打开文件夹」；ok=true
+// 显示「已打开」1.2s 后回归；ok=false 或 fetch 异常时回退「复制路径」三态
+// （copyStatus 的 copied/failed 文案沿用）。调用语义同一按钮，统一从
+// handleOpenOrCopy 出发。
+const openStatus = ref<'idle' | 'opened' | 'copying' | 'copied' | 'failed'>('idle')
 
 async function copyStudioFolderPath(): Promise<void> {
   try {
     await navigator.clipboard.writeText(studioFolderPath)
-    copyStatus.value = 'copied'
+    openStatus.value = 'copied'
   } catch {
-    copyStatus.value = 'failed'
+    openStatus.value = 'failed'
   }
   // 1.2s 后回归 idle，避免状态文字长期残留
   setTimeout(() => {
-    copyStatus.value = 'idle'
+    openStatus.value = 'idle'
   }, 1200)
 }
 
-const copyStatusLabel = computed(() => {
-  if (copyStatus.value === 'copied') return '已复制'
-  if (copyStatus.value === 'failed') return '复制失败'
-  return '复制路径'
+async function handleOpenOrCopy(): Promise<void> {
+  // 客户端 fetch 调用；若后端 ok:false 或 fetch 异常，回退旧复制行为
+  const result = await openPiStudioFolder()
+  if (result.ok) {
+    openStatus.value = 'opened'
+    setTimeout(() => {
+      openStatus.value = 'idle'
+    }, 1200)
+    return
+  }
+  await copyStudioFolderPath()
+}
+
+const openStatusLabel = computed(() => {
+  if (openStatus.value === 'opened') return msgs.value.customExtensionsOpened
+  if (openStatus.value === 'copied') return msgs.value.customExtensionsCopied
+  if (openStatus.value === 'failed') return msgs.value.customExtensionsCopyFailed
+  return msgs.value.customExtensionsOpen
 })
+
+const openStatusDisabled = computed(() => openStatus.value !== 'idle')
 </script>
 
 <template>
@@ -190,24 +211,17 @@ const copyStatusLabel = computed(() => {
       {{ msgs.agentCapabilitiesError({ message: errorText }) }}
     </p>
 
-    <!-- P2-11：Studio 资产扩展——自定义 workflow/profile 的落地入口 -->
+    <!-- ai-panel-ux-consolidation：自定义拓展——三类资产（workflow/profile/skill）同根 -->
     <div class="border-t border-border" />
     <SettingsSectionHeader>
-      Studio 资产扩展
-      <template #description>
-        你的自定义 workflow / profile 放在应用数据目录
-        <code>{{ studioFolderPath }}/</code> 下，以同名子目录包裹（<code
-          >workflows/&lt;id&gt;/workflow.md</code
-        >
-        与 <code>profiles/&lt;id&gt;/profile.md</code>）。首跑时已自动复制
-        <code>_example</code> 示例模板，复制后即可改名改写。
-      </template>
+      {{ msgs.customExtensionsTitle }}
+      <template #description>{{ msgs.customExtensionsDescription }}</template>
     </SettingsSectionHeader>
 
     <SettingsGroup>
       <div class="flex items-center justify-between gap-4 px-3 py-2.5">
         <div class="min-w-0">
-          <span class="block text-xs text-surface">Studio 文件夹路径</span>
+          <span class="block text-xs text-surface">{{ msgs.customExtensionsFolderLabel }}</span>
           <Tip :label="studioFolderPath">
             <span
               class="mt-0.5 block truncate font-mono text-[10px] text-muted"
@@ -219,11 +233,11 @@ const copyStatusLabel = computed(() => {
         <button
           type="button"
           class="shrink-0 rounded border border-border px-2 py-1 text-[11px] text-surface transition-colors hover:bg-panel-field disabled:opacity-50"
-          :disabled="copyStatus !== 'idle'"
-          data-test-id="settings-studio-folder-copy"
-          @click="copyStudioFolderPath"
+          :disabled="openStatusDisabled"
+          data-test-id="settings-studio-folder-open"
+          @click="handleOpenOrCopy"
         >
-          {{ copyStatusLabel }}
+          {{ openStatusLabel }}
         </button>
       </div>
     </SettingsGroup>

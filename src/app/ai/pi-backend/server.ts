@@ -51,8 +51,20 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 
 import { isAuthorized } from './auth'
 import { PI_BACKEND_DEFAULT_PORT } from './config'
+import {
+  PayloadTooLargeError,
+  optionalString,
+  parseJSONBody,
+  readBody,
+  sendJSON
+} from './http-utils'
 import { createImageGenCredentialStore } from './image-gen/credentials'
 import { handleImageGenAdminRequest } from './image-gen/routes'
+import {
+  defaultOpenFolderOpener,
+  handleOpenStudioFolderRequest,
+  type OpenFolderOpener
+} from './open-studio-folder'
 import { resolveAgentDir } from './paths'
 import { createProviderAdmin, type ModelSpec } from './provider-admin'
 import { createPiChatService } from './service'
@@ -72,34 +84,6 @@ type PiChatRequestBody = {
   /** T60 兼容窗：残留字段忽略不报错（前端停发归 T61） */
   chatMode?: string
   pickedProfileId?: string | null
-}
-
-// T27：UIMessage[] 全量上报的最大合理体量留有数量级余量（聊天文本 KB 级）
-const MAX_BODY_BYTES = 4 * 1024 * 1024
-class PayloadTooLargeError extends Error {
-  constructor() {
-    super('request body too large')
-    this.name = 'PayloadTooLargeError'
-  }
-}
-
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    let size = 0
-    req.on('data', (chunk: Buffer) => {
-      size += chunk.length
-      // T27：请求体上限——超限即拒并断流，防无界读取打爆后端内存
-      if (size > MAX_BODY_BYTES) {
-        reject(new PayloadTooLargeError())
-        req.destroy()
-        return
-      }
-      chunks.push(chunk)
-    })
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
-    req.on('error', reject)
-  })
 }
 
 function lastUserText(body: PiChatRequestBody): string {
@@ -168,38 +152,6 @@ async function handlePiChatRequest(
     res.write('data: [DONE]\n\n')
     res.end()
   }
-}
-
-function sendJSON(res: ServerResponse, status: number, payload: unknown): void {
-  res.writeHead(status, { 'content-type': 'application/json' })
-  res.end(JSON.stringify(payload))
-}
-
-/**
- * 解析 POST/PUT JSON body。返回 { ok: true, body } 或 { ok: false }（已写响应）。
- * 调用方拿到 ok=false 时直接 return 即可——避免各 handler 重复 try/catch + writeHead。
- * 超限按 413（readBody 拦截抛 PayloadTooLargeError），其余坏 JSON 一律 400。
- */
-async function parseJSONBody(
-  req: IncomingMessage,
-  res: ServerResponse
-): Promise<{ ok: true; body: unknown } | { ok: false }> {
-  try {
-    const body: unknown = JSON.parse(await readBody(req))
-    return { ok: true, body }
-  } catch (error) {
-    if (error instanceof PayloadTooLargeError) {
-      res.writeHead(413).end('Payload Too Large')
-    } else {
-      res.writeHead(400).end('Bad Request: invalid JSON')
-    }
-    return { ok: false }
-  }
-}
-
-/** 从 unknown 取非空字符串；缺/类型错回 undefined——统一 T98 路由字段提取形态。 */
-function optionalString(value: unknown): string | undefined {
-  return typeof value === 'string' && value ? value : undefined
 }
 
 /**
@@ -545,11 +497,14 @@ function handleReadonlyPiRequest(
 
 export function createPiBackendServer({
   rootDir,
-  authToken
+  authToken,
+  openFolder = defaultOpenFolderOpener
 }: {
   rootDir: string
   /** T28：bearer 鉴权 token（main.ts 解析）；null = 无配置，fail-close 全拒 */
   authToken: string | null
+  /** ai-panel-ux-consolidation：测试桩位——生产走 defaultOpenFolderOpener */
+  openFolder?: OpenFolderOpener
 }): Server {
   const admin = createProviderAdmin({ agentDir: resolveAgentDir(rootDir) })
   // T54：generate_image 凭证面（三键存储 + 状态端点）——单实例同时供管理
@@ -600,6 +555,12 @@ export function createPiBackendServer({
     // T54：生图凭证面（须在 /api/pi/ 管理面前缀之前匹配；只进不出）
     if (url.pathname.startsWith('/api/pi/image-gen/')) {
       void handleImageGenAdminRequest(imageGenCredentials, req, res, url.pathname)
+      return
+    }
+    // ai-panel-ux-consolidation：打开用户拓展目录端点（exact match，独立 handler
+    // 兜复杂度；须在 /api/pi/ 管理面前缀之前匹配）
+    if (url.pathname === '/api/pi/open-studio-folder') {
+      void handleOpenStudioFolderRequest(rootDir, req, res, sendJSON, openFolder)
       return
     }
     if (url.pathname.startsWith('/api/pi/')) {
