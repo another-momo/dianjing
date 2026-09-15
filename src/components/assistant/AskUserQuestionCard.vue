@@ -29,8 +29,12 @@ import type { UIDataTypes, UIMessagePart, UITools } from 'ai'
  *
  * 图像候选：nodeId → 当前编辑器 store renderExportImage（T55）缩略图；
  * 节点缺失/导出失败 → 占位块显 label（不崩）。v1 仅当前编辑器文档。
+ *
+ * 波3 阶段一抽纯：交互状态与纯逻辑迁出到 ask/ 域（reducer/submit/summary），
+ * 卡片只保留 props 派生、DOM effect（thumbnail 子系统）与 emit 契约——
+ * 零行为变更、零样式变更、零模板结构变更（仅绑定路径适配）。
  */
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, watch } from 'vue'
 
 import {
   FREE_TEXT_OPTION_ID,
@@ -44,6 +48,15 @@ import {
 
 import { getActiveEditorStoreOrNull } from '@/app/editor/active-store'
 import { useForkAsk } from '@/app/i18n/fork'
+import {
+  createAskCardState,
+  reduceAskCard,
+  type AskCardAction,
+  type AskCardContext,
+  type AskCardState
+} from '@/components/assistant/ask/reducer'
+import { normalizeForSubmit } from '@/components/assistant/ask/submit'
+import { summarizeAnswer } from '@/components/assistant/ask/summary'
 import Tip from '@/components/ui/overlay/Tip.vue'
 
 type ToolPart = Extract<UIMessagePart<UIDataTypes, UITools>, { toolCallId: string }>
@@ -128,16 +141,8 @@ const resolvedNotes = computed(() => {
   return r && r.status === 'answered' ? (r.notes ?? '') : ''
 })
 
-// per-question 作答槽（T95）：{ value } 普通选项/文本；
-// { value: FREE_TEXT_OPTION_ID, freeText } 选了「其他」；
-// multi_select 用 { values: string[] }；notes 字段为该题笔记（spec.notes=true 时）
-const answers = reactive<Record<string, AskQuestionAnswer>>({})
-const submittedKind = ref<'answer' | 'skip' | null>(null)
-const showRequiredHint = ref(false)
-/** 波2 #9：分页壳当前页（仅 paginate=true 即 ≥2 题时使用） */
-const currentIndex = ref(0)
-/** 波2 #9：全局备注（卡片底部输入区） */
-const globalNotes = ref('')
+// ── 交互状态：单一 state + reducer 分派（波3 阶段一抽纯） ──
+const state = reactive<AskCardState>(createAskCardState())
 
 /** 2026-09-15：resolved（output-available 且 status in {answered,skipped,awaiting}）
  *  即已了结——本地 submittedKind 早退 + 服务端返状态双重锁；output-error
@@ -145,29 +150,34 @@ const globalNotes = ref('')
 const isLocked = computed(
   () =>
     answered ||
-    submittedKind.value !== null ||
+    state.submittedKind !== null ||
     disabled ||
     resolved.value !== null ||
     partState === 'output-error'
 )
 
+/** reducer 调用上下文（questions / isLocked 经 computed 包，避免 reducer 持有 ref） */
+const ctx = computed<AskCardContext>(() => ({
+  questions: questions.value,
+  isLocked: isLocked.value
+}))
+
+function dispatch(action: AskCardAction): void {
+  reduceAskCard(state, action, ctx.value)
+}
+
 // 预建每题作答槽（questions 由流式 input 派生，后到题也要补槽）——
 // 模板 v-model="answers[qid].value" 要求槽位恒存在
 watch(
-  questions,
-  (list) => {
-    for (const question of list) {
-      if (!answers[question.id]) answers[question.id] = {}
-    }
-    // 锁定后再到题不抢光当前页（边界保护）
-    if (!isLocked.value && currentIndex.value >= list.length && list.length > 0) {
-      currentIndex.value = list.length - 1
-    }
+  () => ctx.value,
+  (next) => {
+    // 锁定后再到题不抢光当前页（边界保护）——reducer 内已实现
+    reduceAskCard(state, { type: 'ensureSlots' }, next)
   },
-  { immediate: true }
+  { immediate: true, deep: true }
 )
 
-const missingRequired = computed(() => missingRequiredAskAnswers(questions.value, answers))
+const missingRequired = computed(() => missingRequiredAskAnswers(questions.value, state.answers))
 
 /** 波2 #9：≥2 题启用分页壳；1 题保持原纵向平铺以减少不必要的点击成本 */
 const usePaginate = computed(() => questions.value.length >= 2)
@@ -175,11 +185,11 @@ const currentQuestion = computed<AskQuestionSpec | null>(() => {
   const list = questions.value
   if (list.length === 0) return null
   // paginate=true 用 currentIndex 选页；否则恒定渲染首题
-  const index = usePaginate.value ? Math.min(currentIndex.value, list.length - 1) : 0
+  const index = usePaginate.value ? Math.min(state.currentIndex, list.length - 1) : 0
   return list[index]
 })
 
-/** 进度点：当前题高亮 + 已答题勾（必填已答即视为已答） */
+/** 进度点：当前题高亮 + 已答题勾（不在缺失列表即视为已了结——非必填题恒勾） */
 function isQuestionAnswered(qid: string): boolean {
   return !missingRequired.value.some((m) => m.id === qid)
 }
@@ -187,99 +197,42 @@ function isQuestionAnswered(qid: string): boolean {
 // ── 选择动作（kind 分派 + 波2 自动翻决策） ──
 
 function selectSingleOption(questionId: string, optionId: string) {
-  if (optionId === FREE_TEXT_OPTION_ID) {
-    // 选「其他」：保留已有 freeText（如有），输入框出现，不自动翻（freeText 待填）
-    answers[questionId] = { ...answers[questionId], value: optionId }
-    return
-  }
-  // 普通选项：清空 freeText（审查文档 §4.3），输入框消失
-  answers[questionId] = { value: optionId }
-  // 波2 #9：单选点中普通选项 → 自动翻下一题（末题停留）
-  if (usePaginate.value) {
-    goNextAfterSelect()
-  }
+  dispatch({ type: 'selectSingleOption', questionId, optionId })
 }
 
 function selectImageOption(questionId: string, nodeId: string) {
-  if (nodeId === FREE_TEXT_OPTION_ID) {
-    answers[questionId] = { ...answers[questionId], value: nodeId }
-    return
-  }
-  answers[questionId] = { value: nodeId }
-  // image_select 不自动翻（grid 选项多，手动翻确认感更稳）
+  dispatch({ type: 'selectImageOption', questionId, nodeId })
 }
 
 function toggleMultiOption(questionId: string, optionId: string) {
-  const current = answers[questionId]
-  const list = current?.values ?? []
-  // 「其他」特殊处理：单选卡语义下要么勾上要么取消，没有重复 freeText
-  if (optionId === FREE_TEXT_OPTION_ID) {
-    if (list.includes(FREE_TEXT_OPTION_ID)) {
-      const next = list.filter((v) => v !== FREE_TEXT_OPTION_ID)
-      answers[questionId] = { values: next, freeText: undefined }
-    } else {
-      answers[questionId] = { values: [...list, optionId], freeText: current?.freeText }
-    }
-    return
-  }
-  if (list.includes(optionId)) {
-    answers[questionId] = { values: list.filter((v) => v !== optionId) }
-  } else {
-    answers[questionId] = { values: [...list, optionId] }
-  }
-}
-
-/** 单选题自动翻：当前页已是末题则停留；否则翻下一题 */
-function goNextAfterSelect() {
-  const list = questions.value
-  if (currentIndex.value < list.length - 1) {
-    currentIndex.value += 1
-  }
+  dispatch({ type: 'toggleMultiOption', questionId, optionId })
 }
 
 // ── 手动翻页（进度点 + 上一题/下一题钮） ──
 
 function goTo(index: number) {
-  if (isLocked.value) return
-  const list = questions.value
-  if (index < 0 || index >= list.length) return
-  currentIndex.value = index
-  // 用户显式翻页 → 隐藏上一轮漏答提示，避免干扰
-  showRequiredHint.value = false
+  dispatch({ type: 'goTo', index })
 }
 
 function goNext() {
-  if (currentIndex.value < questions.value.length - 1) {
-    currentIndex.value += 1
-    showRequiredHint.value = false
-  }
+  dispatch({ type: 'goNext' })
 }
 
 function goPrev() {
-  if (currentIndex.value > 0) {
-    currentIndex.value -= 1
-    showRequiredHint.value = false
-  }
+  dispatch({ type: 'goPrev' })
 }
 
 // ── 提交（带漏答跳首漏闸） ──
 
 function handleSubmit() {
   if (isLocked.value || !formId.value) return
-  const missing = missingRequired.value
-  if (missing.length > 0) {
-    showRequiredHint.value = true
-    // 跳首个漏答题（仅分页壳生效；1 题时已是当前页无需跳）
-    if (usePaginate.value) {
-      const firstMissingIndex = questions.value.findIndex((q) => q.id === missing[0].id)
-      if (firstMissingIndex !== -1) currentIndex.value = firstMissingIndex
-    }
-    return
-  }
-  const normalized = normalizeForSubmit()
-  submittedKind.value = 'answer'
+  // reducer 负责：缺答翻 hint + 跳首未答；全答时不动 hint（由 missingRequired 派生决定渲染）
+  dispatch({ type: 'attemptSubmit' })
+  if (missingRequired.value.length > 0) return
+  const normalized = normalizeForSubmit(questions.value, state.answers)
+  dispatch({ type: 'markSubmitted', kind: 'answer' })
   // 全局备注 trim 后非空白才挂（避免空串噪声）
-  const trimmedNotes = globalNotes.value.trim()
+  const trimmedNotes = state.globalNotes.trim()
   emit('submit', {
     formId: formId.value,
     aborted: false,
@@ -290,87 +243,9 @@ function handleSubmit() {
 
 function handleSkip() {
   if (isLocked.value || !formId.value) return
-  submittedKind.value = 'skip'
+  dispatch({ type: 'markSubmitted', kind: 'skip' })
   // T95：全局输入框随重设计移除（审查文档 §4），跳过不再附理由
   emit('submit', { formId: formId.value, aborted: true, freeText: '' })
-}
-
-/**
- * 提交归一：
- *  - text → { value }（trim）；空白丢弃
- *  - multi_select → { values } 数组（trim 后非空白项）；空白值/空数组丢弃
- *  - 「其他」→ { value: FREE_TEXT_OPTION_ID, freeText }；freeText 空白则视为未作答（不落键）
- *  - 普通选项 → { value }
- *  - notes 字段在该题 spec.notes=true 时采集；空白丢弃
- */
-function normalizeForSubmit(): Record<string, AskQuestionAnswer> {
-  const normalized: Record<string, AskQuestionAnswer> = {}
-  for (const question of questions.value) {
-    const answer = answers[question.id]
-    if (!answer) continue
-    const out = normalizeSingle(question, answer)
-    // notes 与作答解耦：spec.notes=true 时采集，trim 非空白才携带
-    if (question.notes === true) {
-      const notes = answer.notes?.trim() ?? ''
-      if (notes) out.notes = notes
-    }
-    // 至少有一个有效字段才落键（与 core normalizeQuestionAnswer 同律）
-    if (hasContent(out)) normalized[question.id] = out
-  }
-  return normalized
-}
-
-function hasContent(answer: AskQuestionAnswer): boolean {
-  return answer.value !== undefined || answer.values !== undefined || answer.notes !== undefined
-}
-
-/** 单题归一（每 kind 独立分支，避免单函数复杂度爆栈） */
-function normalizeSingle(question: AskQuestionSpec, answer: AskQuestionAnswer): AskQuestionAnswer {
-  if (question.kind === 'text') return normalizeText(answer)
-  if (question.kind === 'multi_select') return normalizeMulti(answer)
-  if (answer.value === FREE_TEXT_OPTION_ID) return normalizeFreeText(answer)
-  return normalizeSingleSelect(answer)
-}
-
-function normalizeText(answer: AskQuestionAnswer): AskQuestionAnswer {
-  const value = answer.value?.trim() ?? ''
-  const out: AskQuestionAnswer = {}
-  if (value) out.value = value
-  return out
-}
-
-function normalizeSingleSelect(answer: AskQuestionAnswer): AskQuestionAnswer {
-  const out: AskQuestionAnswer = {}
-  if (typeof answer.value === 'string' && answer.value !== '') out.value = answer.value
-  return out
-}
-
-function normalizeFreeText(answer: AskQuestionAnswer): AskQuestionAnswer {
-  const out: AskQuestionAnswer = {}
-  const freeText = answer.freeText?.trim() ?? ''
-  if (freeText) {
-    out.value = FREE_TEXT_OPTION_ID
-    out.freeText = freeText
-  }
-  return out
-}
-
-function normalizeMulti(answer: AskQuestionAnswer): AskQuestionAnswer {
-  const out: AskQuestionAnswer = {}
-  const rawValues = Array.isArray(answer.values) ? answer.values : []
-  const cleaned = rawValues.filter((v): v is string => typeof v === 'string' && v.trim() !== '')
-  if (cleaned.length > 0) out.values = cleaned
-  if (!cleaned.includes(FREE_TEXT_OPTION_ID)) return out
-  const freeText = answer.freeText?.trim() ?? ''
-  if (freeText) {
-    out.freeText = freeText
-    return out
-  }
-  // freeText 空白：清掉 FREE_TEXT_OPTION_ID 让必填校验拦下
-  const filtered = cleaned.filter((v) => v !== FREE_TEXT_OPTION_ID)
-  if (filtered.length > 0) out.values = filtered
-  else delete out.values
-  return out
 }
 
 // ── 图像候选缩略图（当前编辑器文档；失败 → null → 占位块） ──
@@ -424,34 +299,8 @@ onBeforeUnmount(() => {
 
 // ── 摘要渲染辅助（已锁定卡的答案摘要；值/values/notes 三形态兼容） ──
 
-function labelForOption(question: AskQuestionSpec, optionId: string): string {
-  if (optionId === FREE_TEXT_OPTION_ID) return askDialogs.value.askOtherOption
-  if (question.kind === 'image_select') {
-    const opt = question.imageOptions?.find((o) => o.nodeId === optionId)
-    return opt?.label ?? optionId
-  }
-  const opt = question.options?.find((o) => o.id === optionId)
-  return opt?.label ?? optionId
-}
-
-function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | undefined): string {
-  if (!answer) return ''
-  if (question.kind === 'multi_select' && Array.isArray(answer.values)) {
-    if (answer.values.length === 0) return ''
-    const labels = answer.values.map((v) =>
-      v === FREE_TEXT_OPTION_ID
-        ? answer.freeText?.trim() || askDialogs.value.askOtherOption
-        : labelForOption(question, v)
-    )
-    return labels.join('、')
-  }
-  if (answer.value === FREE_TEXT_OPTION_ID) {
-    return answer.freeText?.trim() || askDialogs.value.askOtherOption
-  }
-  if (typeof answer.value === 'string') {
-    return answer.value === '' ? '' : labelForOption(question, answer.value)
-  }
-  return answer.freeText?.trim() ?? ''
+function summarize(question: AskQuestionSpec, answer: AskQuestionAnswer | undefined): string {
+  return summarizeAnswer(question, answer, askDialogs.value)
 }
 </script>
 
@@ -462,7 +311,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
       <span class="text-[11px] font-medium text-surface">{{ askDialogs.askFormTitle }}</span>
       <span
         v-if="
-          submittedKind !== null ||
+          state.submittedKind !== null ||
           answered ||
           (resolved !== null && (resolved.status === 'answered' || resolved.status === 'skipped'))
         "
@@ -472,7 +321,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
         <!-- 2026-09-15：服务端返状态优先（'answered'/'skipped'）→ 本地 submittedKind 兜底；
              历史 awaiting_user 未答表单与 output-error（停止）只锁不标（勿误标「已作答」） -->
         {{
-          resolved?.status === 'skipped' || submittedKind === 'skip'
+          resolved?.status === 'skipped' || state.submittedKind === 'skip'
             ? askDialogs.askSkipped
             : askDialogs.askAnswered
         }}
@@ -489,7 +338,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
         <div class="flex gap-1">
           <span class="text-surface">{{ qid }}:</span>
           <span>{{
-            summarizeAnswer(
+            summarize(
               questions.find((q) => q.id === qid) ?? {
                 id: qid,
                 kind: 'text',
@@ -524,7 +373,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
             :data-test-id="`ask-progress-${index}`"
             class="flex size-4 items-center justify-center rounded-full border transition-colors"
             :class="
-              index === currentIndex
+              index === state.currentIndex
                 ? 'border-accent bg-accent text-white'
                 : isQuestionAnswered(q.id)
                   ? 'border-accent bg-accent/30 text-surface'
@@ -533,7 +382,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
             @click="goTo(index)"
           >
             <icon-lucide-check
-              v-if="isQuestionAnswered(q.id) && index !== currentIndex"
+              v-if="isQuestionAnswered(q.id) && index !== state.currentIndex"
               class="size-2.5"
             />
             <span v-else class="text-[9px] leading-none">{{ index + 1 }}</span>
@@ -542,7 +391,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
         <span class="ml-1 text-[10px] text-muted">
           {{
             askDialogs.askProgress({
-              current: currentIndex + 1,
+              current: state.currentIndex + 1,
               total: questions.length
             })
           }}
@@ -573,7 +422,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
             :data-test-id="`ask-option-${currentQuestion.id}-${option.id}`"
             class="rounded-md border px-2.5 py-1.5 text-left text-[11px] transition-colors"
             :class="
-              answers[currentQuestion.id]?.value === option.id
+              state.answers[currentQuestion.id]?.value === option.id
                 ? 'border-accent bg-accent/10 text-surface'
                 : 'border-border bg-input text-surface hover:bg-hover'
             "
@@ -588,7 +437,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
             :data-test-id="`ask-other-${currentQuestion.id}`"
             class="rounded-md border px-2.5 py-1.5 text-left text-[11px] transition-colors"
             :class="
-              answers[currentQuestion.id]?.value === FREE_TEXT_OPTION_ID
+              state.answers[currentQuestion.id]?.value === FREE_TEXT_OPTION_ID
                 ? 'border-accent bg-accent/10 text-surface'
                 : 'border-border bg-input text-surface hover:bg-hover'
             "
@@ -607,14 +456,14 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
             :data-test-id="`ask-option-${currentQuestion.id}-${option.id}`"
             class="flex cursor-pointer items-start gap-2 rounded-md border px-2.5 py-1.5 text-[11px] transition-colors"
             :class="
-              (answers[currentQuestion.id]?.values ?? []).includes(option.id)
+              (state.answers[currentQuestion.id]?.values ?? []).includes(option.id)
                 ? 'border-accent bg-accent/10 text-surface'
                 : 'border-border bg-input text-surface hover:bg-hover'
             "
           >
             <input
               type="checkbox"
-              :checked="(answers[currentQuestion.id]?.values ?? []).includes(option.id)"
+              :checked="(state.answers[currentQuestion.id]?.values ?? []).includes(option.id)"
               :disabled="isLocked"
               class="mt-0.5 size-3 accent-accent"
               @change="toggleMultiOption(currentQuestion.id, option.id)"
@@ -628,14 +477,16 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
             :data-test-id="`ask-other-${currentQuestion.id}`"
             class="flex cursor-pointer items-start gap-2 rounded-md border px-2.5 py-1.5 text-[11px] transition-colors"
             :class="
-              (answers[currentQuestion.id]?.values ?? []).includes(FREE_TEXT_OPTION_ID)
+              (state.answers[currentQuestion.id]?.values ?? []).includes(FREE_TEXT_OPTION_ID)
                 ? 'border-accent bg-accent/10 text-surface'
                 : 'border-border bg-input text-surface hover:bg-hover'
             "
           >
             <input
               type="checkbox"
-              :checked="(answers[currentQuestion.id]?.values ?? []).includes(FREE_TEXT_OPTION_ID)"
+              :checked="
+                (state.answers[currentQuestion.id]?.values ?? []).includes(FREE_TEXT_OPTION_ID)
+              "
               :disabled="isLocked"
               class="mt-0.5 size-3 accent-accent"
               @change="toggleMultiOption(currentQuestion.id, FREE_TEXT_OPTION_ID)"
@@ -655,7 +506,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
               :data-test-id="`ask-image-option-${currentQuestion.id}-${option.nodeId}`"
               class="overflow-hidden rounded-md border transition-colors"
               :class="
-                answers[currentQuestion.id]?.value === option.nodeId
+                state.answers[currentQuestion.id]?.value === option.nodeId
                   ? 'border-accent'
                   : 'border-border hover:border-accent/50'
               "
@@ -691,7 +542,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
             :data-test-id="`ask-other-${currentQuestion.id}`"
             class="rounded-md border px-2.5 py-1.5 text-left text-[11px] transition-colors"
             :class="
-              answers[currentQuestion.id]?.value === FREE_TEXT_OPTION_ID
+              state.answers[currentQuestion.id]?.value === FREE_TEXT_OPTION_ID
                 ? 'border-accent bg-accent/10 text-surface'
                 : 'border-border bg-input text-surface hover:bg-hover'
             "
@@ -706,9 +557,9 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
           v-if="
             currentQuestion.kind !== 'text' &&
             currentQuestion.kind !== 'multi_select' &&
-            answers[currentQuestion.id]?.value === FREE_TEXT_OPTION_ID
+            state.answers[currentQuestion.id]?.value === FREE_TEXT_OPTION_ID
           "
-          v-model="answers[currentQuestion.id].freeText"
+          v-model="state.answers[currentQuestion.id].freeText"
           type="text"
           :disabled="isLocked"
           :placeholder="askDialogs.askOtherPlaceholder"
@@ -720,9 +571,9 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
         <input
           v-if="
             currentQuestion.kind === 'multi_select' &&
-            (answers[currentQuestion.id]?.values ?? []).includes(FREE_TEXT_OPTION_ID)
+            (state.answers[currentQuestion.id]?.values ?? []).includes(FREE_TEXT_OPTION_ID)
           "
-          v-model="answers[currentQuestion.id].freeText"
+          v-model="state.answers[currentQuestion.id].freeText"
           type="text"
           :disabled="isLocked"
           :placeholder="askDialogs.askOtherPlaceholder"
@@ -733,7 +584,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
         <!-- text：自由文本输入 -->
         <input
           v-if="currentQuestion.kind === 'text'"
-          v-model="answers[currentQuestion.id].value"
+          v-model="state.answers[currentQuestion.id].value"
           type="text"
           :disabled="isLocked"
           :placeholder="askDialogs.askTextPlaceholder"
@@ -744,7 +595,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
         <!-- per-question 笔记（spec.notes=true 时显示） -->
         <textarea
           v-if="currentQuestion.notes"
-          v-model="answers[currentQuestion.id].notes"
+          v-model="state.answers[currentQuestion.id].notes"
           :disabled="isLocked"
           rows="1"
           :placeholder="askDialogs.askNotesPlaceholder"
@@ -761,7 +612,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
       >
         <button
           type="button"
-          :disabled="currentIndex === 0"
+          :disabled="state.currentIndex === 0"
           data-test-id="ask-form-prev"
           class="rounded-md border border-border px-2.5 py-1 text-[11px] text-muted hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
           @click="goPrev"
@@ -770,7 +621,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
         </button>
         <button
           type="button"
-          :disabled="currentIndex >= questions.length - 1"
+          :disabled="state.currentIndex >= questions.length - 1"
           data-test-id="ask-form-next"
           class="rounded-md border border-border px-2.5 py-1 text-[11px] text-surface hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
           @click="goNext"
@@ -783,7 +634,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
            1 题无壳时与下排提交行共位（UX 一致性） -->
       <textarea
         v-if="usePaginate || questions.length === 1"
-        v-model="globalNotes"
+        v-model="state.globalNotes"
         :disabled="isLocked"
         rows="1"
         :placeholder="askDialogs.askGlobalNotesPlaceholder"
@@ -792,7 +643,7 @@ function summarizeAnswer(question: AskQuestionSpec, answer: AskQuestionAnswer | 
       />
 
       <div
-        v-if="showRequiredHint && !isLocked && missingRequired.length > 0"
+        v-if="state.showRequiredHint && !isLocked && missingRequired.length > 0"
         class="text-[10px] text-red-400"
       >
         {{
