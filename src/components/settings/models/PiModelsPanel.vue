@@ -94,9 +94,9 @@ const rowErrors = ref<Record<string, string>>({})
 const verifyStates = ref<Record<string, VerifyResultClass | 'busy'>>({})
 
 /** T97：合并单元内每个 provider 的表单初值（key 之外——modelId/thinkingLevel）。
- * 展开行时按 resolveDefaultModelId 钉初值；用户保存 key 才落盘成具体指派。 */
+ * 展开行时按 resolveDefaultModelId 钉初值；用户保存 key 才落盘成具体指派。
+ * 2026-09-16 去重：draftThinking 删除（thinking 挂指派不挂 provider，行内草稿态零可见效果）。 */
 const draftModel = ref<Record<string, string>>({})
-const draftThinking = ref<Record<string, PiThinkingLevel>>({})
 
 /** T100 A1：provider 列表搜索词（顶层搜索框） */
 const providerSearch = ref('')
@@ -226,12 +226,17 @@ function onDesignModelChange(value: AcceptableValue): void {
   draftModel.value[providerId] = modelId
 }
 
-/** 设计模型卡 — thinking 变更：走现有 thinking 变更 handler 路径 */
+/** 设计模型卡 — thinking 变更：写回指派（thinking 挂指派不挂 provider；
+ *  非当前指派 provider 无挂载点 = no-op，2026-09-16 去重后不再留草稿态） */
 function onDesignThinkingChange(value: AcceptableValue): void {
   if (typeof value !== 'string') return
+  const level = value as PiThinkingLevel
   const providerId = selectedProviderId.value
   if (!providerId) return
-  onProviderThinkingChange(providerId, value)
+  const a = piDesignAssignment.value
+  if (a && a.providerId === providerId) {
+    setPiDesignAssignment(buildAssignment({ providerId, modelId: a.modelId, thinkingLevel: level }))
+  }
 }
 
 /** 设计模型卡 — API key 保存/清除/验证复用现有 handler（providerId = selectedProviderId）。 */
@@ -303,9 +308,8 @@ function thinkingLabel(level: PiThinkingLevel): string {
 }
 
 function thinkingFor(providerId: string): PiThinkingLevel {
-  const v = draftThinking.value[providerId]
-  if (v) return v
-  // 当前指派若是该 provider，用指派的 thinkingLevel 作初值
+  // thinking 挂指派不挂 provider（2026-09-16 owner 拍板去重：行内下拉与
+  // draftThinking 草稿态删除——对非当前指派 provider 的调整零可见效果，易误导）
   if (piDesignAssignment.value?.providerId === providerId) {
     return piDesignAssignment.value.thinkingLevel ?? 'off'
   }
@@ -340,17 +344,6 @@ function toggleProvider(providerId: string): void {
   }
 }
 
-function onProviderThinkingChange(providerId: string, value: AcceptableValue): void {
-  if (typeof value !== 'string') return
-  const level = value as PiThinkingLevel
-  draftThinking.value[providerId] = level
-  const a = piDesignAssignment.value
-  if (a && a.providerId === providerId) {
-    // thinking 变更也走自动写回——同 provider 内显式动作
-    setPiDesignAssignment(buildAssignment({ providerId, modelId: a.modelId, thinkingLevel: level }))
-  }
-}
-
 async function saveKey(providerId: string): Promise<void> {
   const key = (keyDrafts.value[providerId] ?? '').trim()
   if (!key) return
@@ -375,7 +368,9 @@ async function saveKey(providerId: string): Promise<void> {
           buildAssignment({
             providerId,
             modelId,
-            thinkingLevel: draftThinking.value[providerId] ?? 'off'
+            // 自动指派恒 off（2026-09-16 去重：draftThinking 联动删除——
+            // thinking 要设先在设计模型卡显式选，不随存 key 顺捎）
+            thinkingLevel: 'off'
           })
         )
       }
@@ -459,7 +454,6 @@ async function confirmDelete(providerId: string): Promise<void> {
     // 删除成功：清理该行的 transient state（draft/verify/confirm），并 collapse 行
     keyDrafts.value = omitRecordKey(keyDrafts.value, providerId)
     draftModel.value = omitRecordKey(draftModel.value, providerId)
-    draftThinking.value = omitRecordKey(draftThinking.value, providerId)
     verifyStates.value = omitRecordKey(verifyStates.value, providerId)
     if (expandedProviderId.value === providerId) expandedProviderId.value = null
   } catch (error) {
@@ -1198,28 +1192,6 @@ onMounted(() => void refreshPiCatalog())
                         }}</span>
                       </template>
                     </div>
-
-                    <!-- 行内 thinking 预设（草稿态；模型选择归设计模型卡，行内不再重复） -->
-                    <label class="mt-2 text-[10px] text-muted">{{ dialogs.thinkingLevel }}</label>
-                    <select
-                      :value="thinkingFor(provider.id)"
-                      class="mt-1 w-full rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none"
-                      data-test-id="pi-provider-thinking-select"
-                      @change="
-                        (e) =>
-                          onProviderThinkingChange(
-                            provider.id,
-                            (e.target as HTMLSelectElement).value
-                          )
-                      "
-                    >
-                      <option value="off">{{ thinkingLabel('off') }}</option>
-                      <option value="minimal">{{ thinkingLabel('minimal') }}</option>
-                      <option value="low">{{ thinkingLabel('low') }}</option>
-                      <option value="medium">{{ thinkingLabel('medium') }}</option>
-                      <option value="high">{{ thinkingLabel('high') }}</option>
-                      <option value="xhigh">{{ thinkingLabel('xhigh') }}</option>
-                    </select>
 
                     <!-- T97/T80：模型目录搜索 + 平铺展示——纯浏览不提供行内选择（模型选择归设计模型卡，
                      行内 Combobox 已移除）；行纯 span 无点击语义 -->
