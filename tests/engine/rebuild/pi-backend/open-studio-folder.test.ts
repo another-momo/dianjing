@@ -50,6 +50,7 @@ mock.module('@earendil-works/pi-coding-agent', () => ({
   }
 }))
 
+import { type OpenStudioFolderResult } from '@/app/ai/pi-backend/client'
 import { type OpenFolderOpener, createPiBackendServer } from '@/app/ai/pi-backend/server'
 
 const TOKEN = 'open-folder-test-token'
@@ -124,17 +125,17 @@ afterEach(async () => {
   await teardown()
 })
 
-type OpenFolderBody = { ok: boolean; error?: string }
-
+// 响应体形复用 client.ts 的 OpenStudioFolderResult（= PiVerifyResult）——
+// 本地重声明会同形撞 type-shapes 重复门禁
 async function openFolder_(headers: Record<string, string> = {}): Promise<{
   status: number
-  body: OpenFolderBody
+  body: OpenStudioFolderResult
 }> {
   const res = await fetch(`${baseURL}/api/pi/open-studio-folder`, {
     method: 'POST',
     headers: { authorization: `Bearer ${TOKEN}`, ...headers }
   })
-  return { status: res.status, body: (await res.json()) as OpenFolderBody }
+  return { status: res.status, body: (await res.json()) as OpenStudioFolderResult }
 }
 
 describe('POST /api/pi/open-studio-folder（ai-panel-ux-consolidation）', () => {
