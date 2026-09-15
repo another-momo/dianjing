@@ -53,7 +53,7 @@
 - 多行 prompt 组合用 `dedent` 包，不手写转义换行串；成段散文留在属主 Markdown 源，组合不复制（studio 谱系同此原则）。
 - Window API 增强归编译边界：app 声明在 `src/global.d.ts`、包级 DOM 缺口在属包 `global.d.ts`；禁在 spec 或实现模块里 `declare global`（本轮合并实证：browser-bridge 声明随上游重构迁居即此规则）。
 - import 禁 `../` 逃逸 alias 根（`#tests/../vite` 式）；模块归属错位修归属，不修路径。
-- vite.config.ts 加载链文件禁 `@/` alias：链 = vite.config → `vite/automation` + pi-backend/bridge 两个 vite-plugin → 其传递 import（如 `bridge/server/paths.ts`）——Storybook/vite config loader 不注册别名（2026-09-14 CI+dev 双实证漏网）。用相对 import：单个 `../` 直接写，`../../` 逐行注 `// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports`。
+- vite.config.ts 加载链文件禁 `@/` alias：链 = vite.config → `vite/automation` + pi-backend/bridge 两个 vite-plugin → 其传递 import（如 `src/app/bridge/server/paths.ts`）——Storybook/vite config loader 不注册别名（2026-09-14 CI+dev 双实证漏网）。用相对 import：单个 `../` 直接写，`../../` 逐行注 `// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports`。
 - Electron 主进程/sidecar 单文件产物必须显式 `deps.alwaysBundle` 兜底：tsdown 默认把根 package.json dependencies（含 workspace:* 的 `@open-pencil/*`）external 化，而打包形态 resources/app/ 无 node_modules（electron-builder.yml files 显式排除）——产物留裸 import，安装版主进程启动即炸 ERR_MODULE_NOT_FOUND；dev 形态仓根 node_modules 兜底会完美掩盖，只有打包 L3 能兜住（2026-09-14 ④ 实证，ff1b44d8d 修复）。
 
 ## 6. 测试纪律
@@ -77,7 +77,7 @@
 - `tools/zone-registry/` —— zone 装备（zones.json + check.ts）
 - `tools/hooks/` —— git 钩子（core.hooksPath 指向此）
 - `tools/cn-font-catalog/` —— CN 字体目录离线管线
-- `docs/` —— ownedRoot；`archive/rebuild-campaign/` 为冻结历史档案，禁止引用为现行规则
+- `docs/` —— ownedRoot；`docs/archive/rebuild-campaign/` 为冻结历史档案，禁止引用为现行规则
 - `.github/workflows/` —— CI（ownedRoot，纯 fork 治理设施）
 
 ## 8. CI
