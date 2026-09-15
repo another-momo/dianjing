@@ -67,7 +67,38 @@ description: 将一张原图按视觉核心拆分成可独立编辑的 canvas �
 - `references: [原图id]`——原图作视觉参考；
 - `width: W, height: H`、`quality: 'high'`、`output_format: 'png'`；
 - `transparent_background`：**背景层 `false`，其余层 `true`**——背景层要的是补全被主体 / 文字遮挡区域的**完整不透明底图**（开透明会把遮挡区留成空洞）；其余层要的是目标之外全透明；
-- `prompt`: 结构化模板见 [references/separation-techniques.md](references/separation-techniques.md)（背景层有专用变体，别套用通用模板）。
+- `prompt` 按目标类型二选一，模板本体（占位符逐项填实；排除 / 抹除清单逐项点名，不写"等等"）：
+
+  **透明变体**（背景以外所有层）：
+
+  ```
+  任务：原位隔离重绘当前目标，供后续分层重组。
+
+  目标名称：<中文内容名>
+  包含范围：<目标及不可分割的装饰>
+  排除范围：<其他主体、背景、独立图标及普通文字，逐项点名>
+  整幅画布：<W> × <H> 像素
+  原图中的外接范围：左上角 (<x>, <y>)，宽 <width>，高 <height> 像素（look 视觉估算）
+  视觉中心与关键锚点：<中心位置、底部接触点等>
+
+  仅保留这个目标，其余区域透明。保留目标内部真实的白色和浅色细节。
+  输出原图同尺寸的整幅画布；不要把目标移到画布中心、放大填满、截成小图或重新排版。
+  ```
+
+  **补全变体**（背景层专用）：
+
+  ```
+  任务：原位完整重绘底图，供后续分层重组。
+
+  目标：完整背景——<背景内容描述>
+  抹除并补全：<主体、文字行、Logo、按钮等，逐项点名>
+  整幅画布：<W> × <H> 像素，不透明输出
+
+  输出完整、连续、无破洞的底图。被抹除元素占据的区域按周围背景内容自然补全；
+  不要保留任何被抹除元素的轮廓或残影；不要截小、留白边或重新排版。
+  ```
+
+  字段填法细则、填充示例与常见失误表见 [references/separation-techniques.md](references/separation-techniques.md)。
 
 **硬纪律**：
 
@@ -126,8 +157,10 @@ description: 将一张原图按视觉核心拆分成可独立编辑的 canvas �
 
 ---
 
-## 7. 相关 references
+## 7. references 的读法
 
-- [references/separation-techniques.md](references/separation-techniques.md) — 非文字层结构化 prompt 模板（含背景层专用变体）与填充示例
-- [references/text-reconstruction.md](references/text-reconstruction.md) — 文字清单模板与 TEXT 节点施工序列
-- [references/quality-checklist.md](references/quality-checklist.md) — 单层 / 组装 / 漂移三层验收判据、重试策略与汇报模板
+references 是按需细节（填法细则 / 示例 / 验收判据），**用 `read` 工具读取**——绝对路径 = skill 块声明的 baseDir + 下列相对路径。注意：`load_reference` 是 studio 资产（base / workflow / profile）的声明机制，**读不了 skill 的 references**——拿这些路径调它会报 `reference_not_allowed`。
+
+- `references/separation-techniques.md` — prompt 字段填法细则、填充示例、常见失误表（模板本体即 §2.2）
+- `references/text-reconstruction.md` — 文字清单模板与 TEXT 节点施工序列
+- `references/quality-checklist.md` — 单层 / 组装 / 漂移三层验收判据、重试策略与汇报模板
