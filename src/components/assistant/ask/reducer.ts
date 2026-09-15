@@ -27,6 +27,12 @@ export interface AskCardState {
   submittedKind: 'answer' | 'skip' | null
   showRequiredHint: boolean
   globalNotes: string
+  /**
+   * 波3 阶段二：single_select preview 面板的焦点（qid → optionId）。
+   * 翻题后该题焦点自然保留；脱离作用域（题被剔除）由卡片 computed 兜底回退
+   * 到已选/首个带 preview 选项。
+   */
+  previewFocus: Record<string, string>
 }
 
 /** 工厂：初始值工厂，无副作用 */
@@ -36,7 +42,8 @@ export function createAskCardState(): AskCardState {
     answers: {},
     submittedKind: null,
     showRequiredHint: false,
-    globalNotes: ''
+    globalNotes: '',
+    previewFocus: {}
   }
 }
 
@@ -57,6 +64,7 @@ export type AskCardAction =
   | { type: 'setText'; questionId: string; value: string }
   | { type: 'setNotes'; questionId: string; notes: string }
   | { type: 'setGlobalNotes'; notes: string }
+  | { type: 'setPreviewFocus'; questionId: string; optionId: string }
   | { type: 'goTo'; index: number }
   | { type: 'goNext' }
   | { type: 'goPrev' }
@@ -72,125 +80,148 @@ function advanceAfterSelect(state: AskCardState, ctx: AskCardContext): void {
   }
 }
 
-/** reducer：纯函数 + 局部可变（state 本身是组件持有的 reactive 对象），无外部副作用 */
+/** 取某个 action 变体的载荷类型（case 委托小函数的形参用） */
+type ActionOf<T extends AskCardAction['type']> = Extract<AskCardAction, { type: T }>
+
+function applyEnsureSlots(state: AskCardState, ctx: AskCardContext): void {
+  for (const question of ctx.questions) {
+    if (!state.answers[question.id]) state.answers[question.id] = {}
+  }
+  // 锁定后再到题不抢光当前页：currentIndex 钳到合法末尾
+  if (!ctx.isLocked && state.currentIndex >= ctx.questions.length && ctx.questions.length > 0) {
+    state.currentIndex = ctx.questions.length - 1
+  }
+}
+
+function applySelectSingle(
+  state: AskCardState,
+  action: ActionOf<'selectSingleOption'>,
+  ctx: AskCardContext
+): void {
+  if (action.optionId === FREE_TEXT_OPTION_ID) {
+    // 选「其他」：保留已有 freeText（如有），输入框出现，不自动翻
+    const current = state.answers[action.questionId]
+    state.answers[action.questionId] = { ...current, value: action.optionId }
+    return
+  }
+  // 普通选项：清空 freeText
+  state.answers[action.questionId] = { value: action.optionId }
+  advanceAfterSelect(state, ctx)
+}
+
+function applySelectImage(state: AskCardState, action: ActionOf<'selectImageOption'>): void {
+  if (action.nodeId === FREE_TEXT_OPTION_ID) {
+    const current = state.answers[action.questionId]
+    state.answers[action.questionId] = { ...current, value: action.nodeId }
+    return
+  }
+  state.answers[action.questionId] = { value: action.nodeId }
+  // image_select 不自动翻（grid 选项多，手动翻确认感更稳）
+}
+
+function applyToggleMulti(state: AskCardState, action: ActionOf<'toggleMultiOption'>): void {
+  const current = state.answers[action.questionId]
+  const list = current?.values ?? []
+  if (action.optionId === FREE_TEXT_OPTION_ID) {
+    if (list.includes(FREE_TEXT_OPTION_ID)) {
+      const next = list.filter((v) => v !== FREE_TEXT_OPTION_ID)
+      state.answers[action.questionId] = { values: next, freeText: undefined }
+    } else {
+      state.answers[action.questionId] = {
+        values: [...list, action.optionId],
+        freeText: current?.freeText
+      }
+    }
+    return
+  }
+  if (list.includes(action.optionId)) {
+    state.answers[action.questionId] = { values: list.filter((v) => v !== action.optionId) }
+  } else {
+    state.answers[action.questionId] = { values: [...list, action.optionId] }
+  }
+}
+
+/** setFreeText/setText/setNotes 同形：给槽位合并一个字段 */
+function applyMergeAnswer(state: AskCardState, questionId: string, patch: AskQuestionAnswer): void {
+  const current = state.answers[questionId] ?? {}
+  state.answers[questionId] = { ...current, ...patch }
+}
+
+function applyGoTo(state: AskCardState, action: ActionOf<'goTo'>, ctx: AskCardContext): void {
+  if (ctx.isLocked) return
+  if (action.index < 0 || action.index >= ctx.questions.length) return
+  state.currentIndex = action.index
+  // 用户显式翻页 → 隐藏上一轮漏答提示
+  state.showRequiredHint = false
+}
+
+function applyAttemptSubmit(state: AskCardState, ctx: AskCardContext): void {
+  const missing = missingRequiredAskAnswers(ctx.questions, state.answers)
+  if (missing.length === 0) return
+  state.showRequiredHint = true
+  // 跳首个漏答题（仅分页壳生效；1 题时已是当前页无需跳）
+  if (ctx.questions.length < 2) return
+  const firstMissingId = missing[0].id
+  const target = ctx.questions.findIndex((q) => q.id === firstMissingId)
+  if (target !== -1) state.currentIndex = target
+}
+
+/** reducer：纯函数 + 局部可变（state 本身是组件持有的 reactive 对象），无外部副作用。
+ *  复杂度纪律：case 体委托上方小函数，本函数只做分派与零分支直写 */
 export function reduceAskCard(
   state: AskCardState,
   action: AskCardAction,
   ctx: AskCardContext
 ): void {
   switch (action.type) {
-    case 'ensureSlots': {
-      for (const question of ctx.questions) {
-        if (!state.answers[question.id]) state.answers[question.id] = {}
-      }
-      // 锁定后再到题不抢光当前页：currentIndex 钳到合法末尾
-      if (!ctx.isLocked && state.currentIndex >= ctx.questions.length && ctx.questions.length > 0) {
-        state.currentIndex = ctx.questions.length - 1
-      }
+    case 'ensureSlots':
+      applyEnsureSlots(state, ctx)
       return
-    }
-    case 'selectSingleOption': {
-      if (action.optionId === FREE_TEXT_OPTION_ID) {
-        // 选「其他」：保留已有 freeText（如有），输入框出现，不自动翻
-        const current = state.answers[action.questionId]
-        state.answers[action.questionId] = { ...current, value: action.optionId }
-        return
-      }
-      // 普通选项：清空 freeText
-      state.answers[action.questionId] = { value: action.optionId }
-      advanceAfterSelect(state, ctx)
+    case 'selectSingleOption':
+      applySelectSingle(state, action, ctx)
       return
-    }
-    case 'selectImageOption': {
-      if (action.nodeId === FREE_TEXT_OPTION_ID) {
-        const current = state.answers[action.questionId]
-        state.answers[action.questionId] = { ...current, value: action.nodeId }
-        return
-      }
-      state.answers[action.questionId] = { value: action.nodeId }
-      // image_select 不自动翻（grid 选项多，手动翻确认感更稳）
+    case 'selectImageOption':
+      applySelectImage(state, action)
       return
-    }
-    case 'toggleMultiOption': {
-      const current = state.answers[action.questionId]
-      const list = current?.values ?? []
-      if (action.optionId === FREE_TEXT_OPTION_ID) {
-        if (list.includes(FREE_TEXT_OPTION_ID)) {
-          const next = list.filter((v) => v !== FREE_TEXT_OPTION_ID)
-          state.answers[action.questionId] = { values: next, freeText: undefined }
-        } else {
-          state.answers[action.questionId] = {
-            values: [...list, action.optionId],
-            freeText: current?.freeText
-          }
-        }
-        return
-      }
-      if (list.includes(action.optionId)) {
-        state.answers[action.questionId] = { values: list.filter((v) => v !== action.optionId) }
-      } else {
-        state.answers[action.questionId] = { values: [...list, action.optionId] }
-      }
+    case 'toggleMultiOption':
+      applyToggleMulti(state, action)
       return
-    }
-    case 'setFreeText': {
-      const current = state.answers[action.questionId] ?? {}
-      state.answers[action.questionId] = { ...current, freeText: action.freeText }
+    case 'setFreeText':
+      applyMergeAnswer(state, action.questionId, { freeText: action.freeText })
       return
-    }
-    case 'setText': {
-      const current = state.answers[action.questionId] ?? {}
-      state.answers[action.questionId] = { ...current, value: action.value }
+    case 'setText':
+      applyMergeAnswer(state, action.questionId, { value: action.value })
       return
-    }
-    case 'setNotes': {
-      const current = state.answers[action.questionId] ?? {}
-      state.answers[action.questionId] = { ...current, notes: action.notes }
+    case 'setNotes':
+      applyMergeAnswer(state, action.questionId, { notes: action.notes })
       return
-    }
-    case 'setGlobalNotes': {
+    case 'setGlobalNotes':
       state.globalNotes = action.notes
       return
-    }
-    case 'goTo': {
-      if (ctx.isLocked) return
-      if (action.index < 0 || action.index >= ctx.questions.length) return
-      state.currentIndex = action.index
-      // 用户显式翻页 → 隐藏上一轮漏答提示
-      state.showRequiredHint = false
+    case 'setPreviewFocus':
+      // 写入即可——翻题后该题焦点自然保留；脱离作用域由卡片 computed 兜底回退
+      state.previewFocus[action.questionId] = action.optionId
       return
-    }
-    case 'goNext': {
+    case 'goTo':
+      applyGoTo(state, action, ctx)
+      return
+    case 'goNext':
       if (state.currentIndex < ctx.questions.length - 1) {
         state.currentIndex += 1
         state.showRequiredHint = false
       }
       return
-    }
-    case 'goPrev': {
+    case 'goPrev':
       if (state.currentIndex > 0) {
         state.currentIndex -= 1
         state.showRequiredHint = false
       }
       return
-    }
-    case 'attemptSubmit': {
-      const missing = missingRequiredAskAnswers(ctx.questions, state.answers)
-      if (missing.length > 0) {
-        state.showRequiredHint = true
-        // 跳首个漏答题（仅分页壳生效；1 题时已是当前页无需跳）
-        if (ctx.questions.length >= 2) {
-          const firstMissingId = missing[0].id
-          const target = ctx.questions.findIndex((q) => q.id === firstMissingId)
-          if (target !== -1) state.currentIndex = target
-        }
-      }
+    case 'attemptSubmit':
+      applyAttemptSubmit(state, ctx)
       return
-    }
-    case 'markSubmitted': {
+    case 'markSubmitted':
       state.submittedKind = action.kind
-      return
-    }
   }
 }
 

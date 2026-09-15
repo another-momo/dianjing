@@ -9,7 +9,6 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   FREE_TEXT_OPTION_ID,
-  type AskQuestionAnswer,
   type AskQuestionSpec
 } from '@open-pencil/core/tools/fork/marketing/ask-user-question'
 
@@ -69,21 +68,37 @@ function freshCtx(questions: AskQuestionSpec[], isLocked = false): AskCardContex
 function snapshot(state: AskCardState) {
   return {
     currentIndex: state.currentIndex,
-    answers: JSON.parse(JSON.stringify(state.answers)) as Record<string, AskQuestionAnswer>,
+    answers: structuredClone(state.answers),
     submittedKind: state.submittedKind,
     showRequiredHint: state.showRequiredHint,
-    globalNotes: state.globalNotes
+    globalNotes: state.globalNotes,
+    previewFocus: { ...state.previewFocus }
+  }
+}
+
+/** single_select + 选项 a 带 preview 的最小题集（波3 阶段二契约层已就位） */
+function singleWithPreview(id: string): AskQuestionSpec {
+  return {
+    id,
+    kind: 'single_select',
+    label: `问题 ${id}`,
+    required: true,
+    options: [
+      { id: 'a', label: '选项 A', preview: '**A 详情**\n- 用途1\n- 用途2' },
+      { id: 'b', label: '选项 B' }
+    ]
   }
 }
 
 describe('createAskCardState 初值工厂', () => {
-  test('零副作用默认：空 answers / 0 页 / 无 hint / 无备注 / 未提交', () => {
+  test('零副作用默认：空 answers / 0 页 / 无 hint / 无备注 / 未提交 / 焦点空', () => {
     const s = createAskCardState()
     expect(s.currentIndex).toBe(0)
     expect(s.answers).toEqual({})
     expect(s.submittedKind).toBeNull()
     expect(s.showRequiredHint).toBe(false)
     expect(s.globalNotes).toBe('')
+    expect(s.previewFocus).toEqual({})
   })
 })
 
@@ -375,6 +390,66 @@ describe('markSubmitted：幂等且不抹', () => {
   })
 })
 
+describe('setPreviewFocus：preview 面板焦点写入 + 隔离 + 不清', () => {
+  test('写入：单题多次写入覆盖为最新 optionId', () => {
+    const s = createAskCardState()
+    const q = [singleWithPreview('q1')]
+    reduceAskCard(s, { type: 'setPreviewFocus', questionId: 'q1', optionId: 'a' }, freshCtx(q))
+    expect(s.previewFocus).toEqual({ q1: 'a' })
+    reduceAskCard(s, { type: 'setPreviewFocus', questionId: 'q1', optionId: 'b' }, freshCtx(q))
+    expect(s.previewFocus).toEqual({ q1: 'b' })
+  })
+
+  test('多题隔离：不同 qid 互不覆盖', () => {
+    const s = createAskCardState()
+    const q = [singleWithPreview('q1'), singleWithPreview('q2')]
+    reduceAskCard(s, { type: 'setPreviewFocus', questionId: 'q1', optionId: 'a' }, freshCtx(q))
+    reduceAskCard(s, { type: 'setPreviewFocus', questionId: 'q2', optionId: 'b' }, freshCtx(q))
+    expect(s.previewFocus).toEqual({ q1: 'a', q2: 'b' })
+    // 翻 q2 后改 q2 焦点，q1 不动
+    reduceAskCard(s, { type: 'setPreviewFocus', questionId: 'q2', optionId: 'a' }, freshCtx(q))
+    expect(s.previewFocus).toEqual({ q1: 'a', q2: 'a' })
+  })
+
+  test('翻题 / ensureSlots 不清焦点：翻页与流式到题都保留已有 qid 焦点', () => {
+    const s = createAskCardState()
+    const q = [singleWithPreview('q1'), singleWithPreview('q2')]
+    reduceAskCard(s, { type: 'ensureSlots' }, freshCtx(q))
+    reduceAskCard(s, { type: 'setPreviewFocus', questionId: 'q1', optionId: 'a' }, freshCtx(q))
+    expect(s.previewFocus).toEqual({ q1: 'a' })
+
+    // 翻页（goTo / goNext / goPrev）不动 previewFocus
+    reduceAskCard(s, { type: 'goTo', index: 1 }, freshCtx(q))
+    reduceAskCard(s, { type: 'goPrev' }, freshCtx(q))
+    reduceAskCard(s, { type: 'goNext' }, freshCtx(q))
+    expect(s.previewFocus).toEqual({ q1: 'a' })
+
+    // 流式扩展到 4 题 + ensureSlots：q1 焦点保留
+    const expanded = [singleWithPreview('q1'), singleWithPreview('q2'), single('q3'), single('q4')]
+    reduceAskCard(s, { type: 'ensureSlots' }, freshCtx(expanded))
+    expect(s.previewFocus).toEqual({ q1: 'a' })
+  })
+
+  test('已选「其他」/ 已锁定 / submit 路径都不影响 previewFocus', () => {
+    const s = createAskCardState()
+    const q = [singleWithPreview('q1'), single('q2')]
+    reduceAskCard(s, { type: 'ensureSlots' }, freshCtx(q))
+    reduceAskCard(s, { type: 'setPreviewFocus', questionId: 'q1', optionId: 'a' }, freshCtx(q))
+    reduceAskCard(
+      s,
+      { type: 'selectSingleOption', questionId: 'q1', optionId: FREE_TEXT_OPTION_ID },
+      freshCtx(q)
+    )
+    expect(s.previewFocus).toEqual({ q1: 'a' })
+
+    reduceAskCard(s, { type: 'attemptSubmit' }, freshCtx(q))
+    expect(s.previewFocus).toEqual({ q1: 'a' })
+
+    reduceAskCard(s, { type: 'markSubmitted', kind: 'answer' }, freshCtx(q))
+    expect(s.previewFocus).toEqual({ q1: 'a' })
+  })
+})
+
 describe('快照：典型交互链 不变量', () => {
   test('3 题 single_select 全答路径：ensureSlots → 选 a → 翻 q2 → 选 a → 翻 q3 → 选 b → 原地', () => {
     const s = createAskCardState()
@@ -385,7 +460,8 @@ describe('快照：典型交互链 不变量', () => {
       answers: { q1: {}, q2: {}, q3: {} },
       submittedKind: null,
       showRequiredHint: false,
-      globalNotes: ''
+      globalNotes: '',
+      previewFocus: {}
     })
 
     reduceAskCard(s, { type: 'selectSingleOption', questionId: 'q1', optionId: 'a' }, freshCtx(q))

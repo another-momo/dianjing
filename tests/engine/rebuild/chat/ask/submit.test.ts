@@ -134,7 +134,7 @@ describe('normalizeMulti：数组过滤空白 + 「其他」+空 freeText 清掉
   test('非字符串 / 非数组 values 防御', () => {
     const q = multi('q1')
     // 强转测试防御分支：string 而非数组 → cleaned=[]
-    expect(normalizeForSubmit([q], { q1: { values: 'oops' as unknown as string[] } })).toEqual({})
+    expect(normalizeForSubmit([q], JSON.parse('{"q1":{"values":"oops"}}'))).toEqual({})
   })
 })
 

@@ -33,6 +33,13 @@ import type { UIDataTypes, UIMessagePart, UITools } from 'ai'
  * 波3 阶段一抽纯：交互状态与纯逻辑迁出到 ask/ 域（reducer/submit/summary），
  * 卡片只保留 props 派生、DOM effect（thumbnail 子系统）与 emit 契约——
  * 零行为变更、零样式变更、零模板结构变更（仅绑定路径适配）。
+ *
+ * 波3 阶段二：single_select 选项带 markdown preview 时，在选项列表下方
+ * 渲染焦点选项的预览面板（stacked 布局；聊天卡宽约 300px 禁 side-by-side）。
+ * 焦点走 reducer.setPreviewFocus（选项行 mouseenter 触发）；展示优先级 =
+ * 焦点选项（须带 preview）→ 已选选项（带 preview）→ 首个带 preview 选项。
+ * 「其他」选中时面板隐藏（freeText 输入框独占宽度，对齐 rpiv「Type something
+ * 展开全宽」语义）。multi_select / image_select / text 一律不渲染预览面板。
  */
 import { computed, onBeforeUnmount, onMounted, reactive, watch } from 'vue'
 
@@ -43,7 +50,8 @@ import {
   type AskFormSubmission,
   type AskImageOption,
   type AskQuestionAnswer,
-  type AskQuestionSpec
+  type AskQuestionSpec,
+  type AskSelectOption
 } from '@open-pencil/core/tools/fork/marketing/ask-user-question'
 
 import { getActiveEditorStoreOrNull } from '@/app/editor/active-store'
@@ -57,6 +65,7 @@ import {
 } from '@/components/assistant/ask/reducer'
 import { normalizeForSubmit } from '@/components/assistant/ask/submit'
 import { summarizeAnswer } from '@/components/assistant/ask/summary'
+import ChatMarkdown from '@/components/assistant/ChatMarkdown.vue'
 import Tip from '@/components/ui/overlay/Tip.vue'
 
 type ToolPart = Extract<UIMessagePart<UIDataTypes, UITools>, { toolCallId: string }>
@@ -194,6 +203,38 @@ function isQuestionAnswered(qid: string): boolean {
   return !missingRequired.value.some((m) => m.id === qid)
 }
 
+/**
+ * 波3 阶段二：当前 single_select 题的预览面板焦点选项。
+ * 优先级 = mouseenter 焦点（须带 preview）→ 已选选项（带 preview）→ 首个带 preview 选项。
+ * 翻题后 reducer 保留该题焦点；脱离作用域（选项被剔除）由本兜底回退。
+ * 选中 FREE_TEXT_OPTION_ID 时整段面板隐藏（freeText 输入框独占宽度）。
+ */
+const focusedPreviewOption = computed<AskSelectOption | null>(() => {
+  const question = currentQuestion.value
+  if (!question || question.kind !== 'single_select') return null
+  const options = question.options ?? []
+  // 「其他」选中 → 面板隐藏
+  const answer = state.answers[question.id]
+  if (answer?.value === FREE_TEXT_OPTION_ID) return null
+  const focusId = state.previewFocus[question.id]
+  const byFocus = focusId ? options.find((o) => o.id === focusId) : undefined
+  if (byFocus && typeof byFocus.preview === 'string' && byFocus.preview.trim() !== '') {
+    return byFocus
+  }
+  if (answer?.value) {
+    const bySelection = options.find((o) => o.id === answer.value)
+    if (
+      bySelection &&
+      typeof bySelection.preview === 'string' &&
+      bySelection.preview.trim() !== ''
+    ) {
+      return bySelection
+    }
+  }
+  // 兜底：首个带 preview 的选项
+  return options.find((o) => typeof o.preview === 'string' && o.preview.trim() !== '') ?? null
+})
+
 // ── 选择动作（kind 分派 + 波2 自动翻决策） ──
 
 function selectSingleOption(questionId: string, optionId: string) {
@@ -206,6 +247,11 @@ function selectImageOption(questionId: string, nodeId: string) {
 
 function toggleMultiOption(questionId: string, optionId: string) {
   dispatch({ type: 'toggleMultiOption', questionId, optionId })
+}
+
+/** 波3 阶段二：选项行 mouseenter → 写入预览面板焦点（reducer 兜底回退） */
+function setPreviewFocus(questionId: string, optionId: string) {
+  dispatch({ type: 'setPreviewFocus', questionId, optionId })
 }
 
 // ── 手动翻页（进度点 + 上一题/下一题钮） ──
@@ -427,6 +473,7 @@ function summarize(question: AskQuestionSpec, answer: AskQuestionAnswer | undefi
                 : 'border-border bg-input text-surface hover:bg-hover'
             "
             @click="selectSingleOption(currentQuestion.id, option.id)"
+            @mouseenter="setPreviewFocus(currentQuestion.id, option.id)"
           >
             <div>{{ option.label }}</div>
             <div v-if="option.hint" class="mt-0.5 text-[10px] text-muted">{{ option.hint }}</div>
@@ -445,6 +492,14 @@ function summarize(question: AskQuestionSpec, answer: AskQuestionAnswer | undefi
           >
             {{ askDialogs.askOtherOption }}
           </button>
+          <!-- 波3 阶段二：single_select preview 面板（选项列表下方 stacked 布局） -->
+          <div
+            v-if="focusedPreviewOption"
+            data-test-id="ask-preview-pane"
+            class="max-h-40 overflow-y-auto rounded-md border border-border bg-input px-2.5 py-1.5 text-[11px] text-surface"
+          >
+            <ChatMarkdown :content="focusedPreviewOption.preview ?? ''" mode="static" />
+          </div>
         </div>
 
         <!-- multi_select：checkbox 多选组 + 末位「其他」 -->
