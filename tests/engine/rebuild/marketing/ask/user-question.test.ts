@@ -4,6 +4,9 @@
  * T95：answers 改 per-question `{ value?, freeText? }` 结构（FREE_TEXT_OPTION_ID =
  * 「其他」选项），旧格式（T83 裸 string 值 / 全局 freeText 键）迁移 + 作答校验
  * 纯函数矩阵（isAskQuestionAnswered/missingRequiredAskAnswers）。
+ * 波3 #10：single_select options preview 校验——收录并原文回显、
+ * multi_select 拒收（preview_not_allowed）、空白预览静默忽略、
+ * imageOptions 不受影响。
  *
  * core 层（#core/tools/fork/marketing/ask-user-question）纯函数直测；
  * pi 工具工厂（@/app/ai/pi-backend/ask-user-question）经注入确定性 formId 钉
@@ -515,5 +518,106 @@ describe('作答校验 isAskQuestionAnswered/missingRequiredAskAnswers（审查�
         q2: { value: 'ok' }
       })
     ).toEqual([])
+  })
+})
+
+describe('波3 #10 single_select preview 校验', () => {
+  test('single_select 收录并原文回显 preview（markdown 缩进/换行不丢）', () => {
+    // 多空格、缩进、列表、代码块缩进——全要原文回显
+    const preview = '  ## 方案 A\n\n  - 项一\n  - 项二\n\n    ```ts\n  const x = 1\n    ```\n'
+    const result = validateAskUserQuestions({
+      questions: [
+        {
+          id: 'q1',
+          kind: 'single_select',
+          label: '选个方案',
+          options: [
+            { id: 'a', label: 'A', preview },
+            { id: 'b', label: 'B' }
+          ]
+        }
+      ]
+    })
+    expect('questions' in result).toBe(true)
+    if (!('questions' in result)) return
+    expect(result.questions[0].options?.[0].preview).toBe(preview)
+  })
+
+  test('multi_select 任一 option 带非空白 preview → preview_not_allowed', () => {
+    const result = validateAskUserQuestions({
+      questions: [
+        {
+          id: 'q1',
+          kind: 'multi_select',
+          label: '挑几个',
+          options: [
+            { id: 'a', label: 'A' },
+            { id: 'b', label: 'B', preview: '## 方案 B\n\n详情' }
+          ]
+        }
+      ]
+    })
+    expect('error' in result).toBe(true)
+    if ('error' in result) {
+      expect(result.error).toBe('preview_not_allowed')
+      expect(result.message).toContain('multi_select')
+      expect(result.message).toContain('single_select only')
+    }
+  })
+
+  test('空白 preview（"  "）静默忽略（不收录，不报错）', () => {
+    const result = validateAskUserQuestions({
+      questions: [
+        {
+          id: 'q1',
+          kind: 'single_select',
+          label: '选',
+          options: [
+            { id: 'a', label: 'A', preview: '  ' },
+            { id: 'b', label: 'B', preview: '\n\t  \n' }
+          ]
+        }
+      ]
+    })
+    expect('questions' in result).toBe(true)
+    if (!('questions' in result)) return
+    expect(result.questions[0].options?.[0].preview).toBeUndefined()
+    expect(result.questions[0].options?.[1].preview).toBeUndefined()
+  })
+
+  test('空白 preview 在 multi_select 同样静默忽略（不触发 preview_not_allowed）', () => {
+    const result = validateAskUserQuestions({
+      questions: [
+        {
+          id: 'q1',
+          kind: 'multi_select',
+          label: '挑',
+          options: [
+            { id: 'a', label: 'A', preview: '   ' },
+            { id: 'b', label: 'B' }
+          ]
+        }
+      ]
+    })
+    expect('questions' in result).toBe(true)
+  })
+
+  test('image_select 不识别 preview 键——imageOptions 上带 preview 静默忽略不报错', () => {
+    // 校验函数对未知键忽略的现状不变；imageOptions 形态无 preview 字段，
+    // 但即使原始 payload 在 imageOptions 项上夹带 preview 也不该拦截。
+    const result = validateAskUserQuestions({
+      questions: [
+        {
+          id: 'q1',
+          kind: 'image_select',
+          label: '选一帧',
+          imageOptions: [{ nodeId: '0:1', label: 'A', preview: '夹带的预览' }]
+        }
+      ]
+    })
+    expect('questions' in result).toBe(true)
+    if (!('questions' in result)) return
+    // imageOptions 项形态固定为 { nodeId, label? }——preview 不外溢
+    expect(result.questions[0].imageOptions?.[0]).toEqual({ nodeId: '0:1', label: 'A' })
   })
 })

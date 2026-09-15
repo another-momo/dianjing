@@ -198,6 +198,69 @@ describe('normalizeAskParams：label 归一后重复题去重', () => {
   })
 })
 
+describe('normalizeAskParams：波3 #10 options[].preview 行尾规范化（不 collapse）', () => {
+  test('preview 内 \\r\\n → \\n（防兜底绕过）', () => {
+    const result = normalizeAskParams({
+      questions: [
+        {
+          id: 'q1',
+          kind: 'single_select',
+          label: '选',
+          options: [
+            { id: 'a', label: 'A', preview: '## 方案\r\n\r\n详情\r\n更多' },
+            { id: 'b', label: 'B' }
+          ]
+        }
+      ]
+    }) as {
+      questions: Array<{ options: Array<{ preview?: string }> }>
+    }
+    expect(result.questions[0].options[0].preview).toBe('## 方案\n\n详情\n更多')
+  })
+
+  test('collapse 不碰 preview 内部多空格/缩进（markdown 缩进是语义）', () => {
+    // 含代码块缩进、列表缩进——必须原文保留
+    const preview =
+      '  ## 方案\n\n    - 列表项\n    ```ts\n      const x = 1\n    ```\n\n  段间双空行'
+    const result = normalizeAskParams({
+      questions: [
+        {
+          id: 'q1',
+          kind: 'single_select',
+          label: '选',
+          options: [
+            { id: 'a', label: 'A', preview },
+            { id: 'b', label: 'B' }
+          ]
+        }
+      ]
+    }) as {
+      questions: Array<{ options: Array<{ preview?: string }> }>
+    }
+    // 原样回显（无 LF 也无 collapse 的纯 LF 文本就等于 input；input 没有 \r 所以完全一致）
+    expect(result.questions[0].options[0].preview).toBe(preview)
+  })
+
+  test('preview 内裸 \\r 行尾也归 \\n', () => {
+    const result = normalizeAskParams({
+      questions: [
+        {
+          id: 'q1',
+          kind: 'single_select',
+          label: '选',
+          options: [
+            { id: 'a', label: 'A', preview: 'line1\rline2' },
+            { id: 'b', label: 'B' }
+          ]
+        }
+      ]
+    }) as {
+      questions: Array<{ options: Array<{ preview?: string }> }>
+    }
+    expect(result.questions[0].options[0].preview).toBe('line1\nline2')
+  })
+})
+
 describe('normalizeAskParams：与 validateAskUserQuestions 组合', () => {
   test('重复 label 题先去重 → validate 不报 duplicate id', () => {
     const normalized = normalizeAskParams({

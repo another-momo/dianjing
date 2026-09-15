@@ -7,6 +7,9 @@
  *    label 非空、kind 四值互斥（single_select/multi_select → options 2..12
  *    且无 imageOptions；image_select → imageOptions 1..12 且无 options；
  *    text 两者皆无）、required 缺省 true、notes（波2 #8）可选布尔。
+ *    波3 #10：single_select options 可携带 preview（markdown 详情，
+ *    焦点联动展示用）——multi_select 任一 option 带非空白 preview 即报错
+ *    preview_not_allowed；preview 只进表单定义、不进答案信封（输入侧 only）。
  *    失败返回 { error, message }，不 throw——
  *    pi 后端 execute 与前端卡片渲染共用本层。
  *  - formId 生成（makeFormId）：`form-<时间戳36进制>-<随机6位>`，now/rand 可注入
@@ -33,6 +36,13 @@ export interface AskSelectOption {
   id: string
   label: string
   hint?: string
+  /**
+   * 波3 #10：single_select 专属——markdown 详情，焦点联动展示用。
+   * multi_select 不接受（输入侧校验拦在 preview_not_allowed），
+   * 也不进答案信封（仅作为提问时的展示素材）。markdown 缩进/换行是
+   * 语义，normalize 不 collapse；只做行尾规范化。
+   */
+  preview?: string
 }
 
 export interface AskImageOption {
@@ -77,7 +87,8 @@ function nonEmptyString(value: unknown): string | null {
 
 function validateSelectOptions(
   questionId: string,
-  value: unknown
+  value: unknown,
+  allowPreview: boolean
 ): AskSelectOption[] | { error: string; message: string } {
   if (
     !Array.isArray(value) ||
@@ -107,8 +118,27 @@ function validateSelectOptions(
       return fail('option_id', `question "${questionId}" has duplicate option id "${id}"`)
     }
     seen.add(id)
+    // preview：单选专属——非空白 string 才收录，原文回显（禁 trim 本体——
+    // markdown 缩进/换行是语义；normalize-params 仅做行尾规范化）。
+    // multi_select 带非空白 preview → preview_not_allowed（空白预览静默忽略）。
+    if (!allowPreview && typeof item.preview === 'string' && item.preview.trim() !== '') {
+      return fail(
+        'preview_not_allowed',
+        `question "${questionId}" (multi_select) options must not carry preview — preview is single_select only`
+      )
+    }
     const hint = nonEmptyString(item.hint)
-    options.push({ id, label, ...(hint ? { hint } : {}) })
+    // preview 仅做 trim 存在性检查；原文回显——markdown 缩进/换行是语义
+    const preview =
+      allowPreview && typeof item.preview === 'string' && item.preview.trim() !== ''
+        ? item.preview
+        : null
+    options.push({
+      id,
+      label,
+      ...(hint ? { hint } : {}),
+      ...(preview !== null ? { preview } : {})
+    })
   }
   return options
 }
@@ -197,7 +227,9 @@ function validateQuestion(
     if (item.imageOptions !== undefined) {
       return fail('kind_mixed_fields', `question "${id}" (${kind}) must not carry imageOptions`)
     }
-    const options = validateSelectOptions(id, item.options)
+    // 波3 #10：preview 是 single_select 专属——multi_select 任一 option
+    // 带非空白 preview 即在 validateSelectOptions 内 preview_not_allowed。
+    const options = validateSelectOptions(id, item.options, kind === 'single_select')
     if ('error' in options) return options
     return { id, kind, label, required, options, ...notesProp }
   }

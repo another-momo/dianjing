@@ -10,6 +10,8 @@
  *  - label 内连续空白 collapse 为单空格 + trim（去首尾 + 压中段）
  *  - label 归一后完全相同的重复题去重，保留首现
  *    （保留重复 id 的合法副本，使后续 validate 不因 duplicate id 报错）
+ *  - 波3 #10：options[].preview 仅做行尾规范化——markdown 缩进/换行是
+ *    语义，禁 collapseWhitespace 作用 preview（会吞代码块/列表缩进）。
  *
  * 纯函数、零依赖——bun 直接可测。
  */
@@ -65,6 +67,8 @@ export function normalizeAskParams(params: unknown): unknown {
         const o: Record<string, unknown> = { ...opt }
         if (typeof opt.label === 'string') o.label = normalizeLabel(opt.label)
         if (typeof opt.hint === 'string') o.hint = normalizeLabel(opt.hint)
+        // 波3 #10：preview 只做行尾规范化——markdown 缩进是语义，禁 collapse。
+        if (typeof opt.preview === 'string') o.preview = normalizeLineEndings(opt.preview)
         return o
       })
     }
