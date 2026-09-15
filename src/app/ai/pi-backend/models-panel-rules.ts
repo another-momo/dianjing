@@ -232,3 +232,25 @@ export function classifyAuthSource(source: string | undefined): PiAuthSourceClas
   if (source === 'environment variable' || /^[A-Z][A-Z0-9_]+$/.test(source)) return 'environment'
   return null
 }
+
+/**
+ * 设计模型卡（合并面板顶部）的初始选中 provider —— 优先级：
+ *   1. 当前指派 provider（已有指派 → 一致性优先）
+ *   2. 第一个已配置 provider（让无指派用户能直接落 key + 用模型）
+ *   3. catalog 第一个 provider（兜底；无指派无配置时的引导位）
+ *   4. 空串（catalog 为空时）
+ *
+ * 注：返回的可能是 catalog 不存在的 providerId（如指派的 provider 已被
+ * 主人从 models.json 删掉），调用方需要在 combobox model-value 显式回退
+ * 到 catalog 中真实存在的 provider id，避免 reka-ui 报未知值。
+ */
+export function resolveInitialSelectedProvider(args: {
+  assignmentProviderId: string | null | undefined
+  providers: readonly PiCatalogProvider[]
+}): string {
+  const { assignmentProviderId, providers } = args
+  if (assignmentProviderId) return assignmentProviderId
+  const firstConfigured = providers.find((p) => p.auth.configured)
+  if (firstConfigured) return firstConfigured.id
+  return providers[0]?.id ?? ''
+}

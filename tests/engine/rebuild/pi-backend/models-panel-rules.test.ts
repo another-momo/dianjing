@@ -28,6 +28,7 @@ import {
   isCurrentAssignment,
   isCustomProvider,
   resolveDefaultModelId,
+  resolveInitialSelectedProvider,
   shouldAutoAssignOnModelChange,
   shouldAutoAssignOnSaveKey
 } from '@/app/ai/pi-backend/models-panel-rules'
@@ -391,5 +392,51 @@ describe('classifyAuthSource（T100 D1 补钉：SDK 真实 source 值）', () =>
     expect(classifyAuthSource('oauth')).toBe(null)
     expect(classifyAuthSource('stored')).toBe(null)
     expect(classifyAuthSource('environment')).toBe(null)
+  })
+})
+
+// ux-polish④：设计模型卡（合并面板顶部）—— 初始选中 provider 优先级
+describe('resolveInitialSelectedProvider', () => {
+  test('当前指派存在 → 直接返回（一致性优先）', () => {
+    const providers = [makeProvider('openrouter', ['openrouter/free'])]
+    expect(
+      resolveInitialSelectedProvider({
+        assignmentProviderId: 'openrouter',
+        providers
+      })
+    ).toBe('openrouter')
+  })
+
+  test('无指派 + 存在已配置 provider → 返回首个已配置', () => {
+    const providers = [
+      makeProvider('anthropic', ['claude']),
+      makeConfiguredProvider('openrouter', ['openrouter/free']),
+      makeConfiguredProvider('openai', ['gpt-4o'])
+    ]
+    expect(
+      resolveInitialSelectedProvider({
+        assignmentProviderId: null,
+        providers
+      })
+    ).toBe('openrouter')
+  })
+
+  test('无指派 + 无已配置 → 返回 catalog 首项（引导位）', () => {
+    const providers = [makeProvider('anthropic', ['claude']), makeProvider('openai', ['gpt-4o'])]
+    expect(
+      resolveInitialSelectedProvider({
+        assignmentProviderId: undefined,
+        providers
+      })
+    ).toBe('anthropic')
+  })
+
+  test('catalog 为空 → 空串（UI 安全兜底）', () => {
+    expect(
+      resolveInitialSelectedProvider({
+        assignmentProviderId: null,
+        providers: []
+      })
+    ).toBe('')
   })
 })

@@ -217,7 +217,7 @@ const zhCN = {
       '中文网字计划全量目录。默认关闭——启用的家族出现在字体选择器中，按字符集按需加载子集分片。'
   },
   pi: {
-    modelsDescription: 'Provider、凭据和设计模型由本地 AI 服务管理。',
+    providersTitle: '模型提供方',
     catalogRefresh: '刷新',
     catalogOffline: '无法连接本地 AI 服务——请重启应用；浏览器开发模式请先启动本地服务。',
     providerModels: '{count} 个模型',
@@ -238,7 +238,6 @@ const zhCN = {
     designModel: '设计模型',
     designModelDescription: 'AI 聊天代理使用的模型。凭据来自上方对应的 Provider 条目。',
     designProvider: 'Provider',
-    designModelField: '模型',
     designModelSave: '保存',
     designModelDirty: '未保存',
     designModelSaved: '已保存',
@@ -277,7 +276,6 @@ const zhCN = {
     providerFormSaveEdit: '保存修改',
     // T100：D1 source 回显（SDK 真实 source 值经 classifyAuthSource 归类；shadow 提示
     // 需 catalog 额外透传 env 并存标志，超出本单范围——见讨论稿 §5.D1）
-    providerAuthSourceStored: '设置存储',
     providerAuthSourceEnvironment: '环境变量',
     // T100：引导门——needs-setup / needs-credential 两变体 + 加载骨架条 + 卡脚 hint；
     // 带 {name} 占位的键对应 en 侧 params function（providerModels 先例）；
@@ -289,7 +287,18 @@ const zhCN = {
     providerGateCredentialDescription: '模型已选，但还需要为该 provider 配置 API key。',
     providerGateCredentialCta: '打开 {name} 设置',
     providerGateLoading: '正在加载模型目录…',
-    providerGateHint: '模型在「设置 → AI」中管理'
+    providerGateHint: '模型在「设置 → AI」中管理',
+    // ux-polish④：设计模型卡（合并面板顶部）—— 四字段：provider / model / thinking / key
+    designCardTitle: '设计模型',
+    designCardProvider: '提供方',
+    designCardModel: '模型',
+    designCardThinking: '思考强度',
+    designCardApiKey: 'API 密钥',
+    designCardKeyStatusConfigured: '已配置密钥',
+    designCardKeyStatusMissing: '尚未配置密钥',
+    designCardProviderSearchPlaceholder: '搜索 Provider…',
+    designCardProviderEmpty: '没有匹配的 Provider。',
+    designCardAdvancedTrigger: '高级：Provider 列表与自定义 Provider'
   },
   toolbar: {
     addImage: '添加图片',

@@ -108,6 +108,15 @@ try {
     .waitFor({ timeout: 10000 });
 
   // pi 模式分支：渲染 PiModelsPanel 而非旧 profile 列表
+  // ux-polish④：providers 列表降格为高级区（默认收起）——先展开再定位 panel
+  const advancedTrigger = page.locator(
+    '[data-test-id="pi-providers-advanced-trigger"]',
+  );
+  await advancedTrigger.waitFor({ timeout: 5000 });
+  await advancedTrigger.click();
+  await page
+    .locator('[data-test-id="pi-providers-advanced-content"]')
+    .waitFor({ timeout: 5000 });
   const panel = page.locator('[data-test-id="pi-providers-panel"]');
   check("设置页渲染 PiModelsPanel（pi 分支）", await panel.isVisible());
   check(

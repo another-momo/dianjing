@@ -36,7 +36,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from '@open-pencil/vue'
 
 import { piDesignAssignment, setPiDesignAssignment } from '@/app/ai/pi-backend/assignment'
-import type { PiCatalogModel } from '@/app/ai/pi-backend/catalog'
+import type { PiCatalogModel, PiCatalogProvider } from '@/app/ai/pi-backend/catalog'
 import {
   clearPiCredential,
   deletePiProvider,
@@ -60,6 +60,7 @@ import {
   isCurrentAssignment,
   isCustomProvider,
   resolveDefaultModelId,
+  resolveInitialSelectedProvider,
   shouldAutoAssignOnModelChange,
   shouldAutoAssignOnSaveKey,
   type VerifyResultClass
@@ -79,6 +80,8 @@ function omitRecordKey<T>(record: Record<string, T>, key: string): Record<string
 }
 
 const expandedProviderId = ref<string | null>(null)
+/** T97/T80：高级区行内模型目录浏览的搜索词——纯展示过滤（选择语义归设计模型卡） */
+const modelSearch = ref('')
 const keyDrafts = ref<Record<string, string>>({})
 /** T100：行级 busy——同一时刻只允许一个 provider 行在跑动作；与 providerKeyInputs 同行级绑定 */
 const busyProviderId = ref<string | null>(null)
@@ -95,7 +98,7 @@ const verifyStates = ref<Record<string, VerifyResultClass | 'busy'>>({})
 const draftModel = ref<Record<string, string>>({})
 const draftThinking = ref<Record<string, PiThinkingLevel>>({})
 
-/** T100 A1：provider 列表搜索词（顶层搜索框）——与展开行内的 modelSearch 互不影响 */
+/** T100 A1：provider 列表搜索词（顶层搜索框） */
 const providerSearch = ref('')
 
 /** T100 C2：自定义 provider 表单模式——'closed' | 'add' | 'edit'。edit 态带 editTargetProviderId */
@@ -113,13 +116,152 @@ const CUSTOM_API_TYPES = ['openai-completions', 'openai-responses', 'anthropic-m
  *  切换 formMode 不互斥（添加表单与删除确认是正交动作）。 */
 const deleteConfirmIds = ref<Record<string, boolean>>({})
 
-/** T80：provider 展开区的模型搜索词（每次切换展开的 provider 时清空） */
-const modelSearch = ref('')
-
 /** T97：key 输入框 DOM 引用（focus 用，anchor 深链展开后聚焦） */
 const providerKeyInputs = ref<Record<string, HTMLInputElement | null>>({})
 
 const providers = computed(() => piCatalog.value?.providers ?? [])
+
+/** ux-polish④：设计模型卡——合并面板顶部的四字段（provider / model / thinking / api key）。
+ *  无条件渲染（catalog 就绪后），引导门 unlock 路径全靠它（无指派时存 key 自动指派）。
+ *  selectedProviderId 初值按 resolveInitialSelectedProvider 优先级：当前指派 > 首个已配置 > 首个 catalog > 空。 */
+const selectedProviderId = ref<string>('')
+const providerSearchDesign = ref('')
+const modelSearchDesign = ref('')
+
+/** reka ComboboxInput 的 immediate watcher 会把当前选中值播种进输入框 v-model
+ *  （dist/Combobox/ComboboxInput.js resetSearchTerm）——与选中值完全相等的
+ *  搜索词视为无过滤，否则开列表只剩选中项；用户清空后键入不受影响。 */
+const designProviderFilterTerm = computed(() =>
+  providerSearchDesign.value === selectedProviderId.value ? '' : providerSearchDesign.value
+)
+const designModelFilterTerm = computed(() =>
+  modelSearchDesign.value === modelFor(selectedProviderId.value) ? '' : modelSearchDesign.value
+)
+
+/** 设计模型卡的 provider 选项——按 groupProvidersByConfigured 顺序（已配置置顶）+ filterCatalogProviders 搜索过滤。
+ *  与现有 provider 列表同款分组头文案/样式。 */
+const designProviderGroups = computed(() =>
+  groupProvidersByConfigured(
+    filterCatalogProviders(providers.value, designProviderFilterTerm.value)
+  )
+)
+
+const selectedProvider = computed<PiCatalogProvider | null>(() => {
+  const id = selectedProviderId.value
+  if (!id) return null
+  return providers.value.find((p) => p.id === id) ?? null
+})
+
+/** 设计模型卡的当前 provider 模型列表（按 catalog 原序） */
+const designProviderModels = computed<PiCatalogModel[]>(() => selectedProvider.value?.models ?? [])
+
+/** ux-polish④：watch catalog.length 从 0 → N 时，按 resolveInitialSelectedProvider 钉初值。
+ *  后续用户切换由 combobox update 直接驱动；指派变化不强制重选（用户已选 → 让位）。 */
+watch(
+  () => providers.value.length,
+  (len) => {
+    if (len === 0) return
+    if (selectedProviderId.value) {
+      // 已选过：校准——指派可能变化（如用户存了其他 provider 的 key 后回到本卡）
+      const current = providers.value.find((p) => p.id === selectedProviderId.value)
+      if (current) return
+    }
+    selectedProviderId.value = resolveInitialSelectedProvider({
+      assignmentProviderId: piDesignAssignment.value?.providerId ?? null,
+      providers: providers.value
+    })
+  },
+  { immediate: true }
+)
+
+/** 设计模型卡 — provider 变更：模型字段重置为 resolveDefaultModelId → 按 shouldAutoAssignOnModelChange 语义决定是否静默指派 */
+function onDesignProviderChange(value: AcceptableValue): void {
+  if (typeof value !== 'string') return
+  const providerId = value
+  if (!providerId) return
+  selectedProviderId.value = providerId
+  const provider = providers.value.find((p) => p.id === providerId)
+  if (!provider) return
+  const modelId = resolveDefaultModelId(provider)
+  // 同步展开单元内的 draft（让行内 Combobox 与设计卡口径一致）
+  draftModel.value[providerId] = modelId
+  if (
+    modelId &&
+    shouldAutoAssignOnModelChange({
+      existingAssignment: piDesignAssignment.value,
+      targetProviderId: providerId,
+      targetModelId: modelId
+    })
+  ) {
+    const a = piDesignAssignment.value
+    setPiDesignAssignment(
+      buildAssignment({
+        providerId,
+        modelId,
+        thinkingLevel: a?.providerId === providerId ? a.thinkingLevel : 'off'
+      })
+    )
+  }
+  // 切换 provider 后清 providerSearch 避免再次打开时残留过滤
+  providerSearchDesign.value = ''
+  // 切换 provider 不动旧 provider 行的展开态——展开收起由用户主动控制
+}
+
+/** 设计模型卡 — 模型变更（按 selectedProviderId 维度）：自动写回指派（§4.3 约束 3 语义） */
+function onDesignModelChange(value: AcceptableValue): void {
+  if (typeof value !== 'string') return
+  const providerId = selectedProviderId.value
+  const modelId = value
+  if (!providerId || !modelId) return
+  const a = piDesignAssignment.value
+  if (
+    shouldAutoAssignOnModelChange({
+      existingAssignment: a,
+      targetProviderId: providerId,
+      targetModelId: modelId
+    })
+  ) {
+    setPiDesignAssignment(buildAssignment({ providerId, modelId, thinkingLevel: a?.thinkingLevel }))
+  }
+  draftModel.value[providerId] = modelId
+}
+
+/** 设计模型卡 — thinking 变更：走现有 thinking 变更 handler 路径 */
+function onDesignThinkingChange(value: AcceptableValue): void {
+  if (typeof value !== 'string') return
+  const providerId = selectedProviderId.value
+  if (!providerId) return
+  onProviderThinkingChange(providerId, value)
+}
+
+/** 设计模型卡 — API key 保存/清除/验证复用现有 handler（providerId = selectedProviderId）。 */
+function onDesignSaveKey(): void {
+  const providerId = selectedProviderId.value
+  if (!providerId) return
+  void saveKey(providerId)
+}
+
+function onDesignClearKey(): void {
+  const providerId = selectedProviderId.value
+  if (!providerId) return
+  void clearKey(providerId)
+}
+
+function onDesignVerifyKey(): void {
+  const providerId = selectedProviderId.value
+  if (!providerId) return
+  void verifyProvider(providerId)
+}
+
+/** 设计模型卡 — key 状态摘要（沿用现有 provider 行内 "已配置"/"未配置" 语义 + auth.source 标记） */
+function designKeySourceLabel(): string | null {
+  const provider = selectedProvider.value
+  if (!provider?.auth.configured) return null
+  return sourceLabel(provider.auth.source)
+}
+
+/** ux-polish④：高级区折叠态（默认收起）——providers 列表区降格为高级区 */
+const advancedOpen = ref(false)
 
 /** T100 A1+A2+A3：搜索 + 已配置置顶分组——驱动模板主列表循环。
  *  顺序：①搜索过滤（name+id 大小写无关）→ ②按 configured 状态分组。
@@ -137,18 +279,6 @@ const providerSearchEmpty = computed(
 function canDeleteProvider(provider: { kind?: 'builtin' | 'custom' }): boolean {
   return isCustomProvider(provider)
 }
-
-/** T97：当前指派的 provider 目录对象（用于摘要条快速切换的 provider 范围） */
-const currentAssignmentProvider = computed(() => {
-  const a = piDesignAssignment.value
-  if (!a) return null
-  return providers.value.find((p) => p.id === a.providerId) ?? null
-})
-
-/** T97：摘要条模型切换的候选——仅当前指派 provider 内的模型 */
-const summaryModels = computed<PiCatalogModel[]>(
-  () => currentAssignmentProvider.value?.models ?? []
-)
 
 /** T97：能力展示只取 image 输入（catalog.input 含 'image'）——reasoning / cost 明示不展示 */
 function supportsImageInput(model: PiCatalogModel): boolean {
@@ -207,47 +337,6 @@ function toggleProvider(providerId: string): void {
       const draft = resolveDefaultModelId(provider)
       if (draft) draftModel.value[providerId] = draft
     }
-  }
-}
-
-/** T97：摘要条在当前 provider 内快速切换模型——自动写回指派（§4.3 约束 3） */
-function onSummaryModelChange(value: AcceptableValue): void {
-  if (typeof value !== 'string') return
-  const a = piDesignAssignment.value
-  if (!a) return
-  const providerId = a.providerId
-  const modelId = value
-  if (!modelId) return
-  if (
-    shouldAutoAssignOnModelChange({
-      existingAssignment: a,
-      targetProviderId: providerId,
-      targetModelId: modelId
-    })
-  ) {
-    setPiDesignAssignment(buildAssignment({ providerId, modelId, thinkingLevel: a.thinkingLevel }))
-  }
-  // 同步展开行内的 draft（避免脱节）
-  draftModel.value[providerId] = modelId
-}
-
-/** T97：展开单元内模型 Combobox 变更（草稿态，不直接写指派；除非是当前指派 provider 内换模型） */
-function onProviderModelChange(providerId: string, value: AcceptableValue): void {
-  if (typeof value !== 'string') return
-  const modelId = value
-  if (!modelId) return
-  draftModel.value[providerId] = modelId
-  // §4.3 约束 3：当前指派 provider 内换模型 → 自动写回
-  const a = piDesignAssignment.value
-  if (
-    a &&
-    shouldAutoAssignOnModelChange({
-      existingAssignment: a,
-      targetProviderId: providerId,
-      targetModelId: modelId
-    })
-  ) {
-    setPiDesignAssignment(buildAssignment({ providerId, modelId, thinkingLevel: a.thinkingLevel }))
   }
 }
 
@@ -337,6 +426,9 @@ async function verifyProvider(providerId: string): Promise<void> {
   try {
     const result = await verifyPiCredential(providerId)
     verifyStates.value[providerId] = classifyVerifyResult(result)
+    // 失败的具体原因（后端 error 文案，如 401/形态不支持）下行行级错误位——
+    // 只显示「验证失败」用户无法定位问题
+    if (!result.ok && result.error) rowErrors.value[providerId] = result.error
   } catch (error) {
     // 网络异常 / 后端 500 等——verifyStates 标 failed，错误文案走 rowErrors
     verifyStates.value[providerId] = 'failed'
@@ -447,11 +539,12 @@ async function submitCustomForm(): Promise<void> {
 
 /** T100 D1：source 标签文案——归类走 classifyAuthSource（SDK 真实 source 值钉在
  *  规则层：'stored credential' / 环境变量名本身）；未知形态不渲染（保守）。
+ *  只对 environment 来源打标——「设置存储」是冗余信息（configured 即说明已存），
+ *  env 来源才是用户需要解释的非常态（未存却 configured + shadow 语义）。
  *  catalog 未透传 env 并存标志，shadow 提示超出本单范围（讨论稿 §5.D1 +
  *  §6.3 key-env 拍板联动项）。 */
 function sourceLabel(source: string | undefined): string | null {
   const sourceClass = classifyAuthSource(source)
-  if (sourceClass === 'stored') return dialogs.value.providerAuthSourceStored
   if (sourceClass === 'environment') return dialogs.value.providerAuthSourceEnvironment
   return null
 }
@@ -498,36 +591,32 @@ onMounted(() => void refreshPiCatalog())
   <!-- T91k：根节点不再自滚——滚动职责上交 SettingsDialog 标签页容器，
        让 AgentSettingsPanel 跟在模型清单下方同流滚动（owner 拍板） -->
   <div class="flex flex-col">
-    <!-- T97：摘要条——"当前设计模型"显示 + 当前 provider 内快速换模型。
-         等价于旧 design 指派段的高频操作（讨论稿 §4.2 段 b）。 -->
+    <!-- ux-polish④：设计模型卡——四字段（provider / model / thinking / api key）。
+         无条件渲染（catalog 就绪后）：无指派时它是唯一配置入口，引导门 unlock 路径靠它。 -->
     <section
-      v-if="piDesignAssignment && currentAssignmentProvider"
-      class="mb-3 rounded border border-border bg-panel-field p-3"
-      data-test-id="pi-current-assignment"
+      v-if="providers.length > 0"
+      class="mb-3 flex flex-col gap-1.5"
+      data-test-id="pi-design-card"
     >
-      <div class="flex items-center justify-between gap-2">
-        <div class="min-w-0 flex-1">
-          <p class="truncate text-[10px] text-muted">{{ dialogs.currentAssignmentLabel }}</p>
-          <p
-            class="truncate text-[11px] font-medium text-surface"
-            data-test-id="pi-current-assignment-provider"
-          >
-            {{ currentAssignmentProvider.name }} · {{ piDesignAssignment.modelId }}
-          </p>
-        </div>
+      <h3 class="text-xs font-semibold text-surface">{{ dialogs.designCardTitle }}</h3>
+      <div class="rounded border border-border p-3">
+        <label class="block text-[10px] text-muted">{{ dialogs.designCardProvider }}</label>
         <ComboboxRoot
-          :model-value="piDesignAssignment.modelId"
-          class="relative w-48 shrink-0"
-          @update:model-value="onSummaryModelChange"
+          :model-value="selectedProviderId"
+          class="relative mt-1"
+          @update:model-value="onDesignProviderChange"
         >
           <ComboboxAnchor as-child>
             <ComboboxTrigger
               class="flex w-full items-center justify-between gap-1 rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
-              data-test-id="pi-summary-model-trigger"
+              data-test-id="pi-design-provider-trigger"
             >
-              <span class="min-w-0 flex-1 truncate text-left">{{
-                piDesignAssignment.modelId
-              }}</span>
+              <span class="min-w-0 flex-1 truncate text-left">
+                <template v-if="selectedProvider">
+                  {{ selectedProvider.name }}
+                </template>
+                <template v-else>—</template>
+              </span>
               <icon-lucide-chevron-down class="size-3 shrink-0 text-muted" />
             </ComboboxTrigger>
           </ComboboxAnchor>
@@ -538,33 +627,137 @@ onMounted(() => void refreshPiCatalog())
               class="z-[110] min-w-[var(--reka-combobox-trigger-width)] overflow-hidden rounded-md bg-panel p-1 text-[11px] shadow-[0_8px_30px_rgb(0_0_0/0.4)]"
             >
               <ComboboxInput
+                v-model="providerSearchDesign"
+                class="mb-1 w-full rounded border border-border bg-panel-field px-2 py-1 text-[11px] text-surface outline-none focus:border-panel-focus"
+                :placeholder="dialogs.designCardProviderSearchPlaceholder"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                :spellcheck="false"
+                data-test-id="pi-design-provider-search"
+              />
+              <ComboboxViewport class="scrollbar-thin max-h-48 overflow-y-auto">
+                <template v-for="group in designProviderGroups" :key="group.id">
+                  <p
+                    class="px-2 pt-1 pb-0.5 text-[10px] font-medium tracking-wide text-muted uppercase"
+                    data-test-id="pi-design-provider-group-header"
+                  >
+                    {{
+                      group.id === 'configured'
+                        ? dialogs.providerGroupConfigured
+                        : dialogs.providerGroupAll
+                    }}
+                  </p>
+                  <ComboboxItem
+                    v-for="provider in group.providers"
+                    :key="provider.id"
+                    :value="provider.id"
+                    :text-value="`${provider.name} ${provider.id}`"
+                    class="relative flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-surface select-none data-[highlighted]:bg-hover"
+                    :data-provider-id="provider.id"
+                    data-test-id="pi-design-provider-item"
+                  >
+                    <ComboboxItemIndicator class="flex size-3 shrink-0 items-center justify-center">
+                      <icon-lucide-check class="size-3 text-accent" />
+                    </ComboboxItemIndicator>
+                    <span class="min-w-0 flex-1 truncate">{{ provider.name }}</span>
+                    <span class="flex shrink-0 items-center gap-1 text-[9px] text-muted">
+                      <span class="truncate">{{ provider.id }}</span>
+                      <span
+                        class="size-1.5 rounded-full bg-muted"
+                        :class="provider.auth.configured ? 'bg-[var(--color-success)]' : ''"
+                        :data-state="provider.auth.configured ? 'configured' : 'missing'"
+                      />
+                      <span>{{
+                        provider.auth.configured ? uiCollab.connected : ai.modelNeedsCredential
+                      }}</span>
+                    </span>
+                    <span
+                      v-if="isCurrentProvider(provider.id)"
+                      class="shrink-0 text-[10px] font-medium text-accent"
+                      data-test-id="pi-design-provider-current"
+                    >
+                      {{ dialogs.currentAssignmentCurrent }}
+                    </span>
+                  </ComboboxItem>
+                </template>
+                <ComboboxEmpty
+                  class="px-2 py-1 text-[10px] text-muted"
+                  data-test-id="pi-design-provider-empty"
+                >
+                  {{ dialogs.designCardProviderEmpty }}
+                </ComboboxEmpty>
+              </ComboboxViewport>
+            </ComboboxContent>
+          </ComboboxPortal>
+        </ComboboxRoot>
+
+        <label class="mt-2 block text-[10px] text-muted">{{ dialogs.designCardModel }}</label>
+        <ComboboxRoot
+          :model-value="modelFor(selectedProviderId)"
+          class="relative mt-1"
+          :disabled="!selectedProvider"
+          @update:model-value="onDesignModelChange"
+        >
+          <ComboboxAnchor as-child>
+            <ComboboxTrigger
+              class="flex w-full items-center justify-between gap-1 rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus disabled:opacity-50"
+              data-test-id="pi-design-model-trigger"
+            >
+              <span class="min-w-0 flex-1 truncate text-left">
+                <template v-if="modelFor(selectedProviderId)">
+                  {{
+                    designProviderModels.find((m) => m.id === modelFor(selectedProviderId))?.name ??
+                    modelFor(selectedProviderId)
+                  }}
+                </template>
+                <template v-else>—</template>
+              </span>
+              <icon-lucide-chevron-down class="size-3 shrink-0 text-muted" />
+            </ComboboxTrigger>
+          </ComboboxAnchor>
+          <ComboboxPortal>
+            <ComboboxContent
+              position="popper"
+              :side-offset="2"
+              class="z-[110] min-w-[var(--reka-combobox-trigger-width)] overflow-hidden rounded-md bg-panel p-1 text-[11px] shadow-[0_8px_30px_rgb(0_0_0/0.4)]"
+            >
+              <ComboboxInput
+                v-model="modelSearchDesign"
                 class="mb-1 w-full rounded border border-border bg-panel-field px-2 py-1 text-[11px] text-surface outline-none focus:border-panel-focus"
                 :placeholder="dialogs.modelSearchPlaceholder"
                 autocomplete="off"
                 autocorrect="off"
                 autocapitalize="off"
                 :spellcheck="false"
-                data-test-id="pi-summary-model-search"
+                data-test-id="pi-design-model-search"
               />
               <ComboboxViewport class="scrollbar-thin max-h-48 overflow-y-auto">
                 <ComboboxItem
-                  v-for="model in filterCatalogModels(summaryModels, '')"
+                  v-for="model in filterCatalogModels(designProviderModels, designModelFilterTerm)"
                   :key="model.id"
                   :value="model.id"
                   :text-value="`${model.name} ${model.id}`"
                   class="relative flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-surface outline-none select-none data-[highlighted]:bg-hover"
                   :data-model-id="model.id"
-                  data-test-id="pi-summary-model-item"
+                  data-test-id="pi-design-model-item"
                 >
                   <ComboboxItemIndicator class="flex size-3 shrink-0 items-center justify-center">
                     <icon-lucide-check class="size-3 text-accent" />
                   </ComboboxItemIndicator>
                   <span class="min-w-0 flex-1 truncate">{{ model.name }}</span>
-                  <span class="shrink-0 text-[10px] text-muted">{{ model.id }}</span>
+                  <Tip v-if="supportsImageInput(model)" :label="dialogs.modelSupportsImage">
+                    <span class="flex shrink-0 items-center text-muted">
+                      <icon-lucide-image class="size-3" />
+                    </span>
+                  </Tip>
+                  <span v-if="model.contextWindow" class="shrink-0 text-[10px] text-muted">
+                    {{ contextLabel(model) }}
+                  </span>
                 </ComboboxItem>
                 <ComboboxEmpty
                   class="px-2 py-1 text-[10px] text-muted"
-                  data-test-id="pi-summary-model-empty"
+                  data-test-id="pi-design-model-empty"
                 >
                   {{ dialogs.modelSearchEmpty }}
                 </ComboboxEmpty>
@@ -572,528 +765,614 @@ onMounted(() => void refreshPiCatalog())
             </ComboboxContent>
           </ComboboxPortal>
         </ComboboxRoot>
+
+        <label class="mt-2 block text-[10px] text-muted">{{ dialogs.designCardThinking }}</label>
+        <select
+          :value="thinkingFor(selectedProviderId)"
+          class="mt-1 w-full rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none"
+          data-test-id="pi-design-thinking"
+          @change="(e) => onDesignThinkingChange((e.target as HTMLSelectElement).value)"
+        >
+          <option value="off">{{ thinkingLabel('off') }}</option>
+          <option value="minimal">{{ thinkingLabel('minimal') }}</option>
+          <option value="low">{{ thinkingLabel('low') }}</option>
+          <option value="medium">{{ thinkingLabel('medium') }}</option>
+          <option value="high">{{ thinkingLabel('high') }}</option>
+          <option value="xhigh">{{ thinkingLabel('xhigh') }}</option>
+        </select>
+
+        <label class="mt-2 block text-[10px] text-muted">{{ dialogs.designCardApiKey }}</label>
+        <div class="mt-1 flex items-center gap-1.5">
+          <input
+            v-model="keyDrafts[selectedProviderId]"
+            type="password"
+            class="min-w-0 flex-1 rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
+            :placeholder="
+              selectedProvider?.auth.configured
+                ? dialogs.keyPlaceholderConfigured
+                : dialogs.keyPlaceholderMissing
+            "
+            data-test-id="pi-design-key-input"
+            @keydown.enter="onDesignSaveKey"
+          />
+          <button
+            type="button"
+            class="rounded bg-accent px-2 py-1.5 text-[10px] font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+            data-test-id="pi-design-key-save"
+            :disabled="busyProviderId === selectedProviderId || !keyDrafts[selectedProviderId]"
+            @click="onDesignSaveKey"
+          >
+            {{ dialogs.keySave }}
+          </button>
+          <button
+            v-if="selectedProvider?.auth.configured"
+            type="button"
+            class="rounded border border-border px-2 py-1.5 text-[10px] text-muted hover:text-surface disabled:opacity-50"
+            data-test-id="pi-design-key-clear"
+            :disabled="busyProviderId === selectedProviderId"
+            @click="onDesignClearKey"
+          >
+            {{ dialogs.keyClear }}
+          </button>
+        </div>
+        <!-- 行级错误位（设计卡）—— 复用现有 rowErrors 的 selectedProviderId 行 -->
+        <p
+          v-if="selectedProviderId && rowErrors[selectedProviderId]"
+          class="mt-1 text-[10px] text-red-400"
+          data-test-id="pi-design-row-error"
+        >
+          {{ rowErrors[selectedProviderId] }}
+        </p>
+        <!-- 验证按钮（已配置 provider）+ 三态结果 + key 状态摘要——让用户一眼看出该 provider 是否有 key -->
+        <div
+          v-if="selectedProvider?.auth.configured"
+          class="mt-1.5 flex flex-wrap items-center gap-2"
+        >
+          <button
+            type="button"
+            class="rounded border border-border px-2 py-1 text-[10px] text-muted hover:text-surface disabled:opacity-50"
+            data-test-id="pi-design-key-verify"
+            :disabled="verifyStates[selectedProviderId] === 'busy'"
+            @click="onDesignVerifyKey"
+          >
+            <icon-lucide-shield-check class="mr-0.5 inline size-3" />
+            {{ dialogs.providerVerify }}
+          </button>
+          <span
+            v-if="verifyStates[selectedProviderId] === 'busy'"
+            class="flex items-center gap-1 text-[10px] text-muted"
+            data-test-id="pi-design-verify-state"
+            data-verify-state="busy"
+          >
+            <icon-lucide-loader-2 class="size-3 animate-spin" />
+          </span>
+          <span
+            v-else-if="verifyStates[selectedProviderId] === 'ok'"
+            class="text-[10px] text-[var(--color-success)]"
+            data-test-id="pi-design-verify-state"
+            data-verify-state="ok"
+          >
+            {{ dialogs.providerVerifyOk }}
+          </span>
+          <span
+            v-else-if="verifyStates[selectedProviderId] === 'failed'"
+            class="text-[10px] text-red-400"
+            data-test-id="pi-design-verify-state"
+            data-verify-state="failed"
+          >
+            {{ dialogs.providerVerifyFailed }}
+          </span>
+          <span
+            v-else-if="verifyStates[selectedProviderId] === 'unknown-error'"
+            class="text-[10px] text-red-400"
+            data-test-id="pi-design-verify-state"
+            data-verify-state="unknown-error"
+          >
+            {{ dialogs.providerVerifyUnknownError }}
+          </span>
+          <!-- 已保存状态摘要：让用户一眼看出该 provider 已有 key -->
+          <span
+            class="ml-auto flex items-center gap-1 text-[10px] text-[var(--color-success)]"
+            data-test-id="pi-design-key-status"
+            data-key-state="configured"
+          >
+            <span class="size-1.5 rounded-full bg-[var(--color-success)]" />
+            {{ dialogs.designCardKeyStatusConfigured }}
+            <span
+              v-if="designKeySourceLabel()"
+              class="rounded border border-border px-1 text-[9px] text-muted"
+              :data-source="selectedProvider?.auth.source"
+              data-test-id="pi-design-key-source"
+            >
+              {{ designKeySourceLabel() }}
+            </span>
+          </span>
+        </div>
+        <div
+          v-else-if="selectedProvider"
+          class="mt-1.5 flex items-center gap-1 text-[10px] text-muted"
+          data-test-id="pi-design-key-status"
+          data-key-state="missing"
+        >
+          <span class="size-1.5 rounded-full bg-muted" />
+          {{ dialogs.designCardKeyStatusMissing }}
+        </div>
       </div>
     </section>
 
-    <section data-test-id="pi-providers-panel">
-      <div class="mb-2 flex items-center justify-between">
-        <div>
-          <h3 class="text-xs font-semibold text-surface">{{ ai.modelsTitle }}</h3>
-          <p class="text-[10px] text-muted">{{ dialogs.modelsDescription }}</p>
-        </div>
-        <button
-          type="button"
-          class="flex items-center gap-1 rounded border border-border px-2.5 py-1.5 text-[11px] font-medium text-surface hover:bg-panel-field"
-          data-test-id="pi-catalog-refresh"
-          :disabled="piCatalogLoading"
-          @click="refreshPiCatalog"
-        >
-          <icon-lucide-refresh-cw class="size-3" :class="{ 'animate-spin': piCatalogLoading }" />
-          {{ dialogs.catalogRefresh }}
-        </button>
-      </div>
-
-      <!-- T100 A1：provider 列表搜索框（顶层，与展开行内模型搜索字段互不影响） -->
-      <input
-        v-model="providerSearch"
-        type="search"
-        class="mb-2 w-full rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
-        :placeholder="dialogs.providerSearchPlaceholder"
-        data-test-id="pi-provider-search"
-      />
-
-      <p
-        v-if="piCatalogError"
-        class="rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-400"
-        data-test-id="pi-catalog-offline"
+    <!-- ux-polish④：providers 列表区降格为高级区——默认收起，触发行文案明示"高级：Provider 列表与自定义 Provider"。 -->
+    <section data-test-id="pi-providers-advanced" class="mb-3 rounded border border-border">
+      <button
+        type="button"
+        class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-panel-field"
+        :aria-expanded="advancedOpen"
+        data-test-id="pi-providers-advanced-trigger"
+        @click="advancedOpen = !advancedOpen"
       >
-        {{ dialogs.catalogOffline }} ({{ piCatalogError }})
-      </p>
-      <!-- T100：search 空结果态——独立显示，与 providerGroups 空列表区分 -->
-      <p
-        v-if="providerSearchEmpty"
-        class="rounded border border-border bg-panel-field px-3 py-2 text-[10px] text-muted"
-        data-test-id="pi-provider-search-empty"
+        <icon-lucide-chevron-right
+          class="size-3.5 shrink-0 text-muted transition-transform"
+          :class="{ 'rotate-90': advancedOpen }"
+        />
+        <span class="text-xs font-semibold text-surface">{{
+          dialogs.designCardAdvancedTrigger
+        }}</span>
+      </button>
+      <div
+        v-if="advancedOpen"
+        class="border-t border-border p-3"
+        data-test-id="pi-providers-advanced-content"
       >
-        {{ dialogs.providerSearchEmpty }}
-      </p>
-
-      <div class="mt-2 flex flex-col gap-2">
-        <!-- T100 A2+A3：按 configured 状态分组循环——已配置置顶 + 分组小标题 -->
-        <template v-for="group in providerGroups" :key="group.id">
-          <p
-            class="text-[10px] font-medium tracking-wide text-muted uppercase"
-            :data-group-id="group.id"
-            data-test-id="pi-provider-group-header"
-          >
-            {{
-              group.id === 'configured' ? dialogs.providerGroupConfigured : dialogs.providerGroupAll
-            }}
-          </p>
-          <div class="flex flex-col gap-1.5">
-            <div
-              v-for="provider in group.providers"
-              :key="provider.id"
-              class="rounded border border-border bg-panel-field"
-              :data-provider-id="provider.id"
-              data-test-id="pi-provider-row"
+        <section data-test-id="pi-providers-panel">
+          <div class="mb-2 flex items-center justify-between">
+            <h3 class="text-xs font-semibold text-surface">{{ dialogs.providersTitle }}</h3>
+            <button
+              type="button"
+              class="flex items-center gap-1 rounded border border-border px-2.5 py-1.5 text-[11px] font-medium text-surface hover:bg-panel-field"
+              data-test-id="pi-catalog-refresh"
+              :disabled="piCatalogLoading"
+              @click="refreshPiCatalog"
             >
-              <button
-                type="button"
-                class="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-panel-field-hover"
-                @click="toggleProvider(provider.id)"
+              <icon-lucide-refresh-cw
+                class="size-3"
+                :class="{ 'animate-spin': piCatalogLoading }"
+              />
+              {{ dialogs.catalogRefresh }}
+            </button>
+          </div>
+
+          <!-- T100 A1：provider 列表搜索框（顶层，与展开行内模型搜索字段互不影响） -->
+          <input
+            v-model="providerSearch"
+            type="search"
+            class="mb-2 w-full rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
+            :placeholder="dialogs.providerSearchPlaceholder"
+            data-test-id="pi-provider-search"
+          />
+
+          <p
+            v-if="piCatalogError"
+            class="rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-400"
+            data-test-id="pi-catalog-offline"
+          >
+            {{ dialogs.catalogOffline }} ({{ piCatalogError }})
+          </p>
+          <!-- T100：search 空结果态——独立显示，与 providerGroups 空列表区分 -->
+          <p
+            v-if="providerSearchEmpty"
+            class="rounded border border-border bg-panel-field px-3 py-2 text-[10px] text-muted"
+            data-test-id="pi-provider-search-empty"
+          >
+            {{ dialogs.providerSearchEmpty }}
+          </p>
+
+          <div class="mt-2 flex flex-col gap-2">
+            <!-- T100 A2+A3：按 configured 状态分组循环——已配置置顶 + 分组小标题 -->
+            <template v-for="group in providerGroups" :key="group.id">
+              <p
+                class="text-[10px] font-medium tracking-wide text-muted uppercase"
+                :data-group-id="group.id"
+                data-test-id="pi-provider-group-header"
               >
+                {{
+                  group.id === 'configured'
+                    ? dialogs.providerGroupConfigured
+                    : dialogs.providerGroupAll
+                }}
+              </p>
+              <div class="flex flex-col gap-1.5">
                 <div
-                  class="flex size-8 shrink-0 items-center justify-center rounded bg-panel text-muted"
-                >
-                  <icon-lucide-bot class="size-4" />
-                </div>
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-[11px] font-medium text-surface">{{ provider.name }}</p>
-                  <p class="truncate text-[10px] text-muted">
-                    {{ provider.id }} ·
-                    {{ dialogs.providerModels({ count: provider.models.length }) }}
-                  </p>
-                </div>
-                <span
-                  v-if="isCurrentProvider(provider.id)"
-                  class="flex shrink-0 items-center gap-1 text-[10px] font-medium text-accent"
-                  data-test-id="pi-current-marker"
-                >
-                  <icon-lucide-check class="size-3" />
-                  {{ dialogs.currentAssignmentCurrent }}
-                </span>
-                <span
-                  class="mr-1 flex shrink-0 items-center gap-1 text-[9px] text-muted"
-                  :data-state="provider.auth.configured ? 'configured' : 'missing'"
-                >
-                  <span
-                    class="size-1.5 rounded-full bg-muted data-[state=configured]:bg-[var(--color-success)]"
-                    :data-state="provider.auth.configured ? 'configured' : 'missing'"
-                  />
-                  <span>{{
-                    provider.auth.configured ? uiCollab.connected : ai.modelNeedsCredential
-                  }}</span>
-                  <!-- T100 D1：source 标签——仅 configured 时按 catalog.auth.source 渲染；
-                       shadow 提示不在本单范围（讨论稿 §5.D1 + §6.3 key-env 拍板联动） -->
-                  <span
-                    v-if="sourceLabel(provider.auth.source)"
-                    class="rounded border border-border px-1 text-[9px] text-muted"
-                    :data-source="provider.auth.source"
-                    data-test-id="pi-auth-source"
-                  >
-                    {{ sourceLabel(provider.auth.source) }}
-                  </span>
-                </span>
-                <icon-lucide-chevron-right
-                  class="size-3.5 shrink-0 text-muted transition-transform"
-                  :class="{ 'rotate-90': expandedProviderId === provider.id }"
-                />
-              </button>
-
-              <div
-                v-if="expandedProviderId === provider.id"
-                class="border-t border-border px-3 py-2"
-              >
-                <div class="flex items-center gap-1.5">
-                  <input
-                    :ref="
-                      (el) => {
-                        providerKeyInputs[provider.id] = el as HTMLInputElement | null
-                      }
-                    "
-                    v-model="keyDrafts[provider.id]"
-                    type="password"
-                    class="min-w-0 flex-1 rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
-                    :placeholder="
-                      provider.auth.configured
-                        ? dialogs.keyPlaceholderConfigured
-                        : dialogs.keyPlaceholderMissing
-                    "
-                    data-test-id="pi-key-input"
-                    @keydown.enter="saveKey(provider.id)"
-                  />
-                  <button
-                    type="button"
-                    class="rounded bg-accent px-2 py-1.5 text-[10px] font-medium text-white hover:bg-accent/90 disabled:opacity-50"
-                    data-test-id="pi-key-save"
-                    :disabled="busyProviderId === provider.id"
-                    @click="saveKey(provider.id)"
-                  >
-                    {{ dialogs.keySave }}
-                  </button>
-                  <button
-                    v-if="provider.auth.configured"
-                    type="button"
-                    class="rounded border border-border px-2 py-1.5 text-[10px] text-muted hover:text-surface disabled:opacity-50"
-                    data-test-id="pi-key-clear"
-                    :disabled="busyProviderId === provider.id"
-                    @click="clearKey(provider.id)"
-                  >
-                    {{ dialogs.keyClear }}
-                  </button>
-                </div>
-
-                <!-- T100 B2：行级错误位（保存/清除/验证/删除/编辑各动作的错误均下行到对应行内） -->
-                <p
-                  v-if="rowErrors[provider.id]"
-                  class="mt-1 text-[10px] text-red-400"
+                  v-for="provider in group.providers"
+                  :key="provider.id"
+                  class="rounded border border-border bg-panel-field"
                   :data-provider-id="provider.id"
-                  data-test-id="pi-row-error"
+                  data-test-id="pi-provider-row"
                 >
-                  {{ rowErrors[provider.id] }}
-                </p>
-
-                <!-- T100 B1：验证按钮（已配置 provider）—— 行内验证闭环；
-                     busy 期间 disabled 防重击；完成后行内显示三态结果文案 -->
-                <div v-if="provider.auth.configured" class="mt-1.5 flex items-center gap-2">
                   <button
                     type="button"
-                    class="rounded border border-border px-2 py-1 text-[10px] text-muted hover:text-surface disabled:opacity-50"
-                    data-test-id="pi-provider-verify"
-                    :disabled="verifyStates[provider.id] === 'busy'"
-                    @click="verifyProvider(provider.id)"
+                    class="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-panel-field-hover"
+                    @click="toggleProvider(provider.id)"
                   >
-                    <icon-lucide-shield-check class="mr-0.5 inline size-3" />
-                    {{ dialogs.providerVerify }}
-                  </button>
-                  <span
-                    v-if="verifyStates[provider.id] === 'busy'"
-                    class="flex items-center gap-1 text-[10px] text-muted"
-                    data-test-id="pi-verify-state"
-                    data-verify-state="busy"
-                  >
-                    <icon-lucide-loader-2 class="size-3 animate-spin" />
-                  </span>
-                  <span
-                    v-else-if="verifyStates[provider.id] === 'ok'"
-                    class="text-[10px] text-[var(--color-success)]"
-                    data-test-id="pi-verify-state"
-                    data-verify-state="ok"
-                  >
-                    {{ dialogs.providerVerifyOk }}
-                  </span>
-                  <span
-                    v-else-if="verifyStates[provider.id] === 'failed'"
-                    class="text-[10px] text-red-400"
-                    data-test-id="pi-verify-state"
-                    data-verify-state="failed"
-                  >
-                    {{ dialogs.providerVerifyFailed }}
-                  </span>
-                  <span
-                    v-else-if="verifyStates[provider.id] === 'unknown-error'"
-                    class="text-[10px] text-red-400"
-                    data-test-id="pi-verify-state"
-                    data-verify-state="unknown-error"
-                  >
-                    {{ dialogs.providerVerifyUnknownError }}
-                  </span>
-                </div>
-
-                <!-- T100 C2：自定义 provider 行内「编辑」入口（仅 kind=custom 显示） -->
-                <div class="mt-1.5 flex items-center gap-2">
-                  <button
-                    v-if="canDeleteProvider(provider)"
-                    type="button"
-                    class="rounded border border-border px-2 py-1 text-[10px] text-muted hover:text-surface disabled:opacity-50"
-                    data-test-id="pi-provider-edit"
-                    :disabled="busyProviderId === provider.id"
-                    @click="startEdit(provider.id)"
-                  >
-                    <icon-lucide-pencil class="mr-0.5 inline size-3" />
-                    {{ dialogs.providerEdit }}
-                  </button>
-                  <!-- T100 C1：行内删除二次确认态——未确认时显示「删除」；确认时切到两态小 UI -->
-                  <template v-if="!deleteConfirmIds[provider.id]">
-                    <button
-                      v-if="canDeleteProvider(provider)"
-                      type="button"
-                      class="rounded border border-border px-2 py-1 text-[10px] text-muted hover:text-red-400 disabled:opacity-50"
-                      data-test-id="pi-provider-delete"
-                      :disabled="busyProviderId === provider.id"
-                      @click="startDelete(provider.id)"
+                    <div
+                      class="flex size-8 shrink-0 items-center justify-center rounded bg-panel text-muted"
                     >
-                      <icon-lucide-trash-2 class="mr-0.5 inline size-3" />
-                      {{ dialogs.providerDelete }}
-                    </button>
-                  </template>
-                  <template v-else>
+                      <icon-lucide-bot class="size-4" />
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-[11px] font-medium text-surface">
+                        {{ provider.name }}
+                      </p>
+                      <p class="truncate text-[10px] text-muted">
+                        {{ provider.id }} ·
+                        {{ dialogs.providerModels({ count: provider.models.length }) }}
+                      </p>
+                    </div>
                     <span
-                      class="flex items-center gap-1.5 text-[10px] text-red-400"
-                      data-test-id="pi-delete-confirm"
+                      v-if="isCurrentProvider(provider.id)"
+                      class="flex shrink-0 items-center gap-1 text-[10px] font-medium text-accent"
+                      data-test-id="pi-current-marker"
                     >
-                      {{ dialogs.providerDeleteConfirm }}
-                      <button
-                        type="button"
-                        class="rounded border border-red-500/40 px-2 py-0.5 text-[10px] text-red-400 hover:bg-red-500/10 disabled:opacity-50"
-                        data-test-id="pi-delete-confirm-yes"
-                        :disabled="busyProviderId === provider.id"
-                        @click="confirmDelete(provider.id)"
-                      >
-                        {{ dialogs.providerDelete }}
-                      </button>
-                      <button
-                        type="button"
-                        class="rounded border border-border px-2 py-0.5 text-[10px] text-muted hover:text-surface"
-                        data-test-id="pi-delete-confirm-cancel"
-                        @click="cancelDelete(provider.id)"
-                      >
-                        {{ dialogs.providerDeleteCancel }}
-                      </button>
+                      <icon-lucide-check class="size-3" />
+                      {{ dialogs.currentAssignmentCurrent }}
                     </span>
-                    <span class="text-[9px] text-muted">{{
-                      dialogs.providerDeleteConfirmHint
-                    }}</span>
-                  </template>
-                </div>
-
-                <!-- T97：合并单元模型 Combobox + thinking 选择（讨论稿 §4.2 段 a）。
-                     展开时按 resolveDefaultModelId 钉默选（不落盘）。 -->
-                <template v-if="modelFor(provider.id)">
-                  <label class="mt-2 text-[10px] text-muted">{{ dialogs.designModelField }}</label>
-                  <ComboboxRoot
-                    :model-value="modelFor(provider.id)"
-                    class="relative mt-1"
-                    @update:model-value="(v) => onProviderModelChange(provider.id, v)"
-                  >
-                    <ComboboxAnchor as-child>
-                      <ComboboxTrigger
-                        class="flex w-full items-center justify-between gap-1 rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
-                        data-test-id="pi-provider-model-trigger"
-                      >
-                        <span class="min-w-0 flex-1 truncate text-left">{{
-                          modelFor(provider.id)
-                        }}</span>
-                        <icon-lucide-chevron-down class="size-3 shrink-0 text-muted" />
-                      </ComboboxTrigger>
-                    </ComboboxAnchor>
-                    <ComboboxPortal>
-                      <ComboboxContent
-                        position="popper"
-                        :side-offset="2"
-                        class="z-[110] min-w-[var(--reka-combobox-trigger-width)] overflow-hidden rounded-md bg-panel p-1 text-[11px] shadow-[0_8px_30px_rgb(0_0_0/0.4)]"
-                      >
-                        <ComboboxInput
-                          class="mb-1 w-full rounded border border-border bg-panel-field px-2 py-1 text-[11px] text-surface outline-none focus:border-panel-focus"
-                          :placeholder="dialogs.modelSearchPlaceholder"
-                          autocomplete="off"
-                          autocorrect="off"
-                          autocapitalize="off"
-                          :spellcheck="false"
-                          data-test-id="pi-provider-model-search"
-                        />
-                        <ComboboxViewport class="scrollbar-thin max-h-48 overflow-y-auto">
-                          <ComboboxItem
-                            v-for="model in filterCatalogModels(provider.models, '')"
-                            :key="model.id"
-                            :value="model.id"
-                            :text-value="`${model.name} ${model.id}`"
-                            class="relative flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-surface outline-none select-none data-[highlighted]:bg-hover"
-                            :data-model-id="model.id"
-                            data-test-id="pi-provider-model-item"
-                          >
-                            <ComboboxItemIndicator
-                              class="flex size-3 shrink-0 items-center justify-center"
-                            >
-                              <icon-lucide-check class="size-3 text-accent" />
-                            </ComboboxItemIndicator>
-                            <span class="min-w-0 flex-1 truncate">{{ model.name }}</span>
-                            <Tip
-                              v-if="supportsImageInput(model)"
-                              :label="dialogs.modelSupportsImage"
-                            >
-                              <span class="flex shrink-0 items-center text-muted">
-                                <icon-lucide-image class="size-3" />
-                              </span>
-                            </Tip>
-                            <span
-                              v-if="model.contextWindow"
-                              class="shrink-0 text-[10px] text-muted"
-                            >
-                              {{ contextLabel(model) }}
-                            </span>
-                          </ComboboxItem>
-                          <ComboboxEmpty
-                            class="px-2 py-1 text-[10px] text-muted"
-                            data-test-id="pi-provider-model-empty"
-                          >
-                            {{ dialogs.modelSearchEmpty }}
-                          </ComboboxEmpty>
-                        </ComboboxViewport>
-                      </ComboboxContent>
-                    </ComboboxPortal>
-                  </ComboboxRoot>
-
-                  <label class="mt-2 text-[10px] text-muted">{{ dialogs.thinkingLevel }}</label>
-                  <select
-                    :value="thinkingFor(provider.id)"
-                    class="mt-1 w-full rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none"
-                    data-test-id="pi-provider-thinking-select"
-                    @change="
-                      (e) =>
-                        onProviderThinkingChange(provider.id, (e.target as HTMLSelectElement).value)
-                    "
-                  >
-                    <option value="off">{{ thinkingLabel('off') }}</option>
-                    <option value="minimal">{{ thinkingLabel('minimal') }}</option>
-                    <option value="low">{{ thinkingLabel('low') }}</option>
-                    <option value="medium">{{ thinkingLabel('medium') }}</option>
-                    <option value="high">{{ thinkingLabel('high') }}</option>
-                    <option value="xhigh">{{ thinkingLabel('xhigh') }}</option>
-                  </select>
-                </template>
-
-                <!-- T97：模型列表搜索 + 视觉行（T80 保留；点行设 Combobox 值） -->
-                <input
-                  v-model="modelSearch"
-                  type="search"
-                  class="mt-2 w-full rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
-                  :placeholder="dialogs.modelSearchPlaceholder"
-                  data-test-id="pi-model-search"
-                />
-
-                <div class="scrollbar-thin mt-1.5 max-h-40 overflow-y-auto rounded bg-panel p-1.5">
-                  <div
-                    v-for="model in filterCatalogModels(provider.models, modelSearch)"
-                    :key="model.id"
-                    class="flex items-center justify-between gap-2 px-1 py-0.5 text-[10px]"
-                    :data-model-id="model.id"
-                    data-test-id="pi-model-row"
-                  >
-                    <button
-                      type="button"
-                      class="min-w-0 flex-1 truncate text-left text-surface hover:text-accent"
-                      data-test-id="pi-model-row-button"
-                      @click="onProviderModelChange(provider.id, model.id)"
+                    <span
+                      class="mr-1 flex shrink-0 items-center gap-1 text-[9px] text-muted"
+                      :data-state="provider.auth.configured ? 'configured' : 'missing'"
                     >
-                      {{ model.name }}
-                    </button>
-                    <span class="flex shrink-0 items-center gap-1.5 text-muted">
-                      <Tip v-if="supportsImageInput(model)" :label="dialogs.modelSupportsImage">
-                        <span
-                          class="flex items-center gap-0.5 text-muted"
-                          data-test-id="pi-model-image-input"
-                        >
-                          <icon-lucide-image class="size-3" />
-                        </span>
-                      </Tip>
-                      <span v-if="model.contextWindow" data-test-id="pi-model-context">
-                        {{ contextLabel(model) }}
+                      <span
+                        class="size-1.5 rounded-full bg-muted data-[state=configured]:bg-[var(--color-success)]"
+                        :data-state="provider.auth.configured ? 'configured' : 'missing'"
+                      />
+                      <span>{{
+                        provider.auth.configured ? uiCollab.connected : ai.modelNeedsCredential
+                      }}</span>
+                      <!-- T100 D1：source 标签——仅 configured 时按 catalog.auth.source 渲染；
+                       shadow 提示不在本单范围（讨论稿 §5.D1 + §6.3 key-env 拍板联动） -->
+                      <span
+                        v-if="sourceLabel(provider.auth.source)"
+                        class="rounded border border-border px-1 text-[9px] text-muted"
+                        :data-source="provider.auth.source"
+                        data-test-id="pi-auth-source"
+                      >
+                        {{ sourceLabel(provider.auth.source) }}
                       </span>
-                      <span class="truncate">{{ model.id }}</span>
                     </span>
-                  </div>
-                  <p
-                    v-if="filterCatalogModels(provider.models, modelSearch).length === 0"
-                    class="px-1 py-1 text-[10px] text-muted"
-                    data-test-id="pi-model-search-empty"
+                    <icon-lucide-chevron-right
+                      class="size-3.5 shrink-0 text-muted transition-transform"
+                      :class="{ 'rotate-90': expandedProviderId === provider.id }"
+                    />
+                  </button>
+
+                  <div
+                    v-if="expandedProviderId === provider.id"
+                    class="border-t border-border px-3 py-2"
                   >
-                    {{ dialogs.modelSearchEmpty }}
-                  </p>
+                    <div class="flex items-center gap-1.5">
+                      <input
+                        :ref="
+                          (el) => {
+                            providerKeyInputs[provider.id] = el as HTMLInputElement | null
+                          }
+                        "
+                        v-model="keyDrafts[provider.id]"
+                        type="password"
+                        class="min-w-0 flex-1 rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
+                        :placeholder="
+                          provider.auth.configured
+                            ? dialogs.keyPlaceholderConfigured
+                            : dialogs.keyPlaceholderMissing
+                        "
+                        data-test-id="pi-key-input"
+                        @keydown.enter="saveKey(provider.id)"
+                      />
+                      <button
+                        type="button"
+                        class="rounded bg-accent px-2 py-1.5 text-[10px] font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+                        data-test-id="pi-key-save"
+                        :disabled="busyProviderId === provider.id"
+                        @click="saveKey(provider.id)"
+                      >
+                        {{ dialogs.keySave }}
+                      </button>
+                      <button
+                        v-if="provider.auth.configured"
+                        type="button"
+                        class="rounded border border-border px-2 py-1.5 text-[10px] text-muted hover:text-surface disabled:opacity-50"
+                        data-test-id="pi-key-clear"
+                        :disabled="busyProviderId === provider.id"
+                        @click="clearKey(provider.id)"
+                      >
+                        {{ dialogs.keyClear }}
+                      </button>
+                    </div>
+
+                    <!-- T100 B2：行级错误位（保存/清除/验证/删除/编辑各动作的错误均下行到对应行内） -->
+                    <p
+                      v-if="rowErrors[provider.id]"
+                      class="mt-1 text-[10px] text-red-400"
+                      :data-provider-id="provider.id"
+                      data-test-id="pi-row-error"
+                    >
+                      {{ rowErrors[provider.id] }}
+                    </p>
+
+                    <!-- T100 B1：验证按钮（已配置 provider）—— 行内验证闭环；
+                     busy 期间 disabled 防重击；完成后行内显示三态结果文案 -->
+                    <div v-if="provider.auth.configured" class="mt-1.5 flex items-center gap-2">
+                      <button
+                        type="button"
+                        class="rounded border border-border px-2 py-1 text-[10px] text-muted hover:text-surface disabled:opacity-50"
+                        data-test-id="pi-provider-verify"
+                        :disabled="verifyStates[provider.id] === 'busy'"
+                        @click="verifyProvider(provider.id)"
+                      >
+                        <icon-lucide-shield-check class="mr-0.5 inline size-3" />
+                        {{ dialogs.providerVerify }}
+                      </button>
+                      <span
+                        v-if="verifyStates[provider.id] === 'busy'"
+                        class="flex items-center gap-1 text-[10px] text-muted"
+                        data-test-id="pi-verify-state"
+                        data-verify-state="busy"
+                      >
+                        <icon-lucide-loader-2 class="size-3 animate-spin" />
+                      </span>
+                      <span
+                        v-else-if="verifyStates[provider.id] === 'ok'"
+                        class="text-[10px] text-[var(--color-success)]"
+                        data-test-id="pi-verify-state"
+                        data-verify-state="ok"
+                      >
+                        {{ dialogs.providerVerifyOk }}
+                      </span>
+                      <span
+                        v-else-if="verifyStates[provider.id] === 'failed'"
+                        class="text-[10px] text-red-400"
+                        data-test-id="pi-verify-state"
+                        data-verify-state="failed"
+                      >
+                        {{ dialogs.providerVerifyFailed }}
+                      </span>
+                      <span
+                        v-else-if="verifyStates[provider.id] === 'unknown-error'"
+                        class="text-[10px] text-red-400"
+                        data-test-id="pi-verify-state"
+                        data-verify-state="unknown-error"
+                      >
+                        {{ dialogs.providerVerifyUnknownError }}
+                      </span>
+                    </div>
+
+                    <!-- T100 C2：自定义 provider 行内「编辑」入口（仅 kind=custom 显示） -->
+                    <div class="mt-1.5 flex items-center gap-2">
+                      <button
+                        v-if="canDeleteProvider(provider)"
+                        type="button"
+                        class="rounded border border-border px-2 py-1 text-[10px] text-muted hover:text-surface disabled:opacity-50"
+                        data-test-id="pi-provider-edit"
+                        :disabled="busyProviderId === provider.id"
+                        @click="startEdit(provider.id)"
+                      >
+                        <icon-lucide-pencil class="mr-0.5 inline size-3" />
+                        {{ dialogs.providerEdit }}
+                      </button>
+                      <!-- T100 C1：行内删除二次确认态——未确认时显示「删除」；确认时切到两态小 UI -->
+                      <template v-if="!deleteConfirmIds[provider.id]">
+                        <button
+                          v-if="canDeleteProvider(provider)"
+                          type="button"
+                          class="rounded border border-border px-2 py-1 text-[10px] text-muted hover:text-red-400 disabled:opacity-50"
+                          data-test-id="pi-provider-delete"
+                          :disabled="busyProviderId === provider.id"
+                          @click="startDelete(provider.id)"
+                        >
+                          <icon-lucide-trash-2 class="mr-0.5 inline size-3" />
+                          {{ dialogs.providerDelete }}
+                        </button>
+                      </template>
+                      <template v-else>
+                        <span
+                          class="flex items-center gap-1.5 text-[10px] text-red-400"
+                          data-test-id="pi-delete-confirm"
+                        >
+                          {{ dialogs.providerDeleteConfirm }}
+                          <button
+                            type="button"
+                            class="rounded border border-red-500/40 px-2 py-0.5 text-[10px] text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                            data-test-id="pi-delete-confirm-yes"
+                            :disabled="busyProviderId === provider.id"
+                            @click="confirmDelete(provider.id)"
+                          >
+                            {{ dialogs.providerDelete }}
+                          </button>
+                          <button
+                            type="button"
+                            class="rounded border border-border px-2 py-0.5 text-[10px] text-muted hover:text-surface"
+                            data-test-id="pi-delete-confirm-cancel"
+                            @click="cancelDelete(provider.id)"
+                          >
+                            {{ dialogs.providerDeleteCancel }}
+                          </button>
+                        </span>
+                        <span class="text-[9px] text-muted">{{
+                          dialogs.providerDeleteConfirmHint
+                        }}</span>
+                      </template>
+                    </div>
+
+                    <!-- 行内 thinking 预设（草稿态；模型选择归设计模型卡，行内不再重复） -->
+                    <label class="mt-2 text-[10px] text-muted">{{ dialogs.thinkingLevel }}</label>
+                    <select
+                      :value="thinkingFor(provider.id)"
+                      class="mt-1 w-full rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none"
+                      data-test-id="pi-provider-thinking-select"
+                      @change="
+                        (e) =>
+                          onProviderThinkingChange(
+                            provider.id,
+                            (e.target as HTMLSelectElement).value
+                          )
+                      "
+                    >
+                      <option value="off">{{ thinkingLabel('off') }}</option>
+                      <option value="minimal">{{ thinkingLabel('minimal') }}</option>
+                      <option value="low">{{ thinkingLabel('low') }}</option>
+                      <option value="medium">{{ thinkingLabel('medium') }}</option>
+                      <option value="high">{{ thinkingLabel('high') }}</option>
+                      <option value="xhigh">{{ thinkingLabel('xhigh') }}</option>
+                    </select>
+
+                    <!-- T97/T80：模型目录搜索 + 平铺展示——纯浏览不提供行内选择（模型选择归设计模型卡，
+                     行内 Combobox 已移除）；行纯 span 无点击语义 -->
+                    <input
+                      v-model="modelSearch"
+                      type="search"
+                      class="mt-2 w-full rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
+                      :placeholder="dialogs.modelSearchPlaceholder"
+                      data-test-id="pi-model-search"
+                    />
+
+                    <div
+                      class="scrollbar-thin mt-1.5 max-h-40 overflow-y-auto rounded bg-panel p-1.5"
+                    >
+                      <div
+                        v-for="model in filterCatalogModels(provider.models, modelSearch)"
+                        :key="model.id"
+                        class="flex items-center justify-between gap-2 px-1 py-0.5 text-[10px]"
+                        :data-model-id="model.id"
+                        data-test-id="pi-model-row"
+                      >
+                        <span class="min-w-0 flex-1 truncate text-surface">{{ model.name }}</span>
+                        <span class="flex shrink-0 items-center gap-1.5 text-muted">
+                          <Tip v-if="supportsImageInput(model)" :label="dialogs.modelSupportsImage">
+                            <span
+                              class="flex items-center gap-0.5 text-muted"
+                              data-test-id="pi-model-image-input"
+                            >
+                              <icon-lucide-image class="size-3" />
+                            </span>
+                          </Tip>
+                          <span v-if="model.contextWindow" data-test-id="pi-model-context">
+                            {{ contextLabel(model) }}
+                          </span>
+                          <span class="truncate">{{ model.id }}</span>
+                        </span>
+                      </div>
+                      <p
+                        v-if="filterCatalogModels(provider.models, modelSearch).length === 0"
+                        class="px-1 py-1 text-[10px] text-muted"
+                        data-test-id="pi-model-search-empty"
+                      >
+                        {{ dialogs.modelSearchEmpty }}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
+            </template>
+          </div>
+
+          <button
+            v-if="formMode === 'closed'"
+            type="button"
+            class="mt-2 flex items-center gap-1 rounded border border-border px-2.5 py-1.5 text-[11px] font-medium text-surface hover:bg-panel-field"
+            data-test-id="pi-add-provider"
+            @click="startAdd"
+          >
+            <icon-lucide-plus class="size-3" />
+            {{ dialogs.addProvider }}
+          </button>
+
+          <!-- T100 C2：自定义 provider 表单——add / edit 共用同一组件、按 mode 切换标题与提交语义。
+           edit 态 id 只读；提交错误下沉到对应 providerId 行（edit）或 '__custom__' 虚拟行（add） -->
+          <div
+            v-else
+            class="mt-2 flex flex-col gap-1.5 rounded border border-border bg-panel-field px-3 py-2"
+            data-test-id="pi-provider-form"
+            :data-form-mode="formMode"
+          >
+            <p class="text-[11px] font-medium text-surface">
+              {{
+                formMode === 'edit' ? dialogs.providerFormTitleEdit : dialogs.providerFormTitleAdd
+              }}
+            </p>
+            <p
+              v-if="
+                rowErrors[
+                  formMode === 'edit' && editTargetProviderId ? editTargetProviderId : '__custom__'
+                ]
+              "
+              class="rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] text-red-400"
+              data-test-id="pi-provider-form-error"
+            >
+              {{
+                rowErrors[
+                  formMode === 'edit' && editTargetProviderId ? editTargetProviderId : '__custom__'
+                ]
+              }}
+            </p>
+            <input
+              v-model="customId"
+              type="text"
+              class="rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus disabled:opacity-60"
+              :placeholder="dialogs.providerId"
+              :disabled="formMode === 'edit'"
+              :readonly="formMode === 'edit'"
+              data-test-id="pi-provider-id-input"
+            />
+            <p
+              v-if="formMode === 'edit'"
+              class="text-[9px] text-muted"
+              data-test-id="pi-provider-id-readonly-hint"
+            >
+              {{ dialogs.providerFormIdReadonlyHint }}
+            </p>
+            <input
+              v-model="customBaseURL"
+              type="text"
+              class="rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
+              :placeholder="dialogs.providerBaseUrl"
+              data-test-id="pi-provider-baseurl-input"
+            />
+            <select
+              v-model="customAPI"
+              class="rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none"
+              data-test-id="pi-provider-api-select"
+            >
+              <option v-for="api in CUSTOM_API_TYPES" :key="api" :value="api">{{ api }}</option>
+            </select>
+            <textarea
+              v-model="customModelIds"
+              rows="3"
+              class="rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
+              :placeholder="dialogs.providerModelIds"
+              data-test-id="pi-provider-models-input"
+            />
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="rounded bg-accent px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+                data-test-id="pi-provider-save"
+                :disabled="
+                  busyProviderId ===
+                  (formMode === 'edit' && editTargetProviderId
+                    ? editTargetProviderId
+                    : '__custom__')
+                "
+                @click="submitCustomForm"
+              >
+                {{ formMode === 'edit' ? dialogs.providerFormSaveEdit : dialogs.providerSave }}
+              </button>
+              <button
+                type="button"
+                class="rounded border border-border px-2.5 py-1.5 text-[11px] text-muted hover:text-surface"
+                data-test-id="pi-provider-form-cancel"
+                @click="closeForm"
+              >
+                {{ dialogs.providerDeleteCancel }}
+              </button>
             </div>
           </div>
-        </template>
-      </div>
-
-      <button
-        v-if="formMode === 'closed'"
-        type="button"
-        class="mt-2 flex items-center gap-1 rounded border border-border px-2.5 py-1.5 text-[11px] font-medium text-surface hover:bg-panel-field"
-        data-test-id="pi-add-provider"
-        @click="startAdd"
-      >
-        <icon-lucide-plus class="size-3" />
-        {{ dialogs.addProvider }}
-      </button>
-
-      <!-- T100 C2：自定义 provider 表单——add / edit 共用同一组件、按 mode 切换标题与提交语义。
-           edit 态 id 只读；提交错误下沉到对应 providerId 行（edit）或 '__custom__' 虚拟行（add） -->
-      <div
-        v-else
-        class="mt-2 flex flex-col gap-1.5 rounded border border-border bg-panel-field px-3 py-2"
-        data-test-id="pi-provider-form"
-        :data-form-mode="formMode"
-      >
-        <p class="text-[11px] font-medium text-surface">
-          {{ formMode === 'edit' ? dialogs.providerFormTitleEdit : dialogs.providerFormTitleAdd }}
-        </p>
-        <p
-          v-if="
-            rowErrors[
-              formMode === 'edit' && editTargetProviderId ? editTargetProviderId : '__custom__'
-            ]
-          "
-          class="rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] text-red-400"
-          data-test-id="pi-provider-form-error"
-        >
-          {{
-            rowErrors[
-              formMode === 'edit' && editTargetProviderId ? editTargetProviderId : '__custom__'
-            ]
-          }}
-        </p>
-        <input
-          v-model="customId"
-          type="text"
-          class="rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus disabled:opacity-60"
-          :placeholder="dialogs.providerId"
-          :disabled="formMode === 'edit'"
-          :readonly="formMode === 'edit'"
-          data-test-id="pi-provider-id-input"
-        />
-        <p
-          v-if="formMode === 'edit'"
-          class="text-[9px] text-muted"
-          data-test-id="pi-provider-id-readonly-hint"
-        >
-          {{ dialogs.providerFormIdReadonlyHint }}
-        </p>
-        <input
-          v-model="customBaseURL"
-          type="text"
-          class="rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
-          :placeholder="dialogs.providerBaseUrl"
-          data-test-id="pi-provider-baseurl-input"
-        />
-        <select
-          v-model="customAPI"
-          class="rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none"
-          data-test-id="pi-provider-api-select"
-        >
-          <option v-for="api in CUSTOM_API_TYPES" :key="api" :value="api">{{ api }}</option>
-        </select>
-        <textarea
-          v-model="customModelIds"
-          rows="3"
-          class="rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
-          :placeholder="dialogs.providerModelIds"
-          data-test-id="pi-provider-models-input"
-        />
-        <div class="flex items-center gap-2">
-          <button
-            type="button"
-            class="rounded bg-accent px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-accent/90 disabled:opacity-50"
-            data-test-id="pi-provider-save"
-            :disabled="
-              busyProviderId ===
-              (formMode === 'edit' && editTargetProviderId ? editTargetProviderId : '__custom__')
-            "
-            @click="submitCustomForm"
-          >
-            {{ formMode === 'edit' ? dialogs.providerFormSaveEdit : dialogs.providerSave }}
-          </button>
-          <button
-            type="button"
-            class="rounded border border-border px-2.5 py-1.5 text-[11px] text-muted hover:text-surface"
-            data-test-id="pi-provider-form-cancel"
-            @click="closeForm"
-          >
-            {{ dialogs.providerDeleteCancel }}
-          </button>
-        </div>
+        </section>
       </div>
     </section>
   </div>

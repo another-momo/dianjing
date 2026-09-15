@@ -110,86 +110,88 @@ onMounted(() => void refreshImageGenCredentialStatus())
       {{ msgs.imageGenOffline }} ({{ imageGenCredentialError }})
     </p>
 
-    <label class="text-[10px] text-muted">{{ msgs.imageGenProvider }}</label>
-    <select
-      v-model="providerType"
-      class="rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none"
-      data-test-id="image-gen-provider-type-select"
-    >
-      <option v-for="entry in IMAGE_GEN_PROVIDER_TYPES" :key="entry.id" :value="entry.id">
-        {{ entry.label }}
-      </option>
-    </select>
+    <div class="flex flex-col gap-1.5 rounded border border-border p-3">
+      <label class="text-[10px] text-muted">{{ msgs.imageGenProvider }}</label>
+      <select
+        v-model="providerType"
+        class="rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none"
+        data-test-id="image-gen-provider-type-select"
+      >
+        <option v-for="entry in IMAGE_GEN_PROVIDER_TYPES" :key="entry.id" :value="entry.id">
+          {{ entry.label }}
+        </option>
+      </select>
 
-    <label class="text-[10px] text-muted">{{ msgs.imageGenBaseUrl }}</label>
-    <input
-      v-model="baseURL"
-      type="text"
-      spellcheck="false"
-      class="rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
-      :placeholder="baseURLPlaceholder"
-      data-test-id="image-gen-base-url-input"
-    />
-
-    <label class="text-[10px] text-muted">{{ msgs.imageGenModel }}</label>
-    <input
-      v-model="model"
-      type="text"
-      spellcheck="false"
-      class="rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
-      :placeholder="modelPlaceholder"
-      data-test-id="image-gen-model-input"
-    />
-
-    <div class="flex items-center gap-1.5">
+      <label class="text-[10px] text-muted">{{ msgs.imageGenBaseUrl }}</label>
       <input
-        v-model="keyInput"
-        type="password"
-        class="min-w-0 flex-1 rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
-        :placeholder="
-          configured ? msgs.imageGenKeyPlaceholderConfigured : msgs.imageGenKeyPlaceholderMissing
-        "
-        data-test-id="image-gen-key-input"
-        @keydown.enter="save"
+        v-model="baseURL"
+        type="text"
+        spellcheck="false"
+        class="rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
+        :placeholder="baseURLPlaceholder"
+        data-test-id="image-gen-base-url-input"
       />
-      <button
-        type="button"
-        class="rounded bg-accent px-2 py-1.5 text-[10px] font-medium text-white hover:bg-accent/90 disabled:opacity-50"
-        data-test-id="image-gen-key-save"
-        :disabled="busy || imageGenCredentialLoading"
-        @click="save"
-      >
-        {{ msgs.imageGenKeySave }}
-      </button>
-      <button
-        v-if="configured"
-        type="button"
-        class="rounded border border-border px-2 py-1.5 text-[10px] text-muted hover:text-surface disabled:opacity-50"
-        data-test-id="image-gen-key-clear"
-        :disabled="busy"
-        @click="clear"
-      >
-        {{ msgs.imageGenKeyClear }}
-      </button>
-    </div>
 
-    <p
-      class="flex items-center gap-1 text-[9px] text-muted"
-      :data-state="configured ? 'configured' : 'missing'"
-      data-test-id="image-gen-key-status"
-    >
-      <span
-        class="size-1.5 rounded-full bg-muted data-[state=configured]:bg-[var(--color-success)]"
+      <label class="text-[10px] text-muted">{{ msgs.imageGenModel }}</label>
+      <input
+        v-model="model"
+        type="text"
+        spellcheck="false"
+        class="rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
+        :placeholder="modelPlaceholder"
+        data-test-id="image-gen-model-input"
+      />
+
+      <div class="flex items-center gap-1.5">
+        <input
+          v-model="keyInput"
+          type="password"
+          class="min-w-0 flex-1 rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
+          :placeholder="
+            configured ? msgs.imageGenKeyPlaceholderConfigured : msgs.imageGenKeyPlaceholderMissing
+          "
+          data-test-id="image-gen-key-input"
+          @keydown.enter="save"
+        />
+        <button
+          type="button"
+          class="rounded bg-accent px-2 py-1.5 text-[10px] font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+          data-test-id="image-gen-key-save"
+          :disabled="busy || imageGenCredentialLoading"
+          @click="save"
+        >
+          {{ msgs.imageGenKeySave }}
+        </button>
+        <button
+          v-if="configured"
+          type="button"
+          class="rounded border border-border px-2 py-1.5 text-[10px] text-muted hover:text-surface disabled:opacity-50"
+          data-test-id="image-gen-key-clear"
+          :disabled="busy"
+          @click="clear"
+        >
+          {{ msgs.imageGenKeyClear }}
+        </button>
+      </div>
+
+      <p
+        class="flex items-center gap-1 text-[9px] text-muted"
         :data-state="configured ? 'configured' : 'missing'"
-      />
-      {{ configured ? msgs.imageGenConfigured : msgs.imageGenNotConfigured }}
-      <template v-if="configured && imageGenCredentialStatus?.model">
-        · {{ imageGenCredentialStatus.model }}
-      </template>
-    </p>
+        data-test-id="image-gen-key-status"
+      >
+        <span
+          class="size-1.5 rounded-full bg-muted data-[state=configured]:bg-[var(--color-success)]"
+          :data-state="configured ? 'configured' : 'missing'"
+        />
+        {{ configured ? msgs.imageGenConfigured : msgs.imageGenNotConfigured }}
+        <template v-if="configured && imageGenCredentialStatus?.model">
+          · {{ imageGenCredentialStatus.model }}
+        </template>
+      </p>
 
-    <p v-if="actionError" class="text-[10px] text-red-400" data-test-id="image-gen-action-error">
-      {{ actionError }}
-    </p>
+      <p v-if="actionError" class="text-[10px] text-red-400" data-test-id="image-gen-action-error">
+        {{ actionError }}
+      </p>
+    </div>
   </section>
 </template>

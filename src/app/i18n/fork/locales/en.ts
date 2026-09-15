@@ -10,8 +10,7 @@
 import { params } from '@nanostores/i18n'
 
 export const piMessageDefaults = {
-  modelsDescription:
-    'Providers, credentials, and the design model are managed by the local AI service.',
+  providersTitle: 'Model providers',
   catalogRefresh: 'Refresh',
   catalogOffline:
     'Local AI service unreachable — restart the app; in browser dev mode, start the local service first.',
@@ -34,7 +33,6 @@ export const piMessageDefaults = {
   designModelDescription:
     'Model used by the AI chat agent. Credentials come from the provider entry above.',
   designProvider: 'Provider',
-  designModelField: 'Model',
   designModelSave: 'Save',
   designModelDirty: 'Unsaved',
   designModelSaved: 'Saved',
@@ -75,7 +73,6 @@ export const piMessageDefaults = {
   // T100：D1 source 回显——stored/environment 标签文案；SDK 真实 source 值
   // （'stored credential' / 环境变量名本身）经 classifyAuthSource 归类；
   // shadow 提示不在 catalog 透传范围（key-env 拍板见讨论稿 §6.3，本单范围内）
-  providerAuthSourceStored: 'Settings storage',
   providerAuthSourceEnvironment: 'Environment variable',
   // T100：引导门（讨论稿 §3 落地清单 1）——needs-setup / needs-credential 两变体 +
   // catalog 加载中骨架条 + 卡脚 hint；function 键走 params 占位（providerModels 先例）。
@@ -88,7 +85,18 @@ export const piMessageDefaults = {
     'The model is picked, but this provider still needs an API key.',
   providerGateCredentialCta: params('Open {name} settings'),
   providerGateLoading: 'Loading model catalog…',
-  providerGateHint: 'Manage models in Settings → AI'
+  providerGateHint: 'Manage models in Settings → AI',
+  // ux-polish④：设计模型卡（合并面板顶部）—— 四字段：provider / model / thinking / key
+  designCardTitle: 'Design model',
+  designCardProvider: 'Provider',
+  designCardModel: 'Model',
+  designCardThinking: 'Thinking level',
+  designCardApiKey: 'API key',
+  designCardKeyStatusConfigured: 'Key saved',
+  designCardKeyStatusMissing: 'No key yet',
+  designCardProviderSearchPlaceholder: 'Search providers…',
+  designCardProviderEmpty: 'No providers match your search.',
+  designCardAdvancedTrigger: 'Advanced: provider list and custom providers'
 } as const
 
 /** T54→T66：generate_image 凭证面板（SettingsDialog ai 分区；Provider 类型下拉 + baseUrl/model/key 输入 + 测试连接）英文默认值 */
