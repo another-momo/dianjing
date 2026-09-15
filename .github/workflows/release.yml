@@ -49,8 +49,11 @@ jobs:
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: OpenPencil-Setup-${{ github.ref_name }}
+          name: Dianjing-Setup-${{ github.ref_name }}
           path: |
-            release/OpenPencil-Setup-*.exe
-            release/OpenPencil-Setup-*.exe.blockmap
+            release/Dianjing-Setup-*.exe
+            release/Dianjing-Setup-*.exe.blockmap
+          # 命名漂移（如 productName 再改）必须炸红——默认 warn 会绿着产出
+          # 无产物 run（2026-09-15 OpenPencil→Dianjing 漂移实证）
+          if-no-files-found: error
           retention-days: 30
