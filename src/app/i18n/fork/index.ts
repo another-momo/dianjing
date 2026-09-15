@@ -122,7 +122,7 @@ export function useForkToolbar() {
 // pi 段全键含 params 函数）——script 内访问必须写 .value（同上游
 // notifications.value.xxx 惯例，见 ChatPanel.vue）；T35 的 `as any` 把 Ref 谎报成
 // 已解包值对象，script 侧 computed/函数中转访问静默 undefined（模板插值因 Vue
-// 顶层 ref 自动解包反而正常）——回归实证见 docs/rebuild/tasks/T38-plan.md §1
+// 顶层 ref 自动解包反而正常）——回归实证见 docs/archive/rebuild-campaign/tasks/T38-plan.md §1
 export function useForkPi() {
   return useStore(forkPiMessages)
 }

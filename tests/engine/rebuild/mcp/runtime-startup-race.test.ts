@@ -11,7 +11,7 @@ import {
 // T74：钉扎 dev 启动时序 race 的退避重试——vite configureServer 的 startChild
 // 异步 spawn 桥子进程，WorkspaceView.onMounted 起跑 startMCPRuntime 时桥可能还没
 // listen；无重试时编辑器永不 connectAutomation，桥永远 no_app（实证见
-// docs/rebuild/tasks/T74-plan.md §1）。本测试用注入的 sleep 让退避零延迟。
+// docs/archive/rebuild-campaign/tasks/T74-plan.md §1）。本测试用注入的 sleep 让退避零延迟。
 
 const HEALTH_OK: AutomationHealth = { status: 'ok', version: 'test' }
 

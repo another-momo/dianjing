@@ -1,7 +1,7 @@
 /**
  * AgentSessionEvent → UIMessageChunk 映射（T19 文本回路 + T20 工具链路）。
  *
- * 映射表来源：docs/rebuild/tasks/T11-self-check.md §2.5（S-pi-4 离线面实测），
+ * 映射表来源：docs/archive/rebuild-campaign/tasks/T11-self-check.md §2.5（S-pi-4 离线面实测），
  * 惰性开帧状态机照搬上游 harness transport mapEvent 的 pending 模式（T25 已随旧面删除，此处留存其设计先例）。
  *
  * T20 激活工具映射（照上游 harness transport 先例 providerExecuted: true（T25 已删），

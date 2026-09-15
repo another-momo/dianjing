@@ -133,7 +133,7 @@ jobs:
   # 上游 drift 雷达（2026-09-05 分区优化方案 §5.1 去 cron 化）：nightly cron 从未
   # 运行过（cron 只在默认分支生效，fork 默认分支无该 workflow），改为借用日常
   # push 节奏的非阻断 job——只在 push 到 rebuild/** 时跑，continue-on-error 不挡
-  # 门禁，输出可见即可；--drift 全绿列为合并 SOP（docs/rebuild/04 §6）强制前置。
+  # 门禁，输出可见即可；--drift 全绿列为合并 SOP（docs/archive/rebuild-campaign/04-porting-discipline.md §6）强制前置。
   upstream-drift:
     name: Upstream drift radar (non-blocking)
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/rebuild/')

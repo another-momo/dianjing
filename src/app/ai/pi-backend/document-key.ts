@@ -1,5 +1,5 @@
 /**
- * T22 session↔file 绑定（方案定稿 2026-08-23，docs/rebuild/tasks/T22-plan.md §1.2）：
+ * T22 session↔file 绑定（方案定稿 2026-08-23，docs/archive/rebuild-campaign/tasks/T22-plan.md §1.2）：
  *
  *  - 文档身份：docUuid 惰性铸造进根节点 sharedPluginData
  *    （{pluginId:'openpencil.ai', key:'openpencil.ai/docId'}，与

@@ -1,7 +1,7 @@
 /**
  * T20/T21 pi 自定义工具 → 7600 桥 → 活编辑器执行。
  *
- * 链路（注册期 recon 实证，见 docs/rebuild/tasks/T20-self-check.md §2.1）：
+ * 链路（注册期 recon 实证，见 docs/archive/rebuild-campaign/tasks/T20-self-check.md §2.1）：
  *  1. pi session 注册 customTools（service.ts），noTools: 'builtin' 只禁内建
  *  2. LLM 调起工具 → execute() 在本进程执行
  *  3. readDiscoveryFile()（automation/bridge/server/discovery）拿 7600 桥的端口与 token

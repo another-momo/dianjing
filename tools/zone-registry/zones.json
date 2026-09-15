@@ -18,6 +18,7 @@
     "src/app/orchestration/",
     ".github/workflows/",
     "tools/unit-tests/",
+    "tools/git-rescue/",
     "desktop-electron/",
     "build/"
   ],

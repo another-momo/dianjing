@@ -13,7 +13,7 @@
 
 - 主 agent 唯一允许：git 写（commit / merge-back）、browser 实测、gh 操作。
 - worker（subagent）：限定范围实现 + 目标测试文件；**禁**全量 test / dev / build、commit / push、`gh run rerun`；browser 默认禁——Playwright MCP 与主 agent 共享浏览器单例，派单显式授权时方可自验证且须互斥。commit / push 可经 owner 专项派单授权解禁（授权范围以派单文本为准）。
-- push：主 agent 每次收口 commit 后顺势推；失败允许重试 3 次、每次间隔 30s，仍败即积压归 owner 后续处理。worker 禁 push。
+- push：主 agent 每次收口 commit 后顺势推；失败允许重试 3 次、每次间隔 30s，仍败走 Data API 兜底脚本（`tools/git-rescue/data-api-push.ts`，api.github.com 通路独立于 git 传输层），再败积压归 owner。worker 禁 push。
 - gh 命令一律带 `-R another-momo/dianjing`。
 
 ## 3. zone 纪律（改代码前必读）
@@ -27,13 +27,13 @@
 
 ## 4. 提交与门禁
 
-- commit 前必跑 `bun run format:check`（CI 红灯首要嫌疑，历史教训）。
+- commit 前必跑 `bun run format:check`（CI 红灯首要嫌疑，历史教训）。format 门禁覆盖含 .md——本地逐文件 gate 按本批全部改动文件跑，不按扩展名挑（2026-09-15 漏圈 md 致 CI 红一轮）。
 - oxfmt 只格式化门禁覆盖内或本批新建的文件——覆盖外的既有文件（desktop-electron 等不在 format 门禁内的目录）顺手格式化制造纯噪音 diff（2026-09-14 ④ 实证：smoke 文件 12 行功能改动被手跑 oxfmt 膨胀成 124 行，`git show HEAD:file` 回滚）。
 - commit 前 `git status` 核对无残留未暂存改动——pre-commit 门禁跑的是工作区，绿 ≠ 已入库（2026-09-08 事故：三文件台账改动未暂存，随 worktree 拆除灭失，CI 红一轮才兜住）。
 - 日常收口门禁：`bun run check:quick`（format + lint + typecheck + zones 四步串行）。
 - 变更集含 `.vue` 时收口补跑 `bun run check:vue`（约 72s，不进 check:quick 是刻意的——主 agent 收口职责，worker 无责）。
-- 注意：本机 oxlint 目录取文件为 0（静默假绿，2026-09-07 起未定位）——本地 lint 结果不可信，lint 类门禁以 CI 为准。本地复现 CI lint 的替代法：`bunx oxlint -c oxlint.json --type-aware --type-check <单文件>`（单文件参数不受 0 文件问题影响）。CI lint 分两段不同规则集——src-only 311 条 type-aware / 含 tests 345 条，第二段有独有规则（4728a46d4 实证：optional 参数显式 undefined 第一段规则集复现不出）；逐文件复现先对照 CI 失败日志属哪一段，prefer-optional-chain 等 type-aware 规则只在第二段跑、第一段失败会屏蔽它。
-- 大改动（≥10 文件或 ≥200 行）收口跑全量 `bun run check`，跑前停 dev server。
+- 注意：本机 oxlint 目录取文件为 0（静默假绿，2026-09-07 起未定位；2026-09-15 第 8 次实证——全量 lint:structure 本地 EXIT=0，日志写明 881ms 扫 0 files）——本地 lint 结果不可信，lint 类门禁以 CI 为准。本地复现 CI lint 的替代法：`bunx oxlint -c oxlint.json --type-aware --type-check <单文件>`（单文件参数不受 0 文件问题影响）。CI lint 分两段不同规则集——lint:structure 全目录 311 条 / type-aware（src+packages）345 条，两段互有独有规则（4728a46d4 实证：optional 参数显式 undefined 单段复现不出）；逐文件复现先对照 CI 失败日志属哪一段，且 `&&` 串行使第一段失败屏蔽第二段——修绿一段后须预期下一段浮出新错（2026-09-15 实证：structure 修绿后 type-aware 浮出 3 错）。
+- 大改动（≥10 文件或 ≥200 行）收口跑全量 `bun run check`，跑前停 dev server。全量 check 链在 check:audit 404（npmmirror 镜像环境性、基线同挂）处 `&&` 短路——其后 secrets/monorepo/arch/type-shapes/tools/dupes 六项须逐个补跑（2026-09-15 实证：「audit 不追究」掩盖后段门禁，三项 CI 红出于此）。
 - studio 资产增删改名的耦合断言不止 tests/engine——`spikes/s-pi/backend-smoke/`（CI smoke:pi 契约层）直拷真资产目录并断言具体 id/数量/顺序；改资产同步扫 spikes/（2026-09-08 Phase 2 事故：派单 scope 只圈 tests/engine，CI 红一轮才浮出）。
 - 状态根/目录布局/路径契约类改动同样必扫 spikes：`spikes/s-pi/backend-smoke/` 钉死 token/状态文件相对布局，且冒烟 spawn 后端不带 env 时后端状态根不再跟 cwd（2026-09-14 D2 实证：15 处布局钉 + 7 处 env 注入漏扫，CI 红一轮）。**sweep 输出禁截断**——`grep | head` 截断漏掉 t28 archiveDir 钉，本地复现二轮才兜住。
 - commit message：中文 conventional（`type(scope): 主题`）+ 正文写清 why——背景、方案取舍、验证证据。
@@ -55,6 +55,10 @@
 - import 禁 `../` 逃逸 alias 根（`#tests/../vite` 式）；模块归属错位修归属，不修路径。
 - vite.config.ts 加载链文件禁 `@/` alias：链 = vite.config → `vite/automation` + pi-backend/bridge 两个 vite-plugin → 其传递 import（如 `src/app/bridge/server/paths.ts`）——Storybook/vite config loader 不注册别名（2026-09-14 CI+dev 双实证漏网）。用相对 import：单个 `../` 直接写，`../../` 逐行注 `// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports`。
 - Electron 主进程/sidecar 单文件产物必须显式 `deps.alwaysBundle` 兜底：tsdown 默认把根 package.json dependencies（含 workspace:* 的 `@open-pencil/*`）external 化，而打包形态 resources/app/ 无 node_modules（electron-builder.yml files 显式排除）——产物留裸 import，安装版主进程启动即炸 ERR_MODULE_NOT_FOUND；dev 形态仓根 node_modules 兜底会完美掩盖，只有打包 L3 能兜住（2026-09-14 ④ 实证，ff1b44d8d 修复）。
+- type-aware `no-unnecessary-condition` 狙 Record 防御性索引访问：非 noUncheckedIndexedAccess 配置下索引访问类型恒非空，`current?.x` / `if (!x)` 皆报「不必要」；「`| undefined` 注解 + 非空初值」会被 CFA 赋值窄化窄回非空照狙——用 `in` 守卫产真并型（2026-09-15 ask reducer 抽纯 3 错实证）。
+- `.vue` SFC 不进 type-aware 覆盖（实证盲区）——同一段防御写法在 .vue 里历年全绿、抽纯成 .ts 即被狙；.vue → .ts 抽纯后按 .ts 口径逐文件过 `--type-aware`（同上实证）。
+- steiger（check:arch）FSD 同前缀兄弟文件阈值 = 3（非 4）：同目录 ≥3 个同前缀文件即红——归域目录（ask/ 式）或错开前缀（2026-09-15 ask 测试四件归域实证）。
+- ai SDK 就地改 tool part 对象（引用不变）——卡片状态门禁 computed 读 `part.state` 恒陈旧，须父级重渲染直传原值 prop（`:part-state` 模式；2026-09-15 ask 波2 实证：作答摘要此前只在历史重载时渲染）。
 
 ## 6. 测试纪律
 
