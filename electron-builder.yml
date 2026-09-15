@@ -102,6 +102,10 @@ win:
   # certificateFile: ...
   # certificatePassword: ...
   artifactName: ${productName}-${version}-${arch}.${ext}
+  # 品牌图标（2026-09-15 点睛 logo 接入）：多分辨率 PNG-in-ICO
+  # （16/32/48/256），由 dianjing-logo.svg 栅格化组装；build/icon.png
+  # (512) 是同源主图（electron-builder 约定位，供未来 mac/linux 自动转换）
+  icon: build/icon.ico
 
 nsis:
   # perMachine false —— 安装到当前用户（无管理员权限要求；UAC 不弹；与
@@ -124,11 +128,6 @@ nsis:
   deleteAppDataOnUninstall: true
   # artifactName 在 win.* 已设，这里保留 nsis 自身的命名兜底
   artifactName: ${productName}-Setup-${version}.${ext}
-
-# 应用图标——缺图标资源（icon 字段不填 electron-builder 用默认 Electron 标）；
-# favicon.ico 是 web 端 icon（256x256 + 多分辨率），尺寸规格与 desktop app 不
-# 同，缺损风险（默认 Electron 图标至少不漂移）——本任务 owner 接受；P2 后续
-# 接品牌图标时再加 icon: build/icon.ico
 
 # 产物输出到仓库根 release/（顶部 directories.output 显式设定，理由见该处
 # 注释）；release/ 已入 .gitignore。

@@ -18,7 +18,8 @@
     "src/app/orchestration/",
     ".github/workflows/",
     "tools/unit-tests/",
-    "desktop-electron/"
+    "desktop-electron/",
+    "build/"
   ],
   "ownedFiles": [
     "src/app/shell/electron.ts",
@@ -1444,6 +1445,27 @@
       "reason": "改名期③补扫（2026-09-14）：②漏区同批——upToDate/availableTitle/available/downloading/installed 五条文案 OpenPencil→点睛设计",
       "disposition": "permanent",
       "lastReviewed": "2026-09-14"
+    },
+    {
+      "id": "P252",
+      "file": "public/pwa-192.png",
+      "reason": "点睛 logo 接入（2026-09-15）：dianjing-logo.svg 栅格化 192×192 替换旧标（同批 favicon 全家族 + build/icon.ico 桌面图标）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-15"
+    },
+    {
+      "id": "P253",
+      "file": "public/pwa-512.png",
+      "reason": "点睛 logo 接入（2026-09-15）：同 P252，512×512",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-15"
+    },
+    {
+      "id": "P254",
+      "file": "public/pwa-maskable-512.png",
+      "reason": "点睛 logo 接入（2026-09-15）：同 P252，maskable 变体（80% 安全区居中白底）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-15"
     }
   ],
   "deletedPaths": [
