@@ -120,7 +120,9 @@ function applySelectImage(state: AskCardState, action: ActionOf<'selectImageOpti
 }
 
 function applyToggleMulti(state: AskCardState, action: ActionOf<'toggleMultiOption'>): void {
-  const current = state.answers[action.questionId]
+  // 槽位可缺（防御性，原卡片行为）。in 守卫产真并型——「| undefined 注解 + 非空初值」
+  // 会被 CFA 赋值窄化窄回非空，type-aware no-unnecessary-condition 照狙；in 不窄化
+  const current = action.questionId in state.answers ? state.answers[action.questionId] : undefined
   const list = current?.values ?? []
   if (action.optionId === FREE_TEXT_OPTION_ID) {
     if (list.includes(FREE_TEXT_OPTION_ID)) {

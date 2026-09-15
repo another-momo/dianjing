@@ -77,8 +77,10 @@ export function normalizeForSubmit(
 ): Record<string, AskQuestionAnswer> {
   const normalized: Record<string, AskQuestionAnswer> = {}
   for (const question of questions) {
+    // 槽位可缺（防御性跳题）。in 守卫不触发 CFA 窄化——「| undefined 注解 + 非空初值」
+    // 会窄回非空，type-aware no-unnecessary-condition 照狙
+    if (!(question.id in answers)) continue
     const answer = answers[question.id]
-    if (!answer) continue
     const out = normalizeSingle(question, answer)
     // notes 与作答解耦：spec.notes=true 时采集，trim 非空白才携带
     if (question.notes === true) {
