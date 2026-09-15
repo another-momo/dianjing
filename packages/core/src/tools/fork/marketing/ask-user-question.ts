@@ -133,12 +133,10 @@ function validateSelectOptions(
       allowPreview && typeof item.preview === 'string' && item.preview.trim() !== ''
         ? item.preview
         : null
-    options.push({
-      id,
-      label,
-      ...(hint ? { hint } : {}),
-      ...(preview !== null ? { preview } : {})
-    })
+    const option: AskSelectOption = { id, label }
+    if (hint) option.hint = hint
+    if (preview !== null) option.preview = preview
+    options.push(option)
   }
   return options
 }
