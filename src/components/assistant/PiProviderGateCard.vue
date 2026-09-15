@@ -43,7 +43,7 @@ function handleOpenSettings() {
     class="flex min-h-0 flex-1 items-center justify-center px-6 py-8"
   >
     <div
-      class="flex max-w-md flex-col items-center gap-3 rounded-lg border border-border bg-surface px-6 py-8 text-center"
+      class="flex max-w-md flex-col items-center gap-3 rounded-lg border border-border bg-panel px-6 py-8 text-center"
     >
       <icon-lucide-sparkles class="size-8 text-muted" />
       <h2 class="text-base font-medium text-foreground">
@@ -65,7 +65,7 @@ function handleOpenSettings() {
       <button
         type="button"
         data-test-id="pi-provider-gate-open-settings"
-        class="mt-2 inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-sm hover:bg-hover"
+        class="mt-2 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-surface hover:bg-panel-field"
         @click="handleOpenSettings"
       >
         <icon-lucide-settings class="size-3.5" />
