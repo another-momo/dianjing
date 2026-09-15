@@ -25,12 +25,15 @@ import {
   validateAskUserQuestions,
   type AskQuestionSpec
 } from '@open-pencil/core/tools/fork/marketing/ask-user-question'
+import { normalizeAskParams } from '@open-pencil/core/tools/fork/marketing/normalize-params'
+import { checkReservedLabels } from '@open-pencil/core/tools/fork/marketing/validate-questionnaire'
 
-import type { AskPendingStore } from './ask-pending'
-import { toToolResult } from './tool-result'
+import { toToolResult } from '../tool-result'
+import type { AskPendingStore } from './pending'
 
 const ASK_USER_QUESTION_DESCRIPTION =
-  'Present an in-chat form with questions for the user. The frontend renders a form card (single_select option cards, image_select canvas-node thumbnails, text inputs); every single_select/image_select question additionally offers an "Other" option that reveals a free-text input. This tool BLOCKS until the user answers or skips (or the run is aborted) — the answer arrives as THIS tool\'s result, do not assume a follow-up user message and do not call further tools before the result returns. Result content includes the answer envelope JSON where each question id maps to {"value":"<optionId or text>"} for a normal answer, or {"value":"__freeText","freeText":"<the user\'s own words>"} when the user picked "Other" — treat that freeText as a first-class answer for that question. Result details also expose {formId, status, questions, answers}. If the user skipped, status is "skipped" and there are no answers — proceed with your best judgment and do not re-ask the same questions unless necessary. Rules: 1-8 questions; ids unique and non-empty; labels non-empty; single_select needs options (2-12 items, each {id,label,hint?}) and must not carry imageOptions; image_select needs imageOptions (1-12 items, each {nodeId,label?} referencing canvas nodes) and must not carry options; text carries neither; required defaults to true — set false for optional questions. Batch everything you need to ask into ONE call.'
+  'Present an in-chat form with questions for the user. The frontend renders a form card (single_select option cards, multi_select checkbox groups, image_select canvas-node thumbnails, text inputs); every single_select/multi_select/image_select question additionally offers an "Other" option that reveals a free-text input. This tool BLOCKS until the user answers or skips (or the run is aborted) — the answer arrives as THIS tool\'s result, do not assume a follow-up user message and do not call further tools before the result returns. Result content includes the answer envelope JSON where each question id maps to {"value":"<optionId or text>"} for a normal answer, {"values":["<optionId>",...]} for a multi_select answer, or {"value":"__freeText","freeText":"<the user\'s own words>"} when the user picked "Other" (for multi_select, "__freeText" appears inside "values" with "freeText" alongside) — treat that freeText as a first-class answer for that question. Per-question notes arrive as "notes" on that entry, and an optional top-level "notes" string carries the user\'s global remark. Result details also expose {formId, status, questions, answers}. If the user skipped, status is "skipped" and there are no answers — proceed with your best judgment and do not re-ask the same questions unless necessary. Rules: 1-8 questions; ids unique and non-empty; labels non-empty; single_select and multi_select need options (2-12 items, each {id,label,hint?}) and must not carry imageOptions; image_select needs imageOptions (1-12 items, each {nodeId,label?} referencing canvas nodes) and must not carry options; text carries neither; required defaults to true — set false for optional questions; notes defaults to false — set true on a question to collect an optional per-question note. Batch everything you need to ask into ONE call.' +
+  " Guidelines for when to ask: only call this tool when a missing decision genuinely blocks your next design action — e.g. picking between mutually exclusive directions whose default would waste the user's time if wrong. Do NOT ask for information you can read yourself (canvas state via tools, document history, previous answers in this conversation) or for style/trend/value choices you can make a reasonable default for. Cap yourself at TWO forms per session; after that, commit to your best judgment and keep moving. Each form should batch every question you need into one call — never chain multiple forms to ask one question at a time."
 
 /** 答案细节形状（details 字段；mapping.ts tool-output-available 骑 details 到前端） */
 export type AskAnswerDetails =
@@ -38,7 +41,12 @@ export type AskAnswerDetails =
       formId: string
       status: 'answered'
       questions: AskQuestionSpec[]
-      answers: Record<string, { value: string; freeText?: string }>
+      answers: Record<
+        string,
+        { value?: string; values?: string[]; freeText?: string; notes?: string }
+      >
+      /** Wave 2 #9：提交时附加的全局备注（非空白才出现） */
+      notes?: string
     }
   | {
       formId: string
@@ -61,6 +69,7 @@ const QUESTION_SCHEMA = Type.Object({
   id: Type.String({ description: 'Unique question id' }),
   kind: Type.Union([
     Type.Literal('single_select'),
+    Type.Literal('multi_select'),
     Type.Literal('image_select'),
     Type.Literal('text')
   ]),
@@ -72,7 +81,7 @@ const QUESTION_SCHEMA = Type.Object({
         label: Type.String(),
         hint: Type.Optional(Type.String())
       }),
-      { description: 'single_select only: 2-12 options' }
+      { description: 'single_select / multi_select: 2-12 options' }
     )
   ),
   imageOptions: Type.Optional(
@@ -84,7 +93,10 @@ const QUESTION_SCHEMA = Type.Object({
       { description: 'image_select only: 1-12 canvas-node candidates' }
     )
   ),
-  required: Type.Optional(Type.Boolean({ description: 'Default true' }))
+  required: Type.Optional(Type.Boolean({ description: 'Default true' })),
+  notes: Type.Optional(
+    Type.Boolean({ description: 'Wave 2 #8: include a per-question notes input' })
+  )
 })
 
 export function createAskUserQuestionTool(deps: AskUserQuestionToolDeps) {
@@ -99,7 +111,9 @@ export function createAskUserQuestionTool(deps: AskUserQuestionToolDeps) {
       questions: Type.Array(QUESTION_SCHEMA, { description: '1-8 form questions' })
     }),
     async execute(toolCallId, params, signal): Promise<AgentToolResult<Record<string, unknown>>> {
-      const validated = validateAskUserQuestions(params)
+      // Wave 2 #5：先归一后校验——消除 `\"Other\\r\"` 类行尾绕过、合并重复题
+      const normalized = normalizeAskParams(params)
+      const validated = checkReservedLabels(validateAskUserQuestions(normalized))
       if ('error' in validated) {
         return toToolResult({ error: validated.error, message: validated.message })
       }
@@ -126,16 +140,22 @@ export function createAskUserQuestionTool(deps: AskUserQuestionToolDeps) {
         return { content: [{ type: 'text', text }], details }
       }
       const answers = payload.answers ?? {}
+      const globalNotes = typeof payload.notes === 'string' ? payload.notes : undefined
       const details: AskAnswerDetails = {
         formId,
         status: 'answered',
         questions,
-        answers
+        answers,
+        ...(globalNotes ? { notes: globalNotes } : {})
       }
-      const envelopeJSON = serializeAskAnswer(formId, { aborted: false, answers })
+      const envelopeJSON = serializeAskAnswer(formId, {
+        aborted: false,
+        answers,
+        ...(globalNotes ? { notes: globalNotes } : {})
+      })
       const text =
         `The user answered the form (formId=${formId}).\n` +
-        'Answer envelope JSON (per-question; "__freeText" entries carry freeText as a first-class answer):\n' +
+        'Answer envelope JSON (per-question; "__freeText" entries carry freeText as a first-class answer; multi_select answers use {values:[...]}; per-question notes appear under "notes"):\n' +
         envelopeJSON
       return { content: [{ type: 'text', text }], details }
     }

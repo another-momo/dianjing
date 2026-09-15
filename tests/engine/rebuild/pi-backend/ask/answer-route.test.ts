@@ -203,3 +203,120 @@ describe('POST /api/pi/ask-answer（2026-09-15 表单作答端点）', () => {
     expect(res.status).toBe(400)
   })
 })
+
+/**
+ * 2026-09-15 波2 路由扩展：per-entry 形态 {value?, values?: string[], freeText?, notes?}；
+ * 顶层接受 notes 透传。无 store 项时一律 404（与上组同律——端到端只测路由形态，
+ * resolveByFormId 真值挂在 pending.test.ts / user-question-tool.test.ts）。
+ */
+describe('POST /api/pi/ask-answer 波2 路由扩展（values / notes）', () => {
+  test('values 形态（非空 string 数组）→ 404（无 pending，路由形态已过）', async () => {
+    const res = await fetch(`${baseURL}/api/pi/ask-answer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({
+        formId: 'ask-none',
+        answers: { q1: { values: ['a', 'b'] } }
+      })
+    })
+    expect(res.status).toBe(404)
+  })
+
+  test('values 空数组 + 无 value → 400（无合法 value/values）', async () => {
+    const res = await fetch(`${baseURL}/api/pi/ask-answer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({
+        formId: 'ask-x',
+        answers: { q1: { values: [] } }
+      })
+    })
+    expect(res.status).toBe(400)
+  })
+
+  test('value 与 values 同时给 → 404（路由允许；两者形态合法）', async () => {
+    const res = await fetch(`${baseURL}/api/pi/ask-answer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({
+        formId: 'ask-none',
+        answers: { q1: { value: 'a', values: ['a', 'b'] } }
+      })
+    })
+    expect(res.status).toBe(404)
+  })
+
+  test('values 含空白项 → 路由过滤后形态合法 → 404', async () => {
+    const res = await fetch(`${baseURL}/api/pi/ask-answer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({
+        formId: 'ask-none',
+        answers: { q1: { values: ['a', '   ', 'b'] } }
+      })
+    })
+    expect(res.status).toBe(404)
+  })
+
+  test('values 含非 string 项 → 400', async () => {
+    const res = await fetch(`${baseURL}/api/pi/ask-answer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({
+        formId: 'ask-x',
+        answers: { q1: { values: ['a', 2] } }
+      })
+    })
+    expect(res.status).toBe(400)
+  })
+
+  test('顶层 notes 透传 → 404（无 pending，路由形态过；notes 在端点接受之列）', async () => {
+    const res = await fetch(`${baseURL}/api/pi/ask-answer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({
+        formId: 'ask-none',
+        answers: { q1: { value: 'a' } },
+        notes: '整体方向偏极简'
+      })
+    })
+    expect(res.status).toBe(404)
+  })
+
+  test('skip + notes 顶层透传 → 404', async () => {
+    const res = await fetch(`${baseURL}/api/pi/ask-answer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({
+        formId: 'ask-none',
+        skip: true,
+        notes: '先看看现在是什么样'
+      })
+    })
+    expect(res.status).toBe(404)
+  })
+
+  test('per-entry notes 字段 → 404（路由形态合法）', async () => {
+    const res = await fetch(`${baseURL}/api/pi/ask-answer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({
+        formId: 'ask-none',
+        answers: { q1: { value: 'a', notes: '倾向 A' } }
+      })
+    })
+    expect(res.status).toBe(404)
+  })
+
+  test('notes 独存（无 value/values）→ 404（与 core normalizeQuestionAnswer 同律：notes 独存也是有效作答）', async () => {
+    const res = await fetch(`${baseURL}/api/pi/ask-answer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({
+        formId: 'ask-none',
+        answers: { q1: { notes: '这题只想留备注' } }
+      })
+    })
+    expect(res.status).toBe(404)
+  })
+})

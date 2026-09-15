@@ -449,20 +449,47 @@ function finalizeInterruptedToolParts(): void {
 // 同一工具结果；不再经聊天消息文本信封回流）。
 // 不接 streaming/submitted guard：本端点独立于聊天提交路径，挂起期间
 // ChatPanel 仍可交互作答（disabled 透传已被卡片摘除——见 PiChatMessage）。
-/** core AskQuestionAnswer.value 可空（输入中槽位）；卡片提交时已归一但类型
- *  不表——此处收窄到端点契约 {value: string}，空值槽丢弃（卡片必填校验兜底） */
-function normalizeAnswers(
-  submission: Extract<AskFormSubmission, { aborted: false }>
-): Record<string, { value: string; freeText?: string }> {
-  const out: Record<string, { value: string; freeText?: string }> = {}
+/**
+ * core AskQuestionAnswer.value 可空（输入中槽位）；卡片提交时已归一但类型
+ * 不表——此处收窄到端点契约：透传 value / values[]（过滤非 string 项）/
+ * freeText / notes；全局备注挂顶层 notes（非空白才挂）。
+ * 端点 AskAnswerSubmission 类型同步扩展为含 values/notes（client.ts 波2 修订）。
+ */
+function normalizeAnswers(submission: Extract<AskFormSubmission, { aborted: false }>): {
+  answers: Record<string, { value?: string; values?: string[]; freeText?: string; notes?: string }>
+  notes?: string
+} {
+  const out: Record<
+    string,
+    { value?: string; values?: string[]; freeText?: string; notes?: string }
+  > = {}
   for (const [qid, answer] of Object.entries(submission.answers)) {
-    if (typeof answer.value !== 'string') continue
-    out[qid] =
-      typeof answer.freeText === 'string'
-        ? { value: answer.value, freeText: answer.freeText }
-        : { value: answer.value }
+    const slot: { value?: string; values?: string[]; freeText?: string; notes?: string } = {}
+    if (typeof answer.value === 'string') slot.value = answer.value
+    if (Array.isArray(answer.values)) {
+      const list = answer.values.filter((v): v is string => typeof v === 'string')
+      if (list.length > 0) slot.values = list
+    }
+    if (typeof answer.freeText === 'string') slot.freeText = answer.freeText
+    if (typeof answer.notes === 'string') slot.notes = answer.notes
+    // 至少一个有效字段才落键（卡片必填校验兜底；空槽位不污染后端）
+    if (
+      slot.value !== undefined ||
+      slot.values !== undefined ||
+      slot.freeText !== undefined ||
+      slot.notes !== undefined
+    ) {
+      out[qid] = slot
+    }
   }
-  return out
+  const result: {
+    answers: typeof out
+    notes?: string
+  } = { answers: out }
+  if (typeof submission.notes === 'string' && submission.notes.trim() !== '') {
+    result.notes = submission.notes
+  }
+  return result
 }
 
 async function handleFormSubmit(submission: AskFormSubmission) {
@@ -471,7 +498,12 @@ async function handleFormSubmit(submission: AskFormSubmission) {
       await postAskAnswer({ formId: submission.formId, skip: true })
       return
     }
-    await postAskAnswer({ formId: submission.formId, answers: normalizeAnswers(submission) })
+    const normalized = normalizeAnswers(submission)
+    await postAskAnswer({
+      formId: submission.formId,
+      answers: normalized.answers,
+      ...(normalized.notes ? { notes: normalized.notes } : {})
+    })
   } catch (error) {
     // 失败面：后端 pending 已失效（abort/重启）或网络错误——卡片保留本地
     // submittedKind 早退锁，不重投；留 warn 供诊断（no-silent-catch 纪律）

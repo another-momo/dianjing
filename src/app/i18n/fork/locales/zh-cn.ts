@@ -156,7 +156,6 @@ const zhCN = {
     askFormTitle: 'AI 向你提问',
     askSubmit: '提交作答',
     askSkip: '跳过表单',
-    askRequiredHint: '请先作答必填题',
     askOptional: '选答',
     askTextPlaceholder: '输入你的回答…',
     askOtherOption: '其他',
@@ -164,7 +163,17 @@ const zhCN = {
     askAnswered: '已作答',
     askSkipped: '已跳过',
     askImageUnavailable: '预览不可用',
-    askInvalidDefinition: '表单定义无效，无法作答。'
+    askInvalidDefinition: '表单定义无效，无法作答。',
+    // 波2 #9：分页作答壳
+    askNext: '下一题',
+    askPrev: '上一题',
+    askProgress: '第 {current} 题，共 {total} 题',
+    askMissingCount: '还有 {count} 题未答',
+    askMissingCountPlural: '还有 {count} 题未答',
+    askMultiHint: '可选多项',
+    askNotesPlaceholder: '笔记（可选）',
+    askGlobalNotesPlaceholder: '还有什么想让 AI 知道的？（可选）',
+    askSummaryNotes: '笔记：{notes}'
   },
   imagegen: {
     imageGenTitle: '图像生成',

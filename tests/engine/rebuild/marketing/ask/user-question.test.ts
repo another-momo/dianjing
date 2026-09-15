@@ -23,7 +23,7 @@ import {
   type AskQuestionSpec
 } from '@open-pencil/core/tools/fork/marketing/ask-user-question'
 
-import { createAskUserQuestionTool } from '@/app/ai/pi-backend/ask-user-question'
+import { createAskUserQuestionTool } from '@/app/ai/pi-backend/ask/user-question'
 
 function singleSelect(id: string) {
   return {

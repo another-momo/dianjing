@@ -1,6 +1,6 @@
 /**
  * ai-panel-ux-consolidation：pi 后端 HTTP 共用 helper 抽离——
- * sendJSON / parseJSONBody / readBody / PayloadTooLargeError / optionalString。
+ * sendJSON / parseJSONBody / parsePostBody / readBody / PayloadTooLargeError / optionalString。
  *
  * server.ts 已超 oxlint max-lines 阈值（600）；抽本模块让 server.ts
  * 落回阈值内。所有 caller 已在原位（handle*Request 同源），零破坏面。
@@ -62,6 +62,23 @@ export async function parseJSONBody(
     }
     return { ok: false }
   }
+}
+
+/**
+ * POST JSON handler 公共头（jscpd 0 阈值纪律——各 handler 不再各自铺开
+ * 405 + parseJSONBody 序列）：非 POST 写 405 返 null；body 解析失败
+ * （parseJSONBody 已写 400）返 null；成功返 body。
+ */
+export async function parsePostBody<T>(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<T | null> {
+  if (req.method !== 'POST') {
+    res.writeHead(405).end('Method Not Allowed')
+    return null
+  }
+  const parsed = await parseJSONBody(req, res)
+  return parsed.ok ? (parsed.body as T) : null
 }
 
 /** 从 unknown 取非空字符串；缺/类型错回 undefined——统一 T98 路由字段提取形态。 */

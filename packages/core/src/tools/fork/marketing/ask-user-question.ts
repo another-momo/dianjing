@@ -155,6 +155,11 @@ const ASK_QUESTION_KINDS: ReadonlySet<string> = new Set([
   'text'
 ])
 
+/** Set.has 不窄化字面量联合——类型谓词包装把 kind 回收到 AskQuestionKind */
+function isAskQuestionKind(value: string): value is AskQuestionKind {
+  return ASK_QUESTION_KINDS.has(value)
+}
+
 function validateQuestion(
   item: unknown,
   index: number,
@@ -178,7 +183,7 @@ function validateQuestion(
   }
 
   const kind = item.kind
-  if (typeof kind !== 'string' || !ASK_QUESTION_KINDS.has(kind)) {
+  if (typeof kind !== 'string' || !isAskQuestionKind(kind)) {
     return fail(
       'question_kind',
       `question "${id}" kind must be single_select | multi_select | image_select | text`

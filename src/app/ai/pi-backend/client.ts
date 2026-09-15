@@ -127,11 +127,25 @@ export async function openPiStudioFolder(): Promise<OpenStudioFolderResult> {
  * 400 校验失败。错误处理与 setPiCredential 同律（非 2xx 抛错带后端 message）。
  * 作答形态：answers[qid] = { value: string; freeText?: string }——「其他」
  * 选项选定时 freeText 是该题自包含的一等答案。
+ *
+ * 波2 扩展：multi_select 题 → values: string[]（每项为选项 id 或
+ * FREE_TEXT_OPTION_ID；含 FREE_TEXT_OPTION_ID 时 freeText 非空白才算有效）；
+ * 任意题都可在 notes 字段附笔记（与作答解耦；question.spec.notes=true 时由
+ * UI 采集）；全局备注挂顶层 notes（卡片底部输入区收集）。
+ *
+ * 后端 ask-pending.ts AskAnswerPayload 仍收窄到 {value, freeText?}——本类型
+ * 仅描述客户端发射的 wire shape；后端解析字段扩展由 pi-backend worker 同步
+ * 推入，本类型先到位以便 ChatPanel.normalizeAnswers 与 UI 拼装。
  */
 export type AskAnswerSubmission =
   | {
       formId: string
-      answers: Record<string, { value: string; freeText?: string }>
+      answers: Record<
+        string,
+        { value?: string; values?: string[]; freeText?: string; notes?: string }
+      >
+      /** 波2 #9：全局备注（卡片底部输入区；非空白才挂） */
+      notes?: string
     }
   | { formId: string; skip: true }
 

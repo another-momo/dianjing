@@ -121,13 +121,13 @@ export const imageGenMessageDefaults = {
   imageGenOpenFolder: 'Open folder'
 } as const
 
-/** T56：ask_user_question 聊天内表单卡片（AskUserQuestionCard）英文默认值；
- * T95：per-question「其他」选项（askOtherOption/askOtherPlaceholder）——全局 textarea 随重设计移除，askSkipPlaceholder 退役 */
+/** T56→波2：ask_user_question 聊天内表单卡片（AskUserQuestionCard）英文默认值；
+ * T95：per-question「其他」选项（askOtherOption/askOtherPlaceholder）——全局 textarea 随重设计移除，askSkipPlaceholder 退役；
+ * 波2 #9：分页作答壳（progress / next/prev / multi_select 提示 / notes placeholder / 全局备注 + 摘要 notes 前缀） */
 export const askMessageDefaults = {
   askFormTitle: 'The AI is asking a few questions',
   askSubmit: 'Submit answers',
   askSkip: 'Skip this form',
-  askRequiredHint: 'Please answer the required questions first',
   askOptional: 'Optional',
   askTextPlaceholder: 'Type your answer…',
   askOtherOption: 'Other',
@@ -135,7 +135,20 @@ export const askMessageDefaults = {
   askAnswered: 'Answered',
   askSkipped: 'Skipped',
   askImageUnavailable: 'Preview unavailable',
-  askInvalidDefinition: 'This form definition is invalid and cannot be answered.'
+  askInvalidDefinition: 'This form definition is invalid and cannot be answered.',
+  // 波2 #9：分页作答壳
+  askNext: 'Next',
+  askPrev: 'Previous',
+  askProgress: params('Question {current} of {total}'),
+  askMissingCount: params('{count} question remaining'),
+  askMissingCountPlural: params('{count} questions remaining'),
+  // multi_select 多选提示
+  askMultiHint: 'Select all that apply',
+  // 笔记输入区（per-question notes）+ 全局备注（卡片底部）
+  askNotesPlaceholder: 'Notes (optional)',
+  askGlobalNotesPlaceholder: 'Anything else you want the AI to know? (optional)',
+  // 摘要渲染 notes 前缀
+  askSummaryNotes: params('Notes: {notes}')
 } as const
 
 /**

@@ -62,8 +62,8 @@ import {
   type ConfirmNewIntentResult,
   type SetActiveDesignResult
 } from './active-design-host'
-import { type AskAnswerPayload, createAskPendingStore } from './ask-pending'
-import { createAskUserQuestionTool } from './ask-user-question'
+import { type AskAnswerPayload, createAskPendingStore } from './ask/pending'
+import { createAskUserQuestionTool } from './ask/user-question'
 import { type Capabilities, createCapabilitiesStore } from './capabilities'
 import { readPiHistoryFile } from './history'
 import type { ImageGenCredentialStore } from './image-gen/credentials'

@@ -16,7 +16,7 @@
 
 import { beforeEach, describe, expect, test } from 'bun:test'
 
-import { createAskPendingStore, type AskPendingStore } from '@/app/ai/pi-backend/ask-pending'
+import { createAskPendingStore, type AskPendingStore } from '@/app/ai/pi-backend/ask/pending'
 
 let store: AskPendingStore
 

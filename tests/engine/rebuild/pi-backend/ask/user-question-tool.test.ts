@@ -16,8 +16,8 @@
 
 import { describe, expect, test } from 'bun:test'
 
-import { createAskPendingStore, type AskPendingStore } from '@/app/ai/pi-backend/ask-pending'
-import { createAskUserQuestionTool } from '@/app/ai/pi-backend/ask-user-question'
+import { createAskPendingStore, type AskPendingStore } from '@/app/ai/pi-backend/ask/pending'
+import { createAskUserQuestionTool } from '@/app/ai/pi-backend/ask/user-question'
 
 function singleSelect(id: string) {
   return {

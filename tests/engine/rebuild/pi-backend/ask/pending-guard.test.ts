@@ -14,7 +14,7 @@
 
 import { describe, expect, test } from 'bun:test'
 
-import { createAskPendingStore } from '@/app/ai/pi-backend/ask-pending'
+import { createAskPendingStore } from '@/app/ai/pi-backend/ask/pending'
 import { createAskPendingGuardHandler } from '@/app/ai/pi-backend/service'
 
 describe('createAskPendingGuardHandler', () => {

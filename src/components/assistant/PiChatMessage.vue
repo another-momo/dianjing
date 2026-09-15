@@ -158,6 +158,7 @@ function filePartFilename(part: FilePart): string {
           <AskUserQuestionCard
             v-if="isToolUIPart(part) && getToolName(part) === 'ask_user_question'"
             :part="part"
+            :part-state="part.state"
             :answered="isAskFormAnswered(part)"
             @submit="emit('formSubmit', $event)"
           />

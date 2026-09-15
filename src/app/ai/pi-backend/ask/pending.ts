@@ -16,10 +16,14 @@
  */
 
 export interface AskAnswerPayload {
-  /** formId→作答对象；跳过时缺省 */
-  answers?: Record<string, { value: string; freeText?: string }>
+  /** formId→作答对象；跳过时缺省。
+   *  Wave 2 扩展：单选/文本走 { value }；多选走 { values: string[] }；per-question notes 走 { notes }；
+   *  values 与 value 至少其一为合法形态才计有效（与 normalizeQuestionAnswer 同律）。 */
+  answers?: Record<string, { value?: string; values?: string[]; freeText?: string; notes?: string }>
   /** true = 跳过表单；与 answers 二选一 */
   skip?: boolean
+  /** Wave 2 #9：提交时附加的全局备注（非空白才传） */
+  notes?: string
 }
 
 interface PendingEntry {
