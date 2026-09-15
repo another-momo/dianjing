@@ -46,7 +46,7 @@ function handleOpenSettings() {
       class="flex max-w-md flex-col items-center gap-3 rounded-lg border border-border bg-panel px-6 py-8 text-center"
     >
       <icon-lucide-sparkles class="size-8 text-muted" />
-      <h2 class="text-base font-medium text-foreground">
+      <h2 class="text-base font-medium">
         <template v-if="state.kind === 'needs-setup'">
           {{ piDialogs.providerGateSetupTitle }}
         </template>

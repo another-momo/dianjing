@@ -1467,6 +1467,13 @@
       "reason": "点睛 logo 接入（2026-09-15）：同 P252，maskable 变体（80% 安全区居中白底）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-15"
+    },
+    {
+      "id": "P255",
+      "file": "src/app/integrations/storage/settings/use.ts",
+      "reason": "2026-09-16：preference/credential 草稿先给全字段 '' 入座（含 provider 切换 watch 同补）——AppInput modelValue required，未配置字段以 undefined 绑入触发 5 条 prop 警告（backlog 顺手修批）；saveCredential/clearCredential 对 ''/undefined 同律（trim  falsy 即返），行为零变化",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-16"
     }
   ],
   "deletedPaths": [

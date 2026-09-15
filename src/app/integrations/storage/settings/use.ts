@@ -18,9 +18,15 @@ import { resumeStorageSync } from '@/app/storage/sync'
 export function useStorageSettings(credentialDrafts: Ref<Record<string, string>>) {
   const provider = computed(() => storageProviderRegistry.get(activeStorageProviderID.value))
 
+  // AppInput 的 modelValue 是 required——草稿记录先给全部字段 '' 入座，
+  // 未填写/未配置字段不再以 undefined 绑进输入框（2026-09-16 修 5 条 prop 警告）
   const preferenceDrafts = ref<Record<string, string>>({
+    ...Object.fromEntries(provider.value.preferenceFields.map((field) => [field.id, ''])),
     ...readStoragePreferences(provider.value.id)
   })
+  credentialDrafts.value = Object.fromEntries(
+    provider.value.credentialFields.map((field) => [field.id, ''])
+  )
   const credentialStatuses = ref<Record<string, CredentialStatus>>({})
   const busy = ref(false)
 
@@ -83,8 +89,15 @@ export function useStorageSettings(credentialDrafts: Ref<Record<string, string>>
 
   watch(activeStorageProviderID, (providerID) => {
     credentialStatuses.value = {}
-    preferenceDrafts.value = { ...readStoragePreferences(providerID) }
-    credentialDrafts.value = {}
+    preferenceDrafts.value = {
+      ...Object.fromEntries(
+        storageProviderRegistry.get(providerID).preferenceFields.map((field) => [field.id, ''])
+      ),
+      ...readStoragePreferences(providerID)
+    }
+    credentialDrafts.value = Object.fromEntries(
+      storageProviderRegistry.get(providerID).credentialFields.map((field) => [field.id, ''])
+    )
     void refreshStatuses()
   })
 
