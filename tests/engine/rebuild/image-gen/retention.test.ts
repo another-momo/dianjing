@@ -301,8 +301,12 @@ describe('generate_image 本地留存挂钩', () => {
       // 恢复权限让 cleanup 能删
       try {
         chmodSync(tmpDir, 0o700)
-      } catch {
-        // win 下可能不可恢复——tmpRoot cleanup force=true 一般能盖
+      } catch (error) {
+        // win 下可能不可恢复——tmpRoot cleanup force=true 一般能盖；留痕过 no-silent-catch
+        console.warn(
+          '[test] chmod 恢复失败（忽略，cleanup force 兜底）：' +
+            (error instanceof Error ? error.message : String(error))
+        )
       }
     }
   })

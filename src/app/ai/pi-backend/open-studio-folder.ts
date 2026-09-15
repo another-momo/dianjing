@@ -47,43 +47,32 @@ export async function handleOpenStudioFolderRequest(
   sendJSON: (res: ServerResponse, status: number, payload: unknown) => void,
   openFolder: OpenFolderOpener
 ): Promise<void> {
-  if (req.method !== 'POST') {
-    res.writeHead(405).end('Method Not Allowed')
-    return
-  }
   // 与 service.ts seed 同源：builtinDir 用 env override；userDir 随 rootDir 走
   const { userDir } = resolveStudioDirs(rootDir, readStudioBuiltinDir())
-  mkdirSync(userDir, { recursive: true })
-  let child: ChildProcess
-  try {
-    child = openFolder(userDir)
-  } catch (error) {
-    // 同步抛错（opener 不存在 / 权限拒）——响应未发，按 ok:false 中文透传
-    sendJSON(res, 200, {
-      ok: false,
-      error: `打开文件夹失败：${error instanceof Error ? error.message : String(error)}`
-    })
-    return
-  }
-  // error 事件异步到达时响应可能已发——仅记 warn，不改响应
-  child.once('error', (error) => {
-    console.warn(
-      `[pi-backend] 打开文件夹失败（忽略，响应已发）：${userDir}：` +
-        (error instanceof Error ? error.message : String(error))
-    )
-  })
-  sendJSON(res, 200, { ok: true })
+  await openFolderAndRespond(userDir, req, res, sendJSON, openFolder)
 }
 
 /**
  * POST /api/pi/open-image-gen-folder——按 OS 唤起资源管理器 / Finder /
  * xdg-open 打开 image-gen 本地留存目录（rootDir/image-gen-output/）。
- * 与 handleOpenStudioFolderRequest 同形：目录不存在时兜底 mkdir（用户首次
- * 开启留存开关前目录可能不存在；首次留存落盘时也会 mkdir，但 handler 独立
- * 兜底让用户在开关 OFF 时也能预览目录 / 手动清空旧文件）。
+ * 目录兜底 mkdir 的另一层用意：用户首次开启留存开关前目录可能不存在，
+ * 让开关 OFF 时也能预览目录 / 手动清空旧文件。
  */
 export async function handleOpenImageGenFolderRequest(
   rootDir: string,
+  req: IncomingMessage,
+  res: ServerResponse,
+  sendJSON: (res: ServerResponse, status: number, payload: unknown) => void,
+  openFolder: OpenFolderOpener
+): Promise<void> {
+  await openFolderAndRespond(resolveImageGenOutputDir(rootDir), req, res, sendJSON, openFolder)
+}
+
+/** 两端点共享的打开骨架：POST 白名单 → mkdir 兜底 → opener 同步抛错
+ *  ok:false 中文透传 / 异步 error 事件响应已发仅记 warn。抽共享除消重
+ *  （jscpd threshold 0）外也让两端点行为恒一致。 */
+async function openFolderAndRespond(
+  dir: string,
   req: IncomingMessage,
   res: ServerResponse,
   sendJSON: (res: ServerResponse, status: number, payload: unknown) => void,
@@ -93,18 +82,19 @@ export async function handleOpenImageGenFolderRequest(
     res.writeHead(405).end('Method Not Allowed')
     return
   }
-  const dir = resolveImageGenOutputDir(rootDir)
   mkdirSync(dir, { recursive: true })
   let child: ChildProcess
   try {
     child = openFolder(dir)
   } catch (error) {
+    // 同步抛错（opener 不存在 / 权限拒）——响应未发，按 ok:false 中文透传
     sendJSON(res, 200, {
       ok: false,
       error: `打开文件夹失败：${error instanceof Error ? error.message : String(error)}`
     })
     return
   }
+  // error 事件异步到达时响应可能已发——仅记 warn，不改响应
   child.once('error', (error) => {
     console.warn(
       `[pi-backend] 打开文件夹失败（忽略，响应已发）：${dir}：` +
