@@ -66,7 +66,7 @@ render({
 set_text({ id: textNodeId, text: '限时特惠 全场 5 折' })
 
 // 3. 字号 / 字重
-update_node({ id: textNodeId, font_size: 48 })                    // 字重同工具 font_weight（100-900）
+update_node({ id: textNodeId, font_size: 48 }) // 字重同工具 font_weight（100-900）
 
 // 4. 对齐 + 自动宽高——auto_resize 让节点随内容定宽高，不用猜文字框尺寸
 set_text_properties({ id: textNodeId, align_horizontal: 'LEFT', auto_resize: 'WIDTH_AND_HEIGHT' })

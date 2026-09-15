@@ -32,6 +32,7 @@ description: 将一张原图按视觉核心拆分成可独立编辑的 canvas �
      6. 不增加原图不存在的内容——分层是结构任务，不是创作任务。
 
      典型分层（自底向上）：背景 → 主体（视觉中心）→ 前景装饰 → Logo / 品牌组 → 边框 / 光效；文字行各成一层。
+
    - **文字清单**：逐行记录原文（逐字，读不准标"待读"）、相对原图左上角的位置、字号估算（约 N px）、颜色（hex）、对齐、字体（不确定记"待确认"）。记录模板见 [references/text-reconstruction.md](references/text-reconstruction.md)。
 
 注意：`find_nodes` / `describe` 只能读场景树结构，**看不了位图内容**——"哪些是文字、哪些是图形、有无遮挡"只能靠 `look`。
@@ -69,6 +70,7 @@ description: 将一张原图按视觉核心拆分成可独立编辑的 canvas �
 - `prompt`: 结构化模板见 [references/separation-techniques.md](references/separation-techniques.md)（背景层有专用变体，别套用通用模板）。
 
 **硬纪律**：
+
 - 禁止逐层单独调用——`generate_image` 的工具描述要求一次 batch 提交全部需求，逐层循环调用耗时与 token 都膨胀数倍；
 - 禁止 `replace_id` 指向原图节点——覆盖不可逆。
 
