@@ -44,15 +44,20 @@ function check(label, cond, detail) {
 // discovery 文件读取（复刻 packages/mcp/src/transport/paths.ts getPlatformDir 逻辑，
 // 冒烟脚本为纯 node 不经 workspace 导入，避免 mcp dist 构建态依赖）
 function discoveryPath() {
+  // D2 状态根：与 src/app/orchestration/app-data.ts resolveAppDataRoot 真源对齐
+  // win32 = %APPDATA%/Dianjing（roaming）；darwin = ~/Library/Application Support/Dianjing；
+  // linux = $XDG_CONFIG_HOME/Dianjing || ~/.config/Dianjing
   if (process.platform === 'win32') {
-    const local = process.env.LOCALAPPDATA?.trim() || join(homedir(), 'AppData', 'Local')
-    return join(local, 'OpenPencil', 'mcp.json')
+    const appData = process.env.APPDATA?.trim()
+    const base = appData && appData.length > 0 ? appData : join(homedir(), 'AppData', 'Roaming')
+    return join(base, 'Dianjing', 'mcp.json')
   }
   if (process.platform === 'darwin') {
-    return join(homedir(), 'Library', 'Application Support', 'OpenPencil', 'mcp.json')
+    return join(homedir(), 'Library', 'Application Support', 'Dianjing', 'mcp.json')
   }
-  const xdg = process.env.XDG_RUNTIME_DIR?.trim()
-  return join(xdg || join(homedir(), '.dianjing'), 'mcp.json')
+  const xdgConfig = process.env.XDG_CONFIG_HOME?.trim()
+  const base = xdgConfig && xdgConfig.length > 0 ? xdgConfig : join(homedir(), '.config')
+  return join(base, 'Dianjing', 'mcp.json')
 }
 
 function readDiscovery() {
@@ -241,7 +246,10 @@ try {
     const noAuth = await fetch(`http://127.0.0.1:${recoveryPort}/api/pi-chat`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sessionId: 't28-noauth', messages: [{ role: 'user', parts: [{ type: 'text', text: 'x' }] }] })
+      body: JSON.stringify({
+        sessionId: 't28-noauth',
+        messages: [{ role: 'user', parts: [{ type: 'text', text: 'x' }] }]
+      })
     })
     check('T28 负向：未鉴权请求 → 401', noAuth.status === 401, `status=${noAuth.status}`)
   }

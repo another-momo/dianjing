@@ -46,15 +46,20 @@ function check(label, cond, detail) {
 }
 
 function discoveryPath() {
+  // D2 状态根：与 src/app/orchestration/app-data.ts resolveAppDataRoot 真源对齐
+  // win32 = %APPDATA%/Dianjing（roaming）；darwin = ~/Library/Application Support/Dianjing；
+  // linux = $XDG_CONFIG_HOME/Dianjing || ~/.config/Dianjing
   if (process.platform === 'win32') {
-    const local = process.env.LOCALAPPDATA?.trim() || join(homedir(), 'AppData', 'Local')
-    return join(local, 'OpenPencil', 'mcp.json')
+    const appData = process.env.APPDATA?.trim()
+    const base = appData && appData.length > 0 ? appData : join(homedir(), 'AppData', 'Roaming')
+    return join(base, 'Dianjing', 'mcp.json')
   }
   if (process.platform === 'darwin') {
-    return join(homedir(), 'Library', 'Application Support', 'OpenPencil', 'mcp.json')
+    return join(homedir(), 'Library', 'Application Support', 'Dianjing', 'mcp.json')
   }
-  const xdg = process.env.XDG_RUNTIME_DIR?.trim()
-  return join(xdg || join(homedir(), '.dianjing'), 'mcp.json')
+  const xdgConfig = process.env.XDG_CONFIG_HOME?.trim()
+  const base = xdgConfig && xdgConfig.length > 0 ? xdgConfig : join(homedir(), '.config')
+  return join(base, 'Dianjing', 'mcp.json')
 }
 
 function readDiscovery() {

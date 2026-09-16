@@ -31,11 +31,11 @@
  * 运行：node spikes/s-pi/backend-smoke/t23/sessions-bind-smoke.mjs [base=http://localhost:1420]
  *   ⚠ 必须用 node——bun 跑 playwright chromium.launch 会卡 CDP pipe 握手
  *   （2026-08-24 实证：bun 下 180s launch timeout，node 秒起；二进制本身正常）
- * 清理：finally 恢复 .dianjing/pi-sessions/index.json 原貌并删除种子 JSONL。
+ * 清理：finally 恢复 状态根 pi-sessions/index.json 原貌并删除种子 JSONL。
  */
 
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -46,8 +46,25 @@ selectors.setTestIdAttribute('data-test-id')
 
 const base = process.argv[2] ?? 'http://localhost:1420'
 const root = process.cwd()
-const sessionsDir = join(root, 'pi-sessions')
+// 状态根对齐（债①补漏，2026-09-16 L3 实证）：会话种子必须落 app 状态根
+// pi-sessions（app-data.ts resolveAppDataRoot + PI_SESSIONS_SUBDIR）——
+// 旧仓根 pi-sessions 布局后端不读（L3 实证种子 ENOENT 且不可见）
+function stateRoot() {
+  if (process.platform === 'win32') {
+    const appData = process.env.APPDATA?.trim()
+    const base = appData && appData.length > 0 ? appData : join(homedir(), 'AppData', 'Roaming')
+    return join(base, 'Dianjing')
+  }
+  if (process.platform === 'darwin') {
+    return join(homedir(), 'Library', 'Application Support', 'Dianjing')
+  }
+  const xdgConfig = process.env.XDG_CONFIG_HOME?.trim()
+  const base = xdgConfig && xdgConfig.length > 0 ? xdgConfig : join(homedir(), '.config')
+  return join(base, 'Dianjing')
+}
+const sessionsDir = join(stateRoot(), 'pi-sessions')
 const indexPath = join(sessionsDir, 'index.json')
+mkdirSync(sessionsDir, { recursive: true })
 
 let passed = 0
 let failed = 0
@@ -167,6 +184,34 @@ function sessionTimeLabel(sessionId) {
   return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+// 引导门解锁（provider-gate 断代补钉，2026-09-16 B2 L3 实证）：无指派 → 门卡
+// 占位不渲染 composer（PiChatInput v-if=isGateReady）。真源 = provider-gate.ts
+// deriveGateState：指派 provider/model 须在 catalog 且 provider 凭据已配。
+// 冒烟前提：dev 进程带 MINIMAX_CN_API_KEY（dummy 即可）使 minimax-cn
+// configured=true；经页面上下文拿 token 拉 catalog 取首模型写 localStorage
+// 指派（assignment.ts STORAGE_KEY），reload 后门开。
+async function ensureDesignAssignment() {
+  await page.evaluate(async () => {
+    const token = window.__DIANJING_LOCAL_AUTOMATION_TOKEN__
+    const headers = token ? { Authorization: `Bearer ${token}` } : {}
+    const catalog = await (await fetch('/api/pi/catalog', { headers })).json()
+    const provider = (catalog.providers || []).find(
+      (p) => p.auth?.configured && (p.models || []).length > 0
+    )
+    if (!provider) {
+      throw new Error(
+        'smoke 前提不满足：无已配置凭据的 provider（dev 需带 MINIMAX_CN_API_KEY env）'
+      )
+    }
+    window.localStorage.setItem(
+      'openpencil.pi.design-model',
+      JSON.stringify({ providerId: provider.id, modelId: provider.models[0].id })
+    )
+  })
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.getByRole('tab', { name: '设计' }).waitFor({ timeout: 20000 })
+}
+
 async function activateAiTab() {
   await page.getByTestId('properties-tab-ai').click()
   await page.getByRole('textbox', { name: 'Describe a change' }).waitFor({ timeout: 10000 })
@@ -257,6 +302,7 @@ const seedFiles = ['t23-bind-seed-old.jsonl', 't23-bind-seed-mid.jsonl']
 try {
   await page.goto(base, { waitUntil: 'domcontentloaded' })
   await page.getByRole('tab', { name: '设计' }).waitFor({ timeout: 20000 })
+  await ensureDesignAssignment()
   await activateAiTab()
 
   // ── ① 首发 + 触发器标签更新

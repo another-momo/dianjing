@@ -167,21 +167,34 @@ try {
     })(),
   );
 
-  // design 模型指派：openrouter + 首个模型 + 保存
-  await page
-    .locator('[data-test-id="pi-design-provider-select"]')
-    .selectOption("openrouter");
-  const modelSelect = page.locator('[data-test-id="pi-design-model-select"]');
-  await modelSelect.waitFor({ timeout: 5000 });
-  const firstModel = await modelSelect
-    .locator("option")
-    .first()
-    .getAttribute("value");
+  // design 模型指派：新设计卡 combobox 流（pi-design-*-trigger；合并面板后
+  // 无显式 save——点 model item 即触发 setPiDesignAssignment）
+  const providerTrigger = page.locator(
+    '[data-test-id="pi-design-provider-trigger"]',
+  );
+  await providerTrigger.waitFor({ timeout: 5000 });
+  await providerTrigger.click();
+  const openrouterItem = page.locator(
+    '[data-test-id="pi-design-provider-item"][data-provider-id="openrouter"]',
+  );
+  await openrouterItem.waitFor({ timeout: 5000 });
+  await openrouterItem.click();
+  // provider 切到 openrouter 后点开 model trigger → 等首个 model item 在
+  // popover 内挂载（reka Combobox Content 经 Portal 渲染，关闭时 item 不在
+  // DOM，故先开 trigger 再等 item）
+  const modelTrigger = page.locator('[data-test-id="pi-design-model-trigger"]');
+  await modelTrigger.waitFor({ timeout: 5000 });
+  await modelTrigger.click();
+  const firstModelItem = page
+    .locator('[data-test-id="pi-design-model-item"]')
+    .first();
+  await firstModelItem.waitFor({ timeout: 10000 });
+  const firstModel = await firstModelItem.getAttribute("data-model-id");
   check(
     "design 模型下拉已随 provider 填充",
     typeof firstModel === "string" && firstModel.length > 0,
   );
-  await page.locator('[data-test-id="pi-design-save"]').click();
+  await firstModelItem.click();
 
   // 关掉设置 → 聊天输入框标签显示所指派模型
   await page.keyboard.press("Escape");

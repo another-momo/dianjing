@@ -6,7 +6,7 @@
  *
  * 前置：vite dev server 已起（OPENROUTER_API_KEY 注入进程环境）。
  * 运行：node spikes/s-pi/backend-smoke/browser-tool-smoke.mjs [baseUrl]
- * 退出码 0 = 全过；截图证据落 .dianjing/t20-*.png（gitignored）。
+ * 退出码 0 = 全过；截图证据落 smoke-screenshots/t20-*.png（仓根下，独立于状态根）。
  */
 
 import { spawn } from 'node:child_process'
@@ -46,15 +46,20 @@ function check(label, cond, detail) {
 }
 
 function discoveryPath() {
+  // D2 状态根：与 src/app/orchestration/app-data.ts resolveAppDataRoot 真源对齐
+  // win32 = %APPDATA%/Dianjing（roaming）；darwin = ~/Library/Application Support/Dianjing；
+  // linux = $XDG_CONFIG_HOME/Dianjing || ~/.config/Dianjing
   if (process.platform === 'win32') {
-    const local = process.env.LOCALAPPDATA?.trim() || join(homedir(), 'AppData', 'Local')
-    return join(local, 'OpenPencil', 'mcp.json')
+    const appData = process.env.APPDATA?.trim()
+    const base = appData && appData.length > 0 ? appData : join(homedir(), 'AppData', 'Roaming')
+    return join(base, 'Dianjing', 'mcp.json')
   }
   if (process.platform === 'darwin') {
-    return join(homedir(), 'Library', 'Application Support', 'OpenPencil', 'mcp.json')
+    return join(homedir(), 'Library', 'Application Support', 'Dianjing', 'mcp.json')
   }
-  const xdg = process.env.XDG_RUNTIME_DIR?.trim()
-  return join(xdg || join(homedir(), '.dianjing'), 'mcp.json')
+  const xdgConfig = process.env.XDG_CONFIG_HOME?.trim()
+  const base = xdgConfig && xdgConfig.length > 0 ? xdgConfig : join(homedir(), '.config')
+  return join(base, 'Dianjing', 'mcp.json')
 }
 
 function readDiscovery() {
@@ -149,7 +154,7 @@ try {
   const toolCard = assistant.getByText('Create Shape', { exact: false }).first()
   await toolCard.waitFor({ timeout: 120000 })
   check('工具卡片出现（assistant 消息内 Create Shape 可见）', await toolCard.isVisible())
-  await page.screenshot({ path: join(root, '.dianjing', 't20-tool-card-pending.png') })
+  await page.screenshot({ path: join(root, 'smoke-screenshots', 't20-tool-card-pending.png') })
 
   // 等 done 态（卡片状态文本随 locale：zh=完成 / en=Done——dialogs.ts:161 为 en
   // 值，运行实例为 zh locale，正则双写兼容）
@@ -175,7 +180,7 @@ try {
   const replyText = await reply.textContent()
   check('助手文本回复非空', (replyText ?? '').trim().length > 0, replyText?.slice(0, 60))
   await page.waitForTimeout(1200)
-  await page.screenshot({ path: join(root, '.dianjing', 't20-tool-card-done.png') })
+  await page.screenshot({ path: join(root, 'smoke-screenshots', 't20-tool-card-done.png') })
 
   // 展开卡片详情 → pre 里的 id 与画布回读对账（A3 证据链闭环）
   // T21：details 现在是桥原始结果 {id, name, type}（不再映射 nodeId）
@@ -186,7 +191,7 @@ try {
   const nodeIdMatch = detailText.match(/"id"\s*:\s*"([^"]+)"/)
   check('卡片详情含节点 id', !!nodeIdMatch, detailText.slice(0, 200))
   const uiNodeId = nodeIdMatch?.[1]
-  await page.screenshot({ path: join(root, '.dianjing', 't20-tool-card-detail.png') })
+  await page.screenshot({ path: join(root, 'smoke-screenshots', 't20-tool-card-detail.png') })
 
   // 段 3：画布复查——UI 回合后 FRAME 计数 +1，且卡片 nodeId 经桥回读存在
   const after = await bridgeRpc('find_nodes', { type: 'FRAME' })
@@ -204,7 +209,7 @@ try {
       JSON.stringify(uiReadBack).slice(0, 200)
     )
   }
-  await page.screenshot({ path: join(root, '.dianjing', 't20-canvas.png') })
+  await page.screenshot({ path: join(root, 'smoke-screenshots', 't20-canvas.png') })
 } finally {
   await browser.close()
 }
