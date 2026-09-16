@@ -14,6 +14,14 @@
  * finish 只在 agent_end 且 willRetry=false 时发出（pi 自动重试序列中
  * agent_end 会中途出现，agent-session.d.ts:40-44 事件形状实证）。
  *
+ * 2026-09-16 静默错误修：终端 agent_end 携带的末条 assistant 若是错误尸体
+ * （stopReason 'error'），补 error chunk + finish(error)——throw 路径
+ * （401/流创建即抛类）pi-agent-core handleRunFailure 只发 message_start/end
+ * 持久化（错误进会话 JSONL）不发 message_update/error，旧映射下前端静默
+ * 空回复（2026-09-15 L3 实证：openrouter 死 key 全模型无错误面）。
+ * willRetry=true 的中途 agent_end 不进此分支（重试序列静默是对的）；
+ * aborted 不算错误（用户主动停，ChatPanel 自有处理）。
+ *
  * T55 媒体输出：登记工具（media-output.ts MEDIA_OUTPUT_TOOLS，含 look）的
  * 桥结果带 base64 图像时，转 file 媒体块 + 脱敏 tool-output-available。
  *
@@ -137,7 +145,10 @@ export function createPiEventMapper(
     }
   }
 
-  function mapAgentEnd(chunks: UIMessageChunk[]): void {
+  function mapAgentEnd(
+    event: Extract<AgentSessionEvent, { type: 'agent_end' }>,
+    chunks: UIMessageChunk[]
+  ): void {
     if (textId) {
       chunks.push({ type: 'text-end', id: textId })
       textId = null
@@ -145,6 +156,21 @@ export function createPiEventMapper(
     if (reasoningId) {
       chunks.push({ type: 'reasoning-end', id: reasoningId })
       reasoningId = null
+    }
+    // 静默错误修（原理见文件头 2026-09-16 注）：末条 assistant 是错误尸体 →
+    // error chunk + finish(error)，与 service.ts catch 路径同形状；重试成功
+    // 的回合末条是正常 stop 消息，天然不误伤
+    const lastAssistant = event.messages.findLast(
+      (m): m is Extract<(typeof event.messages)[number], { role: 'assistant' }> =>
+        m.role === 'assistant'
+    )
+    if (lastAssistant?.stopReason === 'error') {
+      chunks.push({
+        type: 'error',
+        errorText: lastAssistant.errorMessage ?? 'model error (unknown)'
+      })
+      chunks.push({ type: 'finish', finishReason: 'error' })
+      return
     }
     chunks.push({ type: 'finish', finishReason: 'stop' })
   }
@@ -162,7 +188,7 @@ export function createPiEventMapper(
       // pi 自动重试时 agent_end 带 willRetry=true（T20 实测：空消息触发
       // auto_retry_start → 重跑整轮 → 再次 agent_end）——此时回合未终结，
       // 发 finish 会让前端 Chat 提前关流、丢弃后续工具 chunk
-      if (!event.willRetry) mapAgentEnd(chunks)
+      if (!event.willRetry) mapAgentEnd(event, chunks)
     }
 
     return chunks
