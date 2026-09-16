@@ -1478,7 +1478,7 @@
     {
       "id": "P256",
       "file": "LICENSE",
-      "reason": "2026-09-16 rebrand 版权头（owner 拍板）：上游 MIT 版权行保留（MIT 唯一强制条件=声明随副本分发）+ 上方新增「Copyright (c) 2026 another-momo and Dianjing contributors」划分新旧版权归属",
+      "reason": "2026-09-16 rebrand 版权头（owner 拍板）：上游 MIT 版权行保留（MIT 唯一强制条件=声明随副本分发）+ 新增 Dianjing 行；同轮 review 加范围限定——“(original portions)”/“(portions derived from OpenPencil)”，避免整库归属上游误读",
       "disposition": "permanent",
       "lastReviewed": "2026-09-16"
     }
