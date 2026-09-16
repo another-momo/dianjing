@@ -23,7 +23,7 @@
  */
 
 import { homedir } from 'node:os'
-import { isAbsolute, resolve, sep } from 'node:path'
+import { resolve, sep } from 'node:path'
 
 import type { InlineExtension } from '@earendil-works/pi-coding-agent'
 
@@ -52,8 +52,13 @@ function joinInAgent(agentDir: string, filename: string): string {
 }
 
 /**
- * 统一成可比较形态：~ 展开 → resolve(cwd, p) → 分隔符统一 '/' → 全小写
- * → 去尾部分隔符。
+ * 统一成可比较形态：~ 展开 → 分隔符统一 → 绝对判定（前导 '/' 或盘符）
+ * → resolve(cwd, p) → 全小写 → 去尾部分隔符。
+ *
+ * 先统一分隔符再做绝对判定——判定口径跨平台一致：Win 形态（反斜杠/盘符）
+ * 在 POSIX 上也按同一形态归一（guard 是字符串匹配器，对不会在宿主机解析
+ * 成功的拼法过挡属 fail-safe；2026-09-16 CI 34999312845 实证：isAbsolute
+ * 平台语义致反斜杠用例在 Linux 漏挡）。
  *
  * 全小写 = 目标平台 Win/mac 文件系统均大小写不敏感；对大小写敏感 FS
  * 是 fail-safe 过挡（凭据邻名宁可错挡）。
@@ -64,10 +69,11 @@ function normalizePath(input: string, cwd: string, homeDir: string): string {
     input.startsWith('~') && (input.length === 1 || input[1] === '/' || input[1] === '\\')
       ? homeDir + input.slice(1)
       : input
-  const absolute = isAbsolute(expanded) ? expanded : resolve(cwd, expanded)
-  const unified = absolute.replaceAll('\\', '/')
-  const lower = unified.toLowerCase()
-  // 去尾部分隔符：根 '/' 与 'C:/' 须保留
+  const unifiedInput = expanded.replaceAll('\\', '/')
+  const isAbs = unifiedInput.startsWith('/') || /^[a-zA-Z]:\//.test(unifiedInput)
+  const absolute = isAbs ? unifiedInput : resolve(cwd, unifiedInput).replaceAll('\\', '/')
+  const lower = absolute.toLowerCase()
+  // 去尾部分隔符：根 '/' 须保留
   const trimmed = lower.length > 1 && lower.endsWith('/') ? lower.slice(0, -1) : lower
   return trimmed
 }
