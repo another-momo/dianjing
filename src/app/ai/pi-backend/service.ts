@@ -22,7 +22,7 @@
  *    钩子 per-run 返回），身份封套/系统提示经 result.message custom 通道
  *    进 context；新建意图一次性旗标接 setup_design 注入缝；setup_design
  *    成功移槽回调、ask formId 映射、删除悬空清槽皆由 host 承担
- *  - T28：会话 GC（决策单 #2，session-gc.ts）——铸新会话后检查，超量
+ *  - T28：会话 GC（决策单 #2，session/gc.ts）——铸新会话后检查，超量
  *    （DIANJING_MAX_SESSIONS，默认 200）/超龄（DIANJING_SESSION_MAX_AGE_DAYS，
  *    默认 30）会话**移动**到 pi-sessions-archive/（保持文件名，index 除条），
  *    归档不删除；GC 失败只 warn 不阻断
@@ -74,9 +74,9 @@ import {
   resolveStudioDirs
 } from './paths'
 import type { ModelSpec, ProviderAdmin } from './provider-admin'
-import { runSessionGc } from './session-gc'
-import type { PiSessionSummary } from './session-summary'
 import { assembleSession, sameModelSpec } from './session/assembly'
+import { runSessionGc } from './session/gc'
+import type { PiSessionSummary } from './session/summary'
 import { normalizeSkillCommandText } from './skill-command'
 import { getStudioRegistry } from './studio'
 import { toStudioManifest, type PiStudioManifest } from './studio/manifest'

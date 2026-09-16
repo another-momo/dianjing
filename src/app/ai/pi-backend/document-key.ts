@@ -28,9 +28,9 @@ import type { UIMessage } from 'ai'
 
 import type { EditorStore } from '@/app/editor/active-store'
 
-import type { PiSessionSummary } from './session-summary'
+import type { PiSessionSummary } from './session/summary'
 
-/** T23 族谱清单条目：单一事实源在 ./session-summary（type-only，构建期擦除） */
+/** T23 族谱清单条目：单一事实源在 ./session/summary（type-only，构建期擦除） */
 export type { PiSessionSummary }
 
 const PI_DOC_NAMESPACE = 'openpencil.ai'
