@@ -297,27 +297,25 @@ describe('c. verifyCredential 状态码分档（T100 B1）', () => {
     })
   })
 
-  test('非 openai 系 api 形态 → ok=false + 「暂不支持在线验证」', async () => {
-    // 自定义 provider（其 models 全来自 models.json，api 覆写才生效——openrouter
-    // 内建 getModels()[0] 是远程缓存目录首项，seed api 覆写浮不到第一位）；
-    // 该分支在 fetch 之前返回，无需网络桩
+  test('非 openai/anthropic 系 api 形态 → ok=false + 「暂不支持在线验证」', async () => {
+    // bedrock-converse-stream 等仍无通用验真端点，走 fetch 之前的兜底分支
     mkdirSync(agentDir, { recursive: true })
     writeFileSync(
       join(agentDir, 'auth.json'),
-      JSON.stringify({ 'test-anthropic': { type: 'api_key', key: 'sk-ant-test' } }, null, 2)
+      JSON.stringify({ 'test-bedrock': { type: 'api_key', key: 'test-bedrock-key' } }, null, 2)
     )
     writeFileSync(
       join(agentDir, 'models.json'),
       JSON.stringify({
         providers: {
-          'test-anthropic': {
-            baseUrl: 'https://example.com/v1',
-            api: 'anthropic-messages',
+          'test-bedrock': {
+            baseUrl: 'https://bedrock.example.com',
+            api: 'bedrock-converse-stream',
             models: [
               {
-                id: 'claude-test',
-                name: 'Claude Test',
-                api: 'anthropic-messages',
+                id: 'bedrock-test',
+                name: 'Bedrock Test',
+                api: 'bedrock-converse-stream',
                 reasoning: false,
                 input: ['text'],
                 cost: { input: 0, output: 0 },
@@ -330,8 +328,126 @@ describe('c. verifyCredential 状态码分档（T100 B1）', () => {
       })
     )
     const admin = createProviderAdmin({ agentDir })
-    const result = await admin.verifyCredential('test-anthropic')
+    const result = await admin.verifyCredential('test-bedrock')
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/暂不支持在线验证/)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────
+// d. verifyCredential anthropic-messages 分支（T101 扩展）
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('d. verifyCredential anthropic-messages 分支（T101）', () => {
+  /** 写 anthropic 风格 seed（用内建 anthropic provider——SDK 已注册 auth.apiKey，
+   *  auth.json 直写 { anthropic: {...} } 即可被 runtime.getAuth 读到 key） */
+  function writeAnthropicSeed(key: string): void {
+    mkdirSync(agentDir, { recursive: true })
+    writeFileSync(
+      join(agentDir, 'auth.json'),
+      JSON.stringify({ anthropic: { type: 'api_key', key } }, null, 2)
+    )
+  }
+
+  /** 全局 fetch 桩置换 + finally 保归还（桩外泄会污染同进程后续用例） */
+  async function withFetchStub(
+    stub: (url: string | URL | Request, init?: RequestInit) => Promise<Response>,
+    run: () => Promise<void>
+  ): Promise<void> {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (url, init) => stub(url, init)
+    try {
+      await run()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  }
+
+  test('200 → ok=true；请求带 x-api-key/anthropic-version 头 + /v1/messages 端点 + max_tokens:1', async () => {
+    writeAnthropicSeed('sk-ant-test')
+    const admin = createProviderAdmin({ agentDir })
+    let seenURL = ''
+    let seenHeaders: Record<string, string> = {}
+    let seenBody = ''
+    const fetchStub = mock((url: string | URL | Request, init?: RequestInit) => {
+      seenURL = String(url)
+      seenHeaders = Object.fromEntries(new Headers(init?.headers).entries())
+      seenBody = typeof init?.body === 'string' ? init.body : ''
+      return Promise.resolve(new Response('{}', { status: 200 }))
+    })
+    await withFetchStub(fetchStub, async () => {
+      const result = await admin.verifyCredential('anthropic')
+      expect(result.ok).toBe(true)
+      expect(result.error).toBeUndefined()
+    })
+    expect(fetchStub).toHaveBeenCalledTimes(1)
+    expect(seenURL).toMatch(/\/v1\/messages$/)
+    expect(seenHeaders['x-api-key']).toBe('sk-ant-test')
+    expect(seenHeaders['anthropic-version']).toBe('2023-06-01')
+    expect(seenHeaders['content-type']).toBe('application/json')
+    const parsed = JSON.parse(seenBody) as {
+      model: string
+      max_tokens: number
+      messages: Array<{ role: string; content: string }>
+    }
+    expect(parsed.model).toBeTruthy()
+    expect(parsed.max_tokens).toBe(1)
+    expect(parsed.messages).toEqual([{ role: 'user', content: 'ping' }])
+  })
+
+  test('401 → ok=false + 「凭据被拒绝（HTTP 401）」', async () => {
+    writeAnthropicSeed('sk-ant-bad')
+    const admin = createProviderAdmin({ agentDir })
+    const fetchStub = mock(() => Promise.resolve(new Response('Unauthorized', { status: 401 })))
+    await withFetchStub(fetchStub, async () => {
+      const result = await admin.verifyCredential('anthropic')
+      expect(result.ok).toBe(false)
+      expect(result.error).toMatch(/凭据被拒绝（HTTP 401）/)
+    })
+  })
+
+  test('403 → ok=false + 「凭据被拒绝（HTTP 403）」', async () => {
+    writeAnthropicSeed('sk-ant-forbidden')
+    const admin = createProviderAdmin({ agentDir })
+    const fetchStub = mock(() => Promise.resolve(new Response('Forbidden', { status: 403 })))
+    await withFetchStub(fetchStub, async () => {
+      const result = await admin.verifyCredential('anthropic')
+      expect(result.ok).toBe(false)
+      expect(result.error).toMatch(/凭据被拒绝（HTTP 403）/)
+    })
+  })
+
+  test('429 → ok=true（限流但 key 真）', async () => {
+    writeAnthropicSeed('sk-ant-test')
+    const admin = createProviderAdmin({ agentDir })
+    const fetchStub = mock(() =>
+      Promise.resolve(new Response('{"error":"rate limited"}', { status: 429 }))
+    )
+    await withFetchStub(fetchStub, async () => {
+      const result = await admin.verifyCredential('anthropic')
+      expect(result.ok).toBe(true)
+    })
+  })
+
+  test('500 → ok=false + 「服务异常」不确定文案', async () => {
+    writeAnthropicSeed('sk-ant-test')
+    const admin = createProviderAdmin({ agentDir })
+    const fetchStub = mock(() => Promise.resolve(new Response('oops', { status: 500 })))
+    await withFetchStub(fetchStub, async () => {
+      const result = await admin.verifyCredential('anthropic')
+      expect(result.ok).toBe(false)
+      expect(result.error).toMatch(/服务异常（HTTP 500）/)
+    })
+  })
+
+  test('fetch 抛错（网络不通）→ ok=false + 「验证请求失败」', async () => {
+    writeAnthropicSeed('sk-ant-test')
+    const admin = createProviderAdmin({ agentDir })
+    const fetchStub = mock(() => Promise.reject<Response>(new Error('fetch failed')))
+    await withFetchStub(fetchStub, async () => {
+      const result = await admin.verifyCredential('anthropic')
+      expect(result.ok).toBe(false)
+      expect(result.error).toMatch(/验证请求失败/)
+    })
   })
 })

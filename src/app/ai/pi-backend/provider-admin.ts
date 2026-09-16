@@ -376,13 +376,24 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
   }
 
   /**
-   * T100 B1：凭据验证——openai 系（openai-completions / openai-responses）裸发
-   * /chat/completions 看 HTTP 状态码验真（max_tokens=1 最小成本，body 不消费）：
-   *   401/403 → key 被拒（确定失败）；其余 <500（200/400/422/429）→ 已过鉴权
-   *   即 key 有效（400/422 是请求参数问题与 key 无关，429 限流但 key 真）；
-   *   5xx / 网络异常 → 不确定，诚实文案收尾，不误判 key。
-   * 非 openai 系 api 形态（anthropic-messages/bedrock/oauth 等）无通用验真
-   * 端点 → 不确定文案「以实际对话为准」。
+   * T100 B1 + T101：凭据验证——按 model.api 形态分两路裸发验真端点：
+   *   - openai 系（openai-completions / openai-responses）→ POST /chat/completions
+   *     Bearer 头，body={model, messages:[…], max_tokens:1}
+   *   - anthropic-messages → POST {baseURL}/v1/messages，x-api-key +
+   *     anthropic-version:2023-06-01 头（版本串对齐 @anthropic-ai/sdk 客户端
+   *     默认值 client.mjs line 465），body 同款最小体（max_tokens:1 +
+   *     messages:[{role:user,content:'ping'}]）。/v1 前缀镜像 SDK 真实请求
+   *     路径（messages.mjs 硬编码 post('/v1/messages')，builtin baseUrl 不含
+   *     /v1）——漏了 /v1 会打到未注册路径 404 <500 误判 ok，验真失灵。
+   * 状态码裁口径两路完全同构：
+   *   401/403 → key 被拒（确定失败）；其余 <500（200/400/422/429）→ 已过鉴权即
+   * key 有效（400/422 是请求参数问题与 key 无关，429 限流但 key 真）；5xx /
+   * 网络异常 → 不确定，诚实文案收尾，不误判 key。两路共用 classifyVerifyStatus
+   * 翻译状态码→结论（避免两路文案漂移）。
+   *
+   * 仍无通用验真端点的形态（bedrock-converse-stream / google-generative-ai /
+   * google-vertex / mistral-conversations / openai-codex-responses /
+   * azure-openai-responses 等）→ 不确定文案「以实际对话为准」。
    *
    * 为什么不走 runtime.completeSimple：SDK openai-completions 实现会吞掉
    * HTTP 错误状态、把 401 响应当空 choices 解析成 content:[] 的"成功"
@@ -390,6 +401,24 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
    * 拿到 401）——验真必须自己看状态码。测试侧的 fetch 桩同步替换（原
    * completeSimple 桩永远遵守 throw/成功契约，盖不住 SDK 吞状态）。
    */
+  /** 状态码→结论翻译：401/403 拒 / <500 过 / ≥500 不确定（provider-admin 私用） */
+  function classifyVerifyStatus(
+    providerId: string,
+    status: number
+  ): { ok: boolean; error?: string } {
+    if (status === 401 || status === 403) {
+      return {
+        ok: false,
+        error: `${providerId} 凭据被拒绝（HTTP ${status}）——key 错误、已过期或无权限`
+      }
+    }
+    if (status < 500) return { ok: true }
+    return {
+      ok: false,
+      error: `${providerId} 验证端点服务异常（HTTP ${status}）——稍后再试，或以实际对话为准`
+    }
+  }
+
   async function verifyCredential(providerId: string): Promise<{ ok: boolean; error?: string }> {
     if (!PROVIDER_ID_PATTERN.test(providerId)) {
       return { ok: false, error: `provider id 非法：${providerId}（仅小写字母/数字/连字符）` }
@@ -413,35 +442,49 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
         error: `${providerId} 缺少 baseUrl 或模型定义，无法在线验证——key 已保存，以实际对话为准`
       }
     }
-    if (firstModel.api !== 'openai-completions' && firstModel.api !== 'openai-responses') {
+    // anthropic-messages 与 openai 两系各自走对应端点；其余形态仍兜底
+    if (
+      firstModel.api !== 'openai-completions' &&
+      firstModel.api !== 'openai-responses' &&
+      firstModel.api !== 'anthropic-messages'
+    ) {
       return {
         ok: false,
         error: `${providerId} 的接口形态（${firstModel.api}）暂不支持在线验证——key 已保存，以实际对话为准`
       }
     }
     try {
-      const response = await fetch(`${baseURL.replace(/\/+$/, '')}/chat/completions`, {
+      const url = `${baseURL.replace(/\/+$/, '')}/${
+        firstModel.api === 'anthropic-messages' ? 'v1/messages' : 'chat/completions'
+      }`
+      const headers: Record<string, string> =
+        firstModel.api === 'anthropic-messages'
+          ? {
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+              'content-type': 'application/json'
+            }
+          : { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' }
+      const body =
+        firstModel.api === 'anthropic-messages'
+          ? JSON.stringify({
+              model: firstModel.id,
+              max_tokens: 1,
+              messages: [{ role: 'user', content: 'ping' }]
+            })
+          : JSON.stringify({
+              model: firstModel.id,
+              messages: [{ role: 'user', content: 'ping' }],
+              max_tokens: 1
+            })
+      const response = await fetch(url, {
         method: 'POST',
-        headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-        body: JSON.stringify({
-          model: firstModel.id,
-          messages: [{ role: 'user', content: 'ping' }],
-          max_tokens: 1
-        }),
+        headers,
+        body,
         signal: AbortSignal.timeout(10_000)
       })
       await response.body?.cancel().catch(() => undefined)
-      if (response.status === 401 || response.status === 403) {
-        return {
-          ok: false,
-          error: `${providerId} 凭据被拒绝（HTTP ${response.status}）——key 错误、已过期或无权限`
-        }
-      }
-      if (response.status < 500) return { ok: true }
-      return {
-        ok: false,
-        error: `${providerId} 验证端点服务异常（HTTP ${response.status}）——稍后再试，或以实际对话为准`
-      }
+      return classifyVerifyStatus(providerId, response.status)
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
       return {
