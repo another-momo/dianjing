@@ -52,6 +52,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { handleAskAnswerRequest } from './ask/answer-route'
 import { isAuthorized } from './auth'
 import { PI_BACKEND_DEFAULT_PORT } from './config'
+import { handleDesignAssignmentRequest } from './design-assignment-route'
 import {
   PayloadTooLargeError,
   optionalString,
@@ -562,6 +563,9 @@ export function createPiBackendServer({
     if (url.pathname === '/api/pi/capabilities') {
       void handleCapabilitiesRequest(service, req, res)
       return
+    }
+    if (url.pathname === '/api/pi/design-assignment') {
+      return void handleDesignAssignmentRequest(service, req, res)
     }
     // T22/T23/T24 只读路由（须在 /api/pi/ 管理面前缀之前匹配）
     if (handleReadonlyPiRequest(service, req, res, url)) return

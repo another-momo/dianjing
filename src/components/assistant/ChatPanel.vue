@@ -27,7 +27,7 @@ import { useI18n } from '@open-pencil/vue'
 import { copyChatLog } from '@/app/ai/fork/debug'
 import { isAbortShapedError, markIntentionalStop } from '@/app/ai/fork/transports'
 import { useAIChat } from '@/app/ai/fork/use'
-import { piDesignAssignment } from '@/app/ai/pi-backend/assignment'
+import { piDesignAssignment, piDesignAssignmentReady } from '@/app/ai/pi-backend/assignment'
 import { piCatalog, postAskAnswer, refreshPiCatalog } from '@/app/ai/pi-backend/client'
 import {
   getPiCurrentSessionId,
@@ -153,7 +153,8 @@ const messages = computed(() => chat.value?.messages ?? [])
 const gateState = computed<GateState>(() =>
   deriveGateState({
     assignment: piDesignAssignment.value,
-    catalog: piCatalog.value
+    catalog: piCatalog.value,
+    assignmentReady: piDesignAssignmentReady.value
   })
 )
 const isGateReady = computed(() => gateState.value.kind === 'ready')

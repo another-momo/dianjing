@@ -151,4 +151,34 @@ describe('deriveGateState', () => {
       })
     ).toEqual({ kind: 'loading' })
   })
+
+  test('2026-09-16：指派 hydrate 未完成（assignmentReady=false）→ loading 优先（防 needs-setup 闪现）', () => {
+    // 即使 catalog 就绪、无指派时也不应给 needs-setup——ref 仍为 null
+    // 但 ref 会在 hydrate 完成后被填值；闪现会误导用户以为没配置
+    expect(
+      deriveGateState({
+        assignment: null,
+        catalog: OPENROUTER_FREE,
+        assignmentReady: false
+      })
+    ).toEqual({ kind: 'loading' })
+
+    // 已有指派但 hydrate 未完成也走 loading（防 stale 指派给用户看 ready）
+    expect(
+      deriveGateState({
+        assignment: { providerId: 'openrouter', modelId: 'openrouter/free' },
+        catalog: OPENROUTER_FREE,
+        assignmentReady: false
+      })
+    ).toEqual({ kind: 'loading' })
+  })
+
+  test('2026-09-16：assignmentReady 缺省 = true（旧调用面兼容）', () => {
+    expect(
+      deriveGateState({
+        assignment: null,
+        catalog: OPENROUTER_FREE
+      })
+    ).toEqual({ kind: 'needs-setup' })
+  })
 })

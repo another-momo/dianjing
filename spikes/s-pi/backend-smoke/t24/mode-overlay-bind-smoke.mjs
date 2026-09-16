@@ -124,8 +124,9 @@ await page.route('**/api/pi-chat', async (route) => {
 // 占位不渲染 composer（PiChatInput v-if=isGateReady）。真源 = provider-gate.ts
 // deriveGateState：指派 provider/model 须在 catalog 且 provider 凭据已配。
 // 冒烟前提：dev 进程带 MINIMAX_CN_API_KEY（dummy 即可）使 minimax-cn
-// configured=true；经页面上下文拿 token 拉 catalog 取首模型写 localStorage
-// 指派（assignment.ts STORAGE_KEY），reload 后门开。
+// configured=true；经页面上下文拿 token 拉 catalog 取首模型 PUT 写指派端点
+// /api/pi/design-assignment（指派 2026-09-16 后端化，真源 <状态根>/pi-agent/
+// design-assignment.json），reload 后门开。
 async function ensureDesignAssignment() {
   await page.evaluate(async () => {
     const token = window.__DIANJING_LOCAL_AUTOMATION_TOKEN__
@@ -139,10 +140,16 @@ async function ensureDesignAssignment() {
         'smoke 前提不满足：无已配置凭据的 provider（dev 需带 MINIMAX_CN_API_KEY env）'
       )
     }
-    window.localStorage.setItem(
-      'openpencil.pi.design-model',
-      JSON.stringify({ providerId: provider.id, modelId: provider.models[0].id })
-    )
+    const putRes = await fetch('/api/pi/design-assignment', {
+      method: 'PUT',
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        assignment: { providerId: provider.id, modelId: provider.models[0].id }
+      })
+    })
+    if (!putRes.ok) {
+      throw new Error(`指派写入失败：${putRes.status} ${await putRes.text()}`)
+    }
   })
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.getByRole('tab', { name: '设计' }).waitFor({ timeout: 20000 })
@@ -316,7 +323,7 @@ try {
   await page2.route('**/api/pi/studio/manifest', (route) => route.abort())
   await page2.goto(base, { waitUntil: 'domcontentloaded' })
   // 引导门前提：全新 context 无指派 → PiChatInput（chips 挂载其中）不渲染。
-  // 经 catalog（未被拦，拦的只有 manifest）取已配 provider 写指派，reload 门开
+  // 经 catalog（未被拦，拦的只有 manifest）取已配 provider PUT 写指派端点，reload 门开
   await page2.evaluate(async () => {
     const token = window.__DIANJING_LOCAL_AUTOMATION_TOKEN__
     const headers = token ? { Authorization: `Bearer ${token}` } : {}
@@ -325,10 +332,16 @@ try {
       (p) => p.auth?.configured && (p.models || []).length > 0
     )
     if (!provider) throw new Error('⑥ 前提不满足：无已配置凭据的 provider')
-    window.localStorage.setItem(
-      'openpencil.pi.design-model',
-      JSON.stringify({ providerId: provider.id, modelId: provider.models[0].id })
-    )
+    const putRes = await fetch('/api/pi/design-assignment', {
+      method: 'PUT',
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        assignment: { providerId: provider.id, modelId: provider.models[0].id }
+      })
+    })
+    if (!putRes.ok) {
+      throw new Error(`指派写入失败：${putRes.status} ${await putRes.text()}`)
+    }
   })
   await page2.reload({ waitUntil: 'domcontentloaded' })
   await page2.getByRole('tab', { name: '设计' }).waitFor({ timeout: 20000 })
@@ -346,8 +359,8 @@ try {
   check('⑥ manifest 拉取失败 → profile chip 触发器 disabled', profileChipDisabled)
 } finally {
   await browser.close()
-  // 冒烟用的 playwright 独立 profile 随浏览器关闭即弃（localStorage 指派随之），
-  // 无需清理；发送均被 route 拦截，后端零写入
+  // 冒烟用的 playwright 独立 profile 随浏览器关闭即弃；指派经 PUT 写在后端
+  // 状态根（幂等覆写），无需清理；发送均被 route 拦截，后端会话零写入
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

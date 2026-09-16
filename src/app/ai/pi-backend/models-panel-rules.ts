@@ -84,6 +84,13 @@ export function shouldAutoAssignOnSaveKey(args: {
 /**
  * 同 provider 内换模型是否要自动写回指派（§4.3 约束 3）。
  * 显式 Combobox 动作 = 自动写回 + label 即时更新（可逆 = 再选）。
+ *
+ * 2026-09-16 断链规则修：原版 `if (!existingAssignment) return false` 让无指派
+ * 用户在设置面板双选 provider+model 永不写指派，唯一解锁路是「存 key 自动指派」
+ * （PiModelsPanel saveKey 流）——env key / 已配 key 用户无第二条指派通道，
+ * 只能改 provider+model 后再回去存一次 key。修后：双选即指派 = 引导门不依赖
+ * 存 key 的解锁路；其余三语义维持原状（异 provider false 防浏览劫持，同
+ * provider 同模型 false 防无变化写回，跨 provider false 留给"设为当前"显式动作）。
  */
 export function shouldAutoAssignOnModelChange(args: {
   existingAssignment: PiDesignAssignment | null | undefined
@@ -91,7 +98,7 @@ export function shouldAutoAssignOnModelChange(args: {
   targetModelId: string
 }): boolean {
   const { existingAssignment, targetProviderId, targetModelId } = args
-  if (!existingAssignment) return false
+  if (!existingAssignment) return true
   if (existingAssignment.providerId !== targetProviderId) return false
   // 同 provider 内：当前模型 → 目标模型 = 显式切换
   if (existingAssignment.modelId === targetModelId) return false

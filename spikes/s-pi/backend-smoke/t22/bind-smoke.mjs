@@ -173,8 +173,9 @@ function activeTabId() {
 // 占位不渲染 composer（PiChatInput v-if=isGateReady）。真源 = provider-gate.ts
 // deriveGateState：指派 provider/model 须在 catalog 且 provider 凭据已配。
 // 冒烟前提：dev 进程带 MINIMAX_CN_API_KEY（dummy 即可）使 minimax-cn
-// configured=true；经页面上下文拿 token 拉 catalog 取首模型写 localStorage
-// 指派（assignment.ts STORAGE_KEY），reload 后门开。
+// configured=true；经页面上下文拿 token 拉 catalog 取首模型 PUT 写指派端点
+// /api/pi/design-assignment（指派 2026-09-16 后端化，真源 <状态根>/pi-agent/
+// design-assignment.json），reload 后门开。
 async function ensureDesignAssignment() {
   await page.evaluate(async () => {
     const token = window.__DIANJING_LOCAL_AUTOMATION_TOKEN__;
@@ -190,13 +191,19 @@ async function ensureDesignAssignment() {
         "smoke 前提不满足：无已配置凭据的 provider（dev 需带 MINIMAX_CN_API_KEY env）",
       );
     }
-    window.localStorage.setItem(
-      "openpencil.pi.design-model",
-      JSON.stringify({
-        providerId: provider.id,
-        modelId: provider.models[0].id,
+    const putRes = await fetch("/api/pi/design-assignment", {
+      method: "PUT",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({
+        assignment: {
+          providerId: provider.id,
+          modelId: provider.models[0].id,
+        },
       }),
-    );
+    });
+    if (!putRes.ok) {
+      throw new Error(`指派写入失败：${putRes.status} ${await putRes.text()}`);
+    }
   });
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.getByRole("tab", { name: "设计" }).waitFor({ timeout: 20000 });

@@ -67,6 +67,7 @@ import {
 import { type AskAnswerPayload, createAskPendingStore } from './ask/pending'
 import { createAskUserQuestionTool } from './ask/user-question'
 import { type Capabilities, createCapabilitiesStore } from './capabilities'
+import { type PiModelSpec, createDesignAssignmentStore } from './design-assignment'
 import { readPiHistoryFile } from './history'
 import type { ImageGenCredentialStore } from './image-gen/credentials'
 import { createImageGenTool } from './image-gen/generate'
@@ -164,6 +165,11 @@ export type PiChatService = {
   /** T87：写 capabilities（settings 面板 PUT 用；非法值抛错并被 server.ts 转 400）；
    *  T96：builtinTools 可选——给了就必须是三档字面量，缺省保留旧值 */
   setCapabilities(input: { agentSkills: unknown; builtinTools?: unknown }): Capabilities
+  /** 2026-09-16：指派后端化——读 design 模型指派（GET /api/pi/design-assignment） */
+  getDesignAssignment(): PiModelSpec | null
+  /** 2026-09-16：指派后端化——写 design 模型指派（PUT /api/pi/design-assignment）；
+   *  非法值抛 TypeError，server.ts 转 400；null → 删文件 */
+  setDesignAssignment(spec: PiModelSpec | null): PiModelSpec | null
   /** T60：active_design 端点（②面板点选 / ③AI 声明+同意）——四条件校验 → 移槽 → 身份三元组
    *  T98-路由：windowId 透传（与 documentId 同缝）——多窗时按发起窗路由 */
   setActiveDesign(
@@ -259,6 +265,9 @@ export function createPiChatService({
     rootDir,
     builtinSkillsDir: builtinStudioDir ? resolveBuiltinSkillsDir(builtinStudioDir) : undefined
   })
+  // 2026-09-16：design 模型指派后端化——单实例（与 capabilities store 同缝，
+  // 共享 agentDir；落盘 <状态根>/pi-agent/design-assignment.json）；GET/PUT 路由共用此实例
+  const designAssignmentStore = createDesignAssignmentStore({ agentDir })
   // 2026-09-15：ask_user_question 挂起期 pending-form 注册表单例（跨 session 共享）
   const askPendingStore = createAskPendingStore()
 
@@ -723,6 +732,14 @@ export function createPiChatService({
     return capabilitiesStore.set(input)
   }
 
+  function getDesignAssignment(): PiModelSpec | null {
+    return designAssignmentStore.get()
+  }
+
+  function setDesignAssignment(spec: PiModelSpec | null): PiModelSpec | null {
+    return designAssignmentStore.set(spec)
+  }
+
   async function setActiveDesign(
     nodeId: string,
     documentId?: string,
@@ -794,6 +811,8 @@ export function createPiChatService({
     getStudioManifest,
     getCapabilities,
     setCapabilities,
+    getDesignAssignment,
+    setDesignAssignment,
     setActiveDesign,
     confirmNewIntent,
     abort,

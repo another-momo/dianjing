@@ -114,6 +114,11 @@ const providerKeyInputs = ref<Record<string, HTMLInputElement | null>>({})
 
 const providers = computed<PiCatalogProvider[]>(() => piCatalog.value?.providers ?? [])
 
+/** ux-polish④：设计模型卡 — 顶层四字段卡选中 provider，初值由 catalog watch 钉。
+ *  声明必须先于下方 watch——immediate 回调同步执行会访问本 ref，后声明则
+ *  TDZ 崩溃（catalog 已热时挂载面板必触发，2026-09-16 L3 实证） */
+const selectedProviderId = ref<string>('')
+
 /** ux-polish④：watch catalog.length 从 0 → N 时，按 resolveInitialSelectedProvider 钉初值。
  *  后续用户切换由 combobox update 直接驱动；指派变化不强制重选（用户已选 → 让位）。 */
 watch(
@@ -132,9 +137,6 @@ watch(
   },
   { immediate: true }
 )
-
-/** ux-polish④：设计模型卡 — 顶层四字段卡选中 provider，初值由 catalog watch 钉 */
-const selectedProviderId = ref<string>('')
 
 /** 设计模型卡 — provider 变更：模型字段重置为 resolveDefaultModelId → 按 shouldAutoAssignOnModelChange 语义决定是否静默指派 */
 function onDesignProviderChange(providerId: string): void {

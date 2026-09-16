@@ -151,14 +151,21 @@ describe('shouldAutoAssignOnSaveKey', () => {
 })
 
 describe('shouldAutoAssignOnModelChange', () => {
-  test('无现存指派 → false（无指派语境不存在"换模型"）', () => {
+  test('无现存指派 → true（2026-09-16 断链规则修：双选即指派 = 引导门不依赖存 key 解锁路）', () => {
     expect(
       shouldAutoAssignOnModelChange({
         existingAssignment: null,
         targetProviderId: 'openrouter',
         targetModelId: 'openrouter/free'
       })
-    ).toBe(false)
+    ).toBe(true)
+    expect(
+      shouldAutoAssignOnModelChange({
+        existingAssignment: undefined,
+        targetProviderId: 'openrouter',
+        targetModelId: 'openrouter/free'
+      })
+    ).toBe(true)
   })
 
   test('跨 provider 切模型 → false（应走"设为当前"显式动作）', () => {
