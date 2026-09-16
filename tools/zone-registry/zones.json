@@ -945,8 +945,9 @@
       "id": "P177",
       "file": "CONTRIBUTING.md",
       "reason": "Batch 2b/2c（2026-09-05）：Project structure 节去 packages/cli、packages/mcp 两行（两包裁撤连带）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-05"
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-16",
+      "retiredReason": "2026-09-16 rebrand 回溯：CONTRIBUTING.md 全文件删除入 deletedPaths——个人 fork 无外部贡献者，协作向导=仓内 AGENTS.md、setup=README 开发节，无信息损失"
     },
     {
       "id": "P178",
@@ -1485,6 +1486,7 @@
   ],
   "deletedPaths": [
     "CHANGELOG.md",
+    "CONTRIBUTING.md",
     "desktop",
     "tools/tauri-menu",
     "tools/docs",
