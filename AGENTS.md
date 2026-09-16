@@ -59,6 +59,7 @@
 - `.vue` SFC 不进 type-aware 覆盖（实证盲区）——同一段防御写法在 .vue 里历年全绿、抽纯成 .ts 即被狙；.vue → .ts 抽纯后按 .ts 口径逐文件过 `--type-aware`（同上实证）。
 - `check:quick` 的 typecheck 段（tsgo）同样不覆盖 `.vue`——SFC 内消费已退役字段/类型改名在 check:quick 全绿下潜伏，只有 `check:vue`（vue-tsc ×2）能兜；.vue 触面的改动收口前必跑 check:vue 或交 L2/CI（2026-09-16 A3 实证：PiChatMessage.vue 归一器消费已退役 caseKind/references，波间 check:quick 连环绿，L2 才揪出）。
 - no-nested-ternary 的「加括号」修法会被 oxfmt 重新展开回无括号形（格式器归化优先级高于括号保留）——唯一格式器稳定解 = 抽归化助手/显式分支；lint 结构红修完必须 oxfmt 后再复 lint（2026-09-16 A3 修红实证：括号修复被 formatter 静默还原，逐文件复 lint 才抓住）。
+- 手跑 oxfmt 必须走 `node_modules/.bin` 钉版 exe 禁 bunx——bunx 全局缓存副本与钉版同版本号（0.67.0）不同构建，对三元分支 `Number(...)||0` 括号行为分叉（bunx 放行、钉版剥括号），bunx 过格式的文件 CI format 照红（2026-09-16 splash 修红实证：main.ts 一处括号，84236bec3）。
 - steiger（check:arch）FSD 同前缀兄弟文件阈值 = 3（非 4）：同目录 ≥3 个同前缀文件即红——归域目录（ask/ 式）或错开前缀（2026-09-15 ask 测试四件归域实证）。tools/<domain>/ 布局契约：工具文件必须落 `tools/<domain>/src/**`（strict-tools-layout），且域目录必须有 package.json 标记（test:tools 逐域读取，缺即 ENOENT——2026-09-15 git-rescue 入库首轮 CI 双红实证）。
 - ai SDK 就地改 tool part 对象（引用不变）——卡片状态门禁 computed 读 `part.state` 恒陈旧，须父级重渲染直传原值 prop（`:part-state` 模式；2026-09-15 ask 波2 实证：作答摘要此前只在历史重载时渲染）。
 
