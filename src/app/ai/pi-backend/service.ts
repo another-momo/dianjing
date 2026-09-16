@@ -43,8 +43,10 @@ import {
   createAgentSession,
   DefaultResourceLoader,
   SessionManager,
+  SettingsManager,
   type AgentSession,
-  type InlineExtension
+  type InlineExtension,
+  type Skill
 } from '@earendil-works/pi-coding-agent'
 import type { UIMessage, UIMessageChunk } from 'ai'
 
@@ -461,12 +463,39 @@ export function createPiChatService({
     // customTools，owner 实测 readonly 档设计工具全丢实证）；full 省略
     // 字段 → SDK 默认允许全部内建工具（read/bash/edit/write）。
     const builtinToolsMode = capabilitiesStore.get().builtinTools
-    const sessionOpts: Parameters<typeof createAgentSession>[0] = {
+    // 2026-09-16 pi agent 行为控管层 1：自构 SettingsManager 双注——
+    // SDK 默认 projectTrusted=true（settings-manager.js:150 `?? true`），
+    // 等于 cwd/.pi 全域（settings/extensions/skills/prompts/APPEND_SYSTEM/SYSTEM
+    // + 祖先 .agents/skills）无条件可写可加载，对产品形态 = RCE / 持久注入 /
+    // 窃 key 攻击面。Options.projectTrusted:false 在 settings-manager.js:150
+    // 显式落 this.projectTrusted=false，经 reload() 全局关 project 域扫描
+    // （含 SYSTEM.md 与 APPEND_SYSTEM.md 项目拷贝、cwd/.pi 子树）。
+    // 同一实例喂 DefaultResourceLoader (resource-loader.js:157) 与
+    // createAgentSession (sdk.js:73) 实现双注——loader 内部 reload 切 trust
+    // 走 loadProjectTrustExtensions→reload 链路，sdk 侧 getDefaultProvider
+    // 等读 trust 后态。applyOverrides 显式关 enableInstallTelemetry
+    // （默认 true，包安装外呼——我们不装包，今日惰性）。
+    // noExtensions:true 关 file extensions（inline factories 走
+    // loadExtensionFactories 独立通道 preTrust 缺省分支，与信任态无关不伤——
+    // ask/key 两 guard 经此缝常驻）。
+    // T89 + 2026-09-16 层 2 skills 单源收口：skillsOverride 按 baseDir
+    // 白名单过滤，剔 SDK 默认塞进的 pi-agent/skills 与 ~/.agents/skills
+    // （他 agent 混入设计会话渗漏），落实 T89 `.dianjing/skills` 单源决策。
+    const trustedSettingsManager = SettingsManager.create(workspaceDir, agentDir, {
+      projectTrusted: false
+    })
+    trustedSettingsManager.applyOverrides({ enableInstallTelemetry: false })
+    // T89 单源白名单：用户层（resolveSkillsDir = rootDir/skills）与内置层
+    // （builtinStudioDir/skills）双源
+    const allowedSkillBaseDirs = new Set<string>()
+    const userSkillsDir = resolveSkillsDir(rootDir)
+    allowedSkillBaseDirs.add(userSkillsDir)
+    if (builtinStudioDir) {
+      allowedSkillBaseDirs.add(resolveBuiltinSkillsDir(builtinStudioDir))
+    }
+    const resourceLoader = new DefaultResourceLoader({
       cwd: workspaceDir,
       agentDir,
-      model,
-      modelRuntime,
-      sessionManager,
       // T21：静态 system prompt 经 resourceLoader 烘焙（T60：烘焙 studio base
       // body 作兜底基底——per-run 钩子恒返回完整组装，基底只在无 prepareTurn
       // 的异常路径露面）+ 关闭 pi 侧上下文文件/prompt 模板加载——否则 repo
@@ -474,34 +503,43 @@ export function createPiChatService({
       // T87：noSkills 由 capabilities.agentSkills 决定——开启时加载
       // .dianjing/skills 下的 SKILL.md，进入 <available_skills> prompt 列表或被
       // /skill:name 显式调用（disable-model-invocation 的不进 prompt，可被显式调）。
-      // T89：扫描目录由 `.pi/skills` + `.dianjing/pi-agent/skills` 双源
-      // 收敛为 `.dianjing/skills` 单源。
       // T91b 修复：SDK 默认只扫 cwd/.pi/skills 与 agentDir/skills——T89 单源
       // `.dianjing/skills` 不被 SDK 感知，/skill:name 展开透传原文（CI 冒烟④
       // 失败实证）。用 additionalSkillPaths 显式把单源目录喂给 SDK，
       // 保持 T89 单源决策同时让 SDK 实际加载到。
-      resourceLoader: await (async () => {
-        const loader = new DefaultResourceLoader({
-          cwd: workspaceDir,
-          agentDir,
-          systemPrompt: getStudioRegistry(rootDir).base?.body ?? '',
-          noContextFiles: true,
-          noSkills: !capabilitiesStore.get().agentSkills,
-          noPromptTemplates: true,
-          additionalSkillPaths: [
-            resolveSkillsDir(rootDir),
-            // 内置层：studio 内置资产下的 skills/（layer-splitting 等内置 skill）——与用户层同构；
-            // builtinStudioDir 来自同闭包上方 resolveStudioDirs(rootDir, readStudioBuiltinDir())。
-            ...(builtinStudioDir ? [resolveBuiltinSkillsDir(builtinStudioDir)] : [])
-          ],
-          extensionFactories
-        })
-        // createAgentSession 只在自构 loader 时才 reload（sdk.js `if (!resourceLoader)`
-        // 分支）——外部传入必须自己调，否则 extensionsResult 停留初始空集，
-        // inline extension 永不登记（T24 冒烟实证：probe 不落盘、注入不发生）
-        await loader.reload()
-        return loader
-      })(),
+      systemPrompt: getStudioRegistry(rootDir).base?.body ?? '',
+      settingsManager: trustedSettingsManager,
+      noContextFiles: true,
+      noSkills: !capabilitiesStore.get().agentSkills,
+      noPromptTemplates: true,
+      noExtensions: true,
+      additionalSkillPaths: [
+        resolveSkillsDir(rootDir),
+        // 内置层：studio 内置资产下的 skills/（layer-splitting 等内置 skill）——与用户层同构；
+        // builtinStudioDir 来自同闭包上方 resolveStudioDirs(rootDir, readStudioBuiltinDir())。
+        ...(builtinStudioDir ? [resolveBuiltinSkillsDir(builtinStudioDir)] : [])
+      ],
+      skillsOverride: (result) => ({
+        ...result,
+        skills: result.skills.filter((skill: Skill) => allowedSkillBaseDirs.has(skill.baseDir))
+      }),
+      extensionFactories
+    })
+    // createAgentSession 只在自构 loader 时才 reload（sdk.js `if (!resourceLoader)`
+    // 分支）——外部传入必须自己调，否则 extensionsResult 停留初始空集，
+    // inline extension 永不登记（T24 冒烟实证：probe 不落盘、注入不发生）
+    await resourceLoader.reload()
+    const sessionOpts: Parameters<typeof createAgentSession>[0] = {
+      cwd: workspaceDir,
+      agentDir,
+      model,
+      modelRuntime,
+      sessionManager,
+      resourceLoader,
+      // 2026-09-16 层 1 双注缝 ②：同 settingsManager 实例喂 createAgentSession
+      // （sdk.js:73 options.settingsManager）——保证 sdk 内部 getDefaultProvider
+      // 等读到的 trust 态与 loader 一致
+      settingsManager: trustedSettingsManager,
       customTools
     }
     if (builtinToolsMode === 'off') sessionOpts.noTools = 'builtin'

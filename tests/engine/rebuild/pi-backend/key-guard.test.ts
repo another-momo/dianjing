@@ -11,13 +11,18 @@
 import { describe, expect, test } from 'bun:test'
 import { join, resolve } from 'node:path'
 
-import { createKeyGuardHandler, protectedCredentialFiles } from '@/app/ai/pi-backend/key-guard'
+import {
+  createKeyGuardHandler,
+  protectedCredentialFiles,
+  protectedWriteRoots
+} from '@/app/ai/pi-backend/key-guard'
 
 // fixture 用 resolve 把假根钉成真绝对路径——resolve 在 Win/mac/linux 都带系统正确
 // 前缀（Windows 加盘符，POSIX 保留 /），与 handler 内 isAbsolute→resolve 路径
 // 同根，归一化形态可比对。纯字符串运算不需真建目录。
 const ROOT = resolve('/fake/kg-root')
 const WORKSPACE = resolve(ROOT, 'workspace')
+const WORKSPACE_PI = resolve(WORKSPACE, '.pi')
 const AGENT_DIR = resolve(ROOT, 'pi-agent')
 const AUTH_JSON = resolve(AGENT_DIR, 'auth.json')
 const IMAGE_GEN_JSON = resolve(AGENT_DIR, 'image-gen.json')
@@ -31,6 +36,10 @@ const READ_DENY_REASON =
 const WRITE_DENY_REASON =
   'Access denied: this path stores API credentials/tokens and is protected from agent writes. ' +
   'Credential updates go through the Settings panel (credential routes) only.'
+
+const WRITE_FACET_DENY_REASON =
+  'Access denied: this path is in the protected pi agent configuration facet and cannot be modified by the agent. ' +
+  'The project trust surface is closed; configuration updates go through the Settings panel or developer tooling.'
 
 function makeHandler() {
   return createKeyGuardHandler({ rootDir: ROOT, cwd: WORKSPACE, homeDir: ROOT })
@@ -102,12 +111,16 @@ describe('createKeyGuardHandler — read / edit / write 路径守卫', () => {
     })
   })
 
-  test('edit 绝对 auth.json / write 绝对 key-env → block（WRITE reason）', () => {
+  test('edit 绝对 auth.json / write 绝对 key-env → block（2026-09-16：facet 写侧先于凭据命中，reason = facet）', () => {
     const handler = makeHandler()
+    // 2026-09-16 层 1 纵深件：auth.json 在 pi-agent/ 子树，facet 写侧 deny
+    // 先于凭据命中——reason 走 facet 而非凭据（实测路径更准：「在 pi-agent/ 下」）
     expect(handler({ toolName: 'edit', input: { path: AUTH_JSON } })).toEqual({
       block: true,
-      reason: WRITE_DENY_REASON
+      reason: WRITE_FACET_DENY_REASON
     })
+    // key-env 与 pi-backend-token 在 rootDir 直接，不在 pi-agent/ 下——
+    // facet 不命中，凭据命中 reason 仍 = WRITE_DENY_REASON
     expect(handler({ toolName: 'write', input: { path: KEY_ENV } })).toEqual({
       block: true,
       reason: WRITE_DENY_REASON
@@ -151,6 +164,132 @@ describe('createKeyGuardHandler — grep 搜索根守卫', () => {
     expect(
       handler({ toolName: 'grep', input: { pattern: 'foo', path: studioDir } })
     ).toBeUndefined()
+  })
+})
+
+describe('protectedWriteRoots — 2026-09-16 层 1 写侧纵深件', () => {
+  test('双根 = agentDir + workspace/.pi（写侧 deny 面）', () => {
+    expect(protectedWriteRoots(ROOT)).toEqual([AGENT_DIR, WORKSPACE_PI])
+  })
+})
+
+describe('createKeyGuardHandler — 写侧 deny pi-agent/** 与 workspace/.pi/**（2026-09-16 层 1 纵深件）', () => {
+  test('edit 写 pi-agent/settings.json → block（facet reason）', () => {
+    const handler = makeHandler()
+    expect(
+      handler({ toolName: 'edit', input: { path: resolve(AGENT_DIR, 'settings.json') } })
+    ).toEqual({
+      block: true,
+      reason: WRITE_FACET_DENY_REASON
+    })
+  })
+
+  test('write pi-agent/SYSTEM.md 与 APPEND_SYSTEM.md → block（facet reason）', () => {
+    const handler = makeHandler()
+    for (const target of [
+      resolve(AGENT_DIR, 'SYSTEM.md'),
+      resolve(AGENT_DIR, 'APPEND_SYSTEM.md')
+    ]) {
+      expect(handler({ toolName: 'write', input: { path: target } })).toEqual({
+        block: true,
+        reason: WRITE_FACET_DENY_REASON
+      })
+    }
+  })
+
+  test('edit 写 pi-agent/extensions/x.js → block（嵌套后代）', () => {
+    const handler = makeHandler()
+    const nested = resolve(AGENT_DIR, 'extensions', 'evil.js')
+    expect(handler({ toolName: 'edit', input: { path: nested } })).toEqual({
+      block: true,
+      reason: WRITE_FACET_DENY_REASON
+    })
+  })
+
+  test('edit 写 pi-agent/skills/foo/SKILL.md → block（嵌套后代）', () => {
+    const handler = makeHandler()
+    const nested = resolve(AGENT_DIR, 'skills', 'foo', 'SKILL.md')
+    expect(handler({ toolName: 'edit', input: { path: nested } })).toEqual({
+      block: true,
+      reason: WRITE_FACET_DENY_REASON
+    })
+  })
+
+  test('edit 写 workspace/.pi/SYSTEM.md → block（facet reason）', () => {
+    const handler = makeHandler()
+    expect(
+      handler({ toolName: 'edit', input: { path: resolve(WORKSPACE_PI, 'SYSTEM.md') } })
+    ).toEqual({
+      block: true,
+      reason: WRITE_FACET_DENY_REASON
+    })
+  })
+
+  test('edit 写 workspace/.pi/extensions/foo.js → block（嵌套后代）', () => {
+    const handler = makeHandler()
+    const nested = resolve(WORKSPACE_PI, 'extensions', 'foo.js')
+    expect(handler({ toolName: 'edit', input: { path: nested } })).toEqual({
+      block: true,
+      reason: WRITE_FACET_DENY_REASON
+    })
+  })
+
+  test('edit ../pi-agent/settings.json（cwd=workspace 上行） → block', () => {
+    const handler = makeHandler()
+    expect(handler({ toolName: 'edit', input: { path: '../pi-agent/settings.json' } })).toEqual({
+      block: true,
+      reason: WRITE_FACET_DENY_REASON
+    })
+  })
+
+  test('edit ../workspace/.pi/settings.json → block', () => {
+    const handler = makeHandler()
+    expect(
+      handler({ toolName: 'edit', input: { path: '../workspace/.pi/settings.json' } })
+    ).toEqual({
+      block: true,
+      reason: WRITE_FACET_DENY_REASON
+    })
+  })
+
+  test('edit 写 pi-agent 目录用 <ROOT>\\Pi-Agent\\Settings.JSON → block（大小写/分隔符归一化）', () => {
+    const handler = makeHandler()
+    const mixed = ROOT.replaceAll('/', '\\') + '\\Pi-Agent\\Settings.JSON'
+    expect(handler({ toolName: 'edit', input: { path: mixed } })).toEqual({
+      block: true,
+      reason: WRITE_FACET_DENY_REASON
+    })
+  })
+
+  test('read pi-agent/settings.json → 仍放行（不扩读侧——读侧维持凭据四件原口径）', () => {
+    const handler = makeHandler()
+    expect(
+      handler({ toolName: 'read', input: { path: resolve(AGENT_DIR, 'settings.json') } })
+    ).toBeUndefined()
+  })
+
+  test('read pi-agent/auth.json → 仍 block（凭据四件读侧维持）', () => {
+    const handler = makeHandler()
+    expect(handler({ toolName: 'read', input: { path: AUTH_JSON } })).toEqual({
+      block: true,
+      reason: READ_DENY_REASON
+    })
+  })
+
+  test('write pi-agent/auth.json → block（facet 面先于凭据命中，reason = facet）', () => {
+    const handler = makeHandler()
+    // 凭据四件在 pi-agent/ 子树，facet 写侧 deny 先于凭据命中——理由走
+    // facet 而非凭据（实测更准：路径是「在 pi-agent/ 下」而非「凭据文件本身」）
+    expect(handler({ toolName: 'write', input: { path: AUTH_JSON } })).toEqual({
+      block: true,
+      reason: WRITE_FACET_DENY_REASON
+    })
+  })
+
+  test('write workspace/base.md（非 .pi） → 放行（纵深件仅挡 .pi 子树）', () => {
+    const handler = makeHandler()
+    const base = resolve(WORKSPACE, 'base.md')
+    expect(handler({ toolName: 'write', input: { path: base } })).toBeUndefined()
   })
 })
 
