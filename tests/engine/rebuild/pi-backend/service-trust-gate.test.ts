@@ -15,6 +15,16 @@ import { join } from 'node:path'
 const capturedSessionOptions: Record<string, unknown>[] = []
 const capturedLoaderOptions: Record<string, unknown>[] = []
 
+/** 假 SettingsManager 的 overrides 形状（lint：禁 Record<string, unknown> 泛投） */
+interface FakeSettingsOverrides {
+  enableInstallTelemetry?: boolean
+}
+
+/** skillsOverride 结果里取 diagnostics 的最小形状（lint：禁内联 unknown 对象形投） */
+interface SkillsOverrideDiagnosticsResult {
+  diagnostics: unknown[]
+}
+
 mock.module('@earendil-works/pi-coding-agent', () => ({
   createAgentSession: async (options: Record<string, unknown>) => {
     capturedSessionOptions.push(options)
@@ -47,7 +57,7 @@ mock.module('@earendil-works/pi-coding-agent', () => ({
     create: (_cwd: string, _agentDir: string, options: { projectTrusted?: boolean } = {}) => {
       const instance = {
         _projectTrusted: options.projectTrusted ?? true,
-        _overrides: {} as Record<string, unknown>,
+        _overrides: {} as FakeSettingsOverrides,
         isProjectTrusted(): boolean {
           return this._projectTrusted
         },
@@ -58,10 +68,10 @@ mock.module('@earendil-works/pi-coding-agent', () => ({
           Object.assign(this._overrides, overrides)
         },
         getEnableInstallTelemetry(): boolean {
-          return (this._overrides['enableInstallTelemetry'] as boolean | undefined) ?? true
+          return this._overrides.enableInstallTelemetry ?? true
         },
         async reload(): Promise<void> {
-          return Promise.resolve()
+          // 假 SettingsManager：reload 无操作（实例状态构造时已落定）
         }
       }
       return instance
@@ -179,17 +189,21 @@ describe('pi-backend service.ts trust gate + skills 单源（2026-09-16 层 1 + 
     const userSkillsDir = join(rootDir, 'studio', 'skills')
     expect(paths).toContain(userSkillsDir)
 
-    // 构造四来源——前两项在白名单应保留，pi-agent/skills 与 ~/.agents/skills 应被剔
+    // 构造四来源——前两项在白名单应保留，pi-agent/skills 与 ~/.agents/skills 应被剔。
+    // baseDir 语义 = SKILL.md 所在目录（<源目录>/<skill名>），service 侧比对
+    // 取 dirname 上溯一层（2026-09-16 CI t87 ④实证直比 baseDir 全员滤空）
     const builtinSkillsDir = paths[1] ?? ''
     const agentDirSkills = join(rootDir, 'pi-agent', 'skills')
     const homeAgentsSkills = '/home/fake-user/.agents/skills'
 
     const input = {
       skills: [
-        { name: 'user-skill', baseDir: userSkillsDir },
-        ...(builtinSkillsDir ? [{ name: 'builtin-skill', baseDir: builtinSkillsDir }] : []),
-        { name: 'agent-skill', baseDir: agentDirSkills },
-        { name: 'home-skill', baseDir: homeAgentsSkills }
+        { name: 'user-skill', baseDir: join(userSkillsDir, 'user-skill') },
+        ...(builtinSkillsDir
+          ? [{ name: 'builtin-skill', baseDir: join(builtinSkillsDir, 'builtin-skill') }]
+          : []),
+        { name: 'agent-skill', baseDir: join(agentDirSkills, 'agent-skill') },
+        { name: 'home-skill', baseDir: join(homeAgentsSkills, 'home-skill') }
       ],
       diagnostics: []
     }
@@ -215,8 +229,8 @@ describe('pi-backend service.ts trust gate + skills 单源（2026-09-16 层 1 + 
     }) => { skills: Array<{ baseDir: string }> }
     const input = {
       skills: [
-        { name: 'unrelated', baseDir: '/totally/unrelated/path' },
-        { name: 'agent', baseDir: join(rootDir, 'pi-agent', 'skills') }
+        { name: 'unrelated', baseDir: join('/totally/unrelated/path', 'unrelated') },
+        { name: 'agent', baseDir: join(rootDir, 'pi-agent', 'skills', 'agent') }
       ],
       diagnostics: []
     }
@@ -234,7 +248,7 @@ describe('pi-backend service.ts trust gate + skills 单源（2026-09-16 层 1 + 
     ) => unknown
     const diagnostics = [{ type: 'collision', message: 'test' }]
     const input = { skills: [], diagnostics }
-    const filtered = override(input) as { diagnostics: unknown[] }
+    const filtered = override(input) as SkillsOverrideDiagnosticsResult
     expect(filtered.diagnostics).toBe(diagnostics)
   })
 

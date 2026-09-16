@@ -37,7 +37,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import {
   createAgentSession,
@@ -521,7 +521,12 @@ export function createPiChatService({
       ],
       skillsOverride: (result) => ({
         ...result,
-        skills: result.skills.filter((skill: Skill) => allowedSkillBaseDirs.has(skill.baseDir))
+        // skill.baseDir 语义 = SKILL.md 所在目录（<skills源目录>/<skill名>），
+        // 白名单装的是源目录本身——比对须取 dirname 上溯一层（2026-09-16 CI
+        // t87 端到端④实证：直比 baseDir 全员滤空，/skill: 展开失效）
+        skills: result.skills.filter((skill: Skill) =>
+          allowedSkillBaseDirs.has(dirname(skill.baseDir))
+        )
       }),
       extensionFactories
     })
