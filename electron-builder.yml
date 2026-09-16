@@ -64,6 +64,14 @@ extraResources:
       - "!linux-unpacked/**"
       - "!mac-arm64/**"
       - "!**/*.map"
+  # 发版合规项：随 Windows 安装包分发第三方许可证声明——OFL 字体（必须随字
+  # 体文件同包）/ BSD-3 canvaskit.wasm（BSD 三条义务）/ npm 生产闭包的全套
+  # LICENSE 全文。生成器由 package.json#notices:generate 在 package:win
+  # 链首部跑，落点 build/.generated/THIRD-PARTY-NOTICES.txt 平铺到
+  # resources/app/ 与 dist/ 同位，运行时按需读取（目前仅作分发凭证，不读
+  # 入进程——OFL/BSD 的"随附"义务在分发端即满足）。
+  - from: build/.generated/THIRD-PARTY-NOTICES.txt
+    to: app/THIRD-PARTY-NOTICES.txt
 
 # 入口主进程 bundle——打进 asar（dist-main/*.mjs 是 Electron 主进程代码，体
 # 积小、走 asar 提升冷启动）。

@@ -10,6 +10,7 @@
     "spikes/",
     "attic/",
     "tools/rebuild/",
+    "tools/release/",
     "src/app/ai/pi-backend/",
     "tools/cn-font-catalog/",
     "src/components/assistant/",
@@ -226,7 +227,7 @@
     {
       "id": "P17",
       "file": "package.json",
-      "reason": "workspaces (-docs/-tools-docs), scripts (-tauri/-wdio/-docs/*, +check:zones), deps (-wdio/-tauri-cli/-pwa/-yjs-family/-trystero) T10: workspaces += packages/harness（上游新增 pi harness 包，保 harness 裁 ACP 决策随附）；lint/format 路径同步加 packages/harness T19: deps += @earendil-works/pi-coding-agent@0.84.2 + pi-ai@0.84.2 + typebox@1.3.7（精确钉扎，升级走 03 §5.5 窗口）T20: scripts += dev:backend（独立运行 pi 后端进程，不经 vite） T25: workspaces/scripts/deps 去 packages/harness；deps 去五个浏览器直调 AI SDK provider（@ai-sdk/anthropic、deepseek、google、openai、@openrouter/ai-sdk-provider） T27(2026-08-25): scripts += smoke:pi（免 key/浏览器/dev-server 自含批次：t22 target+history、t23 sessions、t24 prompt-assembly）+ smoke:pi:ui（需 dev server 1420 + playwright chromium，免 key 的三个 bind 冒烟，必须 node 跑） T28(2026-08-25): format:check 判据修正（决策单 #10）——改 oxfmt --check 原路径集（与 format 同口径），不写入、不依赖净树（CI 干净树语义等价，本地脏树不再结构性必红）；smoke:pi += t28/session-gc-smoke.mjs（决策单 #2 GC 归档冒烟，凑成五套件）",
+      "reason": "workspaces (-docs/-tools-docs), scripts (-tauri/-wdio/-docs/*, +check:zones), deps (-wdio/-tauri-cli/-pwa/-yjs-family/-trystero) T10: workspaces += packages/harness（上游新增 pi harness 包，保 harness 裁 ACP 决策随附）；lint/format 路径同步加 packages/harness T19: deps += @earendil-works/pi-coding-agent@0.84.2 + pi-ai@0.84.2 + typebox@1.3.7（精确钉扎，升级走 03 §5.5 窗口）T20: scripts += dev:backend（独立运行 pi 后端进程，不经 vite） T25: workspaces/scripts/deps 去 packages/harness；deps 去五个浏览器直调 AI SDK provider（@ai-sdk/anthropic、deepseek、google、openai、@openrouter/ai-sdk-provider） T27(2026-08-25): scripts += smoke:pi（免 key/浏览器/dev-server 自含批次：t22 target+history、t23 sessions、t24 prompt-assembly）+ smoke:pi:ui（需 dev server 1420 + playwright chromium，免 key 的三个 bind 冒烟，必须 node 跑） T28(2026-08-25): format:check 判据修正（决策单 #10）——改 oxfmt --check 原路径集（与 format 同口径），不写入、不依赖净树（CI 干净树语义等价，本地脏树不再结构性必红）；smoke:pi += t28/session-gc-smoke.mjs（决策单 #2 GC 归档冒烟，凑成五套件） 2026-09-16：scripts += notices:generate（THIRD-PARTY-NOTICES 生成器，bun tools/release/src/third-party-notices.ts 跑 npm 生产闭包 + curated vendored 资产 → build/.generated/THIRD-PARTY-NOTICES.txt）；package:win 链首部串 notices:generate（先于 build:packages，让每次发版自动生成最新声明）",
       "disposition": "permanent",
       "lastReviewed": "2026-08-25"
     },
@@ -360,7 +361,7 @@
     {
       "id": "P36",
       "file": ".gitignore",
-      "reason": "ignore .openpencil/ (T19 pi backend local session state) T27(2026-08-25): scratch/ 行保留理由注记（steiger 规则指定试验 spec 放置区，非死配置）",
+      "reason": "ignore .openpencil/ (T19 pi backend local session state) T27(2026-08-25): scratch/ 行保留理由注记（steiger 规则指定试验 spec 放置区，非死配置） 2026-09-16：+= build/.generated/（THIRD-PARTY-NOTICES 生成器落点，package:win 链首部再生成，gitignored 不入库）+ !tools/release/ 豁免（避免上方 release/ 通配误伤工具源）",
       "disposition": "permanent",
       "lastReviewed": "2026-08-25"
     },
@@ -1559,6 +1560,14 @@
       "reason": "2026-09-16：version 0.14.0→0.1.0——owner 拍板发版策略：fork 自主谱系重新计数，与上游 OpenPencil 版本号脱钩（发版策略批）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-16"
+    },
+    {
+      "id": "P268",
+      "file": "tools/release/src/third-party-notices.ts",
+      "reason": "2026-09-16：THIRD-PARTY-NOTICES 生成器（发版合规项）——walk 根+workspace 闭包的 production deps（含 bun .bun/node_modules 提升 + 嵌套兜底），按 license 文本 SHA-256 去重输出 build/.generated/THIRD-PARTY-NOTICES.txt；curated 段内嵌 OFL 1.1 canonical 全文覆盖 AlibabaPuHuiTi / Inter / NotoNaskhArabic，canvaskit.wasm 同 BSD-3 与 npm canvaskit-wasm 同版权声明。electron-builder.yml extraResources 平铺到 resources/app/THIRD-PARTY-NOTICES.txt 履行 OFL/BSD 随附义务",
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-16",
+      "retiredReason": "文件改登记于 ownedRoots[] (tools/release/) 后此 patch 条目冗余且会触发 R-diff（未追踪新建文件与 base 无 diff）；保留作为本次变更设计意图记录——check.ts R-diff / R-mutex 均豁免 revoked 条目"
     }
   ],
   "deletedPaths": [
