@@ -136,22 +136,32 @@ describe('pi-backend service prompt 驱逐重建（2026-09-16 拍板②：切换
     const service = makeService()
     let release!: () => void
     let started!: () => void
+    let inflight = true
     const runStarted = new Promise<void>((resolve) => {
       started = resolve
     })
-    promptImpl = () =>
-      new Promise<void>((resolve) => {
-        release = resolve
+    // 一次性闸门：重建后的第二个 run 再进 promptImpl 必须直通——若同样挂闸，
+    // release 一击只能解第一个 run，await second 永久悬置（CI 5000ms 超时空挂
+    // 实证：本地曾被 `| tail` 吞 exit code 误判绿）
+    promptImpl = () => {
+      if (!inflight) return Promise.resolve()
+      return new Promise<void>((resolve) => {
+        release = () => {
+          inflight = false
+          resolve()
+        }
         started()
       })
+    }
     const first = service.prompt('sess-inflight', 'hi', () => undefined, { model: SPEC_A })
     await runStarted
 
     const second = service.prompt('sess-inflight', 'hi again', () => undefined, {
       model: SPEC_B
     })
-    // 旧 run 未收尾：驱逐必须等待——不 dispose、不重建（负断言给一拍微任务+短
-    // 计时窗口；正断言在 release 后兜底，慢 CI 无假阴性）
+    // 旧 run 未收尾：驱逐必须等待——不 dispose、不重建（负断言由 queue 串行
+    // 语义确定性保证：dispose 只能发生在 previous.queue 落定之后，而落定
+    // 需要 release；50ms 窗口只是给潜在抢跑留暴露机会）
     await new Promise((resolve) => {
       setTimeout(resolve, 50)
     })
