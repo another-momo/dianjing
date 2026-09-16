@@ -966,9 +966,9 @@
     {
       "id": "P181",
       "file": "SECURITY.md",
-      "reason": "Batch 2c（2026-09-05）：「MCP server」章节改写为「Automation bridge」（MCP 协议外壳裁撤，安全面收敛到内部桥）",
+      "reason": "Batch 2c（2026-09-05）：「MCP server」章节改写为「Automation bridge」（MCP 协议外壳裁撤，安全面收敛到内部桥）。2026-09-16 owner 裁不开 PVR：Reporting 节重写——漏洞报告改走本仓 Issues（原指上游 advisories 私密通道）；bridge 节保留",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-05"
+      "lastReviewed": "2026-09-16"
     },
     {
       "id": "P184",
@@ -1482,9 +1482,31 @@
       "reason": "2026-09-16 rebrand 版权头（owner 拍板）：上游 MIT 版权行保留（MIT 唯一强制条件=声明随副本分发）+ 新增 Dianjing 行；同轮 review 加范围限定——“(original portions)”/“(portions derived from OpenPencil)”，避免整库归属上游误读",
       "disposition": "permanent",
       "lastReviewed": "2026-09-16"
+    },
+    {
+      "id": "P257",
+      "file": ".github/PULL_REQUEST_TEMPLATE.md",
+      "reason": "2026-09-16 owner 政策落地（接受 issue 不收代码，无审核带宽）：模板整体替换为不收 PR 告示 + 指 issues；原上游模板含 advisory 上游链接 + CONTRIBUTING/CHANGELOG 死引用",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-16"
+    },
+    {
+      "id": "P258",
+      "file": ".github/ISSUE_TEMPLATE/config.yml",
+      "reason": "2026-09-16 owner 裁不开 PVR：contact_links 清空——漏洞报告随普通 issue 流（原 contact_link 指上游 advisories 页，fork 自有代码报上游无人能修）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-16"
+    },
+    {
+      "id": "P259",
+      "file": ".github/copilot-instructions.md",
+      "reason": "2026-09-16 重写为 fork 版：去 OpenPencil 标题/Tauri（已裁）/English PR 要求/CHANGELOG 与 CONTRIBUTING 死引用；保留与本仓 lint 一致的约定（no any/禁非空断言/getRandomValues/Vue 无 style 块）+ 唯一向导锚 AGENTS.md",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-16"
     }
   ],
   "deletedPaths": [
+    ".coderabbit.yaml",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
     "desktop",

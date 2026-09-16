@@ -2,25 +2,9 @@
 
 ## Reporting a Vulnerability
 
-Please do not report security vulnerabilities through public GitHub issues or pull requests.
+请通过 [GitHub Issues](https://github.com/another-momo/dianjing/issues) 报告安全问题——个人维护项目，现阶段接受公开报告（正式发布后将评估私密报告通道）。
 
-If you believe you have found a security issue in OpenPencil, report it privately using GitHub Security Advisories:
-
-https://github.com/open-pencil/open-pencil/security/advisories/new
-
-Please include as much detail as possible:
-
-- Affected version or commit
-- Reproduction steps
-- Proof of concept, if available
-- Expected impact
-- Whether the issue is already public
-
-We will investigate privately before discussing details in public. If the report is confirmed, we will coordinate a fix and credit the reporter unless they prefer not to be named.
-
-## Disclosure
-
-Please give us a reasonable opportunity to investigate and release a fix before publishing details publicly.
+如方便请附上：受影响版本或 commit、复现步骤、影响范围。
 
 ## Automation bridge
 
