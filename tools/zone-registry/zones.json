@@ -479,7 +479,7 @@
     {
       "id": "P59",
       "file": "AGENTS.md",
-      "reason": "T29(2026-08-25): 决策单 #14 根文档最小指针——Documentation 节新增 2 行 docs/rebuild/README.md + tracker.md 指针（contributor/agent 可见 rebuild 跟踪）；78c717abd 已重写为 fork 自持向导；2026-09-08 上游合并：采上游 Settings UI ownership/family 重组语义一行（§3 末条），上游长文段（含 tauri 凭证细节）不入",
+      "reason": "T29(2026-08-25): 决策单 #14 根文档最小指针——Documentation 节新增 2 行 docs/rebuild/README.md + tracker.md 指针（contributor/agent 可见 rebuild 跟踪）；78c717abd 已重写为 fork 自持向导；2026-09-08 上游合并：采上游 Settings UI ownership/family 重组语义一行（§3 末条），上游长文段（含 tauri 凭证细节）不入；2026-09-16：协作摘要补主 agent 手动操作禁令（owner 明令——未经允许禁安装/卸载软件、禁清理 worktree 以外文件；打包版装卸验收险毁 dev 共享状态根实证，仓外 §6 同款）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-08",
       "task": "T29"

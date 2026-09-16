@@ -11,7 +11,7 @@
 
 ## 2. 协作摘要（最低限度规则）
 
-- 主 agent 唯一允许：git 写（commit / merge-back）、browser 实测、gh 操作。
+- 主 agent 唯一允许：git 写（commit / merge-back）、browser 实测、gh 操作；**未经允许禁安装/卸载软件、禁清理 worktree 以外文件**（owner 2026-09-16 明令，仓外 §6 同款——打包版装卸交 owner 人工）。
 - worker（subagent）：限定范围实现 + 目标测试文件；**禁**全量 test / dev / build、commit / push、`gh run rerun`；browser 默认禁——Playwright MCP 与主 agent 共享浏览器单例，派单显式授权时方可自验证且须互斥。commit / push 可经 owner 专项派单授权解禁（授权范围以派单文本为准）。
 - push：主 agent 每次收口 commit 后顺势推；失败允许重试 3 次、每次间隔 30s，仍败走 Data API 兜底脚本（`tools/git-rescue/src/data-api-push.ts`，api.github.com 通路独立于 git 传输层），再败积压归 owner。worker 禁 push。
 - gh 命令一律带 `-R another-momo/dianjing`。
