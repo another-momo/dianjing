@@ -52,7 +52,8 @@ import {
   readNewIntent,
   registerBriefDesignEntry,
   setDesignUniqueId,
-  type BriefCandidate
+  type BriefCandidate,
+  type NewIntentState
 } from './brief'
 import { SETUP_TEXTS } from './texts'
 
@@ -309,6 +310,36 @@ function createDesignRoot(
 }
 
 /**
+ * T91b 新建意图确认门：args 一次性（每调携带）、pluginData 持久（用户答「是」
+ * 后写一次）——任一为真即放行（返 null）。二者皆未成立 → 返 awaiting 信封
+ * （非错误）——前端 ChatPanel 拦截展示 ChatNewIntentCard，用户确认 → POST
+ * intent-confirm → 写入 pluginData → 重放工具调用，AI 不应自行重试。
+ * A3 B6：守卫收窄——纯 general（无 profileId）静默放行；general+profile 未
+ * 确认仍拦。纯通用工作区无 workflow/profile 绑定——无高风险参数，不需确认。
+ */
+function checkNewIntentGate(
+  args: SetupDesignArgs,
+  pluginState: NewIntentState,
+  catalog?: SetupCatalog
+): SetupDesignResult | null {
+  const argsConfirmed = args.confirmedNewIntent === true
+  const isPureGeneral = args.modeId === SETUP_GENERAL_MODE_ID && args.profileId === undefined
+  if (argsConfirmed || pluginState.confirmed || isPureGeneral) return null
+  return {
+    status: 'awaiting_new_intent_confirmation',
+    proposed: {
+      modeId: args.modeId,
+      // T91b：args 缺 profileId 时回退 pluginData，让 envelope 携带一致信息
+      // （前端 ChatAwaitingIntentCard 显示"风格"列需用）
+      profileId: args.profileId ?? pluginState.profileId,
+      briefId: args.briefId
+    },
+    catalog: catalog ?? { modes: [], profileIds: [] },
+    message: SETUP_TEXTS.unconfirmedNewIntent
+  }
+}
+
+/**
  * 新建一张营销设计：校验（确认意图 → brief → mode → profile）→ 建框 →
  * 身份落盘 → brief 关联登记 → 视口聚焦。窄化后无领养无幂等——同参数再调
  * 恒新建第二框（最小空闲名递增）。
@@ -326,29 +357,9 @@ export function setupDesign(
 ): SetupDesignResult {
   const graph = figma.graph
 
-  // T91b 新建意图确认拦截。args 一次性（每调携带）、
-  // pluginData 持久（用户答「是」后写一次）——任一为真即放行。
-  // 二者皆未成立 → 返 awaiting 信封，AI 不应自行重试（前端拦截强制用户介入）。
-  // A3 B6：守卫收窄——纯 general（无 profileId）静默放行；general+profile 未确认仍拦。
-  // 纯通用工作区无 workflow/profile 绑定——无高风险参数，不需确认。
   const pluginState = readNewIntent(figma)
-  const argsConfirmed = args.confirmedNewIntent === true
-  const pluginConfirmed = pluginState.confirmed
-  const isPureGeneral = args.modeId === SETUP_GENERAL_MODE_ID && args.profileId === undefined
-  if (!argsConfirmed && !pluginConfirmed && !isPureGeneral) {
-    return {
-      status: 'awaiting_new_intent_confirmation',
-      proposed: {
-        modeId: args.modeId,
-        // T91b：args 缺 profileId 时回退 pluginData，让 envelope 携带一致信息
-        // （前端 ChatAwaitingIntentCard 显示"风格"列需用）
-        profileId: args.profileId ?? pluginState.profileId,
-        briefId: args.briefId
-      },
-      catalog: catalog ?? { modes: [], profileIds: [] },
-      message: SETUP_TEXTS.unconfirmedNewIntent
-    }
-  }
+  const gate = checkNewIntentGate(args, pluginState, catalog)
+  if (gate) return gate
 
   const resolution = findBrief(figma, args.briefId === '' ? undefined : args.briefId)
   if (resolution.status === 'not-found') {
@@ -404,7 +415,7 @@ export function setupDesign(
   // T91b：成功落图后清 newIntent 三键，避免下次装配点读到陈旧 modeId。
   // 仅当本次通过 pluginData 确认时清；args 一次性确认路径（程序化调用）不污染
   // 共享 document root。
-  if (pluginConfirmed) clearNewIntent(figma)
+  if (pluginState.confirmed) clearNewIntent(figma)
 
   return {
     rootId: root.id,

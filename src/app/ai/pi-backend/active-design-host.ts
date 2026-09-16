@@ -555,10 +555,10 @@ function effectiveIdentity(
 ): { modeId: string; profileId: string } {
   // intent 优先（与 resolveTurnAssets 同语义）：信封 > probe > slot
   const useIntent = envelopeIntent && envelopeIntent.modeId !== ''
-  if (useIntent && envelopeIntent) {
+  if (useIntent) {
     return { modeId: envelopeIntent.modeId, profileId: envelopeIntent.profileId }
   }
-  if (probeIntent && probeIntent.confirmed && probeIntent.modeId !== '') {
+  if (probeIntent?.confirmed && probeIntent.modeId !== '') {
     return { modeId: probeIntent.modeId, profileId: probeIntent.profileId }
   }
   if (slot.status === 'ok') {
@@ -574,6 +574,13 @@ function identityChanged(
   return a.modeId !== b.modeId || a.profileId !== b.profileId
 }
 
+/** X/Y 侧 modeId 显示值：空身份与 general 各有固定措辞，其余原样透出。 */
+function identityModeDisplay(modeId: string): string {
+  if (modeId === '') return EMPTY_IDENTITY_DISPLAY
+  if (modeId === 'general') return GENERAL_MODE_DISPLAY
+  return modeId
+}
+
 /** 渲染身份差分通知文案。Y=general 表述为「通用（无专项流程，走基础路由）」；
  *  X=空身份（首回合后从空槽到有身份）表述为「通用」同理处理。 */
 function buildIdentityDiffNotice(
@@ -582,18 +589,8 @@ function buildIdentityDiffNotice(
   source: string
 ): string {
   const modeChanged = prev.modeId !== curr.modeId
-  const xModeDisplay =
-    prev.modeId === ''
-      ? EMPTY_IDENTITY_DISPLAY
-      : prev.modeId === 'general'
-        ? GENERAL_MODE_DISPLAY
-        : prev.modeId
-  const yModeDisplay =
-    curr.modeId === ''
-      ? EMPTY_IDENTITY_DISPLAY
-      : curr.modeId === 'general'
-        ? GENERAL_MODE_DISPLAY
-        : curr.modeId
+  const xModeDisplay = identityModeDisplay(prev.modeId)
+  const yModeDisplay = identityModeDisplay(curr.modeId)
   if (modeChanged) {
     return ACTIVE_DESIGN_TEXTS.modeSwitchedNotice(xModeDisplay, yModeDisplay, source)
   }
@@ -601,6 +598,17 @@ function buildIdentityDiffNotice(
     return ACTIVE_DESIGN_TEXTS.profileSwitchedNotice(prev.profileId, curr.profileId, source)
   }
   return ''
+}
+
+/** B2.③：参数锁定行注入——intent 任一源（信封 / pluginData 探针）确认后构
+ *  confirmedLine 推入 notices。两路径共用同一注入体，行为归一、不重复注入。 */
+function pushConfirmedIntentLine(notices: string[], intent: NewIntentState): void {
+  const confirmedLine = ACTIVE_DESIGN_TEXTS.newIntentConfirmed({
+    modeId: intent.modeId || undefined,
+    profileId: intent.profileId || undefined,
+    canvas: intent.canvas || undefined
+  })
+  if (confirmedLine !== '') notices.push(confirmedLine)
 }
 
 export interface ActiveDesignHostDeps {
@@ -783,15 +791,9 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
         }
         // T65 集成缺口修复：确认参数随本回合 context 对 AI 可见（选择即锁定）。
         // B2.③：参数锁定行扩展为 intent 任一源——probeSlotState 之后从
-        // envelope（优先）或 probe.newIntent 取 modeId/profileId/canvas 构
-        // confirmedLine，统一注入点。信封路径与 pluginData 持久路径行为归一，
-        // 不得重复注入：本回合 envelope 在场时即用 envelope 的参数锁。
-        const confirmedLine = ACTIVE_DESIGN_TEXTS.newIntentConfirmed({
-          modeId: envelopeIntent.modeId || undefined,
-          profileId: envelopeIntent.profileId || undefined,
-          canvas: envelopeIntent.canvas || undefined
-        })
-        if (confirmedLine !== '') intentNotices.push(confirmedLine)
+        // envelope（优先）或 probe.newIntent 取参数构 confirmedLine，统一注入
+        // （pushConfirmedIntentLine）。信封路径与持久路径行为归一、不重复注入。
+        pushConfirmedIntentLine(intentNotices, envelopeIntent)
         // A3：B3 触发源标定——本回合信封在场 = 用户确认新建
         pendingSource = IDENTITY_DIFF_SOURCES.userConfirmedNew
       }
@@ -811,12 +813,7 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
       if (!intentConfirmed && probeConfirmed) intentConfirmed = true
       // B2.③：信封未在场、pluginData 已确认 → 同样注入参数锁定行（持久路径行为归一）
       if (!envelope && probeConfirmed && probeIntent) {
-        const confirmedLine = ACTIVE_DESIGN_TEXTS.newIntentConfirmed({
-          modeId: probeIntent.modeId || undefined,
-          profileId: probeIntent.profileId || undefined,
-          canvas: probeIntent.canvas || undefined
-        })
-        if (confirmedLine !== '') intentNotices.push(confirmedLine)
+        pushConfirmedIntentLine(intentNotices, probeIntent)
         // A3：B3 触发源标定——无信封但 pluginData 已确认 = 用户确认新建（持久路径）
         pendingSource = IDENTITY_DIFF_SOURCES.userConfirmedNew
       }

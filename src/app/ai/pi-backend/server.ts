@@ -218,15 +218,12 @@ async function handleIntentConfirmRequest(
   // T98-路由：windowId/documentId 随确认请求直传——多窗时按发起窗路由桥调用
   const windowId = optionalString(body.windowId)
   const documentId = optionalString(body.documentId)
-  const result = await service.confirmNewIntent(
-    {
-      modeId: body.modeId,
-      ...(typeof body.profileId === 'string' ? { profileId: body.profileId } : {}),
-      ...(typeof body.canvas === 'string' ? { canvas: body.canvas } : {})
-    },
-    documentId,
-    windowId
-  )
+  const confirmArgs: { modeId: string; profileId?: string; canvas?: string } = {
+    modeId: body.modeId
+  }
+  if (typeof body.profileId === 'string') confirmArgs.profileId = body.profileId
+  if (typeof body.canvas === 'string') confirmArgs.canvas = body.canvas
+  const result = await service.confirmNewIntent(confirmArgs, documentId, windowId)
   if (result.ok) {
     sendJSON(res, 200, {
       ok: true,

@@ -101,6 +101,14 @@ export function modeSizeChoices(mode: unknown): NewIntentSizeChoice[] {
   return normalizeSizeChoices((mode as { sizes?: unknown }).sizes)
 }
 
+/** C2：确认卡尺寸行预设解析——选中 mode 的 manifest.sizes 投影优先；
+ *  general 退出 studio manifest（A3 波1 删 workflows/general/）后投影恒空，
+ *  回退 GENERAL_SIZE_CHOICES 通用预设；其余未知 mode 给空（只留自定义输入）。 */
+export function intentSizeChoices(modeId: string, modeEntry: unknown): NewIntentSizeChoice[] {
+  if (modeEntry) return modeSizeChoices(modeEntry)
+  return modeId === 'general' ? GENERAL_SIZE_CHOICES : []
+}
+
 // ── 宿主发起的 data part 类型 ────────────────────────────────────────────────
 
 /** 新建意图确认卡（宿主发起非工具 part，T56 卡片范式） */

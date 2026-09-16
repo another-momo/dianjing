@@ -57,9 +57,8 @@ import Tip from '@/components/ui/overlay/Tip.vue'
 import {
   ACTIVE_DESIGN_DECISION_PART_TYPE,
   CONTEXT_SWITCH_PART_TYPE,
-  GENERAL_SIZE_CHOICES,
   NEW_INTENT_PART_TYPE,
-  modeSizeChoices,
+  intentSizeChoices,
   parseSetActiveDesignProposed,
   postActiveDesign,
   postIntentConfirm,
@@ -537,10 +536,8 @@ async function interceptNewIntent(
   intent: { modeId: string; profileId: string | null }
 ): Promise<boolean> {
   const active = piActiveDesign.value
-  // T65：尺寸行预设 = 选中 mode 的 manifest.sizes 投影（[{label,canvas}] 契约，
-  // 防御性归一在 modeSizeChoices；数据面由 core/manifest 侧落地）。
-  // C2：general 退出 studio manifest（波1 删 workflows/general/），
-  // modeSizeChoices 投影恒空——fallback 到 GENERAL_SIZE_CHOICES 通用预设。
+  // T65：尺寸行预设 = 选中 mode 的 manifest.sizes 投影（数据面由 core/manifest
+  // 侧落地）；C2 general 退出 manifest 后的通用回退封装在 intentSizeChoices。
   const modeEntry = piStudioManifest.value?.modes.find((mode) => mode.id === intent.modeId) ?? null
   // A3 C1：物化判据已退役——勾选股删除后 Case A/B 分叉理由塌，统一卡面
   // 对物化前后无条件为真。
@@ -548,11 +545,7 @@ async function interceptNewIntent(
     modeId: intent.modeId,
     profileId: intent.profileId,
     activeDesignName: active?.name ?? null,
-    sizeChoices: modeEntry
-      ? modeSizeChoices(modeEntry)
-      : intent.modeId === 'general'
-        ? GENERAL_SIZE_CHOICES
-        : [],
+    sizeChoices: intentSizeChoices(intent.modeId, modeEntry),
     resolved: null
   }
   const message = await appendHostMessage([{ type: NEW_INTENT_PART_TYPE, data }])
@@ -605,11 +598,10 @@ async function handleIntentConfirm(payload: {
   // 再 handleSubmit。失败降级为现行一次性信封语义（信封照发，P0-1 兼容路径保留），
   // 不阻断发送。canvas 取确认卡尺寸行当前值（与信封 canvas 同源）。
   if (intent?.modeId) {
-    await postIntentConfirm({
-      modeId: intent.modeId,
-      ...(intent.profileId ? { profileId: intent.profileId } : {}),
-      ...(payload.canvas ? { canvas: payload.canvas } : {})
-    })
+    const confirmArgs: Parameters<typeof postIntentConfirm>[0] = { modeId: intent.modeId }
+    if (intent.profileId) confirmArgs.profileId = intent.profileId
+    if (payload.canvas) confirmArgs.canvas = payload.canvas
+    await postIntentConfirm(confirmArgs)
   }
   // 共享契约 1 逐字信封（全字段可缺省；T65 §2.4 扩展 canvas）+ 用户消息；
   // 宿主（T60/T65）剥离置旗标
@@ -739,11 +731,10 @@ async function handleIntentAwaitingConfirm(payload: {
 }): Promise<void> {
   if (awaitingIntentDecisions.value.has(payload.toolCallId)) return
   awaitingIntentDecisions.value.add(payload.toolCallId)
-  const result = await postIntentConfirm({
-    modeId: payload.modeId,
-    ...(payload.profileId !== '' ? { profileId: payload.profileId } : {}),
-    ...(payload.canvas ? { canvas: payload.canvas } : {})
-  })
+  const confirmArgs: Parameters<typeof postIntentConfirm>[0] = { modeId: payload.modeId }
+  if (payload.profileId !== '') confirmArgs.profileId = payload.profileId
+  if (payload.canvas) confirmArgs.canvas = payload.canvas
+  const result = await postIntentConfirm(confirmArgs)
   // T91b：截停当前 SSE 流——AI 不再继续重放 setup_design。
   // 用户主动重发消息即可（pluginData 已落，下次 prepareTurn 真源命中 → core 放行）。
   try {
