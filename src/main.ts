@@ -19,7 +19,7 @@ preloadFonts()
 // 剩余等待 = 保底时长 − 已流逝，避免「包加载慢就砍动画」。
 const SPLASH_MIN_MS = import.meta.env.PROD
   ? 2500
-  : (Number(new URLSearchParams(location.search).get('splashMs')) || 0)
+  : Number(new URLSearchParams(location.search).get('splashMs')) || 0
 
 const head = createHead()
 createApp(App).use(router).use(head).mount('#app')
