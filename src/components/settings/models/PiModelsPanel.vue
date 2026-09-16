@@ -247,19 +247,6 @@ function contextLabel(model: PiCatalogModel): string {
   return `${Math.round(model.contextWindow / 1024)}k`
 }
 
-function thinkingLabel(level: PiThinkingLevel): string {
-  // T38：useForkPi() 返回 Ref，script 内访问必须 .value（模板插值不在此列）
-  const labels: Record<PiThinkingLevel, string> = {
-    off: dialogs.value.thinkingOff,
-    minimal: dialogs.value.thinkingMinimal,
-    low: dialogs.value.thinkingLow,
-    medium: dialogs.value.thinkingMedium,
-    high: dialogs.value.thinkingHigh,
-    xhigh: dialogs.value.thinkingExtraHigh
-  }
-  return labels[level]
-}
-
 /** T97：provider 行"当前"check 派生（§4.3 约束 1 单指派语义视觉显式） */
 function isCurrentProvider(providerId: string): boolean {
   return isCurrentAssignment(providerId, piDesignAssignment.value)

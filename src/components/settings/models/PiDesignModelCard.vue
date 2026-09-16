@@ -25,12 +25,13 @@ import { computed, ref } from 'vue'
 
 import type { PiDesignAssignment } from '@/app/ai/pi-backend/assignment'
 import type { PiCatalogModel, PiCatalogProvider } from '@/app/ai/pi-backend/catalog'
-import type { PiThinkingLevel, VerifyResultClass } from '@/app/ai/pi-backend/client'
+import type { PiThinkingLevel } from '@/app/ai/pi-backend/client'
 import {
   classifyAuthSource,
   filterCatalogModels,
   filterCatalogProviders,
-  groupProvidersByConfigured
+  groupProvidersByConfigured,
+  type VerifyResultClass
 } from '@/app/ai/pi-backend/models-panel-rules'
 import { useForkPi } from '@/app/i18n/fork'
 import Tip from '@/components/ui/overlay/Tip.vue'
