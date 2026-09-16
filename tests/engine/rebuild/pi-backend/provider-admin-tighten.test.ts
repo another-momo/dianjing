@@ -7,7 +7,8 @@
  *    401 ok=false / 200/400 ok=true / 5xx 与网络异常不确定 / 非 openai 形态不支持
  *
  * 测试拓扑：真 createProviderAdmin（与 production 同源）+ 真 ModelRuntime
- * （seed models.json 自动写盘）；stub 全局 fetch 控验真状态码，禁打真实网络。
+ * （models.json 缺失 = 纯内置目录——2026-09-16 种子退役，不再自动写盘）；
+ * stub 全局 fetch 控验真状态码，禁打真实网络。
  * 无 vueuse/DOM 依赖，无 dev server 联动。
  *
  * 注：resolveModel 类型已收紧为 spec: ModelSpec；测无 spec 路径需 `as never`。
@@ -76,7 +77,7 @@ describe('a. resolveModel spec 必填（T100）', () => {
     ).rejects.toThrow(/不在目录中/)
   })
 
-  test('有效 spec（seed openrouter/free）→ 返回 model + runtime', async () => {
+  test('有效 spec（内置 openrouter/free）→ 返回 model + runtime', async () => {
     const admin = createProviderAdmin({ agentDir })
     const { model, modelRuntime } = await admin.resolveModel({
       providerId: 'openrouter',
@@ -93,6 +94,14 @@ describe('a. resolveModel spec 必填（T100）', () => {
     const { model } = await admin.resolveModel({ providerId: 'my-local', modelId: 'local-model' })
     expect(model.provider).toBe('my-local')
     expect(model.id).toBe('local-model')
+  })
+
+  test('models.json 缺失 → 不落盘任何文件；openrouter/free 由内置目录供给（2026-09-16 种子退役）', async () => {
+    const admin = createProviderAdmin({ agentDir })
+    const catalog = await admin.getCatalog()
+    expect(existsSync(join(agentDir, 'models.json'))).toBe(false)
+    const openrouter = catalog.providers.find((p) => p.id === 'openrouter')
+    expect(openrouter?.models.some((m) => m.id === 'openrouter/free')).toBe(true)
   })
 })
 
@@ -172,7 +181,7 @@ describe('b. deleteProvider 三态（T100 C1）', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('c. verifyCredential 状态码分档（T100 B1）', () => {
-  /** 写 openrouter seed（auth.json + models.json） */
+  /** 写 openrouter fixture（auth.json + models.json 自定义条目） */
   function writeOpenrouterSeed(key: string): void {
     mkdirSync(agentDir, { recursive: true })
     writeFileSync(

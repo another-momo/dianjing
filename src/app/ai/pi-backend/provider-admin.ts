@@ -5,8 +5,8 @@
  *
  * 职责：
  *  - ModelRuntime 生命周期（authPath/modelsPath 固定于 agentDir，即
- *    .dianjing/pi-agent/；models.json 缺失时写种子——openrouter/free 免费
- *    默认路由，纯配置无秘密）
+ *    .dianjing/pi-agent/；models.json 缺失 = 纯内置目录——2026-09-16
+ *    openrouter/free 种子退役，实证其覆写降级内置条目）
  *  - catalog 序列化（白名单字段；凭据只回 {configured,type,source} 元数据，
  *    永不回 key 本体）
  *  - 凭据写路径：首选 ModelRuntime.login('api_key', scripted interaction)
@@ -58,27 +58,6 @@ export type CustomProviderInput = {
   >
 }
 
-/** 种子 models.json：openrouter/free 免费默认路由（T19 起的产品默认，纯配置） */
-const SEED_MODELS_JSON = {
-  providers: {
-    openrouter: {
-      apiKey: '$OPENROUTER_API_KEY',
-      models: [
-        {
-          id: 'openrouter/free',
-          name: 'OpenRouter Free (meta route)',
-          api: 'openai-completions',
-          reasoning: false,
-          input: ['text'],
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-          contextWindow: 65536,
-          maxTokens: 8192
-        }
-      ]
-    }
-  }
-} as const
-
 const PROVIDER_ID_PATTERN = /^[a-z0-9-]+$/
 
 /** T27：models.json 最小结构校验——启动/重建 runtime 前 fail-fast；
@@ -89,7 +68,7 @@ function validateModelsDoc(raw: string, modelsPath: string): void {
     doc = JSON.parse(raw)
   } catch {
     throw new Error(
-      `models.json 不是合法 JSON（${modelsPath}）——修复或删除后重启（缺失时会自动重建种子）`
+      `models.json 不是合法 JSON（${modelsPath}）——修复或删除后重启（缺失即纯内置目录，合法）`
     )
   }
   const providers = (doc as { providers?: unknown } | null)?.providers
@@ -129,9 +108,11 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
   function ensureRuntime(): Promise<ModelRuntime> {
     runtimePromise ??= (async () => {
       mkdirSync(agentDir, { recursive: true })
-      if (!existsSync(modelsPath)) {
-        writeFileSync(modelsPath, JSON.stringify(SEED_MODELS_JSON, null, 2))
-      } else {
+      // 2026-09-16 种子退役：models.json 缺失 = 纯内置目录（SDK ModelConfig.load
+      // ENOENT 容忍），不再写盘。旧种子（openrouter/free 覆写）实证降级内置
+      // 条目——reasoning/图像输入/200k 上下文/thinkingFormat 全被压回，
+      // 保险钉价值为负；存量机器上的种子文件由 owner 手清，不做迁移代码。
+      if (existsSync(modelsPath)) {
         // T27：既有 models.json 先做最小结构校验，坏配置在启动期报清晰错误
         // 而非在 ModelRuntime 深处炸难以定位的解析失败
         validateModelsDoc(readFileSync(modelsPath, 'utf8'), modelsPath)

@@ -17,10 +17,10 @@ import type { PiDesignAssignment } from './assignment'
 import type { PiCatalogModel, PiCatalogProvider } from './catalog'
 import type { PiThinkingLevel } from './client'
 
-/** openrouter 目录里钉死的"free" 默选 id —— 与 provider-admin.ts 种子 models.json 一致 */
+/** openrouter 目录里钉死的"free" 默选 id —— 与 SDK 内置 openrouter 目录一致（pi-ai providers/data/openrouter.json） */
 export const OPENROUTER_FREE_MODEL_ID = 'openrouter/free'
 
-/** openrouter provider id —— 与 provider-admin.ts 种子 models.json 一致 */
+/** openrouter provider id —— SDK 内置注册（pi-ai providers/all） */
 export const OPENROUTER_PROVIDER_ID = 'openrouter'
 
 /**
@@ -28,7 +28,7 @@ export const OPENROUTER_PROVIDER_ID = 'openrouter'
  *
  * 规则（§4.2 段 c）：
  * - openrouter 钉 openrouter/free（不取目录首项 —— openrouter 目录=内建静态+远程
- *   缓存+种子 free，free 不是字典序首项）
+ *   缓存，free 不是字典序首项；2026-09-16 种子退役后 free 由内置目录供给）
  * - 其他 provider 取该 provider models 列表首项（沿用 selectDesignProvider 旧行为）
  * - 空目录 → 空串（Combobox 无初值，user 必选）
  */
