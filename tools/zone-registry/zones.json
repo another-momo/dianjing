@@ -470,9 +470,9 @@
     {
       "id": "P58",
       "file": "README.md",
-      "reason": "T29(2026-08-25): 决策单 #14 根文档最小指针——新增「OpenPencil Rebuild」节（4 行），链 docs/rebuild/README.md + tracker.md，明示内部工作文档非用户文档；CHANGELOG.md 不动",
+      "reason": "2026-09-16 rebrand 回溯：全文重写为点睛产品版——上游品牌/链接/截图全清（packages/docs 已删，原截图引用本已死链）；原 T29「OpenPencil Rebuild」指针节随重写退役（docs/rebuild 亦已不存）。CHANGELOG.md 同批删除入 deletedPaths（上游变更日志对 fork 无意义）",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-09-16",
       "task": "T29"
     },
     {
@@ -1477,6 +1477,7 @@
     }
   ],
   "deletedPaths": [
+    "CHANGELOG.md",
     "desktop",
     "tools/tauri-menu",
     "tools/docs",

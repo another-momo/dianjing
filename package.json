@@ -3,8 +3,8 @@
   "version": "0.14.0",
   "private": true,
   "license": "MIT",
-  "description": "OpenPencil — open source vector editor",
-  "author": "OpenPencil Contributors",
+  "description": "点睛 Dianjing —— AI 设计编辑器（基于 OpenPencil fork 自主演进）",
+  "author": "another-momo & Dianjing contributors",
   "main": "desktop-electron/dist-main/main.mjs",
   "workspaces": [
     "packages/scene-graph",
