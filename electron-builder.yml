@@ -72,6 +72,12 @@ extraResources:
   # 入进程——OFL/BSD 的"随附"义务在分发端即满足）。
   - from: build/.generated/THIRD-PARTY-NOTICES.txt
     to: app/THIRD-PARTY-NOTICES.txt
+  # 我方 MIT 许可证本体随包——v0.1.0-ci.1 入包实测发现缺口：electron-builder
+  # 默认只带 LICENSE.electron.txt / LICENSES.chromium.html（运行时许可），
+  # 项目自身 LICENSE（MIT 双行版权头）不在包内，而 MIT 义务要求版权行+许可
+  # 全文随副本分发。与 TPN 同位平铺。
+  - from: LICENSE
+    to: app/LICENSE
 
 # 入口主进程 bundle——打进 asar（dist-main/*.mjs 是 Electron 主进程代码，体
 # 积小、走 asar 提升冷启动）。
