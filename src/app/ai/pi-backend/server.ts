@@ -565,7 +565,10 @@ export function createPiBackendServer({
       return
     }
     if (url.pathname === '/api/pi/design-assignment') {
-      return void handleDesignAssignmentRequest(service, req, res)
+      // 与 capabilities 同款两形制——单行 return void 触发 consistent-return
+      // （本函数其他分支无返回值，CI type-aware 实证）
+      void handleDesignAssignmentRequest(service, req, res)
+      return
     }
     // T22/T23/T24 只读路由（须在 /api/pi/ 管理面前缀之前匹配）
     if (handleReadonlyPiRequest(service, req, res, url)) return

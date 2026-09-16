@@ -94,8 +94,9 @@ function readLegacyAssignment(): PiDesignAssignment | null {
 /** 模块初始化即触发——fire-and-forget；终置 piDesignAssignmentReady=true。
  *  无论成败 ready 都置 true：fetch 失败 = 端点不可达 = 降级保持 null（无指派）+
  *  ready，让引导门正常走 needs-setup 路径，不阻塞 UI。
+ *  void 前缀 = 显式浮动（no-floating-promises 口径，CI type-aware 实证）。
  */
-;(async () => {
+void (async () => {
   try {
     let current = await fetchAssignment()
     // 一次性迁移：端点无指派 + localStorage 旧键有值 → PUT 旧值上端点
