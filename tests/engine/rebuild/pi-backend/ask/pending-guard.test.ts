@@ -15,7 +15,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createAskPendingStore } from '@/app/ai/pi-backend/ask/pending'
-import { createAskPendingGuardHandler } from '@/app/ai/pi-backend/service'
+import { createAskPendingGuardHandler } from '@/app/ai/pi-backend/ask/pending-guard'
 
 describe('createAskPendingGuardHandler', () => {
   test('pending + 非 ask 工具 → block + reason', () => {
