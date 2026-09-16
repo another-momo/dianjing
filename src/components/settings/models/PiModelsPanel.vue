@@ -17,26 +17,17 @@
  * ⑤指派段独立 UI 整体删除（design provider/model Combobox + 哨兵
  *   `__pi_backend_default__` + designDirty + designCredentialMissing）；
  * ⑥深链锚点 anchor：openSettingsDialog(section, { provider }) 深链展开指定行 + 聚焦 key。
+ *
+ * 拆解：设计模型卡 UI 与本地状态迁出至 PiDesignModelCard.vue（max-lines 解压），
+ *  本文件保留编排 + 状态真源 + 行内 provider 列表。
  */
-import {
-  ComboboxAnchor,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxItemIndicator,
-  ComboboxPortal,
-  ComboboxRoot,
-  ComboboxTrigger,
-  ComboboxViewport,
-  type AcceptableValue
-} from 'reka-ui'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 import { useI18n } from '@open-pencil/vue'
 
 import { piDesignAssignment, setPiDesignAssignment } from '@/app/ai/pi-backend/assignment'
 import type { PiCatalogModel, PiCatalogProvider } from '@/app/ai/pi-backend/catalog'
+import type { PiThinkingLevel } from '@/app/ai/pi-backend/client'
 import {
   clearPiCredential,
   deletePiProvider,
@@ -48,15 +39,14 @@ import {
   upsertPiProvider,
   verifyPiCredential
 } from '@/app/ai/pi-backend/client'
-import type { PiThinkingLevel } from '@/app/ai/pi-backend/client'
 import {
   OPENROUTER_PROVIDER_ID,
   buildAssignment,
   classifyAuthSource,
   classifyVerifyResult,
   filterCatalogModels,
-  filterCatalogProviders,
   groupProvidersByConfigured,
+  filterCatalogProviders,
   isCurrentAssignment,
   isCustomProvider,
   resolveDefaultModelId,
@@ -69,6 +59,8 @@ import {
 import { useForkPi } from '@/app/i18n/fork'
 import { settingsDialogAnchor, settingsDialogOpen } from '@/app/settings/dialog'
 import Tip from '@/components/ui/overlay/Tip.vue'
+
+import PiDesignModelCard from './PiDesignModelCard.vue'
 
 const dialogs = useForkPi()
 const { ai, collaboration: uiCollab } = useI18n()
@@ -95,7 +87,8 @@ const verifyStates = ref<Record<string, VerifyResultClass | 'busy'>>({})
 
 /** T97：合并单元内每个 provider 的表单初值（key 之外——modelId/thinkingLevel）。
  * 展开行时按 resolveDefaultModelId 钉初值；用户保存 key 才落盘成具体指派。
- * 2026-09-16 去重：draftThinking 删除（thinking 挂指派不挂 provider，行内草稿态零可见效果）。 */
+ * 2026-09-16 去重：draftThinking 删除（thinking 挂指派不挂 provider，行内草稿态零可见效果）。
+ * 设计模型卡读写此 map 的 selectedProviderId 行——共享草稿态（行内 Combobox 已删，唯一消费即设计卡）。 */
 const draftModel = ref<Record<string, string>>({})
 
 /** T100 A1：provider 列表搜索词（顶层搜索框） */
@@ -119,41 +112,7 @@ const deleteConfirmIds = ref<Record<string, boolean>>({})
 /** T97：key 输入框 DOM 引用（focus 用，anchor 深链展开后聚焦） */
 const providerKeyInputs = ref<Record<string, HTMLInputElement | null>>({})
 
-const providers = computed(() => piCatalog.value?.providers ?? [])
-
-/** ux-polish④：设计模型卡——合并面板顶部的四字段（provider / model / thinking / api key）。
- *  无条件渲染（catalog 就绪后），引导门 unlock 路径全靠它（无指派时存 key 自动指派）。
- *  selectedProviderId 初值按 resolveInitialSelectedProvider 优先级：当前指派 > 首个已配置 > 首个 catalog > 空。 */
-const selectedProviderId = ref<string>('')
-const providerSearchDesign = ref('')
-const modelSearchDesign = ref('')
-
-/** reka ComboboxInput 的 immediate watcher 会把当前选中值播种进输入框 v-model
- *  （dist/Combobox/ComboboxInput.js resetSearchTerm）——与选中值完全相等的
- *  搜索词视为无过滤，否则开列表只剩选中项；用户清空后键入不受影响。 */
-const designProviderFilterTerm = computed(() =>
-  providerSearchDesign.value === selectedProviderId.value ? '' : providerSearchDesign.value
-)
-const designModelFilterTerm = computed(() =>
-  modelSearchDesign.value === modelFor(selectedProviderId.value) ? '' : modelSearchDesign.value
-)
-
-/** 设计模型卡的 provider 选项——按 groupProvidersByConfigured 顺序（已配置置顶）+ filterCatalogProviders 搜索过滤。
- *  与现有 provider 列表同款分组头文案/样式。 */
-const designProviderGroups = computed(() =>
-  groupProvidersByConfigured(
-    filterCatalogProviders(providers.value, designProviderFilterTerm.value)
-  )
-)
-
-const selectedProvider = computed<PiCatalogProvider | null>(() => {
-  const id = selectedProviderId.value
-  if (!id) return null
-  return providers.value.find((p) => p.id === id) ?? null
-})
-
-/** 设计模型卡的当前 provider 模型列表（按 catalog 原序） */
-const designProviderModels = computed<PiCatalogModel[]>(() => selectedProvider.value?.models ?? [])
+const providers = computed<PiCatalogProvider[]>(() => piCatalog.value?.providers ?? [])
 
 /** ux-polish④：watch catalog.length 从 0 → N 时，按 resolveInitialSelectedProvider 钉初值。
  *  后续用户切换由 combobox update 直接驱动；指派变化不强制重选（用户已选 → 让位）。 */
@@ -174,16 +133,15 @@ watch(
   { immediate: true }
 )
 
+/** ux-polish④：设计模型卡 — 顶层四字段卡选中 provider，初值由 catalog watch 钉 */
+const selectedProviderId = ref<string>('')
+
 /** 设计模型卡 — provider 变更：模型字段重置为 resolveDefaultModelId → 按 shouldAutoAssignOnModelChange 语义决定是否静默指派 */
-function onDesignProviderChange(value: AcceptableValue): void {
-  if (typeof value !== 'string') return
-  const providerId = value
-  if (!providerId) return
-  selectedProviderId.value = providerId
+function onDesignProviderChange(providerId: string): void {
   const provider = providers.value.find((p) => p.id === providerId)
   if (!provider) return
   const modelId = resolveDefaultModelId(provider)
-  // 同步展开单元内的 draft（让行内 Combobox 与设计卡口径一致）
+  // 同步展开单元内的 draft（设计卡与设计卡共享 modelDrafts，行内 Combobox 已删，仅供设计卡读）
   draftModel.value[providerId] = modelId
   if (
     modelId &&
@@ -202,16 +160,13 @@ function onDesignProviderChange(value: AcceptableValue): void {
       })
     )
   }
-  // 切换 provider 后清 providerSearch 避免再次打开时残留过滤
-  providerSearchDesign.value = ''
   // 切换 provider 不动旧 provider 行的展开态——展开收起由用户主动控制
+  // 切换 provider 后清 providerSearch 由子卡 PiDesignModelCard 自身处理
 }
 
 /** 设计模型卡 — 模型变更（按 selectedProviderId 维度）：自动写回指派（§4.3 约束 3 语义） */
-function onDesignModelChange(value: AcceptableValue): void {
-  if (typeof value !== 'string') return
+function onDesignModelChange(modelId: string): void {
   const providerId = selectedProviderId.value
-  const modelId = value
   if (!providerId || !modelId) return
   const a = piDesignAssignment.value
   if (
@@ -228,9 +183,7 @@ function onDesignModelChange(value: AcceptableValue): void {
 
 /** 设计模型卡 — thinking 变更：写回指派（thinking 挂指派不挂 provider；
  *  非当前指派 provider 无挂载点 = no-op，2026-09-16 去重后不再留草稿态） */
-function onDesignThinkingChange(value: AcceptableValue): void {
-  if (typeof value !== 'string') return
-  const level = value as PiThinkingLevel
+function onDesignThinkingChange(level: PiThinkingLevel): void {
   const providerId = selectedProviderId.value
   if (!providerId) return
   const a = piDesignAssignment.value
@@ -258,11 +211,11 @@ function onDesignVerifyKey(): void {
   void verifyProvider(providerId)
 }
 
-/** 设计模型卡 — key 状态摘要（沿用现有 provider 行内 "已配置"/"未配置" 语义 + auth.source 标记） */
-function designKeySourceLabel(): string | null {
-  const provider = selectedProvider.value
-  if (!provider?.auth.configured) return null
-  return sourceLabel(provider.auth.source)
+/** 设计模型卡 — keyDraft v-model：子卡对当前 selectedProviderId 行的写入转发回 keyDrafts map */
+function onDesignKeyDraftUpdate(value: string): void {
+  const providerId = selectedProviderId.value
+  if (!providerId) return
+  keyDrafts.value[providerId] = value
 }
 
 /** ux-polish④：高级区折叠态（默认收起）——providers 列表区降格为高级区 */
@@ -305,24 +258,6 @@ function thinkingLabel(level: PiThinkingLevel): string {
     xhigh: dialogs.value.thinkingExtraHigh
   }
   return labels[level]
-}
-
-function thinkingFor(providerId: string): PiThinkingLevel {
-  // thinking 挂指派不挂 provider（2026-09-16 owner 拍板去重：行内下拉与
-  // draftThinking 草稿态删除——对非当前指派 provider 的调整零可见效果，易误导）
-  if (piDesignAssignment.value?.providerId === providerId) {
-    return piDesignAssignment.value.thinkingLevel ?? 'off'
-  }
-  return 'off'
-}
-
-function modelFor(providerId: string): string {
-  const v = draftModel.value[providerId]
-  if (v) return v
-  if (piDesignAssignment.value?.providerId === providerId) {
-    return piDesignAssignment.value.modelId
-  }
-  return ''
 }
 
 /** T97：provider 行"当前"check 派生（§4.3 约束 1 单指派语义视觉显式） */
@@ -587,312 +522,26 @@ onMounted(() => void refreshPiCatalog())
   <div class="flex flex-col">
     <!-- ux-polish④：设计模型卡——四字段（provider / model / thinking / api key）。
          无条件渲染（catalog 就绪后）：无指派时它是唯一配置入口，引导门 unlock 路径靠它。 -->
-    <section
-      v-if="providers.length > 0"
-      class="mb-3 flex flex-col gap-1.5"
-      data-test-id="pi-design-card"
-    >
-      <h3 class="text-xs font-semibold text-surface">{{ dialogs.designCardTitle }}</h3>
-      <div class="rounded border border-border p-3">
-        <label class="block text-[10px] text-muted">{{ dialogs.designCardProvider }}</label>
-        <ComboboxRoot
-          :model-value="selectedProviderId"
-          class="relative mt-1"
-          @update:model-value="onDesignProviderChange"
-        >
-          <ComboboxAnchor as-child>
-            <ComboboxTrigger
-              class="flex w-full items-center justify-between gap-1 rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
-              data-test-id="pi-design-provider-trigger"
-            >
-              <span class="min-w-0 flex-1 truncate text-left">
-                <template v-if="selectedProvider">
-                  {{ selectedProvider.name }}
-                </template>
-                <template v-else>—</template>
-              </span>
-              <icon-lucide-chevron-down class="size-3 shrink-0 text-muted" />
-            </ComboboxTrigger>
-          </ComboboxAnchor>
-          <ComboboxPortal>
-            <ComboboxContent
-              position="popper"
-              :side-offset="2"
-              class="z-[110] min-w-[var(--reka-combobox-trigger-width)] overflow-hidden rounded-md bg-panel p-1 text-[11px] shadow-[0_8px_30px_rgb(0_0_0/0.4)]"
-            >
-              <ComboboxInput
-                v-model="providerSearchDesign"
-                class="mb-1 w-full rounded border border-border bg-panel-field px-2 py-1 text-[11px] text-surface outline-none focus:border-panel-focus"
-                :placeholder="dialogs.designCardProviderSearchPlaceholder"
-                autocomplete="off"
-                autocorrect="off"
-                autocapitalize="off"
-                :spellcheck="false"
-                data-test-id="pi-design-provider-search"
-              />
-              <ComboboxViewport class="scrollbar-thin max-h-48 overflow-y-auto">
-                <template v-for="group in designProviderGroups" :key="group.id">
-                  <p
-                    class="px-2 pt-1 pb-0.5 text-[10px] font-medium tracking-wide text-muted uppercase"
-                    data-test-id="pi-design-provider-group-header"
-                  >
-                    {{
-                      group.id === 'configured'
-                        ? dialogs.providerGroupConfigured
-                        : dialogs.providerGroupAll
-                    }}
-                  </p>
-                  <ComboboxItem
-                    v-for="provider in group.providers"
-                    :key="provider.id"
-                    :value="provider.id"
-                    :text-value="`${provider.name} ${provider.id}`"
-                    class="relative flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-surface select-none data-[highlighted]:bg-hover"
-                    :data-provider-id="provider.id"
-                    data-test-id="pi-design-provider-item"
-                  >
-                    <ComboboxItemIndicator class="flex size-3 shrink-0 items-center justify-center">
-                      <icon-lucide-check class="size-3 text-accent" />
-                    </ComboboxItemIndicator>
-                    <span class="min-w-0 flex-1 truncate">{{ provider.name }}</span>
-                    <span class="flex shrink-0 items-center gap-1 text-[9px] text-muted">
-                      <span class="truncate">{{ provider.id }}</span>
-                      <span
-                        class="size-1.5 rounded-full bg-muted"
-                        :class="provider.auth.configured ? 'bg-[var(--color-success)]' : ''"
-                        :data-state="provider.auth.configured ? 'configured' : 'missing'"
-                      />
-                      <span>{{
-                        provider.auth.configured ? uiCollab.connected : ai.modelNeedsCredential
-                      }}</span>
-                    </span>
-                    <span
-                      v-if="isCurrentProvider(provider.id)"
-                      class="shrink-0 text-[10px] font-medium text-accent"
-                      data-test-id="pi-design-provider-current"
-                    >
-                      {{ dialogs.currentAssignmentCurrent }}
-                    </span>
-                  </ComboboxItem>
-                </template>
-                <ComboboxEmpty
-                  class="px-2 py-1 text-[10px] text-muted"
-                  data-test-id="pi-design-provider-empty"
-                >
-                  {{ dialogs.designCardProviderEmpty }}
-                </ComboboxEmpty>
-              </ComboboxViewport>
-            </ComboboxContent>
-          </ComboboxPortal>
-        </ComboboxRoot>
-
-        <label class="mt-2 block text-[10px] text-muted">{{ dialogs.designCardModel }}</label>
-        <ComboboxRoot
-          :model-value="modelFor(selectedProviderId)"
-          class="relative mt-1"
-          :disabled="!selectedProvider"
-          @update:model-value="onDesignModelChange"
-        >
-          <ComboboxAnchor as-child>
-            <ComboboxTrigger
-              class="flex w-full items-center justify-between gap-1 rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus disabled:opacity-50"
-              data-test-id="pi-design-model-trigger"
-            >
-              <span class="min-w-0 flex-1 truncate text-left">
-                <template v-if="modelFor(selectedProviderId)">
-                  {{
-                    designProviderModels.find((m) => m.id === modelFor(selectedProviderId))?.name ??
-                    modelFor(selectedProviderId)
-                  }}
-                </template>
-                <template v-else>—</template>
-              </span>
-              <icon-lucide-chevron-down class="size-3 shrink-0 text-muted" />
-            </ComboboxTrigger>
-          </ComboboxAnchor>
-          <ComboboxPortal>
-            <ComboboxContent
-              position="popper"
-              :side-offset="2"
-              class="z-[110] min-w-[var(--reka-combobox-trigger-width)] overflow-hidden rounded-md bg-panel p-1 text-[11px] shadow-[0_8px_30px_rgb(0_0_0/0.4)]"
-            >
-              <ComboboxInput
-                v-model="modelSearchDesign"
-                class="mb-1 w-full rounded border border-border bg-panel-field px-2 py-1 text-[11px] text-surface outline-none focus:border-panel-focus"
-                :placeholder="dialogs.modelSearchPlaceholder"
-                autocomplete="off"
-                autocorrect="off"
-                autocapitalize="off"
-                :spellcheck="false"
-                data-test-id="pi-design-model-search"
-              />
-              <ComboboxViewport class="scrollbar-thin max-h-48 overflow-y-auto">
-                <ComboboxItem
-                  v-for="model in filterCatalogModels(designProviderModels, designModelFilterTerm)"
-                  :key="model.id"
-                  :value="model.id"
-                  :text-value="`${model.name} ${model.id}`"
-                  class="relative flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-surface outline-none select-none data-[highlighted]:bg-hover"
-                  :data-model-id="model.id"
-                  data-test-id="pi-design-model-item"
-                >
-                  <ComboboxItemIndicator class="flex size-3 shrink-0 items-center justify-center">
-                    <icon-lucide-check class="size-3 text-accent" />
-                  </ComboboxItemIndicator>
-                  <span class="min-w-0 flex-1 truncate">{{ model.name }}</span>
-                  <Tip v-if="supportsImageInput(model)" :label="dialogs.modelSupportsImage">
-                    <span class="flex shrink-0 items-center text-muted">
-                      <icon-lucide-image class="size-3" />
-                    </span>
-                  </Tip>
-                  <span v-if="model.contextWindow" class="shrink-0 text-[10px] text-muted">
-                    {{ contextLabel(model) }}
-                  </span>
-                </ComboboxItem>
-                <ComboboxEmpty
-                  class="px-2 py-1 text-[10px] text-muted"
-                  data-test-id="pi-design-model-empty"
-                >
-                  {{ dialogs.modelSearchEmpty }}
-                </ComboboxEmpty>
-              </ComboboxViewport>
-            </ComboboxContent>
-          </ComboboxPortal>
-        </ComboboxRoot>
-
-        <label class="mt-2 block text-[10px] text-muted">{{ dialogs.designCardThinking }}</label>
-        <select
-          :value="thinkingFor(selectedProviderId)"
-          class="mt-1 w-full rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none"
-          data-test-id="pi-design-thinking"
-          @change="(e) => onDesignThinkingChange((e.target as HTMLSelectElement).value)"
-        >
-          <option value="off">{{ thinkingLabel('off') }}</option>
-          <option value="minimal">{{ thinkingLabel('minimal') }}</option>
-          <option value="low">{{ thinkingLabel('low') }}</option>
-          <option value="medium">{{ thinkingLabel('medium') }}</option>
-          <option value="high">{{ thinkingLabel('high') }}</option>
-          <option value="xhigh">{{ thinkingLabel('xhigh') }}</option>
-        </select>
-
-        <label class="mt-2 block text-[10px] text-muted">{{ dialogs.designCardApiKey }}</label>
-        <div class="mt-1 flex items-center gap-1.5">
-          <input
-            v-model="keyDrafts[selectedProviderId]"
-            type="password"
-            class="min-w-0 flex-1 rounded border border-border bg-panel px-2 py-1.5 text-[11px] text-surface outline-none focus:border-panel-focus"
-            :placeholder="
-              selectedProvider?.auth.configured
-                ? dialogs.keyPlaceholderConfigured
-                : dialogs.keyPlaceholderMissing
-            "
-            data-test-id="pi-design-key-input"
-            @keydown.enter="onDesignSaveKey"
-          />
-          <button
-            type="button"
-            class="rounded bg-accent px-2 py-1.5 text-[10px] font-medium text-white hover:bg-accent/90 disabled:opacity-50"
-            data-test-id="pi-design-key-save"
-            :disabled="busyProviderId === selectedProviderId || !keyDrafts[selectedProviderId]"
-            @click="onDesignSaveKey"
-          >
-            {{ dialogs.keySave }}
-          </button>
-          <button
-            v-if="selectedProvider?.auth.configured"
-            type="button"
-            class="rounded border border-border px-2 py-1.5 text-[10px] text-muted hover:text-surface disabled:opacity-50"
-            data-test-id="pi-design-key-clear"
-            :disabled="busyProviderId === selectedProviderId"
-            @click="onDesignClearKey"
-          >
-            {{ dialogs.keyClear }}
-          </button>
-        </div>
-        <!-- 行级错误位（设计卡）—— 复用现有 rowErrors 的 selectedProviderId 行 -->
-        <p
-          v-if="selectedProviderId && rowErrors[selectedProviderId]"
-          class="mt-1 text-[10px] text-red-400"
-          data-test-id="pi-design-row-error"
-        >
-          {{ rowErrors[selectedProviderId] }}
-        </p>
-        <!-- 验证按钮（已配置 provider）+ 三态结果 + key 状态摘要——让用户一眼看出该 provider 是否有 key -->
-        <div
-          v-if="selectedProvider?.auth.configured"
-          class="mt-1.5 flex flex-wrap items-center gap-2"
-        >
-          <button
-            type="button"
-            class="rounded border border-border px-2 py-1 text-[10px] text-muted hover:text-surface disabled:opacity-50"
-            data-test-id="pi-design-key-verify"
-            :disabled="verifyStates[selectedProviderId] === 'busy'"
-            @click="onDesignVerifyKey"
-          >
-            <icon-lucide-shield-check class="mr-0.5 inline size-3" />
-            {{ dialogs.providerVerify }}
-          </button>
-          <span
-            v-if="verifyStates[selectedProviderId] === 'busy'"
-            class="flex items-center gap-1 text-[10px] text-muted"
-            data-test-id="pi-design-verify-state"
-            data-verify-state="busy"
-          >
-            <icon-lucide-loader-2 class="size-3 animate-spin" />
-          </span>
-          <span
-            v-else-if="verifyStates[selectedProviderId] === 'ok'"
-            class="text-[10px] text-[var(--color-success)]"
-            data-test-id="pi-design-verify-state"
-            data-verify-state="ok"
-          >
-            {{ dialogs.providerVerifyOk }}
-          </span>
-          <span
-            v-else-if="verifyStates[selectedProviderId] === 'failed'"
-            class="text-[10px] text-red-400"
-            data-test-id="pi-design-verify-state"
-            data-verify-state="failed"
-          >
-            {{ dialogs.providerVerifyFailed }}
-          </span>
-          <span
-            v-else-if="verifyStates[selectedProviderId] === 'unknown-error'"
-            class="text-[10px] text-red-400"
-            data-test-id="pi-design-verify-state"
-            data-verify-state="unknown-error"
-          >
-            {{ dialogs.providerVerifyUnknownError }}
-          </span>
-          <!-- 已保存状态摘要：让用户一眼看出该 provider 已有 key -->
-          <span
-            class="ml-auto flex items-center gap-1 text-[10px] text-[var(--color-success)]"
-            data-test-id="pi-design-key-status"
-            data-key-state="configured"
-          >
-            <span class="size-1.5 rounded-full bg-[var(--color-success)]" />
-            {{ dialogs.designCardKeyStatusConfigured }}
-            <span
-              v-if="designKeySourceLabel()"
-              class="rounded border border-border px-1 text-[9px] text-muted"
-              :data-source="selectedProvider?.auth.source"
-              data-test-id="pi-design-key-source"
-            >
-              {{ designKeySourceLabel() }}
-            </span>
-          </span>
-        </div>
-        <div
-          v-else-if="selectedProvider"
-          class="mt-1.5 flex items-center gap-1 text-[10px] text-muted"
-          data-test-id="pi-design-key-status"
-          data-key-state="missing"
-        >
-          <span class="size-1.5 rounded-full bg-muted" />
-          {{ dialogs.designCardKeyStatusMissing }}
-        </div>
-      </div>
-    </section>
+    <PiDesignModelCard
+      v-model:selected-provider-id="selectedProviderId"
+      :providers="providers"
+      :assignment="piDesignAssignment"
+      :model-drafts="draftModel"
+      :key-drafts="keyDrafts"
+      :busy-provider-id="busyProviderId"
+      :row-errors="rowErrors"
+      :verify-states="verifyStates"
+      :is-current-provider="isCurrentProvider"
+      :connected-label="uiCollab.connected"
+      :model-needs-credential-label="ai.modelNeedsCredential"
+      @update:key-draft="onDesignKeyDraftUpdate"
+      @provider-change="onDesignProviderChange"
+      @model-change="onDesignModelChange"
+      @thinking-change="onDesignThinkingChange"
+      @save-key="onDesignSaveKey"
+      @clear-key="onDesignClearKey"
+      @verify-key="onDesignVerifyKey"
+    />
 
     <!-- ux-polish④：providers 列表区降格为高级区——默认收起，触发行文案明示"高级：Provider 列表与自定义 Provider"。 -->
     <section data-test-id="pi-providers-advanced" class="mb-3 rounded border border-border">

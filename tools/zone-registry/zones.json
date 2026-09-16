@@ -26,6 +26,7 @@
   "ownedFiles": [
     "src/app/shell/electron.ts",
     "src/components/settings/models/PiModelsPanel.vue",
+    "src/components/settings/models/PiDesignModelCard.vue",
     "src/components/settings/agent/AgentSettingsPanel.vue",
     "src/app/settings/credentials/stock-photo-keys.ts",
     "src/app/settings/credentials/media-credentials.ts",
