@@ -12,7 +12,10 @@
  *  - T21：模型/凭据装配移交 provider-admin.ts（pi 原生 ModelRuntime +
  *    auth.json，无 key 可起服务）；prompt 必带 model 档位（前端 design role
  *    解析结果），T100 起 spec 必填——无 spec 由 provider-admin.resolveModel
- *    抛可行动错误（前端引导门是第一道闸，此处兜底）
+ *    抛可行动错误（前端引导门是第一道闸，此处兜底）。2026-09-16（owner
+ *    拍板②）：池内会话烘焙 spec 与请求 spec 不一致时驱逐重建——切换
+ *    对下一个 prompt 生效，历史经 SessionManager.open 重开同一 JSONL
+ *    保留（详见 prompt() 注释）
  *  - T60（S3 §9 / PD-19）：active_design 单槽宿主路由——chatMode 双模式链
  *    （T24 注册表烘焙 + 驱逐重建）退役；每回合组装 = base + workflow(落盘
  *    mode body) + profile 全文（active-design-host.ts，before_agent_start
@@ -137,7 +140,9 @@ export function createAskPendingGuardExtension(
  * 单槽取代请求级模式）；请求面残留字段由 server.ts 兼容窗忽略不报错。
  */
 export type PiPromptOptions = {
-  /** T100：model 必填——前端指派态是必备条件，无 spec 由 resolveModel 抛可行动错误 */
+  /** T100：model 必填——前端指派态是必备条件，无 spec 由 resolveModel 抛可行动错误。
+   *  2026-09-16（owner 拍板②）：与池内会话烘焙 spec 不一致 → 驱逐重建，
+   *  切换对下一个 prompt 生效（同 spec 复用会话，零开销） */
   model: ModelSpec
   documentId?: string
   /** T98-路由：桥按发起窗口路由 RPC；缺省落最后注册窗 */
@@ -206,12 +211,26 @@ type SessionEntry = {
    * 注释）——保留仅供 abort 确认日志区分「命中活跃 run / idle no-op」。
    */
   running: boolean
+  /** 2026-09-16（owner 拍板②）：创建时烘焙的 model spec——prompt 时与请求
+   *  spec 比对，不一致驱逐重建（切换对下一个 prompt 生效） */
+  spec: ModelSpec
 }
 
 type SessionIndex = Record<string, { file: string }>
 
 /** T85：回合外/无声明时的 load_reference 空允许集（共享常量，避免每调用分配） */
 const EMPTY_REFERENCES: ReadonlyMap<string, string> = new Map()
+
+/**
+ * 2026-09-16（owner 拍板②）：驱逐判定用 spec 等价——thinkingLevel 缺省与
+ * 'off' 同义（前端 buildAssignment 写指派时剔除 'off'，两条写入路径殊途同归
+ * 都是不开 thinking；字面差异不值得一轮会话重建）。
+ */
+function sameModelSpec(a: ModelSpec, b: ModelSpec): boolean {
+  const thinking = (spec: ModelSpec) =>
+    spec.thinkingLevel && spec.thinkingLevel !== 'off' ? spec.thinkingLevel : undefined
+  return a.providerId === b.providerId && a.modelId === b.modelId && thinking(a) === thinking(b)
+}
 
 export function createPiChatService({
   rootDir,
@@ -579,7 +598,8 @@ export function createPiChatService({
       budget,
       target,
       host,
-      running: false
+      running: false,
+      spec: modelSpec
     }
     sessions.set(sessionId, entry)
     return entry
@@ -596,7 +616,32 @@ export function createPiChatService({
     // ChatPanel handleSubmit 双重守卫），同 sessionId 的第二个 POST 只能来自
     // 绕过 UI 的手工并发，代价是后者顶掉前者 entry（JSONL 文件各自独立、不串
     // 数据）。不做 promise 缓存去重：引入的复杂度大于 dev 场景收益。
-    const entry = sessions.get(sessionId) ?? (await createSession(sessionId, options.model))
+    let entry = sessions.get(sessionId)
+    // 2026-09-16（owner 拍板②）：指派切换对下一个 prompt 生效——池内会话烘焙
+    // spec 与本请求不一致 → 驱逐重建：先等在跑 run 收尾（queue 串行语义，
+    // 不打断进行中回合；挂 ask 表单的回合同此——等作答/abort 自然解锁），
+    // dispose 释放资源；createSession 经 SessionManager.open 重开同一
+    // JSONL——历史连续，模型/thinking 换新。
+    if (entry && !sameModelSpec(entry.spec, options.model)) {
+      const previous = entry
+      await previous.queue.catch(() => undefined)
+      try {
+        previous.session.dispose()
+      } catch (error) {
+        console.warn(
+          `[pi-backend] 驱逐重建 dispose 失败（忽略，旧会话随进程回收）：` +
+            (error instanceof Error ? error.message : String(error))
+        )
+      }
+      sessions.delete(sessionId)
+      console.debug(
+        `[pi-backend] 指派变更驱逐重建（${sessionId}）：` +
+          `${previous.spec.providerId}/${previous.spec.modelId} → ` +
+          `${options.model.providerId}/${options.model.modelId}`
+      )
+      entry = undefined
+    }
+    entry ??= await createSession(sessionId, options.model)
     entry.target.documentId = options.documentId
     entry.target.windowId = options.windowId
     // T91o：/skill: 命令归一化（skill-command.ts，原理见其头注）——把首个

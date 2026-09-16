@@ -89,8 +89,12 @@ export function shouldAutoAssignOnSaveKey(args: {
  * 用户在设置面板双选 provider+model 永不写指派，唯一解锁路是「存 key 自动指派」
  * （PiModelsPanel saveKey 流）——env key / 已配 key 用户无第二条指派通道，
  * 只能改 provider+model 后再回去存一次 key。修后：双选即指派 = 引导门不依赖
- * 存 key 的解锁路；其余三语义维持原状（异 provider false 防浏览劫持，同
- * provider 同模型 false 防无变化写回，跨 provider false 留给"设为当前"显式动作）。
+ * 存 key 的解锁路；同 provider 同模型 false 防无变化写回。
+ *
+ * 2026-09-16（owner 拍板①）：异 provider false（防浏览劫持）的调用面退役——
+ * 设计卡 provider 变更已改恒写指派（PiModelsPanel.onDesignProviderChange），
+ * 劫持前提随行内 Combobox 删除而消（selectedProviderId 设计卡独占）。本分支
+ * 仅服务 onDesignModelChange 的防御语义（卡面正常流程下已不可达）。
  */
 export function shouldAutoAssignOnModelChange(args: {
   existingAssignment: PiDesignAssignment | null | undefined

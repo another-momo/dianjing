@@ -138,21 +138,18 @@ watch(
   { immediate: true }
 )
 
-/** 设计模型卡 — provider 变更：模型字段重置为 resolveDefaultModelId → 按 shouldAutoAssignOnModelChange 语义决定是否静默指派 */
+/** 设计模型卡 — provider 变更：恒写指派（2026-09-16 owner 拍板①）。
+ * 原经 shouldAutoAssignOnModelChange 门禁（异 provider false 防浏览劫持）——
+ * 劫持前提已消：行内 Combobox 2026-09-16 删除后 selectedProviderId 由设计卡
+ * 独占，浏览面与指派面物理分离；设计卡四字段即指派编辑器，显式换 provider
+ * = 配置动作非浏览。模型取 resolveDefaultModelId，thinking 跨 provider 置 off。 */
 function onDesignProviderChange(providerId: string): void {
   const provider = providers.value.find((p) => p.id === providerId)
   if (!provider) return
   const modelId = resolveDefaultModelId(provider)
   // 同步展开单元内的 draft（设计卡与设计卡共享 modelDrafts，行内 Combobox 已删，仅供设计卡读）
   draftModel.value[providerId] = modelId
-  if (
-    modelId &&
-    shouldAutoAssignOnModelChange({
-      existingAssignment: piDesignAssignment.value,
-      targetProviderId: providerId,
-      targetModelId: modelId
-    })
-  ) {
+  if (modelId) {
     const a = piDesignAssignment.value
     setPiDesignAssignment(
       buildAssignment({
