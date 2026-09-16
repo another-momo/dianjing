@@ -161,6 +161,11 @@ export interface SetupDesignSuccess {
   profileId?: string
   briefId: string
   placement: Vector
+  /**
+   * A3 B4：成功结果锚点行——按 mode 分两型（专项有 workflow 推进，通用无）。
+   * 通用工作区无 workflow 可推进——结果行不得撒谎。
+   */
+  message: string
 }
 
 export type SetupDesignResult = SetupDesignSuccess | SetupDesignAwaitingIntent | SetupDesignError
@@ -324,10 +329,13 @@ export function setupDesign(
   // T91b 新建意图确认拦截。args 一次性（每调携带）、
   // pluginData 持久（用户答「是」后写一次）——任一为真即放行。
   // 二者皆未成立 → 返 awaiting 信封，AI 不应自行重试（前端拦截强制用户介入）。
+  // A3 B6：守卫收窄——纯 general（无 profileId）静默放行；general+profile 未确认仍拦。
+  // 纯通用工作区无 workflow/profile 绑定——无高风险参数，不需确认。
   const pluginState = readNewIntent(figma)
   const argsConfirmed = args.confirmedNewIntent === true
   const pluginConfirmed = pluginState.confirmed
-  if (!argsConfirmed && !pluginConfirmed) {
+  const isPureGeneral = args.modeId === SETUP_GENERAL_MODE_ID && args.profileId === undefined
+  if (!argsConfirmed && !pluginConfirmed && !isPureGeneral) {
     return {
       status: 'awaiting_new_intent_confirmation',
       proposed: {
@@ -405,7 +413,11 @@ export function setupDesign(
     modeId: args.modeId,
     ...(effectiveProfileId !== undefined ? { profileId: effectiveProfileId } : {}),
     briefId: brief.id,
-    placement: position
+    placement: position,
+    message:
+      args.modeId === SETUP_GENERAL_MODE_ID
+        ? SETUP_TEXTS.generalWorkspaceCreated()
+        : SETUP_TEXTS.specializedWorkspaceCreated(resolved.label)
   }
 }
 

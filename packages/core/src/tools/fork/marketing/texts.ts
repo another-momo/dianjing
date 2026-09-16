@@ -60,7 +60,11 @@ export const SETUP_TEXTS = {
   unknownProfile: (profileId: string) =>
     `未知的风格档案「${profileId}」（不在注册表 profileIds 内）。`,
   invalidCanvas: (canvas: string) =>
-    `尺寸「${canvas}」格式非法——应为 \`宽x\`（如 750x，高度随内容生长）或 \`宽x高\`（如 750x2000，定高）。`
+    `尺寸「${canvas}」格式非法——应为 \`宽x\`（如 750x，高度随内容生长）或 \`宽x高\`（如 750x2000，定高）。`,
+  /** A3：B4 成功结果锚点行——分两型，按 mode 区分后续回合走向（专项有 workflow 推进，通用无） */
+  specializedWorkspaceCreated: (label: string) =>
+    `「${label}」设计工作区已落图并成为当前设计目标——后续回合按其 workflow 推进。`,
+  generalWorkspaceCreated: () => '设计工作区已落图并成为当前设计目标——后续回合以它为工作区续作。'
 } as const
 
 /**
@@ -86,6 +90,7 @@ export const ACTIVE_DESIGN_TEXTS = {
   /**
    * T65（修 T60 集成缺口）：新建意图信封剥离后注入本回合 context 的确认参数行——
    * 确认参数对 AI 可见（此前旗标只真假）。缺省字段省略；全缺省 → 空串（宿主不注入）。
+   * A3：B2 扩 canvas——pluginData 持久路径同样适用此函数（host 端归一调用）。
    */
   newIntentConfirmed: (fields: { modeId?: string; profileId?: string; canvas?: string }) => {
     const parts = [
@@ -95,5 +100,33 @@ export const ACTIVE_DESIGN_TEXTS = {
     ]
     if (parts.length === 0) return ''
     return `用户已为本次新建确认参数：${parts.join(' ')}（选择即锁定，不得覆盖）`
-  }
+  },
+  /**
+   * A3：身份差分通知文案（B3）——agent 在装配回合变更可观测到「发生了什么」。
+   * 模式变化 → 「设计模式已切换：X → Y（触发源：Z）；画布内容不受影响。」
+   * profile-only 变化 → 「设计风格已切换：A → B（触发源：Z）；画布内容不受影响。」
+   * Y=general 表述为「通用（无专项流程，走基础路由）」；X=空身份（首回合后从空槽到有身份）
+   * 同样以「通用」表述。触发源短时记忆：用户确认新建 / 同意切换 / 新设计落图 / 外部变更。
+   */
+  modeSwitchedNotice: (fromMode: string, toMode: string, source: string) =>
+    `[系统] 设计模式已切换：${fromMode} → ${toMode}（触发源：${source}）；画布内容不受影响。`,
+  profileSwitchedNotice: (fromProfile: string, toProfile: string, source: string) =>
+    `[系统] 设计风格已切换：${fromProfile} → ${toProfile}（触发源：${source}）；画布内容不受影响。`
 } as const
+
+/**
+ * A3 身份差分通知（B3）——触发源短时记忆串（host 闭包即用即清）。
+ */
+export const IDENTITY_DIFF_SOURCES = {
+  userConfirmedNew: '用户确认新建',
+  userAgreedSwitch: '同意切换',
+  newDesignCreated: '新设计落图',
+  externalChange: '外部变更'
+} as const
+
+export type IdentityDiffSource = (typeof IDENTITY_DIFF_SOURCES)[keyof typeof IDENTITY_DIFF_SOURCES]
+
+/** general 模式的用户可见表述（B3 通知行专用） */
+export const GENERAL_MODE_DISPLAY = '通用（无专项流程，走基础路由）'
+/** 空身份的上回合表述（首回合后从空槽到有身份） */
+export const EMPTY_IDENTITY_DISPLAY = '通用'

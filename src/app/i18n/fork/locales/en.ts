@@ -264,13 +264,8 @@ export const panelsMessageDefaults = {
  */
 export const confirmMessageDefaults = {
   intentTitle: 'Start a new design?',
-  intentCaseALine: 'The current direction draft will be discarded; a new design area starts fresh.',
-  intentCaseBKeep: 'Existing artifacts stay on the canvas — nothing is overwritten.',
-  intentCaseBNew: 'A new design area starts with the selected mode / profile.',
-  intentCaseBMaterials: 'Brief materials carry over automatically.',
-  intentCaseBReferences: 'Include already-generated images as references',
-  intentCaseBRadius:
-    'Abandonment radius: only the previous direction — everything produced so far is kept.',
+  intentUnifiedLine:
+    'Start a new design with the selected mode / profile — everything already on the canvas stays as is and will not be deleted.',
   intentSizeSection: 'Canvas size',
   intentSizeAuto: 'Auto (AI decides)',
   intentSizeCustomPlaceholder: 'Custom, e.g. 750x or 750x2000',

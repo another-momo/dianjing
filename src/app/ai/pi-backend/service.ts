@@ -515,12 +515,16 @@ export function createPiChatService({
     documentId?: string,
     windowId?: string
   ): Promise<SetActiveDesignResult> {
+    // A3：B3 触发源标定——切槽前先在所有现存 session 的 host 闭包记「同意切换」
+    // 触发源旗标（best-effort：端点不绑 sessionId，但目标 session 是当前活跃
+    // 的；多 session 时全标，备选回合消费到。无活跃 session 时不标——待落地）。
+    for (const entry of sessions.values()) entry.host.onSlotSwitchedViaBridge()
     return setActiveDesignViaBridge(nodeId, documentId, activeDesignBridge, windowId)
   }
 
-  /** T91b：POST /api/pi/intent-confirm——前端 ChatNewIntentCard 确认后触发，写 pluginData 三键 */
+  /** T91b：POST /api/pi/intent-confirm——前端 ChatNewIntentCard 确认后触发，写 pluginData 四键（A3：B2 扩 canvas） */
   async function confirmNewIntent(
-    args: { modeId: string; profileId?: string },
+    args: { modeId: string; profileId?: string; canvas?: string },
     documentId?: string,
     windowId?: string
   ): Promise<ConfirmNewIntentResult> {

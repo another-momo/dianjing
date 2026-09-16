@@ -121,12 +121,16 @@ const baseBody = stripFrontmatter(
 // systemPrompt 尾段（joinSegments 以 \n\n 连接）。索引节标题与行格式是运行时契约
 // （active-design-host REFERENCES_INDEX_HEADING + `- path —— description（source）`），
 // 此处 byte 级钉住——base.md references 声明或契约格式改动需同步重钉（CI
-// 34992857596 二轮红实证：fixture 补复制 references/ 后陈旧 byte 钉浮出）
+// 34992857596 二轮红实证：fixture 补复制 references/ 后陈旧 byte 钉浮出）。
+// 2026-09-16 A3 波4：base.md frontmatter 二条 references（render-jsx + design-basics）
+// → 索引节由 1 行扩 2 行；B7 装配段冠来源头 `# studio base` —— 空槽 expected
+// 同步重钉（baseBody 前冠来源头）
 const REFERENCES_INDEX_SECTION = [
   '## 按需参考（load_reference 工具按需读取）',
-  '- references/render-jsx.md —— render 工具的 JSX 语法大全（props 全集 / 布局规则 / 禁用项 / 修复纪律）——首次 render 调用前必读（base）'
+  '- references/render-jsx.md —— render 工具的 JSX 语法大全（props 全集 / 布局规则 / 禁用项 / 修复纪律）——首次 render 调用前必读（base）',
+  '- references/design-basics.md —— 通用设计基础（设计令牌 / 版式 / 组合原语 / 画布预设）——搭建类设计任务开工前必读（base）'
 ].join('\n')
-const EMPTY_SLOT_EXPECTED = `${baseBody}\n\n${REFERENCES_INDEX_SECTION}`
+const EMPTY_SLOT_EXPECTED = `# studio base\n${baseBody}\n\n${REFERENCES_INDEX_SECTION}`
 
 // ── 起后端（显式剔除真实 key 防环境泄漏干扰；dummy key 经凭据路由写入）
 const backendEnv = {

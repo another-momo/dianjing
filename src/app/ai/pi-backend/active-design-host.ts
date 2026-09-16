@@ -52,7 +52,13 @@ import {
 } from '@open-pencil/core/tools/fork/marketing/active-design'
 import { parseAskAnswer } from '@open-pencil/core/tools/fork/marketing/ask-user-question'
 import type { NewIntentState } from '@open-pencil/core/tools/fork/marketing/brief'
-import { ACTIVE_DESIGN_TEXTS } from '@open-pencil/core/tools/fork/marketing/texts'
+import {
+  ACTIVE_DESIGN_TEXTS,
+  EMPTY_IDENTITY_DISPLAY,
+  GENERAL_MODE_DISPLAY,
+  IDENTITY_DIFF_SOURCES,
+  type IdentityDiffSource
+} from '@open-pencil/core/tools/fork/marketing/texts'
 
 import { readDiscoveryFile } from '@/app/bridge/server/discovery'
 
@@ -188,6 +194,10 @@ export type TurnSlotState = ActiveDesignSlotState & {
  *  - T85 定谳 3：本回合 active 资产（base 恒在 + 命中 workflow + 命中 profile）的
  *    references 并集非空时，systemPrompt 尾段追加「按需参考」索引节；并集即本回合
  *    load_reference 允许集（allowedReferences，finalizeTurn 复位）
+ *  - A3 B7：各段带来源头行——非空段前冠 `# studio base` / `# workflow: <id>` /
+ *    `# profile: <id>`（asset.kind + asset.id，collectActiveReferences 同款）；
+ *    空段不冠头（joinSegments 滤空串语义不变）。Agent 可机械分辨当前注入构成——
+ *    不见 workflow 行即通用模式（与 base.md 真源教学段互锁）。
  */
 export function assembleTurn(
   registry: StudioRegistry,
@@ -202,7 +212,16 @@ export function assembleTurn(
     ...(resolvedWorkflow ? [resolvedWorkflow] : []),
     ...(resolvedProfile ? [resolvedProfile] : [])
   ]
-  const segments = [base, resolvedWorkflow?.body ?? '', resolvedProfile?.body ?? '']
+  // A3 B7：非空段前冠来源头；空段不冠头——joinSegments 仍按 \n\n 拼接
+  const segments = [
+    base !== '' ? `# studio base\n${base}` : '',
+    resolvedWorkflow && resolvedWorkflow.body !== ''
+      ? `# workflow: ${resolvedWorkflow.id}\n${resolvedWorkflow.body}`
+      : '',
+    resolvedProfile && resolvedProfile.body !== ''
+      ? `# profile: ${resolvedProfile.id}\n${resolvedProfile.body}`
+      : ''
+  ]
 
   const contextLines = slot.status === 'ok' ? [designTargetEnvelope(slot.design)] : []
   contextLines.push(...extraNotices)
@@ -222,8 +241,12 @@ export function assembleTurn(
  *
  * workflow 缺失语义（沿用 T60 定谳）：modeId 非空但 registry 未命中 workflow
  * → workflowMissingModeId 置位 + **profile 不注入**（按 base only 组装，避免
- * profile 规则悬空执行）。general 与其他 mode 一律走 registry 查表——general
- * 在 workflows/general.md 落位后与 longform 等同（一致架构，无特殊分支）。
+ * profile 规则悬空执行）。
+ *
+ * general 兼容行：A3 方案取消 general 的 workflow 身份（`studio/workflows/general/`
+ * 已删除）。general 是无 workflow 的纯槽位标识——跳过 registry 查表、不置
+ * workflowMissingModeId；profile 通道独立于 workflow（profileMatches 逻辑不动）。
+ * 旧 general 槽位文档继续工作：base only + 身份封套 + profile（若有）。
  */
 export function resolveTurnAssets(
   registry: StudioRegistry,
@@ -237,6 +260,16 @@ export function resolveTurnAssets(
   const profileId = useIntent ? newIntent.profileId : slotProfileId
   if (modeId === '') return slot
   const profile = profileId === '' ? undefined : registry.profiles.get(profileId)
+  // general 跳过 workflow 查表——纯槽位标识，不命中即合规（base only 组装）
+  if (modeId === 'general') {
+    const profileMatches = profile
+      ? profile.modes.length === 0 || profile.modes.includes(modeId)
+      : true
+    return {
+      ...slot,
+      ...(profile && profileMatches ? { resolvedProfile: profile } : {})
+    }
+  }
   const workflow = registry.workflows.get(modeId)
   // 缺失 → 按 base only 组装（不注 profile）+ 提示行
   if (!workflow) return { ...slot, workflowMissingModeId: modeId }
@@ -265,7 +298,6 @@ export interface SlotProbeData {
   currentPageId: string
   design: DesignRootSnapshot | null
   brief: BriefLinkSnapshot | null
-  materialized: boolean
   /**
    * P0-1：newIntent 三键随槽位探针同片段取回（合并前的 probeNewIntent 独立
    * eval 已并入 buildProbeSource）。桥不可达时整个 probe 返 null；片段执行成功
@@ -278,7 +310,6 @@ export interface CandidateProbeData {
   currentPageId: string
   design: DesignRootSnapshot | null
   brief: BriefLinkSnapshot | null
-  materialized: boolean
 }
 
 export interface ActiveDesignBridgeIO {
@@ -306,8 +337,9 @@ export interface ActiveDesignBridgeIO {
 const K = ACTIVE_DESIGN_PROBE_KEYS
 
 /**
- * 探针 eval 片段：只取裸数据（快照 + 页归属 + 物化判据原料 + newIntent 三键），
- * 判定在后端。P0-1：newIntent 三键并入本片段——原 probeNewIntent 独立 eval 撤销，
+ * 探针 eval 片段：只取裸数据（快照 + 页归属 + newIntent 四键），判定在后端。
+ * C1：物化判据已随 A3/C1 退役——不再下发 hasMaterial helper 与 materialized 字段。
+ * P0-1：newIntent 三键并入本片段——原 probeNewIntent 独立 eval 撤销，
  * 每回合桥 eval 从 2 次减为 1 次。
  */
 function buildProbeSource(candidateNodeId?: string): string {
@@ -339,18 +371,6 @@ const briefSnap = (briefId) => {
   const raw = b.getSharedPluginData(NS, ${JSON.stringify(K.bindingKey)});
   return { briefId: b.id, pageId: pageOf(b), boundDesignIds: raw ? raw.split(',').filter(Boolean) : [] };
 };
-const hasMaterial = (rootId) => {
-  const root = figma.getNodeById(rootId);
-  if (!root) return false;
-  const stack = [root];
-  while (stack.length > 0) {
-    const n = stack.pop();
-    if ((n.fills || []).some((f) => f.type === 'IMAGE')) return true;
-    if (n.getSharedPluginData(NS, ${JSON.stringify(K.heroGeometryKey)})) return true;
-    stack.push(...(n.children || []));
-  }
-  return false;
-};
 const currentPageId = figma.currentPage.id;
 const slotNodeId = figma.root.getSharedPluginData(NS, ${JSON.stringify(K.slotKey)});
 const targetId = CANDIDATE || slotNodeId;
@@ -360,8 +380,9 @@ const brief = design ? briefSnap(design.briefId) : null;
 if (design && brief) design.briefId = brief.briefId;
 const newIntent = { modeId: figma.root.getSharedPluginData(NS, ${JSON.stringify(K.newIntentModeIdKey)}),
   profileId: figma.root.getSharedPluginData(NS, ${JSON.stringify(K.newIntentProfileIdKey)}),
-  confirmed: figma.root.getSharedPluginData(NS, ${JSON.stringify(K.newIntentConfirmedKey)}) === 'true' };
-return { slotNodeId, currentPageId, design, brief, materialized: design ? hasMaterial(design.nodeId) : false, newIntent };`
+  confirmed: figma.root.getSharedPluginData(NS, ${JSON.stringify(K.newIntentConfirmedKey)}) === 'true',
+  canvas: figma.root.getSharedPluginData(NS, ${JSON.stringify(K.newIntentCanvasKey)}) || '' };
+return { slotNodeId, currentPageId, design, brief, newIntent };`
 }
 
 function buildWriteSlotSource(nodeId: string): string {
@@ -369,24 +390,27 @@ function buildWriteSlotSource(nodeId: string): string {
 return { ok: true };`
 }
 
-/** T91b：探针 / 清键 桥 eval 片段共享的命名常量前缀 */
+/** T91b：探针 / 清键 桥 eval 片段共享的命名常量前缀（A3 扩四键：新增 canvas） */
 const NEW_INTENT_EVAL_PROLOGUE = (): string => {
   const NS = JSON.stringify(K.namespace)
   const M = JSON.stringify(K.newIntentModeIdKey)
   const P = JSON.stringify(K.newIntentProfileIdKey)
   const C = JSON.stringify(K.newIntentConfirmedKey)
+  const V = JSON.stringify(K.newIntentCanvasKey)
   return `const NS = ${NS};
 const M = ${M};
 const P = ${P};
-const C = ${C};`
+const C = ${C};
+const V = ${V};`
 }
 
-/** T91b：清 document root 上 newIntent 三键（空串置位 = 读侧视为缺省） */
+/** T91b：清 document root 上 newIntent 四键（空串置位 = 读侧视为缺省） */
 function buildClearNewIntentSource(): string {
   return `${NEW_INTENT_EVAL_PROLOGUE()}
 figma.root.setSharedPluginData(NS, M, '');
 figma.root.setSharedPluginData(NS, P, '');
 figma.root.setSharedPluginData(NS, C, '');
+figma.root.setSharedPluginData(NS, V, '');
 return { ok: true };`
 }
 
@@ -440,11 +464,12 @@ function parseBriefSnapshot(raw: unknown): BriefLinkSnapshot | null {
 }
 
 function parseNewIntent(raw: unknown): NewIntentState {
-  if (!isRecord(raw)) return { modeId: '', profileId: '', confirmed: false }
+  if (!isRecord(raw)) return { modeId: '', profileId: '', confirmed: false, canvas: '' }
   return {
     modeId: asString(raw.modeId),
     profileId: asString(raw.profileId),
-    confirmed: raw.confirmed === true
+    confirmed: raw.confirmed === true,
+    canvas: asString(raw.canvas)
   }
 }
 
@@ -478,7 +503,6 @@ export function createBridgeSlotIO(
       currentPageId: asString(raw.currentPageId),
       design: parseDesignSnapshot(raw.design),
       brief: parseBriefSnapshot(raw.brief),
-      materialized: raw.materialized === true,
       newIntent: parseNewIntent(raw.newIntent)
     }
   }
@@ -490,8 +514,7 @@ export function createBridgeSlotIO(
       return {
         currentPageId: data.currentPageId,
         design: data.design,
-        brief: data.brief,
-        materialized: data.materialized
+        brief: data.brief
       }
     },
     writeSlot: async (nodeId, documentId, windowId) => {
@@ -522,6 +545,64 @@ export function isFormTargetStillValid(probe: CandidateProbeData): boolean {
   return design.marketingRoot && design.pageId !== null && design.pageId === probe.currentPageId
 }
 
+// ── A3：身份差分（B3）——装配后取生效身份，与上回合闭包 diff ────────────────
+
+/** 装配后生效身份（resolveTurnAssets 解析后的 modeId+profileId 二元组） */
+function effectiveIdentity(
+  slot: TurnSlotState,
+  envelopeIntent: NewIntentState | null,
+  probeIntent: NewIntentState | null
+): { modeId: string; profileId: string } {
+  // intent 优先（与 resolveTurnAssets 同语义）：信封 > probe > slot
+  const useIntent = envelopeIntent && envelopeIntent.modeId !== ''
+  if (useIntent && envelopeIntent) {
+    return { modeId: envelopeIntent.modeId, profileId: envelopeIntent.profileId }
+  }
+  if (probeIntent && probeIntent.confirmed && probeIntent.modeId !== '') {
+    return { modeId: probeIntent.modeId, profileId: probeIntent.profileId }
+  }
+  if (slot.status === 'ok') {
+    return { modeId: slot.design.modeId, profileId: slot.design.profileId }
+  }
+  return { modeId: '', profileId: '' }
+}
+
+function identityChanged(
+  a: { modeId: string; profileId: string },
+  b: { modeId: string; profileId: string }
+): boolean {
+  return a.modeId !== b.modeId || a.profileId !== b.profileId
+}
+
+/** 渲染身份差分通知文案。Y=general 表述为「通用（无专项流程，走基础路由）」；
+ *  X=空身份（首回合后从空槽到有身份）表述为「通用」同理处理。 */
+function buildIdentityDiffNotice(
+  prev: { modeId: string; profileId: string },
+  curr: { modeId: string; profileId: string },
+  source: string
+): string {
+  const modeChanged = prev.modeId !== curr.modeId
+  const xModeDisplay =
+    prev.modeId === ''
+      ? EMPTY_IDENTITY_DISPLAY
+      : prev.modeId === 'general'
+        ? GENERAL_MODE_DISPLAY
+        : prev.modeId
+  const yModeDisplay =
+    curr.modeId === ''
+      ? EMPTY_IDENTITY_DISPLAY
+      : curr.modeId === 'general'
+        ? GENERAL_MODE_DISPLAY
+        : curr.modeId
+  if (modeChanged) {
+    return ACTIVE_DESIGN_TEXTS.modeSwitchedNotice(xModeDisplay, yModeDisplay, source)
+  }
+  if (prev.profileId !== curr.profileId) {
+    return ACTIVE_DESIGN_TEXTS.profileSwitchedNotice(prev.profileId, curr.profileId, source)
+  }
+  return ''
+}
+
 export interface ActiveDesignHostDeps {
   registry(): StudioRegistry
   bridge: ActiveDesignBridgeIO
@@ -536,6 +617,8 @@ export interface ActiveDesignHost {
   observeToolExecution(toolName: string, isError: boolean, details: unknown): void
   /** 事件①：setup_design 成功（结果含新 root id）→ 移槽（失败只 warn，设计已建不回吐） */
   onDesignCreated(rootId: string, documentId?: string, windowId?: string): Promise<void>
+  /** A3：B3 触发源标定——set_active_design 同意切换成功（service 在写槽前调） */
+  onSlotSwitchedViaBridge(): void
   /** 2026-09-15：ask_user_question 挂起期注册回调——工具 register 成功即记
    *  formId→当时 currentSlotNodeId（与 awaiting envelope 路径等价但触发时点
    *  提前到挂起完成前，answer envelope 不再走聊天回流路径） */
@@ -553,6 +636,12 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
   let turn: TurnAssembly | null = null
   let currentSlotNodeId = ''
   const formDesignByFormId = new Map<string, string>()
+  // A3：身份差分通知（B3）——闭包记录上回合解析身份 + 触发源短时记忆。
+  // 首回合（lastIdentity === null）不注入通知；其余回合在资产解析后 diff。
+  // 触发源闭包旗标：即用即清——setActiveDesignViaBridge / onDesignCreated /
+  // 信封 in / probeConfirmed 任意其一标定本回合触发源；首注即用即清。
+  let lastIdentity: { modeId: string; profileId: string } | null = null
+  let pendingSource: IdentityDiffSource | null = null
 
   async function moveSlot(nodeId: string, documentId?: string, windowId?: string): Promise<void> {
     const ok = await deps.bridge.writeSlot(nodeId, documentId, windowId)
@@ -593,6 +682,8 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
     notices: string[]
     /** pluginData 侧 confirmed 旗标（桥不可达 → false，按未确认降级） */
     intentConfirmed: boolean
+    /** 探针 newIntent 原始快照（B2.③：参数锁定行持久路径行为归一源） */
+    probeIntent: NewIntentState | null
   }> {
     const probe = await deps.bridge.probeSlot(documentId, windowId)
     if (!probe) {
@@ -603,18 +694,20 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
       return {
         slot: resolveTurnAssets(deps.registry(), { status: 'empty' }, envelopeIntent),
         notices: [],
-        intentConfirmed: false
+        intentConfirmed: false,
+        probeIntent: null
       }
     }
     const evaluated = evaluateActiveDesignSlot(probe.slotNodeId, probe.design, probe.brief)
-    // newIntent 优先级：信封（本回合一次性，最新）> pluginData 三键
+    // newIntent 优先级：信封（本回合一次性，最新）> pluginData 四键
     const intent = envelopeIntent && envelopeIntent.modeId !== '' ? envelopeIntent : probe.newIntent
     const intentConfirmed = probe.newIntent.confirmed
     if (evaluated.status !== 'dangling') {
       return {
         slot: resolveTurnAssets(deps.registry(), evaluated, intent),
         notices: [],
-        intentConfirmed
+        intentConfirmed,
+        probeIntent: probe.newIntent
       }
     }
     // 定谳 3：槽位节点删除/失格 → 清槽 + 一行系统提示
@@ -622,7 +715,8 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
     return {
       slot: resolveTurnAssets(deps.registry(), { status: 'empty' }, intent),
       notices: [ACTIVE_DESIGN_TEXTS.slotCleared],
-      intentConfirmed
+      intentConfirmed,
+      probeIntent: probe.newIntent
     }
   }
 
@@ -664,6 +758,13 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
       // T91b：设计落图后清 document root pluginData 三键——避免下次装配读到
       // 旧 modeId 误用。失败仅 warn（设计已建不需回吐；下回合探针自然读空）
       await deps.bridge.clearNewIntent(documentId, windowId)
+      // A3：身份差分通知（B3）触发源标定——落图是合法触发源（B6 静默建通用
+      // 工作区移槽产生真实 diff，与通知行触发源清单「新设计落图」一致）
+      pendingSource = IDENTITY_DIFF_SOURCES.newDesignCreated
+    },
+    onSlotSwitchedViaBridge() {
+      // A3：B3 触发源标定——set_active_design 同意切换成功（service 端点 200 后调）
+      pendingSource = IDENTITY_DIFF_SOURCES.userAgreedSwitch
     },
     async prepareTurn(text, documentId, windowId) {
       // 回合开始强制清零（防御：finalizeTurn 遗漏也不跨回合滞留）
@@ -677,18 +778,29 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
         envelopeIntent = {
           modeId: envelope.modeId ?? '',
           profileId: envelope.profileId ?? '',
-          confirmed: true
+          confirmed: true,
+          canvas: envelope.canvas ?? ''
         }
-        // T65 集成缺口修复：确认参数随本回合 context 对 AI 可见（选择即锁定）；
-        // 裸信封（无任何参数）不注入——无可锁定字段
-        const confirmedLine = ACTIVE_DESIGN_TEXTS.newIntentConfirmed(envelope)
+        // T65 集成缺口修复：确认参数随本回合 context 对 AI 可见（选择即锁定）。
+        // B2.③：参数锁定行扩展为 intent 任一源——probeSlotState 之后从
+        // envelope（优先）或 probe.newIntent 取 modeId/profileId/canvas 构
+        // confirmedLine，统一注入点。信封路径与 pluginData 持久路径行为归一，
+        // 不得重复注入：本回合 envelope 在场时即用 envelope 的参数锁。
+        const confirmedLine = ACTIVE_DESIGN_TEXTS.newIntentConfirmed({
+          modeId: envelopeIntent.modeId || undefined,
+          profileId: envelopeIntent.profileId || undefined,
+          canvas: envelopeIntent.canvas || undefined
+        })
         if (confirmedLine !== '') intentNotices.push(confirmedLine)
+        // A3：B3 触发源标定——本回合信封在场 = 用户确认新建
+        pendingSource = IDENTITY_DIFF_SOURCES.userConfirmedNew
       }
       await resolveFormAnswer(text, documentId, windowId)
       const {
         slot,
         notices,
-        intentConfirmed: probeConfirmed
+        intentConfirmed: probeConfirmed,
+        probeIntent
       } = await probeSlotState(envelopeIntent, documentId, windowId)
       // T91b：pluginData 探针确认（二级信源；前端 ChatNewIntentCard 确认后写入）。
       // OR 信封兼容路径——任一为真即放行。探针不可达按未确认降级。
@@ -697,8 +809,31 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
       // modeId=general、slot=ok 的替换/新建议图三条路径下该派生式恒假，
       // 会把 setup_design 的 __confirmedNewIntent 守卫误关。
       if (!intentConfirmed && probeConfirmed) intentConfirmed = true
+      // B2.③：信封未在场、pluginData 已确认 → 同样注入参数锁定行（持久路径行为归一）
+      if (!envelope && probeConfirmed && probeIntent) {
+        const confirmedLine = ACTIVE_DESIGN_TEXTS.newIntentConfirmed({
+          modeId: probeIntent.modeId || undefined,
+          profileId: probeIntent.profileId || undefined,
+          canvas: probeIntent.canvas || undefined
+        })
+        if (confirmedLine !== '') intentNotices.push(confirmedLine)
+        // A3：B3 触发源标定——无信封但 pluginData 已确认 = 用户确认新建（持久路径）
+        pendingSource = IDENTITY_DIFF_SOURCES.userConfirmedNew
+      }
       currentSlotNodeId = slot.status === 'ok' ? slot.design.nodeId : ''
-      turn = assembleTurn(deps.registry(), slot, [...intentNotices, ...notices])
+      // A3：B3 身份差分——装配后取生效身份（intent 优先后的 modeId+profileId 二元组）
+      // 与上回合闭包 diff。首回合 lastIdentity === null → 不注入。
+      const effective = effectiveIdentity(slot, envelopeIntent, probeIntent)
+      const identityNotices: string[] = []
+      if (lastIdentity !== null && identityChanged(lastIdentity, effective)) {
+        const source = pendingSource ?? IDENTITY_DIFF_SOURCES.externalChange
+        const notice = buildIdentityDiffNotice(lastIdentity, effective, source)
+        if (notice !== '') identityNotices.push(notice)
+      }
+      // 即用即清（首注即清；无 diff 不读、不延后至下回合）
+      pendingSource = null
+      lastIdentity = effective
+      turn = assembleTurn(deps.registry(), slot, [...intentNotices, ...identityNotices, ...notices])
       return { promptText: stripped }
     },
     turnAssembly: () => turn,
@@ -718,8 +853,6 @@ export type SetActiveDesignResult =
       profileId: string
       briefId: string
       name: string
-      /** 物化判据结果（Case A/B 分叉数据，T61 消费；判据见 core active-design.ts 头注） */
-      materialized: boolean
     }
   | { ok: false; error: ActiveDesignRejectReason | 'bridge_unavailable'; message: string }
 
@@ -757,37 +890,39 @@ export async function setActiveDesignViaBridge(
     modeId: check.design.modeId,
     profileId: check.design.profileId,
     briefId: check.design.briefId,
-    name: check.design.name,
-    materialized: probe.materialized
+    name: check.design.name
   }
 }
 
 // ── 端点：newIntent 确认（T91b）──────────────────────────────────────────────
 
 export type ConfirmNewIntentResult =
-  | { ok: true; modeId: string; profileId: string }
+  | { ok: true; modeId: string; profileId: string; canvas: string }
   | { ok: false; error: 'bridge_unavailable' | 'invalid_args'; message: string }
 
-/** T91b：写 document root sharedPluginData 三键（modeId / profileId / confirmed=true）。 */
-function buildWriteNewIntentSource(modeId: string, profileId: string): string {
+/** T91b：写 document root sharedPluginData 四键（modeId / profileId / confirmed=true / canvas）。
+ * A3 方案：canvas 与其他三键同持久化（确认意图本就该持久至落图/被覆盖——§2.2）。 */
+function buildWriteNewIntentSource(modeId: string, profileId: string, canvas: string): string {
   return `const NS = ${JSON.stringify(K.namespace)};
 const M = ${JSON.stringify(K.newIntentModeIdKey)};
 const P = ${JSON.stringify(K.newIntentProfileIdKey)};
 const C = ${JSON.stringify(K.newIntentConfirmedKey)};
+const V = ${JSON.stringify(K.newIntentCanvasKey)};
 figma.root.setSharedPluginData(NS, M, ${JSON.stringify(modeId)});
 figma.root.setSharedPluginData(NS, P, ${JSON.stringify(profileId)});
 figma.root.setSharedPluginData(NS, C, 'true');
+figma.root.setSharedPluginData(NS, V, ${JSON.stringify(canvas)});
 return { ok: true };`
 }
 
 /**
- * POST /api/pi/intent-confirm 的处理本体：写 pluginData 三键（modeId /
- * profileId / confirmed=true）。前端 ChatNewIntentCard 确认按钮触发。
+ * POST /api/pi/intent-confirm 的处理本体：写 pluginData 四键（modeId /
+ * profileId / confirmed=true / canvas）。前端 ChatNewIntentCard 确认按钮触发。
  * documentId 缺省 = 桥当前活动 tab（同工具 document_id 缺省语义）。
  * T98-路由：windowId 透传——按发起窗路由（多窗时只有目标窗的 pluginData 被写）。
  */
 export async function confirmNewIntentViaBridge(
-  args: { modeId: string; profileId?: string },
+  args: { modeId: string; profileId?: string; canvas?: string },
   documentId?: string,
   windowId?: string
 ): Promise<ConfirmNewIntentResult> {
@@ -795,10 +930,11 @@ export async function confirmNewIntentViaBridge(
     return { ok: false, error: 'invalid_args', message: 'modeId 不能为空' }
   }
   const profileId = args.profileId ?? ''
+  const canvas = args.canvas ?? ''
   try {
     const discovery = await readDiscoveryFile()
     if (!discovery) throw new Error('bridge discovery missing')
-    const code = buildWriteNewIntentSource(args.modeId, profileId)
+    const code = buildWriteNewIntentSource(args.modeId, profileId, canvas)
     const res = await postBridgeRPC(
       discovery,
       'tool',
@@ -810,7 +946,7 @@ export async function confirmNewIntentViaBridge(
     )
     const body = (await res.json().catch(() => null)) as { ok?: boolean } | null
     if (!res.ok || body?.ok !== true) throw new Error(`bridge eval failed: HTTP ${res.status}`)
-    return { ok: true, modeId: args.modeId, profileId }
+    return { ok: true, modeId: args.modeId, profileId, canvas }
   } catch {
     return {
       ok: false,

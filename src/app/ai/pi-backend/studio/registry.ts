@@ -340,9 +340,11 @@ export function loadStudioFromDirs(builtinDir: string, userDir: string): StudioR
   const knownModeIds = new Set<string>(['general', ...workflows.keys()])
   const profiles = loadProfiles(builtinDir, userDir, knownModeIds, resolved, failures)
 
-  // ── mode 投影（PD-16：文件存在 = mode 可用；general 走 workflows/general.md
-  //    统一走 workflow 派生，source 标记为 general 保持首位与历史语义；
-  //    general.md 缺失时回退硬编码 general entry——保持「general 恒在」语义）──
+  // ── mode 投影（PD-16：文件存在 = mode 可用）
+  // 2026-09-16 A3：内置 workflows/general/ 已删除——general 投影恒走硬编码
+  // general entry（首位、source=general），不再走 workflow 派生；保留
+  // workflows.get('general') 分支作用户目录自建 general/workflow.md 的
+  // 兼容通道（含 sizes 投影），命中时优先以 workflow 形态投影。──
   const modes: StudioMode[] = []
   const generalWorkflow = workflows.get('general')
   if (generalWorkflow) {

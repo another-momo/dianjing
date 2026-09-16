@@ -110,12 +110,7 @@ const zhCN = {
   },
   confirm: {
     intentTitle: '以新身份开始新设计？',
-    intentCaseALine: '当前方向草稿将作废——新设计区从零开始。',
-    intentCaseBKeep: '旧产物原样保留在画布上——不会被改写。',
-    intentCaseBNew: '将按选中的模式 / 风格启动新的设计区。',
-    intentCaseBMaterials: '需求单素材区自动继承。',
-    intentCaseBReferences: '把已生成的图片作为 references 携带',
-    intentCaseBRadius: '废弃半径：仅作废旧方向——已产出的一切保留。',
+    intentUnifiedLine: '将按选中的模式 / 风格开始新设计——画布上的现有内容原样保留，不会被删除。',
     intentSizeSection: '画布尺寸',
     intentSizeAuto: '自动（AI 决定）',
     intentSizeCustomPlaceholder: '自定义，如 750x 或 750x2000',

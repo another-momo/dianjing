@@ -4,25 +4,21 @@
  * ChatPanel 拦截发送并注入宿主发起的 data part（非工具 part，T56 卡片范式），
  * 本卡片渲染之。
  *
- * 话术分叉（共享契约 4 物化判据）：
- *  - Case A（物化前）：一行——方向草稿作废提示。
- *  - Case B（物化后）四项：旧产物保留说明 / 新设计区启动 / 携带物勾选
- *    （brief 素材区自动继承 + 已生成图片可选 references，opt-in）/ 废弃半径声明。
- *
  * T65：
  *  - 尺寸行（决策 C）：预设 chips（data.sizeChoices = 选中 mode 的 manifest.sizes
  *    投影 [{label,canvas}]）+ 自定义输入（`Wx`/`WxH`）；选择随 confirm 上抛，
  *    进信封 canvas 字段；缺省 = 自动（AI 按语义决定，信封省略字段）。
- *  - Case B references 加缩略图（T56 renderExportImage 先例；失败 → 占位图标）。
  *  - 视觉从气泡降权为系统样式（决策 D3 衍生：虚线边框 + 无填充，区别用户/AI 气泡）。
+ *  - 统一卡面（A3/C1）——勾选股与 Case A/B 分叉已退役，参考意图由 agent 从
+ *    会话语言解析（内容在同一画布上，agent 自然能读到用户指认的参考）；
+ *    Case A/B 物化判据随之失去消费者。
  *
  * 确认 → emit confirm {referenceNodeIds, canvas}；取消 → emit cancel（chips 回滚
  * 回显、消息留输入框——由 ChatPanel 执行）。决断写回 part data 的 resolved
  * 字段（重载后保持置灰，同 answeredFormIds 的派生纪律）。
  */
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, ref } from 'vue'
 
-import { getActiveEditorStoreOrNull } from '@/app/editor/active-store'
 import { useForkConfirm } from '@/app/i18n/fork'
 
 import { CANVAS_VALUE_PATTERN, type NewIntentPartData } from './active-design'
@@ -40,16 +36,6 @@ const emit = defineEmits<{
 const confirmText = useForkConfirm()
 
 const isLocked = computed(() => data.resolved !== null || disabled)
-const selectedRefs = reactive(new Set<string>())
-
-function toggleRef(nodeId: string) {
-  if (isLocked.value) return
-  if (selectedRefs.has(nodeId)) {
-    selectedRefs.delete(nodeId)
-  } else {
-    selectedRefs.add(nodeId)
-  }
-}
 
 // ── T65：尺寸行（预设 chips + 自定义输入；空 = 自动） ──
 
@@ -73,7 +59,7 @@ function handleConfirm() {
   if (isLocked.value) return
   const canvas = canvasDraft.value.trim()
   emit('confirm', {
-    referenceNodeIds: [...selectedRefs],
+    referenceNodeIds: [],
     canvas: CANVAS_VALUE_PATTERN.test(canvas) ? canvas : null
   })
 }
@@ -82,47 +68,6 @@ function handleCancel() {
   if (isLocked.value) return
   emit('cancel')
 }
-
-// ── T65：Case B references 缩略图（renderExportImage 先例；失败 → null → 占位图标） ──
-
-const THUMBNAIL_RENDER_SIZE = 96
-const thumbnails = reactive<Record<string, string | null | undefined>>({})
-const createdUrls: string[] = []
-
-function thumbnailURL(nodeId: string): string | undefined {
-  const url = thumbnails[nodeId]
-  return typeof url === 'string' ? url : undefined
-}
-
-async function loadThumbnail(nodeId: string) {
-  const store = getActiveEditorStoreOrNull()
-  const node = store?.graph.getNode(nodeId)
-  if (!store || !node) {
-    thumbnails[nodeId] = null
-    return
-  }
-  const scale = THUMBNAIL_RENDER_SIZE / Math.max(node.width, node.height, 1)
-  try {
-    const data = await store.renderExportImage([nodeId], scale, 'PNG')
-    if (!data) {
-      thumbnails[nodeId] = null
-      return
-    }
-    const url = URL.createObjectURL(new Blob([data], { type: 'image/png' }))
-    createdUrls.push(url)
-    thumbnails[nodeId] = url
-  } catch {
-    thumbnails[nodeId] = null
-  }
-}
-
-onMounted(() => {
-  for (const refCandidate of data.references) void loadThumbnail(refCandidate.nodeId)
-})
-
-onBeforeUnmount(() => {
-  for (const url of createdUrls) URL.revokeObjectURL(url)
-})
 </script>
 
 <template>
@@ -147,58 +92,10 @@ onBeforeUnmount(() => {
       </span>
     </div>
 
-    <!-- Case A（物化前）：方向草稿作废提示一行 -->
-    <div v-if="data.caseKind === 'A'" class="text-[11px] text-surface">
-      {{ confirmText.intentCaseALine }}
+    <!-- 统一卡面（A3/C1）：勾选股与 Case A/B 分叉已退役 -->
+    <div class="text-[11px] text-surface">
+      {{ confirmText.intentUnifiedLine }}
     </div>
-
-    <!-- Case B（物化后）四项 -->
-    <template v-else>
-      <ul class="list-inside space-y-1 text-[11px] text-surface">
-        <li>· {{ confirmText.intentCaseBKeep }}</li>
-        <li>· {{ confirmText.intentCaseBNew }}</li>
-        <li>· {{ confirmText.intentCaseBMaterials }}</li>
-        <li>· {{ confirmText.intentCaseBRadius }}</li>
-      </ul>
-      <div v-if="data.references.length > 0" class="space-y-1">
-        <div class="text-[11px] font-medium text-muted">
-          {{ confirmText.intentCaseBReferences }}
-        </div>
-        <label
-          v-for="ref in data.references"
-          :key="ref.nodeId"
-          class="flex items-center gap-1.5 text-[11px] text-surface"
-          :class="isLocked ? 'opacity-60' : 'cursor-pointer'"
-          :data-test-id="`new-intent-reference`"
-          :data-node-id="ref.nodeId"
-        >
-          <input
-            type="checkbox"
-            :checked="selectedRefs.has(ref.nodeId)"
-            :disabled="isLocked"
-            class="size-3 shrink-0 accent-accent"
-            @change="toggleRef(ref.nodeId)"
-          />
-          <span
-            class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded border border-border bg-input"
-          >
-            <img
-              v-if="thumbnailURL(ref.nodeId)"
-              :src="thumbnailURL(ref.nodeId)"
-              :alt="ref.label"
-              class="max-h-full max-w-full object-contain"
-              draggable="false"
-            />
-            <icon-lucide-loader-circle
-              v-else-if="thumbnails[ref.nodeId] === undefined"
-              class="size-3 animate-spin text-muted"
-            />
-            <icon-lucide-image-off v-else class="size-3 text-muted" />
-          </span>
-          <span class="min-w-0 truncate">{{ ref.label }}</span>
-        </label>
-      </div>
-    </template>
 
     <!-- T65：尺寸行（预设 chips + 自定义输入；空 = 自动由 AI 决定） -->
     <div class="space-y-1">

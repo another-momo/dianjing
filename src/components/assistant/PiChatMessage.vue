@@ -86,10 +86,8 @@ function newIntentData(part: UIMessagePart<UIDataTypes, UITools>): NewIntentPart
   return {
     modeId: typeof raw?.modeId === 'string' ? raw.modeId : null,
     profileId: typeof raw?.profileId === 'string' ? raw.profileId : null,
-    caseKind: raw?.caseKind === 'B' ? 'B' : 'A',
     activeDesignName: typeof raw?.activeDesignName === 'string' ? raw.activeDesignName : null,
     sizeChoices: normalizeSizeChoices(raw?.sizeChoices),
-    references: Array.isArray(raw?.references) ? raw.references : [],
     resolved: raw?.resolved === 'confirmed' || raw?.resolved === 'cancelled' ? raw.resolved : null
   }
 }

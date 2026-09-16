@@ -243,14 +243,15 @@ describe('setup_design core：契约组', () => {
       status: 'awaiting_new_intent_confirmation',
       proposed: { modeId: 'longform', briefId: brief.id }
     })
+    // A3 B6：纯 general（无 profileId）静默放行——用 general+profile 维持「专项未确认仍拦」
     const r2 = setupDesign(
       figma,
-      { modeId: 'general', briefId: brief.id, confirmedNewIntent: false },
+      { modeId: 'general', profileId: 'profile-a', briefId: brief.id, confirmedNewIntent: false },
       CATALOG
     )
     expect(r2).toMatchObject({
       status: 'awaiting_new_intent_confirmation',
-      proposed: { modeId: 'general', briefId: brief.id }
+      proposed: { modeId: 'general', profileId: 'profile-a', briefId: brief.id }
     })
     expect(expectDefined(graph.getNode(figma.currentPage.id)).childIds.length).toBe(before)
     expect(scanMarketingDesigns(figma)).toEqual([])
@@ -269,7 +270,13 @@ describe('setup_design core：契约组', () => {
       expect(getSharedPluginData(root, BRIEF_PLUGIN_NAMESPACE, DESIGN_MODE_KEY)).toBe('longform')
       expect(getSharedPluginData(root, BRIEF_PLUGIN_NAMESPACE, DESIGN_PROFILE_KEY)).toBe('p1')
     } else throw new Error('expected setupDesign success')
-    expect(readNewIntent(figma)).toEqual({ modeId: '', profileId: '', confirmed: false })
+    // A3 B2：四键（含 canvas 缺省 ''）
+    expect(readNewIntent(figma)).toEqual({
+      modeId: '',
+      profileId: '',
+      confirmed: false,
+      canvas: ''
+    })
 
     // case 2: pluginData 未确认 → awaiting 信封
     writeNewIntent(figma, { modeId: 'longform', profileId: 'p1' })
@@ -279,7 +286,12 @@ describe('setup_design core：契约组', () => {
       proposed: { modeId: 'longform', profileId: 'p1', briefId: brief.id }
     })
     clearNewIntent(figma)
-    expect(readNewIntent(figma)).toEqual({ modeId: '', profileId: '', confirmed: false })
+    expect(readNewIntent(figma)).toEqual({
+      modeId: '',
+      profileId: '',
+      confirmed: false,
+      canvas: ''
+    })
   })
 
   test('⑨ 关联设计区登记：条目 designId + 名称投影 + bound-designs 指针 + 读穿三元组', () => {
@@ -325,7 +337,7 @@ describe('setup_design core：契约组', () => {
     ])
   })
 
-  test('信封字段：成功全字段（含 placement）；general 缺省键不出现', () => {
+  test('信封字段：成功全字段（含 placement + message 锚点行）；general 缺省键不出现', () => {
     const { brief, run } = setupPage()
     const full = ok(run({ modeId: 'longform', profileId: 'profile-a' }))
     expect(full).toEqual({
@@ -335,12 +347,16 @@ describe('setup_design core：契约组', () => {
       modeId: 'longform',
       profileId: 'profile-a',
       briefId: brief.id,
-      placement: { x: BRIEF_WIDTH + PLACEMENT_GAP, y: 0 }
+      placement: { x: BRIEF_WIDTH + PLACEMENT_GAP, y: 0 },
+      // A3 B4：结果锚点行按 mode 分型——专项 workflow 推进
+      message: '「长图」设计工作区已落图并成为当前设计目标——后续回合按其 workflow 推进。'
     })
 
     const general = ok(run({ modeId: 'general' }))
     expect('profileId' in general).toBe(false)
     expect(general.briefId).toBe(brief.id)
+    // A3 B4：通用工作区无 workflow——结果行换型
+    expect(general.message).toBe('设计工作区已落图并成为当前设计目标——后续回合以它为工作区续作。')
   })
 
   test('放置：页面内容右侧 +100，y 跟随 bounds 顶', () => {
@@ -596,16 +612,35 @@ describe('setup_design ToolDef：schema 与注入缝', () => {
     const before = expectDefined(graph.getNode(figma.currentPage.id)).childIds.length
 
     // T91b：args.__confirmedNewIntent 缺省 = 未确认 = 返 awaiting 信封
+    // A3 B6：纯 general（无 profileId）已静默放行——改用专项 mode 维持「未确认仍拦」
     const result = setupDesignTool.execute(figma, {
-      modeId: 'general',
+      modeId: 'longform',
       briefId: brief.id,
       __catalog: JSON.stringify(CATALOG)
     }) as SetupDesignResult
     expect(result).toMatchObject({
       status: 'awaiting_new_intent_confirmation',
-      proposed: { modeId: 'general', briefId: brief.id }
+      proposed: { modeId: 'longform', briefId: brief.id }
     })
     expect(expectDefined(graph.getNode(figma.currentPage.id)).childIds.length).toBe(before)
+  })
+
+  test('A3 B6：纯 general（无 profileId）静默放行——无 awaiting 信封，无 __confirmedNewIntent 也建框', () => {
+    const { graph, figma } = setupToolTest()
+    const brief = createBrief(figma)
+    const before = expectDefined(graph.getNode(figma.currentPage.id)).childIds.length
+
+    const result = setupDesignTool.execute(figma, {
+      modeId: 'general',
+      briefId: brief.id,
+      __catalog: JSON.stringify(CATALOG)
+    }) as SetupDesignResult
+    expect('error' in result).toBe(false)
+    expect('status' in result).toBe(false)
+    if ('rootId' in result) {
+      expect(result.message).toBe('设计工作区已落图并成为当前设计目标——后续回合以它为工作区续作。')
+    } else throw new Error('expected success')
+    expect(expectDefined(graph.getNode(figma.currentPage.id)).childIds.length).toBe(before + 1)
   })
 
   test('无 __catalog：general 可用、非 general catalog_unavailable；畸形 JSON 按未注入', () => {

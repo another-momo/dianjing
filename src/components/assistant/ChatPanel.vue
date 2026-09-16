@@ -57,9 +57,8 @@ import Tip from '@/components/ui/overlay/Tip.vue'
 import {
   ACTIVE_DESIGN_DECISION_PART_TYPE,
   CONTEXT_SWITCH_PART_TYPE,
+  GENERAL_SIZE_CHOICES,
   NEW_INTENT_PART_TYPE,
-  collectDesignImageRefs,
-  isDesignRootMaterialized,
   modeSizeChoices,
   parseSetActiveDesignProposed,
   postActiveDesign,
@@ -537,20 +536,23 @@ async function interceptNewIntent(
   text: string,
   intent: { modeId: string; profileId: string | null }
 ): Promise<boolean> {
-  const store = getActiveEditorStore()
   const active = piActiveDesign.value
-  // 共享契约 4 物化判据（core active-design.ts 单源；active-design.ts 钉扎）：Case A/B 话术分叉
-  const materialized = active ? isDesignRootMaterialized(store, active.nodeId) : false
   // T65：尺寸行预设 = 选中 mode 的 manifest.sizes 投影（[{label,canvas}] 契约，
-  // 防御性归一在 modeSizeChoices；数据面由 core/manifest 侧落地）
+  // 防御性归一在 modeSizeChoices；数据面由 core/manifest 侧落地）。
+  // C2：general 退出 studio manifest（波1 删 workflows/general/），
+  // modeSizeChoices 投影恒空——fallback 到 GENERAL_SIZE_CHOICES 通用预设。
   const modeEntry = piStudioManifest.value?.modes.find((mode) => mode.id === intent.modeId) ?? null
+  // A3 C1：物化判据已退役——勾选股删除后 Case A/B 分叉理由塌，统一卡面
+  // 对物化前后无条件为真。
   const data: NewIntentPartData = {
     modeId: intent.modeId,
     profileId: intent.profileId,
-    caseKind: materialized ? 'B' : 'A',
     activeDesignName: active?.name ?? null,
-    sizeChoices: modeSizeChoices(modeEntry),
-    references: materialized && active ? collectDesignImageRefs(store, active.nodeId) : [],
+    sizeChoices: modeEntry
+      ? modeSizeChoices(modeEntry)
+      : intent.modeId === 'general'
+        ? GENERAL_SIZE_CHOICES
+        : [],
     resolved: null
   }
   const message = await appendHostMessage([{ type: NEW_INTENT_PART_TYPE, data }])
@@ -599,6 +601,16 @@ async function handleIntentConfirm(payload: {
   pendingIntentDraft.value = null
   clearPiPendingNewIntent()
   chatInputRef.value?.clearDraft()
+  // A3：B2 写读定序——先 await postIntentConfirm 把确认参数落 pluginData 四键，
+  // 再 handleSubmit。失败降级为现行一次性信封语义（信封照发，P0-1 兼容路径保留），
+  // 不阻断发送。canvas 取确认卡尺寸行当前值（与信封 canvas 同源）。
+  if (intent?.modeId) {
+    await postIntentConfirm({
+      modeId: intent.modeId,
+      ...(intent.profileId ? { profileId: intent.profileId } : {}),
+      ...(payload.canvas ? { canvas: payload.canvas } : {})
+    })
+  }
   // 共享契约 1 逐字信封（全字段可缺省；T65 §2.4 扩展 canvas）+ 用户消息；
   // 宿主（T60/T65）剥离置旗标
   const envelope = serializeNewIntentEnvelope({
@@ -606,12 +618,9 @@ async function handleIntentConfirm(payload: {
     profileId: intent?.profileId ?? null,
     canvas: payload.canvas
   })
-  // 携带物：已生成图片 references（信封字段不动契约，节点 id 以正文行携带进 run）
-  const referencesLine =
-    payload.referenceNodeIds.length > 0
-      ? `\n\n参考图片（已生成产物，作为 references 携带）：${payload.referenceNodeIds.join('、')}`
-      : ''
-  await handleSubmit(`${envelope}\n${draft}${referencesLine}`)
+  // A3 C1：references 携带随物化判据一并退役；payload.referenceNodeIds 保留不
+  // 消费（卡片 emit 契约本批冻结——卡恒 emit []，未来再开携带物通道时复用）。
+  await handleSubmit(`${envelope}\n${draft}`)
 }
 
 function handleIntentCancel(payload: { messageId: string }) {
@@ -715,7 +724,7 @@ async function handleContextSwitch(payload: { name: string }) {
 
 /**
  * 用户在 ChatAwaitingIntentCard 点 Confirm →
- *   1. POST /api/pi/intent-confirm（写 document root pluginData 三键）
+ *   1. POST /api/pi/intent-confirm（写 document root pluginData 四键，A3：B2 扩 canvas）
  *   2. abort 当前 session（停止 AI 等待循环，避免继续重放 setup_design）
  *   3. 注入 system 行回执（前端告诉用户成功/失败）
  *
@@ -726,12 +735,14 @@ async function handleIntentAwaitingConfirm(payload: {
   toolCallId: string
   modeId: string
   profileId: string
+  canvas?: string
 }): Promise<void> {
   if (awaitingIntentDecisions.value.has(payload.toolCallId)) return
   awaitingIntentDecisions.value.add(payload.toolCallId)
   const result = await postIntentConfirm({
     modeId: payload.modeId,
-    ...(payload.profileId !== '' ? { profileId: payload.profileId } : {})
+    ...(payload.profileId !== '' ? { profileId: payload.profileId } : {}),
+    ...(payload.canvas ? { canvas: payload.canvas } : {})
   })
   // T91b：截停当前 SSE 流——AI 不再继续重放 setup_design。
   // 用户主动重发消息即可（pluginData 已落，下次 prepareTurn 真源命中 → core 放行）。

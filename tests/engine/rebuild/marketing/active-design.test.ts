@@ -7,7 +7,6 @@
  *  - 槽位状态读穿：empty / ok / briefMissing（需求单被删）/ dangling
  *  - set_active_design：mutates:false 钉扎、{proposed:{nodeId,...}} 不落槽、
  *    驳回结构化错误；ACTIVE_DESIGN_TOOLS 交付面形状
- *  - 物化判据：IMAGE fill / hero-geometry 骨架标记 / 空设计区三态
  *  - typeId 残留容忍（T62 并行删除期：旧文档残留键忽略不读）
  */
 
@@ -21,7 +20,6 @@ import {
   checkActiveDesignCandidate,
   clearActiveDesignNodeId,
   evaluateActiveDesignSlot,
-  isDesignMaterialized,
   readActiveDesignNodeId,
   setActiveDesignTool,
   snapshotBriefLink,
@@ -37,7 +35,6 @@ import {
   briefBoundDesignIds,
   createBrief
 } from '#core/tools/fork/marketing/brief'
-import { HERO_GEOMETRY_KEY } from '#core/tools/fork/marketing/hero-scaffold'
 import { setupDesign } from '#core/tools/fork/marketing/setup'
 
 import { expectDefined } from '#tests/helpers/assert'
@@ -54,17 +51,6 @@ function setupPageWithDesign() {
   })
   if ('error' in result) throw new Error(`setup_design failed: ${result.error}`)
   return { graph, figma, brief, rootId: result.rootId }
-}
-
-function makeImageFill() {
-  return {
-    type: 'IMAGE' as const,
-    color: { r: 0, g: 0, b: 0, a: 0 },
-    opacity: 1,
-    visible: true,
-    imageHash: 'deadbeef',
-    imageScaleMode: 'FILL' as const
-  }
 }
 
 describe('active_design 单槽读写', () => {
@@ -241,7 +227,7 @@ describe('set_active_design 工具', () => {
     expect(Object.keys(setActiveDesignTool.params)).toEqual(['node_id'])
   })
 
-  test('合法目标 → {proposed:{nodeId,name,modeId,profileId,briefId}} + materialized，不落槽', () => {
+  test('合法目标 → {proposed:{nodeId,name,modeId,profileId,briefId}}，不落槽', () => {
     const { figma, brief, rootId } = setupPageWithDesign()
     const result = setActiveDesignTool.execute(figma, { node_id: rootId }) as {
       proposed?: {
@@ -251,7 +237,6 @@ describe('set_active_design 工具', () => {
         profileId: string
         briefId: string
       }
-      materialized?: boolean
     }
     expect(result.proposed).toEqual({
       nodeId: rootId,
@@ -260,7 +245,6 @@ describe('set_active_design 工具', () => {
       profileId: '',
       briefId: brief.id
     })
-    expect(result.materialized).toBe(false)
     // 不落槽：单槽仍为空
     expect(readActiveDesignNodeId(figma)).toBe('')
   })
@@ -274,31 +258,6 @@ describe('set_active_design 工具', () => {
     expect(result.error).toBe('not_found')
     expect(result.message).toBeTruthy()
     expect(readActiveDesignNodeId(figma)).toBe('')
-  })
-})
-
-describe('物化判据（Case A/B 分叉数据）', () => {
-  test('新建设计区（白底 SOLID）→ 未物化', () => {
-    const { graph, rootId } = setupPageWithDesign()
-    expect(isDesignMaterialized(graph, rootId)).toBe(false)
-  })
-
-  test('子树内 IMAGE fill → 物化', () => {
-    const { graph, rootId } = setupPageWithDesign()
-    graph.createNode('RECTANGLE', rootId, { name: 'img', fills: [makeImageFill()] })
-    expect(isDesignMaterialized(graph, rootId)).toBe(true)
-  })
-
-  test('子树内 hero-geometry 骨架标记 → 物化', () => {
-    const { graph, figma, rootId } = setupPageWithDesign()
-    const child = graph.createNode('FRAME', rootId, { name: 'scaffold' })
-    setSharedPluginData(figma.graph, child, BRIEF_PLUGIN_NAMESPACE, HERO_GEOMETRY_KEY, '{}')
-    expect(isDesignMaterialized(graph, rootId)).toBe(true)
-  })
-
-  test('root 不存在 → false（不 throw）', () => {
-    const { graph } = setupPageWithDesign()
-    expect(isDesignMaterialized(graph, '9:9')).toBe(false)
   })
 })
 
@@ -316,9 +275,10 @@ test('桥探针键面常量钉扎（eval 片段插值的单一事实源）', () 
     heroGeometryKey: 'hero-geometry',
     // T91a 修复：design/brief 同键名 'uniqueId'——探针捕获/UUID 解析共用
     uniqueIdKey: 'uniqueId',
-    // T91b：newIntent pluginData 三键（键面 import 单源）
+    // A3 B2：newIntent pluginData 四键（键面 import 单源）——canvas 扩键
     newIntentModeIdKey: 'newIntentModeId',
     newIntentProfileIdKey: 'newIntentProfileId',
-    newIntentConfirmedKey: 'newIntentConfirmed'
+    newIntentConfirmedKey: 'newIntentConfirmed',
+    newIntentCanvasKey: 'newIntentCanvas'
   })
 })

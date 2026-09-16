@@ -136,8 +136,7 @@ function makeFakeBridge(): FakeBridge {
     currentPageId: 'page-1',
     design: null,
     brief: null,
-    materialized: false,
-    newIntent: { modeId: '', profileId: '', confirmed: false }
+    newIntent: { modeId: '', profileId: '', confirmed: false, canvas: '' }
   }
   const candidateById = new Map<string, DesignRootSnapshot | null>()
   const writes: string[] = []
@@ -162,8 +161,7 @@ function makeFakeBridge(): FakeBridge {
       const data: CandidateProbeData = {
         currentPageId: slot.currentPageId,
         design,
-        brief: null,
-        materialized: false
+        brief: null
       }
       return Promise.resolve(data)
     },
@@ -173,7 +171,11 @@ function makeFakeBridge(): FakeBridge {
       return Promise.resolve(true)
     },
     // T91b：newIntent 清键 stub（探针侧已并入 probeSlot 的 newIntent 字段）
-    clearNewIntent: () => Promise.resolve(true)
+    // A3 波4：补全为真清内存 newIntent 四键——onDesignCreated 后下回合 probe 读到空态
+    clearNewIntent: () => {
+      slot = { ...slot, newIntent: { modeId: '', profileId: '', confirmed: false, canvas: '' } }
+      return Promise.resolve(true)
+    }
   }
 }
 
@@ -195,9 +197,9 @@ function assemble(
   return assembleTurn(registry, resolved, opts.notices ?? [])
 }
 
-/** newIntent 三键构造糖（confirmed 默认 true） */
+/** newIntent 四键构造糖（confirmed 默认 true；canvas 默认空） */
 function intent(modeId: string, profileId = '', confirmed = true): NewIntentState {
-  return { modeId, profileId, confirmed }
+  return { modeId, profileId, confirmed, canvas: '' }
 }
 
 // ── 信封剥离 ─────────────────────────────────────────────────────────────────
@@ -294,9 +296,12 @@ describe('确认参数系统提示行注入', () => {
     ])
     host.finalizeTurn()
 
+    // A3 B3：上回合 effective=longform，本回合 envelope 仅 canvas（无 modeId）→
+    // effective 回落 ''，触发身份差分通知；本回合 envelope 在场 → 触发源「用户确认新建」
     await host.prepareTurn('[新建意图确认 canvas=1080x]\n做图')
     expect(host.turnAssembly()?.contextLines).toEqual([
-      '用户已为本次新建确认参数：尺寸=1080x（选择即锁定，不得覆盖）'
+      '用户已为本次新建确认参数：尺寸=1080x（选择即锁定，不得覆盖）',
+      '[系统] 设计模式已切换：longform → 通用（触发源：用户确认新建）；画布内容不受影响。'
     ])
     host.finalizeTurn()
   })
@@ -326,9 +331,12 @@ describe('确认参数系统提示行注入', () => {
     ])
     host.finalizeTurn()
 
+    // A3 B3：本回合无信封/无 probe.confirmed → effective 回落 slot 解析（longform），
+    // 与上回合 effective=general 差分 → 注入身份切换通知
     await host.prepareTurn('继续')
     expect(host.turnAssembly()?.contextLines).toEqual([
       '[当前设计目标 nodeId=d1 briefId=b1]',
+      '[系统] 设计模式已切换：通用（无专项流程，走基础路由） → longform（触发源：外部变更）；画布内容不受影响。',
       ACTIVE_DESIGN_TEXTS.briefMissing
     ])
     host.finalizeTurn()
@@ -342,7 +350,8 @@ describe('每回合组装（assembleTurn）', () => {
 
   test('空槽 = base only + 无封套（general + 无 profile）', () => {
     const turn = assemble(registry, { status: 'empty' })
-    expect(turn.systemPrompt).toBe('BASE')
+    // A3 B7：base 段前冠 `# studio base` 来源头
+    expect(turn.systemPrompt).toBe('# studio base\nBASE')
     expect(turn.contextLines).toEqual([])
   })
 
@@ -353,18 +362,22 @@ describe('每回合组装（assembleTurn）', () => {
       briefMissing: false
     }
     const turn = assemble(registry, slot)
-    expect(turn.systemPrompt).toBe('BASE\n\nLONGFORM-WORKFLOW\n\nPROFILE-BODY')
+    // A3 B7：非空段前冠来源头；空段不冠——fixture 资产 id 分别是 base / longform / watercolor
+    expect(turn.systemPrompt).toBe(
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
+    )
     expect(turn.contextLines[0]).toBe('[当前设计目标 nodeId=d1 briefId=b1]')
   })
 
-  test('general mode：走通用路径 = general workflow 段（profile.modes 不含 general 时不注 profile 段；P2-10）', () => {
+  test('general mode：A3 B1 兼容行——跳过 workflow 查表，按 base only 组装（profile 仍按 P2-10 modes 过滤）', () => {
     const turn = assemble(registry, {
       status: 'ok',
       design: designSnap({ modeId: 'general' }),
       briefMissing: false
     })
-    // P2-10：watercolor fixture 的 modes=['longform']——general 不在列，不注 profile
-    expect(turn.systemPrompt).toBe('BASE\n\nGENERAL-WORKFLOW')
+    // A3 B1：general 跳过 workflow 查表——系统提示仅 BASE，无 GENERAL-WORKFLOW 段；
+    // profile.modes=['longform'] 仍过滤，general 不在列 → 不注 profile 段
+    expect(turn.systemPrompt).toBe('# studio base\nBASE')
   })
 
   test('profile 缺省 → 封套省略 profileId 字段且不注入 profile 段', () => {
@@ -373,7 +386,8 @@ describe('每回合组装（assembleTurn）', () => {
       design: designSnap({ profileId: '' }),
       briefMissing: false
     })
-    expect(turn.systemPrompt).toBe('BASE\n\nLONGFORM-WORKFLOW')
+    // A3 B7：base + workflow 段均非空，前冠来源头
+    expect(turn.systemPrompt).toBe('# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW')
     // P2-2（2026-09-07）：designTargetEnvelope 移除 modeId/profileId——agent 从
     // system prompt 内容本身知道当前 workflow/profile，不需文件名 id
     expect(turn.contextLines[0]).toBe('[当前设计目标 nodeId=d1 briefId=b1]')
@@ -385,7 +399,7 @@ describe('每回合组装（assembleTurn）', () => {
       design: designSnap({ profileId: 'ghost' }),
       briefMissing: false
     })
-    expect(turn.systemPrompt).toBe('BASE\n\nLONGFORM-WORKFLOW')
+    expect(turn.systemPrompt).toBe('# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW')
   })
 
   test('落盘 mode 的 workflow 缺失 → 一行系统提示 + 按 general 组装（封套保留）', () => {
@@ -394,7 +408,8 @@ describe('每回合组装（assembleTurn）', () => {
       design: designSnap({ modeId: 'ghost-mode' }),
       briefMissing: false
     })
-    expect(turn.systemPrompt).toBe('BASE')
+    // A3 B7：workflow 缺失 → workflow 段为空不冠头；只剩 base 段
+    expect(turn.systemPrompt).toBe('# studio base\nBASE')
     expect(turn.contextLines).toHaveLength(2)
     expect(turn.contextLines[1]).toBe(ACTIVE_DESIGN_TEXTS.workflowMissing('ghost-mode'))
   })
@@ -434,8 +449,9 @@ describe('P0-1 newIntent 优先级装配（resolveTurnAssets）', () => {
     )
     // 修复前：空槽恒 'BASE'（workflow/profile/references 全丢）
     // P2-3（2026-09-07）：read_reference → load_reference
+    // A3 B7：base/workflow/profile 段均非空，前冠来源头
     expect(turn.systemPrompt).toBe(
-      'BASE\n\nLONGFORM-WORKFLOW\n\nPROFILE-BODY\n\n' +
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY\n\n' +
         '## 按需参考（load_reference 工具按需读取）\n' +
         '- references/imagery.md —— 图像决策纪律（workflow: longform）'
     )
@@ -455,7 +471,8 @@ describe('P0-1 newIntent 优先级装配（resolveTurnAssets）', () => {
       { newIntent: intent('poster') }
     )
     // 新 workflow 而非旧设计的 LONGFORM-WORKFLOW；profileId 由 newIntent 给（此处空）
-    expect(turn.systemPrompt).toBe('BASE\n\nPOSTER-WORKFLOW')
+    // A3 B7：来源头冠段
+    expect(turn.systemPrompt).toBe('# studio base\nBASE\n\n# workflow: poster\nPOSTER-WORKFLOW')
     expect(turn.systemPrompt).not.toContain('LONGFORM-WORKFLOW')
     expect(turn.systemPrompt).not.toContain('PROFILE-BODY')
     // 身份封套仍按 slot 落盘事实（目标节点没变；P2-2 移除 modeId/profileId）
@@ -471,27 +488,29 @@ describe('P0-1 newIntent 优先级装配（resolveTurnAssets）', () => {
       briefMissing: false
     }
     // confirmed=false → 忽略 newIntent，走 slot（longform + watercolor）
+    // A3 B7：来源头冠段
     expect(assemble(registry, slot, { newIntent: intent('poster', '', false) }).systemPrompt).toBe(
-      'BASE\n\nLONGFORM-WORKFLOW\n\nPROFILE-BODY'
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
     )
     // confirmed=true 但 modeId 空（裸信封路径）→ 同样忽略，走 slot
     expect(assemble(registry, slot, { newIntent: intent('') }).systemPrompt).toBe(
-      'BASE\n\nLONGFORM-WORKFLOW\n\nPROFILE-BODY'
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
     )
-    // 空槽 + 未确认 → base only（原语义）
+    // 空槽 + 未确认 → base only（原语义；A3 B7 来源头）
     expect(
       assemble(registry, { status: 'empty' }, { newIntent: intent('poster', '', false) })
         .systemPrompt
-    ).toBe('BASE')
+    ).toBe('# studio base\nBASE')
   })
 
-  test('newIntent 的 modeId=general → 通用路径 = general workflow 段（profile.modes=[longform] 不匹配 general → 不注 profile；P2-10）', () => {
+  test('newIntent 的 modeId=general → A3 B1 兼容行：跳过 workflow 查表 = base only + profile 按 P2-10 过滤', () => {
     const turn = assemble(
       makeRegistry(),
       { status: 'empty' },
       { newIntent: intent('general', 'watercolor') }
     )
-    expect(turn.systemPrompt).toBe('BASE\n\nGENERAL-WORKFLOW')
+    // A3 B1：general 跳过 workflow 查表；profile.modes=['longform'] 不含 general → 不注 profile
+    expect(turn.systemPrompt).toBe('# studio base\nBASE')
     expect(turn.contextLines).toEqual([])
   })
 
@@ -501,22 +520,24 @@ describe('P0-1 newIntent 优先级装配（resolveTurnAssets）', () => {
       { status: 'empty' },
       { newIntent: intent('ghost-mode', 'watercolor') }
     )
-    expect(turn.systemPrompt).toBe('BASE')
+    expect(turn.systemPrompt).toBe('# studio base\nBASE')
     expect(turn.contextLines).toEqual([ACTIVE_DESIGN_TEXTS.workflowMissing('ghost-mode')])
   })
 
   // P2-10（2026-09-07）：profile.modes 运行时过滤——显式填写时仅在列出的 mode 下注入
-  test('P2-10：profile.modes 显式列出 [longform] 时，slot=general + profile=watercolor → 不注 profile', () => {
-    // 默认 fixture 中 watercolor 的 modes = ['longform']——slot=general 时不匹配
+  // A3 B1：general 兼容行——profile 仍按 P2-10 modes 过滤
+  test('P2-10 + A3 B1：profile.modes 显式列出 [longform] 时，slot=general + profile=watercolor → 不注 profile', () => {
+    // 默认 fixture 中 watercolor 的 modes = ['longform']——slot=general 时不匹配；
+    // general 跳过 workflow 查表 → BASE only
     const turn = assemble(makeRegistry(), {
       status: 'ok',
       design: designSnap({ modeId: 'general' }),
       briefMissing: false
     })
-    expect(turn.systemPrompt).toBe('BASE\n\nGENERAL-WORKFLOW') // 无 PROFILE-BODY
+    expect(turn.systemPrompt).toBe('# studio base\nBASE') // A3 B1：无 GENERAL-WORKFLOW；modes 不匹配 → 无 PROFILE-BODY
   })
 
-  test('P2-10：profile.modes 缺省/空数组 = 所有 mode 可用（无限制）', () => {
+  test('P2-10 + A3 B1：profile.modes 缺省/空数组 = 所有 mode 可用（无限制）', () => {
     const registry = makeRegistry()
     // 把 watercolor 的 modes 改成空数组
     const w = registry.profiles.get('watercolor')
@@ -526,7 +547,9 @@ describe('P0-1 newIntent 优先级装配（resolveTurnAssets）', () => {
       design: designSnap({ modeId: 'general' }),
       briefMissing: false
     })
-    expect(turn.systemPrompt).toBe('BASE\n\nGENERAL-WORKFLOW\n\nPROFILE-BODY')
+    // A3 B1：general 跳过 workflow 查表 → BASE only + profile（modes 空数组 = 通用）
+    // A3 B7：base + profile 段均非空，前冠来源头
+    expect(turn.systemPrompt).toBe('# studio base\nBASE\n\n# profile: watercolor\nPROFILE-BODY')
   })
 
   test('prepareTurn 端到端：pluginData newIntent（空槽）→ Turn 1 拿到 workflow + profile + 守卫置真', async () => {
@@ -534,7 +557,10 @@ describe('P0-1 newIntent 优先级装配（resolveTurnAssets）', () => {
     bridge.setNewIntent(intent('longform', 'watercolor'))
     const host = makeHost(bridge)
     await host.prepareTurn('开始做图')
-    expect(host.turnAssembly()?.systemPrompt).toBe('BASE\n\nLONGFORM-WORKFLOW\n\nPROFILE-BODY')
+    // A3 B7：来源头冠段
+    expect(host.turnAssembly()?.systemPrompt).toBe(
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
+    )
     // 守卫语义不变：pluginData confirmed → setup_design 的 __confirmedNewIntent 真源
     expect(host.newIntentConfirmed()).toBe(true)
     host.finalizeTurn()
@@ -543,7 +569,10 @@ describe('P0-1 newIntent 优先级装配（resolveTurnAssets）', () => {
   test('prepareTurn 端到端：信封 modeId（pluginData 未写）也参与资产解析', async () => {
     const host = makeHost(makeFakeBridge())
     await host.prepareTurn('[新建意图确认 modeId=longform profileId=watercolor]\n做图')
-    expect(host.turnAssembly()?.systemPrompt).toBe('BASE\n\nLONGFORM-WORKFLOW\n\nPROFILE-BODY')
+    // A3 B7：来源头冠段
+    expect(host.turnAssembly()?.systemPrompt).toBe(
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
+    )
     expect(host.newIntentConfirmed()).toBe(true)
     host.finalizeTurn()
   })
@@ -555,7 +584,10 @@ describe('P0-1 newIntent 优先级装配（resolveTurnAssets）', () => {
     bridge.setNewIntent(intent('longform', 'watercolor')) // 旧 pluginData
     const host = makeHost(bridge, registry)
     await host.prepareTurn('[新建意图确认 modeId=poster]\n换一个')
-    expect(host.turnAssembly()?.systemPrompt).toBe('BASE\n\nPOSTER-WORKFLOW')
+    // A3 B7：来源头冠段
+    expect(host.turnAssembly()?.systemPrompt).toBe(
+      '# studio base\nBASE\n\n# workflow: poster\nPOSTER-WORKFLOW'
+    )
     host.finalizeTurn()
   })
 
@@ -616,8 +648,9 @@ describe('references 索引注入（T85 定谳 3/4）', () => {
       design: designSnap({ profileId: '' }),
       briefMissing: false
     })
+    // A3 B7：来源头冠段
     expect(turn.systemPrompt).toBe(
-      'BASE\n\nLONGFORM-WORKFLOW\n\n' +
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n' +
         '## 按需参考（load_reference 工具按需读取）\n' +
         '- references/imagery.md —— 图像决策纪律（workflow: longform）\n' +
         '- references/typography.md —— 版式排印原则（workflow: longform）'
@@ -634,22 +667,25 @@ describe('references 索引注入（T85 定谳 3/4）', () => {
       design: designSnap(),
       briefMissing: false
     })
-    expect(turn.systemPrompt).toBe('BASE\n\nLONGFORM-WORKFLOW\n\nPROFILE-BODY')
+    expect(turn.systemPrompt).toBe(
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
+    )
     expect(turn.systemPrompt).not.toContain('按需参考')
     expect(turn.allowedReferences.size).toBe(0)
   })
 
   test('空槽 = base only：base 有 references 才出现索引节（source 标 base）', () => {
     const withBase = assemble(registryWithRefs({ base: true }), { status: 'empty' })
+    // A3 B7：base 段前冠来源头
     expect(withBase.systemPrompt).toBe(
-      'BASE\n\n## 按需参考（load_reference 工具按需读取）\n- references/house.md —— 团队纪律（base）'
+      '# studio base\nBASE\n\n## 按需参考（load_reference 工具按需读取）\n- references/house.md —— 团队纪律（base）'
     )
     expect(Object.fromEntries(withBase.allowedReferences)).toEqual({
       'references/house.md': '/abs/studio/base/references/house.md'
     })
     // base 无 references 的空槽：无节、空允许集
     const plain = assemble(makeRegistry(), { status: 'empty' })
-    expect(plain.systemPrompt).toBe('BASE')
+    expect(plain.systemPrompt).toBe('# studio base\nBASE')
     expect(plain.allowedReferences.size).toBe(0)
   })
 
@@ -675,7 +711,7 @@ describe('references 索引注入（T85 定谳 3/4）', () => {
       design: designSnap({ modeId: 'ghost-mode', profileId: '' }),
       briefMissing: false
     })
-    expect(turn.systemPrompt).toBe('BASE')
+    expect(turn.systemPrompt).toBe('# studio base\nBASE')
     expect(turn.allowedReferences.size).toBe(0)
   })
 
@@ -705,8 +741,9 @@ describe('prepareTurn 管线', () => {
     expect(promptText).toBe('做图')
     expect(host.newIntentConfirmed()).toBe(true)
     // P0-1：桥不可达也不该把 Turn 1 退化成 base only——信封 modeId 仍驱动资产解析
+    // A3 B7：来源头冠段
     expect(host.turnAssembly()).toEqual({
-      systemPrompt: 'BASE\n\nLONGFORM-WORKFLOW',
+      systemPrompt: '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW',
       contextLines: ['用户已为本次新建确认参数：modeId=longform（选择即锁定，不得覆盖）'],
       allowedReferences: new Map()
     })
@@ -723,7 +760,7 @@ describe('prepareTurn 管线', () => {
     const host = makeHost(down)
     await host.prepareTurn('随便聊聊')
     expect(host.newIntentConfirmed()).toBe(false)
-    expect(host.turnAssembly()?.systemPrompt).toBe('BASE')
+    expect(host.turnAssembly()?.systemPrompt).toBe('# studio base\nBASE')
     host.finalizeTurn()
   })
 
@@ -734,7 +771,7 @@ describe('prepareTurn 管线', () => {
     await host.prepareTurn('继续')
     expect(bridge.writes).toEqual([''])
     const turn = host.turnAssembly()
-    expect(turn?.systemPrompt).toBe('BASE')
+    expect(turn?.systemPrompt).toBe('# studio base\nBASE')
     expect(turn?.contextLines).toEqual([ACTIVE_DESIGN_TEXTS.slotCleared])
     host.finalizeTurn()
   })
@@ -745,7 +782,10 @@ describe('prepareTurn 管线', () => {
     const host = makeHost(bridge)
     const { promptText } = await host.prepareTurn('继续填充')
     expect(promptText).toBe('继续填充')
-    expect(host.turnAssembly()?.systemPrompt).toBe('BASE\n\nLONGFORM-WORKFLOW\n\nPROFILE-BODY')
+    // A3 B7：来源头冠段
+    expect(host.turnAssembly()?.systemPrompt).toBe(
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
+    )
     host.finalizeTurn()
     expect(host.turnAssembly()).toBeNull()
   })
@@ -989,4 +1029,118 @@ test('designTargetEnvelope：nodeId + briefId（modeId/profileId 已剥离）', 
   expect(designTargetEnvelope(designSnap({ profileId: '' }))).toBe(
     '[当前设计目标 nodeId=d1 briefId=b1]'
   )
+})
+
+// ── A3 波4：B3/B2 行为定钉（D 组）─────────────────────────────────────────────
+
+describe('A3 波4：B3 身份差分通知', () => {
+  test('B3 首回合抑制：lastIdentity===null 即便 slot 携带身份也不注 B3 通知行', async () => {
+    // pluginData 侧 newIntent 持久路径（B2.③ 参数锁定行注；非 B3 通知——首回合豁免）
+    const bridge = makeFakeBridge()
+    bridge.setNewIntent(intent('longform', 'watercolor'))
+    const host = makeHost(bridge)
+    await host.prepareTurn('开始做图')
+    const lines = host.turnAssembly()?.contextLines ?? []
+    // 首回合豁免——无任何 B3 通知行
+    expect(lines.some((l) => l.startsWith('[系统] 设计模式已切换'))).toBe(false)
+    expect(lines.some((l) => l.startsWith('[系统] 设计风格已切换'))).toBe(false)
+    // 但 B2 参数锁定行照注（持久路径与首回合无关）
+    expect(lines).toContain(
+      '用户已为本次新建确认参数：modeId=longform profileId=watercolor（选择即锁定，不得覆盖）'
+    )
+    host.finalizeTurn()
+  })
+
+  test('B3 profile-only 差分：mode 不变 + profile 变 → 注「设计风格已切换」且非「设计模式已切换」', async () => {
+    // Turn1：slot 已有 longform+watercolor（lastIdentity 落点）
+    const bridge = makeFakeBridge()
+    bridge.setSlot('d1', designSnap())
+    const host = makeHost(bridge)
+    await host.prepareTurn('继续')
+    // fake bridge probeSlot 返 brief=null → briefMissing 提示行进 contextLines（与既有测试同律）
+    expect(host.turnAssembly()?.contextLines ?? []).toEqual([
+      '[当前设计目标 nodeId=d1 briefId=b1]',
+      '当前设计目标关联的需求单已被删除——可新建需求单绑定，或不走需求单直接聊天修改。'
+    ])
+    host.finalizeTurn()
+
+    // Turn2：newIntent 切换 profileId 为空（同 mode）——profile-only diff
+    bridge.setNewIntent(intent('longform', ''))
+    await host.prepareTurn('改风格')
+    const lines = host.turnAssembly()?.contextLines ?? []
+    expect(lines).toContain(
+      '[系统] 设计风格已切换：watercolor → （触发源：用户确认新建）；画布内容不受影响。'
+    )
+    expect(lines.some((l) => l.startsWith('[系统] 设计模式已切换'))).toBe(false)
+    host.finalizeTurn()
+  })
+})
+
+describe('A3 波4：B2 pluginData 持久化路径', () => {
+  test('B2 次回合仍按 intent 组装（pluginData 未清）→ workflow longform 段在场 + 参数锁定行持续', async () => {
+    // Turn1：pluginData 写入 newIntent（confirmed）→ 按 probeIntent 解析
+    const bridge = makeFakeBridge()
+    bridge.setNewIntent(intent('longform', 'watercolor'))
+    const host = makeHost(bridge)
+    await host.prepareTurn('开始')
+    // A3 B7：来源头冠段
+    expect(host.turnAssembly()?.systemPrompt).toBe(
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
+    )
+    expect(host.turnAssembly()?.contextLines).toContain(
+      '用户已为本次新建确认参数：modeId=longform profileId=watercolor（选择即锁定，不得覆盖）'
+    )
+    host.finalizeTurn()
+
+    // Turn2：不写 pluginData、不带信封——fake bridge 内存 newIntent 仍存在
+    // → resolveTurnAssets 走 probeIntent（confirmed=true）→ 同套装配 + 参数锁定行再注
+    await host.prepareTurn('普通跟进')
+    expect(host.turnAssembly()?.systemPrompt).toBe(
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
+    )
+    expect(host.turnAssembly()?.contextLines).toContain(
+      '用户已为本次新建确认参数：modeId=longform profileId=watercolor（选择即锁定，不得覆盖）'
+    )
+    host.finalizeTurn()
+  })
+
+  test('B2 canvas 锁在场：newIntent 带 canvas → 无信封 prepareTurn 注尺寸锁定行', async () => {
+    const bridge = makeFakeBridge()
+    bridge.setNewIntent({ modeId: 'longform', profileId: '', confirmed: true, canvas: '750x2000' })
+    const host = makeHost(bridge)
+    await host.prepareTurn('普通跟进')
+    expect(host.turnAssembly()?.contextLines).toContain(
+      '用户已为本次新建确认参数：modeId=longform 尺寸=750x2000（选择即锁定，不得覆盖）'
+    )
+    host.finalizeTurn()
+  })
+
+  test('B2 落图后清除：onDesignCreated 清 pluginData → 下回合按空槽组装 + 身份有 diff 则触发源=新设计落图', async () => {
+    // Turn1：pluginData 写入 longform+watercolor（lastIdentity 落点）
+    const bridge = makeFakeBridge()
+    bridge.setNewIntent(intent('longform', 'watercolor'))
+    const host = makeHost(bridge)
+    await host.prepareTurn('开始')
+    expect(host.turnAssembly()?.contextLines).toContain(
+      '用户已为本次新建确认参数：modeId=longform profileId=watercolor（选择即锁定，不得覆盖）'
+    )
+    host.finalizeTurn()
+
+    // 落图 + 清键（fake bridge 已补 clearNewIntent 真清内存）
+    await host.onDesignCreated('d-new')
+
+    // Turn2：probe.newIntent 已空（clearNewIntent 真清）→ 按空槽组装
+    await host.prepareTurn('续作')
+    // 空槽 = base only（无 workflow/profile 段）
+    expect(host.turnAssembly()?.systemPrompt).toBe('# studio base\nBASE')
+    // 参数锁定行不再注（probeConfirmed=false）
+    expect(host.turnAssembly()?.contextLines).not.toContain(
+      expect.stringContaining('用户已为本次新建确认参数')
+    )
+    // lastIdentity={longform,watercolor} vs effective={'',''} → mode diff，触发源 newDesignCreated
+    expect(host.turnAssembly()?.contextLines).toContain(
+      '[系统] 设计模式已切换：longform → 通用（触发源：新设计落图）；画布内容不受影响。'
+    )
+    host.finalizeTurn()
+  })
 })

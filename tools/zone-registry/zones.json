@@ -1731,7 +1731,8 @@
     "tests/engine/app/chat/history/idb.test.ts",
     "tests/engine/render/jsx/reference.test.ts",
     "src/app/automation/",
-    "tests/engine/app/automation/"
+    "tests/engine/app/automation/",
+    "src/app/ai/pi-backend/studio/workflows/general/"
   ],
   "upstreamMergeTarball": []
 }

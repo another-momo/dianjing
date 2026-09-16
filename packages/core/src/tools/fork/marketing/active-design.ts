@@ -15,11 +15,9 @@
  *  - set_active_design ToolDef（mutates:false）：AI 声明切目标——只返回
  *    {proposed:{nodeId,...}}，不落槽；同意卡与端点调用归 T61/宿主端点
  *
- * 物化判据（Case A/B 分叉用，T60-plan 定谳 6 钉扎）：设计区根框子树内存在
- * ① 任一节点 fills 含 IMAGE fill（T57 hero 落图/任何位图落位），或
- * ② 任一节点携带 hero-geometry 几何记录（T57 HERO_GEOMETRY_KEY，骨架分区标记）。
- * T52 的 zone 标记（BRIEF_ZONE_KEY）在 brief 侧四区上、不在设计区根框子树内，
- * 不作判据。
+ * 物化判据（C1 退役，A3 方案）：勾选股删除后分叉理由塌，统一卡面对物化前后
+ * 无条件为真——判据失去唯一消费者，本模块不再导出 isDesignMaterialized，
+ * set_active_design 结果不再携带 materialized 字段。
  *
  * 集成纪律：FORK_TOOLS（fork/index.ts）与 pi-backend 暴露面由主 agent 集成期
  * 统一接线，ACTIVE_DESIGN_TOOLS 数组是唯一交付面（同 HERO_TOOLS 先例）。
@@ -37,6 +35,7 @@ import {
   BRIEF_ROLE_KEY,
   BRIEF_ROLE_VALUE,
   DESIGN_BRIEF_KEY,
+  NEW_INTENT_CANVAS_KEY,
   NEW_INTENT_CONFIRMED_KEY,
   NEW_INTENT_MODE_ID_KEY,
   NEW_INTENT_PROFILE_ID_KEY,
@@ -270,43 +269,19 @@ export function walkSubtree(
   }
 }
 
-// ── 物化判据（Case A/B 分叉数据，T61 渲染侧消费）─────────────────────────────
-
-/**
- * 设计区是否已有物化产物：根框子树内任一节点 ①fills 含 IMAGE fill，或
- * ②携带 hero-geometry 几何记录（骨架分区标记，见本文件头注钉扎）。
- */
-export function isDesignMaterialized(graph: SceneGraph, rootId: string): boolean {
-  const root = graph.getNode(rootId)
-  if (!root) return false
-  let materialized = false
-  walkSubtree(graph, [root.id], (node) => {
-    if (node.fills.some((fill) => fill.type === 'IMAGE')) {
-      materialized = true
-      return true
-    }
-    if (getSharedPluginData(node, BRIEF_PLUGIN_NAMESPACE, HERO_GEOMETRY_KEY) !== '') {
-      materialized = true
-      return true
-    }
-    return undefined
-  })
-  return materialized
-}
-
 // ── set_active_design 工具（AI 声明，不落槽）─────────────────────────────────
 
 export const setActiveDesignTool = defineTool({
   name: 'set_active_design',
   mutates: false,
   description:
-    'Propose switching the conversation target to ANOTHER EXISTING marketing design root (e.g. when the user says "modify the previous long image"). This only DECLARES the intent: it validates the target and returns {proposed:{nodeId,name,modeId,profileId,briefId}} WITHOUT moving the active design — the user confirms in the chat UI, and only then does the host move the slot via the host endpoint. Never use this to create a new design (that is setup_design), and never retry it to "force" a switch: an {error} result means the target is not a valid switch candidate (not_found / not_design_root / cross_page / brief_mismatch) — tell the user and stop.',
+    'Propose switching the current design target (the `[当前设计目标 …]` context line) to ANOTHER EXISTING marketing design root — used when the user wants to keep working on a prior design (e.g. when the user says "let\'s keep working on the previous long image" / "继续之前那张长图" / "改一下上一张"). This only DECLARES the intent: it validates the target and returns {proposed:{nodeId,name,modeId,profileId,briefId}} WITHOUT moving the active design — the user confirms in the chat UI, and only then does the host move the slot via the host endpoint. Never use this to create a new design (that is setup_design), and never retry it to "force" a switch: an {error} result means the target is not a valid switch candidate (not_found / not_design_root / cross_page / brief_mismatch) — tell the user and stop.',
   params: {
     node_id: {
       type: 'string',
       required: true,
       description:
-        'Node id of the existing marketing design root frame to propose as the new conversation target.'
+        'Node id of the existing marketing design root frame to propose as the new current design target.'
     }
   },
   execute: (figma, args) => {
@@ -320,8 +295,7 @@ export const setActiveDesignTool = defineTool({
         modeId: design.modeId,
         profileId: design.profileId,
         briefId: design.briefId
-      },
-      materialized: isDesignMaterialized(figma.graph, design.nodeId)
+      }
     }
   }
 })
@@ -343,8 +317,10 @@ export const ACTIVE_DESIGN_PROBE_KEYS = {
   heroGeometryKey: HERO_GEOMETRY_KEY,
   /** design 根与 brief 根同键名（'uniqueId'）——探针两侧捕获/解析共用 */
   uniqueIdKey: DESIGN_UNIQUE_ID_KEY,
-  // T91b：newIntent pluginData 三键（键面常量 import 单源，从 brief.ts 复用）
+  // T91b：newIntent pluginData 键面常量 import 单源，从 brief.ts 复用
+  // A3：四键（新增 canvas 覆盖值持久化——与 envelope canvas 字段同源）
   newIntentModeIdKey: NEW_INTENT_MODE_ID_KEY,
   newIntentProfileIdKey: NEW_INTENT_PROFILE_ID_KEY,
-  newIntentConfirmedKey: NEW_INTENT_CONFIRMED_KEY
+  newIntentConfirmedKey: NEW_INTENT_CONFIRMED_KEY,
+  newIntentCanvasKey: NEW_INTENT_CANVAS_KEY
 } as const

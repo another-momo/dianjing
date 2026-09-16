@@ -201,12 +201,13 @@ async function handleIntentConfirmRequest(
     res.writeHead(405).end('Method Not Allowed')
     return
   }
-  // intent 确认端点：modeId + profileId/documentId/windowId 可选。
+  // intent 确认端点：modeId + profileId/canvas/documentId/windowId 可选。
   const parsed = await parseJSONBody(req, res)
   if (!parsed.ok) return
   const body = parsed.body as {
     modeId?: unknown
     profileId?: unknown
+    canvas?: unknown
     documentId?: unknown
     windowId?: unknown
   }
@@ -220,13 +221,19 @@ async function handleIntentConfirmRequest(
   const result = await service.confirmNewIntent(
     {
       modeId: body.modeId,
-      ...(typeof body.profileId === 'string' ? { profileId: body.profileId } : {})
+      ...(typeof body.profileId === 'string' ? { profileId: body.profileId } : {}),
+      ...(typeof body.canvas === 'string' ? { canvas: body.canvas } : {})
     },
     documentId,
     windowId
   )
   if (result.ok) {
-    sendJSON(res, 200, { ok: true, modeId: result.modeId, profileId: result.profileId })
+    sendJSON(res, 200, {
+      ok: true,
+      modeId: result.modeId,
+      profileId: result.profileId,
+      canvas: result.canvas
+    })
     return
   }
   sendJSON(res, result.error === 'bridge_unavailable' ? 502 : 422, {
@@ -266,8 +273,7 @@ async function handleActiveDesignRequest(
       modeId: result.modeId,
       profileId: result.profileId,
       briefId: result.briefId,
-      name: result.name,
-      materialized: result.materialized
+      name: result.name
     })
     return
   }

@@ -5,10 +5,8 @@
  *    canvas=<值>]`，全字段可缺省——canvas 为 T65 §2.4 扩展；T60/T65 宿主侧剥离正则
  *    见 pi-backend/active-design-host.ts）与宿主发起的 data part 类型（确认卡 /
  *    同意决定记录 / T65 上下文切换分割线回执）。
- *  - 物化判据（共享契约 4）：单一事实源 = core active-design.ts 的
- *    isDesignMaterialized（根框子树内 ①任一节点 fills 含 IMAGE fill ②任一节点
- *    携带 hero-geometry 骨架分区标记；T52 zone 标记在 brief 侧不作判据——
- *    T60-plan 定谳 6 钉扎）——本文件只 re-export，不双写判定逻辑。
+ *  - 物化判据已随 A3/C1 退役：勾选股删除后 Case A/B 分叉理由塌，统一卡面
+ *    对物化前后无条件为真，判据失去唯一消费者——前端不再 re-export。
  *  - 切换端点客户端（共享契约 2：POST /api/pi/active-design {nodeId} →
  *    身份三元组 {modeId, profileId, briefId}）——面板「设为当前」与同意卡共用。
  *  - 面板读画布通路：makeFigmaFromStore seam（automation/bridge）+ core
@@ -18,10 +16,7 @@
 import { ref } from 'vue'
 
 import { computeAllLayouts } from '@open-pencil/core/layout'
-import {
-  isDesignMaterialized as isDesignMaterializedCore,
-  walkSubtree
-} from '@open-pencil/core/tools/fork/marketing/active-design'
+import { walkSubtree } from '@open-pencil/core/tools/fork/marketing/active-design'
 import {
   BRIEF_ESTIMATED_HEIGHT,
   BRIEF_WIDTH,
@@ -111,22 +106,14 @@ export function modeSizeChoices(mode: unknown): NewIntentSizeChoice[] {
 /** 新建意图确认卡（宿主发起非工具 part，T56 卡片范式） */
 export const NEW_INTENT_PART_TYPE = 'data-new-intent-confirm'
 
-export interface NewIntentReferenceCandidate {
-  nodeId: string
-  label: string
-}
-
 export interface NewIntentPartData {
   modeId: string | null
   profileId: string | null
-  /** Case A = 物化前（一行话术）；Case B = 物化后（四项） */
-  caseKind: 'A' | 'B'
   /** 被替换的当前目标名（无 active 时 null） */
   activeDesignName: string | null
-  /** T65：尺寸预设行（按选中 mode 的 manifest.sizes 投影；空 = 只有自定义输入） */
+  /** T65：尺寸预设行（按选中 mode 的 manifest.sizes 投影；general 断供后
+   *  由 ChatPanel 改用 GENERAL_SIZE_CHOICES；空 = 只有自定义输入） */
   sizeChoices: NewIntentSizeChoice[]
-  /** Case B 携带物候选：当前设计区已生成图片（可选 references） */
-  references: NewIntentReferenceCandidate[]
   resolved: 'confirmed' | 'cancelled' | null
 }
 
@@ -207,10 +194,12 @@ export function parseSetupAwaitingIntent(input: unknown): SetupAwaitingIntentPay
   return { modeId, profileId, briefId, message }
 }
 
-/** T91b：POST /api/pi/intent-confirm——前端 ChatAwaitingIntentCard 确认按钮触发 */
+/** T91b：POST /api/pi/intent-confirm——前端 ChatAwaitingIntentCard / ChatNewIntentCard 确认按钮触发。
+ * A3：canvas 尺寸覆盖值与 modeId/profileId 同持久化（newIntent 四键）。 */
 export async function postIntentConfirm(args: {
   modeId: string
   profileId?: string
+  canvas?: string
 }): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
     // T98-路由：windowId 随确认直传——多窗时桥调用按发起窗路由
@@ -227,32 +216,19 @@ export async function postIntentConfirm(args: {
   }
 }
 
-// ── 物化判据（共享契约 4——core 单源 re-export，判定逻辑不双写） ─────────────
+// ── C2：general 尺寸预设回退 ────────────────────────────────────────────────
 
 /**
- * 设计区是否已物化：core active-design.ts isDesignMaterialized（根框子树内
- * IMAGE fill 或 hero-geometry 骨架标记）。false = 物化前（确认卡 Case A 话术）。
+ * general 退出 studio manifest 后（A3 方案：studio/workflows/general/ 已删除），
+ * manifest 不再为 general 投影 sizes 行——确认卡通用模式下使用本回退清单。
+ *
+ * 标签/画布取值沿用旧 general workflow frontmatter 与 design-basics.md 预设节
+ * 口径：HUG 高（750x）+ 方形固定（1080x1080）。
  */
-export function isDesignRootMaterialized(store: EditorStore, rootId: string): boolean {
-  return isDesignMaterializedCore(store.graph, rootId)
-}
-
-/** Case B 携带物候选：根框子树内已生成图片（IMAGE fill 节点，封顶 12 个） */
-export function collectDesignImageRefs(
-  store: EditorStore,
-  rootId: string
-): NewIntentReferenceCandidate[] {
-  const graph = store.graph
-  const refs: NewIntentReferenceCandidate[] = []
-  walkSubtree(graph, [rootId], (node) => {
-    if (refs.length >= 12) return true
-    if (node.fills.some((fill) => fill.type === 'IMAGE')) {
-      refs.push({ nodeId: node.id, label: node.name || node.id })
-    }
-    return undefined
-  })
-  return refs
-}
+export const GENERAL_SIZE_CHOICES: NewIntentSizeChoice[] = [
+  { label: '通用画布', canvas: '750x' },
+  { label: '方形画布', canvas: '1080x1080' }
+]
 
 // ── 切换端点（共享契约 2） ───────────────────────────────────────────────────
 

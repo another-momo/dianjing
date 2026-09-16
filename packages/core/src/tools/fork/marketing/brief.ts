@@ -74,6 +74,12 @@ export const DESIGN_UNIQUE_ID_KEY = 'uniqueId'
 export const NEW_INTENT_MODE_ID_KEY = 'newIntentModeId'
 export const NEW_INTENT_PROFILE_ID_KEY = 'newIntentProfileId'
 export const NEW_INTENT_CONFIRMED_KEY = 'newIntentConfirmed'
+/**
+ * A3 方案：canvas 尺寸覆盖值与 modeId/profileId/confirmed 同持久化
+ * （T91b 三键扩展为四键）——确认意图本就该持久至落图/被覆盖，不该靠
+ * agent「记得」当回合调用（§2.2）。
+ */
+export const NEW_INTENT_CANVAS_KEY = 'newIntentCanvas'
 
 /**
  * T91a：生成跨实例稳定的唯一标识符。`crypto.randomUUID()` 是 Node 14.17+
@@ -170,23 +176,26 @@ export interface NewIntentState {
   modeId: string
   profileId: string
   confirmed: boolean
+  /** A3 方案：canvas 尺寸覆盖值（与信封 canvas 字段同源；空串 = 缺省） */
+  canvas: string
 }
 
-/** 读 document root newIntent 三键。任一缺键视为不存在（空态） */
+/** 读 document root newIntent 四键。任一缺键视为不存在（空态） */
 export function readNewIntent(figma: FigmaAPI): NewIntentState {
   const root = figma.graph.getNode(figma.graph.rootId)
-  if (!root) return { modeId: '', profileId: '', confirmed: false }
+  if (!root) return { modeId: '', profileId: '', confirmed: false, canvas: '' }
   const modeId = getSharedPluginData(root, BRIEF_PLUGIN_NAMESPACE, NEW_INTENT_MODE_ID_KEY)
   const profileId = getSharedPluginData(root, BRIEF_PLUGIN_NAMESPACE, NEW_INTENT_PROFILE_ID_KEY)
   const confirmed =
     getSharedPluginData(root, BRIEF_PLUGIN_NAMESPACE, NEW_INTENT_CONFIRMED_KEY) === 'true'
-  return { modeId, profileId, confirmed }
+  const canvas = getSharedPluginData(root, BRIEF_PLUGIN_NAMESPACE, NEW_INTENT_CANVAS_KEY)
+  return { modeId, profileId, confirmed, canvas }
 }
 
-/** 写入 newIntent 三键——单一原子入口（前端确认按钮 / envelope 兼容写入） */
+/** 写入 newIntent 四键——单一原子入口（前端确认按钮 / envelope 兼容写入） */
 export function writeNewIntent(
   figma: FigmaAPI,
-  args: { modeId: string; profileId?: string; confirmed: boolean }
+  args: { modeId: string; profileId?: string; canvas?: string; confirmed: boolean }
 ): void {
   const root = figma.graph.getNode(figma.graph.rootId)
   if (!root) return
@@ -208,14 +217,21 @@ export function writeNewIntent(
     figma.graph,
     root,
     BRIEF_PLUGIN_NAMESPACE,
+    NEW_INTENT_CANVAS_KEY,
+    args.canvas ?? ''
+  )
+  setSharedPluginData(
+    figma.graph,
+    root,
+    BRIEF_PLUGIN_NAMESPACE,
     NEW_INTENT_CONFIRMED_KEY,
     args.confirmed ? 'true' : ''
   )
 }
 
-/** 清除 newIntent 三键——setup_design 成功 / 用户取消意图 */
+/** 清除 newIntent 四键——setup_design 成功 / 用户取消意图 */
 export function clearNewIntent(figma: FigmaAPI): void {
-  writeNewIntent(figma, { modeId: '', profileId: '', confirmed: false })
+  writeNewIntent(figma, { modeId: '', profileId: '', canvas: '', confirmed: false })
 }
 
 /**
