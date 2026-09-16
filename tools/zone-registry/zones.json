@@ -1474,6 +1474,13 @@
       "reason": "2026-09-16：preference/credential 草稿先给全字段 '' 入座（含 provider 切换 watch 同补）——AppInput modelValue required，未配置字段以 undefined 绑入触发 5 条 prop 警告（backlog 顺手修批）；saveCredential/clearCredential 对 ''/undefined 同律（trim  falsy 即返），行为零变化",
       "disposition": "permanent",
       "lastReviewed": "2026-09-16"
+    },
+    {
+      "id": "P256",
+      "file": "LICENSE",
+      "reason": "2026-09-16 rebrand 版权头（owner 拍板）：上游 MIT 版权行保留（MIT 唯一强制条件=声明随副本分发）+ 上方新增「Copyright (c) 2026 another-momo and Dianjing contributors」划分新旧版权归属",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-16"
     }
   ],
   "deletedPaths": [
