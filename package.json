@@ -1,6 +1,6 @@
 {
   "name": "dianjing-app",
-  "version": "0.14.0",
+  "version": "0.1.0",
   "private": true,
   "license": "MIT",
   "description": "点睛 Dianjing —— AI 设计编辑器（基于 OpenPencil fork 自主演进）",

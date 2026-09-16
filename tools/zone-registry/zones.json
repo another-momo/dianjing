@@ -1503,6 +1503,62 @@
       "reason": "2026-09-16 重写为 fork 版：去 OpenPencil 标题/Tauri（已裁）/English PR 要求/CHANGELOG 与 CONTRIBUTING 死引用；保留与本仓 lint 一致的约定（no any/禁非空断言/getRandomValues/Vue 无 style 块）+ 唯一向导锚 AGENTS.md",
       "disposition": "permanent",
       "lastReviewed": "2026-09-16"
+    },
+    {
+      "id": "P260",
+      "file": "packages/core/package.json",
+      "reason": "2026-09-16：version 0.14.0→0.1.0——owner 拍板发版策略：fork 自主谱系重新计数，与上游 OpenPencil 版本号脱钩（发版策略批）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-16"
+    },
+    {
+      "id": "P261",
+      "file": "packages/dom-css/package.json",
+      "reason": "2026-09-16：version 0.14.0→0.1.0——owner 拍板发版策略：fork 自主谱系重新计数，与上游 OpenPencil 版本号脱钩（发版策略批）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-16"
+    },
+    {
+      "id": "P262",
+      "file": "packages/fig/package.json",
+      "reason": "2026-09-16：version 0.14.0→0.1.0——owner 拍板发版策略：fork 自主谱系重新计数，与上游 OpenPencil 版本号脱钩（发版策略批）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-16"
+    },
+    {
+      "id": "P263",
+      "file": "packages/kiwi/package.json",
+      "reason": "2026-09-16：version 0.14.0→0.1.0——owner 拍板发版策略：fork 自主谱系重新计数，与上游 OpenPencil 版本号脱钩（发版策略批）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-16"
+    },
+    {
+      "id": "P264",
+      "file": "packages/pen/package.json",
+      "reason": "2026-09-16：version 0.14.0→0.1.0——owner 拍板发版策略：fork 自主谱系重新计数，与上游 OpenPencil 版本号脱钩（发版策略批）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-16"
+    },
+    {
+      "id": "P265",
+      "file": "packages/scene-graph/package.json",
+      "reason": "2026-09-16：version 0.14.0→0.1.0——owner 拍板发版策略：fork 自主谱系重新计数，与上游 OpenPencil 版本号脱钩（发版策略批）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-16"
+    },
+    {
+      "id": "P266",
+      "file": "packages/vue/package.json",
+      "reason": "2026-09-16：version 0.14.0→0.1.0——owner 拍板发版策略：fork 自主谱系重新计数，与上游 OpenPencil 版本号脱钩（发版策略批）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-16"
+    },
+    {
+      "id": "P267",
+      "file": "package.json",
+      "reason": "2026-09-16：version 0.14.0→0.1.0——owner 拍板发版策略：fork 自主谱系重新计数，与上游 OpenPencil 版本号脱钩（发版策略批）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-16"
     }
   ],
   "deletedPaths": [
