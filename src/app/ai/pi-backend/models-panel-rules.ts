@@ -248,8 +248,10 @@ export function classifyAuthSource(source: string | undefined): PiAuthSourceClas
  * 设计模型卡（合并面板顶部）的初始选中 provider —— 优先级：
  *   1. 当前指派 provider（已有指派 → 一致性优先）
  *   2. 第一个已配置 provider（让无指派用户能直接落 key + 用模型）
- *   3. catalog 第一个 provider（兜底；无指派无配置时的引导位）
- *   4. 空串（catalog 为空时）
+ *   3. openrouter（2026-09-16 owner 拍板：双无新用户默认落免费路由引导位——
+ *      openrouter/free 由 SDK 内置目录供给，配 key 即用）
+ *   4. catalog 第一个 provider（catalog 无 openrouter 时兜底——SDK 移除/主人定制）
+ *   5. 空串（catalog 为空时）
  *
  * 注：返回的可能是 catalog 不存在的 providerId（如指派的 provider 已被
  * 主人从 models.json 删掉），调用方需要在 combobox model-value 显式回退
@@ -263,5 +265,7 @@ export function resolveInitialSelectedProvider(args: {
   if (assignmentProviderId) return assignmentProviderId
   const firstConfigured = providers.find((p) => p.auth.configured)
   if (firstConfigured) return firstConfigured.id
+  const openrouter = providers.find((p) => p.id === OPENROUTER_PROVIDER_ID)
+  if (openrouter) return openrouter.id
   return providers[0]?.id ?? ''
 }

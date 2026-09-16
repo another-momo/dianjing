@@ -428,7 +428,21 @@ describe('resolveInitialSelectedProvider', () => {
     ).toBe('openrouter')
   })
 
-  test('无指派 + 无已配置 → 返回 catalog 首项（引导位）', () => {
+  test('无指派 + 无已配置 + catalog 含 openrouter → 返回 openrouter（2026-09-16 拍板：免费路由引导位）', () => {
+    const providers = [
+      makeProvider('amazonBedrock', ['nova-pro']),
+      makeProvider('anthropic', ['claude']),
+      makeProvider('openrouter', ['openrouter/free'])
+    ]
+    expect(
+      resolveInitialSelectedProvider({
+        assignmentProviderId: undefined,
+        providers
+      })
+    ).toBe('openrouter')
+  })
+
+  test('无指派 + 无已配置 + catalog 无 openrouter → 返回 catalog 首项（兜底）', () => {
     const providers = [makeProvider('anthropic', ['claude']), makeProvider('openai', ['gpt-4o'])]
     expect(
       resolveInitialSelectedProvider({
