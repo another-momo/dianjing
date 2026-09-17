@@ -3,7 +3,9 @@
  * check.ts —— render-jsx.md 与 design-jsx schema.ts 三清单双向门禁。
  *
  * 真源：packages/core/src/design-jsx/schema.ts（DESIGN_JSX_ELEMENTS /
- *       DESIGN_JSX_SUPPORTED_PROPERTY_NAMES / DESIGN_JSX_HELPERS）。
+ *       DESIGN_JSX_SUPPORTED_PROPERTY_NAMES / DESIGN_JSX_HELPERS）——经公共导出
+ *       '@open-pencil/core/design-jsx' 消费（dist 产物；check 链 build:packages 在先，
+ *       单独手跑本工具前须先 bun --filter @open-pencil/core build，否则比对的是陈旧 dist）。
  * 教学源：src/app/ai/pi-backend/studio/references/render-jsx.md
  *       （agent load_reference 按需读取，三清单须与 schema 零漂移）。
  *
@@ -27,7 +29,7 @@ import {
   DESIGN_JSX_ELEMENTS,
   DESIGN_JSX_SUPPORTED_PROPERTY_NAMES,
   DESIGN_JSX_HELPERS
-} from '#core/design-jsx/schema'
+} from '@open-pencil/core/design-jsx'
 
 const MD_PATH = resolve(
   import.meta.dir,

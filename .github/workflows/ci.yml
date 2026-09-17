@@ -85,6 +85,9 @@ jobs:
       - name: Scan for committed secrets
         run: bun run check:secrets
 
+      - name: Build shared Core test dependency
+        run: bun --filter @open-pencil/core build
+
       - name: Test repository tooling
         run: bun run test:tools
 
