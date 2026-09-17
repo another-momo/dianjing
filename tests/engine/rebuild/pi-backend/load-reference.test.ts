@@ -150,3 +150,80 @@ describe('load_reference：50KB 截断', () => {
     expect((result.details as { truncated?: boolean }).truncated).toBe(false)
   })
 })
+
+// ── 限定形寻址：跨桶同名 path 时所有冲突方可寻址（collectActiveReferences 注入）
+
+describe('load_reference：限定形寻址（同名冲突消歧）', () => {
+  /** 注入两方冲突：裸路径解析到 first-wins（base），限定形各自可达 */
+  function conflictAllowed(): Map<string, string> {
+    return new Map([
+      ['references/imagery.md', '/abs/base/references/imagery.md'],
+      ['base:base/references/imagery.md', '/abs/base/references/imagery.md'],
+      ['workflow:longform/references/imagery.md', '/abs/workflow/longform/references/imagery.md']
+    ])
+  }
+
+  test('裸路径 → first-wins（base 绝对路径）+ available 含裸与限定两形', async () => {
+    const tool = makeTool(
+      {
+        '/abs/base/references/imagery.md': CONTENT,
+        '/abs/workflow/longform/references/imagery.md': '# workflow\n'
+      },
+      conflictAllowed()
+    )
+    const result = await tool.execute('call-1', { path: 'references/imagery.md' })
+    expect((result.details as { error?: string }).error).toBeUndefined()
+    const text = result.content[0].type === 'text' ? result.content[0].text : ''
+    expect(text).toBe(CONTENT) // base 内容
+    expect((result.details as { path?: string }).path).toBe('references/imagery.md')
+  })
+
+  test('限定形 workflow:longform/... → 解析到 workflow 绝对路径（与裸路径不同的文件）', async () => {
+    const tool = makeTool(
+      {
+        '/abs/base/references/imagery.md': CONTENT,
+        '/abs/workflow/longform/references/imagery.md': '# workflow-only\n'
+      },
+      conflictAllowed()
+    )
+    const result = await tool.execute('call-1', {
+      path: 'workflow:longform/references/imagery.md'
+    })
+    expect((result.details as { error?: string }).error).toBeUndefined()
+    const text = result.content[0].type === 'text' ? result.content[0].text : ''
+    expect(text).toBe('# workflow-only\n')
+    expect((result.details as { path?: string }).path).toBe(
+      'workflow:longform/references/imagery.md'
+    )
+  })
+
+  test('限定形 base:base/... → 与裸路径同文件（base 已 first-wins）', async () => {
+    const tool = makeTool({ '/abs/base/references/imagery.md': CONTENT }, conflictAllowed())
+    const result = await tool.execute('call-1', { path: 'base:base/references/imagery.md' })
+    const text = result.content[0].type === 'text' ? result.content[0].text : ''
+    expect(text).toBe(CONTENT)
+  })
+
+  test('未声明的限定形（profile:<id>/... 缺位）→ reference_not_allowed + available 列全部', async () => {
+    const tool = makeTool({}, conflictAllowed())
+    const result = await tool.execute('call-1', {
+      path: 'profile:watercolor/references/imagery.md'
+    })
+    const details = result.details as { error?: string; available?: string[] }
+    expect(details.error).toBe('reference_not_allowed')
+    expect(details.available).toEqual([
+      'references/imagery.md',
+      'base:base/references/imagery.md',
+      'workflow:longform/references/imagery.md'
+    ])
+  })
+
+  test('限定形仍经 referencePathProblem 拒（`..` 不在白名单内仍拒）', async () => {
+    const tool = makeTool({}, conflictAllowed())
+    const result = await tool.execute('call-1', {
+      path: 'base:base/references/../escape.md'
+    })
+    const details = result.details as { error?: string }
+    expect(details.error).toBe('reference_path_rejected')
+  })
+})

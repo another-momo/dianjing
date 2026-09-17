@@ -329,6 +329,40 @@ function loadProfiles(
 }
 
 /**
+ * 跨桶 references 同名 path 冲突检测。同一 relPath 出现在 ≥2 个不同桶即视为冲突
+ * ——每条冲突记一条 studio 级 failure（path=`references:${relPath}` 便于 manifest
+ * 端定位；绝对路径不进 failure 字段保持脱敏纪律）。冲突不影响加载（first-wins
+ * 寻址仍生效；限定形 key 同时入允许集），但作者面可见响亮信号。
+ */
+function detectCrossBucketReferenceConflicts(
+  resolved: ResolvedBuckets,
+  failures: StudioFailure[]
+): void {
+  // path → 一组声明该 path 的桶 key（去重——同桶多次声明不计）
+  const pathToBuckets = new Map<string, Set<string>>()
+  for (const [bucketKey, bucket] of resolved) {
+    for (const path of bucket.keys()) {
+      let set = pathToBuckets.get(path)
+      if (!set) {
+        set = new Set<string>()
+        pathToBuckets.set(path, set)
+      }
+      set.add(bucketKey)
+    }
+  }
+  for (const [path, bucketKeys] of pathToBuckets) {
+    if (bucketKeys.size < 2) continue
+    const sortedBuckets = [...bucketKeys].sort().join('、')
+    failures.push({
+      path: `references:${path}`,
+      kind: 'studio',
+      reason: `references「${path}」跨桶同名声明（${sortedBuckets}）`,
+      hint: '限定形寻址已自动生效（不破坏加载），但建议重命名其中之一以消除歧义——改 path 或拆桶'
+    })
+  }
+}
+
+/**
  * 纯函数加载：给定内置/用户两目录，产出完整注册表（含 failures）。
  * 测试经本函数注入 fixture 目录，不依赖真实文件布局。
  */
@@ -383,6 +417,13 @@ export function loadStudioFromDirs(builtinDir: string, userDir: string): StudioR
       hint: '检查内置 studio/ 目录是否随应用分发；逐条修复上方文件级失败后重新加载'
     })
   }
+
+  // ── 跨桶 references 同名冲突检测（加载期响亮信号）
+  // 同 relPath 出现在 ≥2 个不同桶（base / workflow:<id> / profile:<id>）→ 允许集
+  // 既含裸 path（first-wins，索引首条一致）也含限定形 key（所有冲突方可寻址）；
+  // 此处对作者/CI 显式曝光：作者面工具/manifest failures 可见，便于主动改名/
+  // 拆桶。同桶（同 bucketKey）内同名 path 视同同源不计。
+  detectCrossBucketReferenceConflicts(resolved, failures)
 
   return { base, workflows, profiles, modes, failures, resolvedReferences: resolved }
 }

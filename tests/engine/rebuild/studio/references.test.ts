@@ -390,3 +390,135 @@ test('用户目录同 id 覆盖：references 解析到用户侧资产目录（�
     join(userDir, 'workflows', 'editable-design', 'references', 'custom.md')
   )
 })
+
+// ── 跨桶 references 同名 path 冲突检测 ────────────────────────────────────
+
+test('跨桶同名 path：base + workflow 各自声明 references/shared.md → failures 响亮信号', () => {
+  // base 声明 references/shared.md
+  put(
+    builtinDir,
+    'base.md',
+    BASE_MD.replace(
+      '---\n\n## 红线',
+      'references:\n  - path: references/shared.md\n    description: 基础共享\n---\n\n## 红线'
+    )
+  )
+  put(builtinDir, join('references', 'shared.md'), '# base shared\n')
+  // workflow 声明同名 references/shared.md
+  put(
+    builtinDir,
+    join('workflows', 'editable-design', 'workflow.md'),
+    workflowMd('references:\n  - path: references/shared.md\n    description: 工作流共享\n')
+  )
+  put(builtinDir, join('workflows', 'editable-design', 'references', 'shared.md'), '# wf shared\n')
+  const r = loadBoth()
+  // 不影响加载：资产本体仍注册、桶内仍解析
+  expect(r.workflows.get('editable-design')?.references).toEqual([
+    { path: 'references/shared.md', description: '工作流共享' }
+  ])
+  expect(r.base?.references?.[0].path).toBe('references/shared.md')
+  expect(r.resolvedReferences.get('base:base')?.get('references/shared.md')).toBe(
+    join(builtinDir, 'references', 'shared.md')
+  )
+  expect(r.resolvedReferences.get('workflow:editable-design')?.get('references/shared.md')).toBe(
+    join(builtinDir, 'workflows', 'editable-design', 'references', 'shared.md')
+  )
+  // failure：跨桶同名 → 一条 studio 级条目（路径脱敏：references:<path>）
+  const conflict = r.failures.find(
+    (f) =>
+      f.kind === 'studio' &&
+      f.path === 'references:references/shared.md' &&
+      f.reason.includes('跨桶同名声明')
+  )
+  expect(conflict).toBeDefined()
+  expect(conflict?.reason).toContain('base:base')
+  expect(conflict?.reason).toContain('workflow:editable-design')
+  expect(conflict?.hint).toContain('重命名')
+})
+
+test('三方跨桶同名：base + workflow + profile 同名 → 一条 failure 涵盖三桶', () => {
+  put(
+    builtinDir,
+    'base.md',
+    BASE_MD.replace(
+      '---\n\n## 红线',
+      'references:\n  - path: references/shared.md\n    description: base\n---\n\n## 红线'
+    )
+  )
+  put(builtinDir, join('references', 'shared.md'), 'b')
+  put(
+    builtinDir,
+    join('workflows', 'editable-design', 'workflow.md'),
+    workflowMd('references:\n  - path: references/shared.md\n    description: wf\n')
+  )
+  put(builtinDir, join('workflows', 'editable-design', 'references', 'shared.md'), 'w')
+  put(
+    builtinDir,
+    join('profiles', 'watercolor', 'profile.md'),
+    `---
+id: watercolor
+label: 水彩
+modes: [editable-design]
+references:
+  - path: references/shared.md
+    description: profile
+---
+
+## Fixed system
+
+固定。
+
+## Variable system
+
+可变。
+
+## Anti-identity
+
+不做。
+
+## Tone
+
+克制。
+
+## Recipe
+
+配方。
+`
+  )
+  put(builtinDir, join('profiles', 'watercolor', 'references', 'shared.md'), 'p')
+  const r = loadBoth()
+  const conflict = r.failures.find(
+    (f) =>
+      f.kind === 'studio' &&
+      f.path === 'references:references/shared.md' &&
+      f.reason.includes('跨桶同名声明')
+  )
+  expect(conflict).toBeDefined()
+  expect(conflict?.reason).toContain('base:base')
+  expect(conflict?.reason).toContain('workflow:editable-design')
+  expect(conflict?.reason).toContain('profile:watercolor')
+})
+
+test('同 bucket 内多次声明同名 path 不计冲突（不产生 failure）', () => {
+  // 同 bucketKey = 同源 → 不计冲突
+  put(builtinDir, 'base.md', BASE_MD)
+  put(
+    builtinDir,
+    join('workflows', 'editable-design', 'workflow.md'),
+    workflowMd(`references:
+  - path: references/shared.md
+    description: first
+  - path: references/shared.md
+    description: second
+`)
+  )
+  put(builtinDir, join('workflows', 'editable-design', 'references', 'shared.md'), 'x')
+  const r = loadBoth()
+  // 同桶同名 path 不算冲突 → 无对应 failure
+  expect(r.failures.some((f) => f.kind === 'studio' && f.reason.includes('跨桶同名声明'))).toBe(
+    false
+  )
+  // 但 validate 阶段允许同 path 多条声明（同一 workflow 内重复声明，validate 不重）
+  // → 仍走原「条目级文件存在性检查」，不报错
+  expect(r.workflows.get('editable-design')?.references?.length).toBeGreaterThan(0)
+})

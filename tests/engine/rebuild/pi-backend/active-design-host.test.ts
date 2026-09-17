@@ -726,6 +726,175 @@ describe('references 索引注入（T85 定谳 3/4）', () => {
   })
 })
 
+// ── reference 寻址消歧：跨桶同名 path 的限定形寻址 ──────────────────────────
+
+describe('reference 寻址消歧（跨桶同名 path）', () => {
+  /** base + workflow 各自声明同名 references/imagery.md + 一条独立 typography */
+  function registryWithConflict(): StudioRegistry {
+    const r = makeRegistry()
+    if (r.base) {
+      r.base.references = [{ path: 'references/imagery.md', description: '基础图像纪律' }]
+      r.resolvedReferences.set(
+        'base:base',
+        new Map([['references/imagery.md', '/abs/studio/base/references/imagery.md']])
+      )
+    }
+    r.workflows.set(
+      'longform',
+      makeWorkflow('longform', 'LONGFORM-WORKFLOW', [
+        { path: 'references/imagery.md', description: '长图图像纪律' },
+        { path: 'references/typography.md', description: '版式排印原则' }
+      ])
+    )
+    r.resolvedReferences.set(
+      'workflow:longform',
+      new Map([
+        ['references/imagery.md', '/abs/studio/workflows/longform/references/imagery.md'],
+        ['references/typography.md', '/abs/studio/workflows/longform/references/typography.md']
+      ])
+    )
+    return r
+  }
+
+  test('冲突 path：索引行改为限定形 + ⚠ 注记；非冲突行保持裸路径零噪音', () => {
+    const turn = assemble(registryWithConflict(), {
+      status: 'ok',
+      design: designSnap({ profileId: '' }),
+      briefMissing: false
+    })
+    // base 行：限定形 base:base + ⚠ 注记
+    expect(turn.systemPrompt).toContain(
+      '- base:base/references/imagery.md ⚠同名冲突，用限定形寻址 —— 基础图像纪律（base）'
+    )
+    // workflow 行：限定形 workflow:longform + ⚠ 注记（即便 base 也声明同名）
+    expect(turn.systemPrompt).toContain(
+      '- workflow:longform/references/imagery.md ⚠同名冲突，用限定形寻址 —— 长图图像纪律（workflow: longform）'
+    )
+    // 非冲突的 typography.md 行保持裸路径、零噪音（无 ⚠）
+    expect(turn.systemPrompt).toContain(
+      '- references/typography.md —— 版式排印原则（workflow: longform）'
+    )
+    // 冲突行确实带 ⚠，非冲突行不带 → 用行级断言（split('\n') 后逐行检查）
+    const lines = turn.systemPrompt.split('\n').filter((l) => l.includes('references/typography'))
+    for (const line of lines) {
+      expect(line.includes('⚠同名冲突')).toBe(false)
+    }
+    // 冲突行确实带 ⚠
+    const conflictLines = turn.systemPrompt
+      .split('\n')
+      .filter((l) => l.includes('references/imagery.md'))
+    expect(conflictLines.length).toBeGreaterThan(0)
+    for (const line of conflictLines) {
+      expect(line.includes('⚠同名冲突')).toBe(true)
+    }
+    // 负向：裸路径 imagery.md 不再出现在「无 ⚠」的渲染行（限定形 + ⚠ 才是冲突行入口）
+    expect(turn.systemPrompt).not.toMatch(/^- references\/imagery\.md ——/)
+  })
+
+  test('冲突 path：允许集同时含裸路径（first-wins，索引首条一致）+ 限定 key（全冲突方可达）', () => {
+    const turn = assemble(registryWithConflict(), {
+      status: 'ok',
+      design: designSnap({ profileId: '' }),
+      briefMissing: false
+    })
+    const allowed = turn.allowedReferences
+    // 裸路径：first-wins —— base 先声明 → 解析到 base 绝对路径
+    expect(allowed.get('references/imagery.md')).toBe('/abs/studio/base/references/imagery.md')
+    // 限定 key：base/workflow 各可达
+    expect(allowed.get('base:base/references/imagery.md')).toBe(
+      '/abs/studio/base/references/imagery.md'
+    )
+    expect(allowed.get('workflow:longform/references/imagery.md')).toBe(
+      '/abs/studio/workflows/longform/references/imagery.md'
+    )
+    // 非冲突：仍仅裸路径登记
+    expect(allowed.get('references/typography.md')).toBe(
+      '/abs/studio/workflows/longform/references/typography.md'
+    )
+    expect(allowed.has('workflow:longform/references/typography.md')).toBe(false)
+  })
+
+  test('同 bucket 内多次声明同名 path：仍走 first-wins（不算冲突）', () => {
+    const r = makeRegistry()
+    r.workflows.set(
+      'longform',
+      makeWorkflow('longform', 'LONGFORM-WORKFLOW', [
+        { path: 'references/imagery.md', description: 'first' },
+        { path: 'references/imagery.md', description: 'second' }
+      ])
+    )
+    r.resolvedReferences.set(
+      'workflow:longform',
+      new Map([['references/imagery.md', '/abs/studio/workflows/longform/references/imagery.md']])
+    )
+    const turn = assemble(r, {
+      status: 'ok',
+      design: designSnap({ profileId: '' }),
+      briefMissing: false
+    })
+    // 同桶同名 path 不算跨桶冲突 → 仍按裸路径渲染（两条都保留，重复但属既有用法）
+    expect(turn.systemPrompt).toContain('- references/imagery.md —— first（workflow: longform）')
+    expect(turn.systemPrompt).toContain('- references/imagery.md —— second（workflow: longform）')
+    expect(turn.systemPrompt).not.toContain('⚠同名冲突')
+    // 允许集仅一条裸路径登记
+    expect(turn.allowedReferences.size).toBe(1)
+  })
+
+  test('冲突 path + profile 也声明同名：三方全可达（裸路径仍 first-wins）', () => {
+    const r = makeRegistry()
+    if (r.base) {
+      r.base.references = [{ path: 'references/shared.md', description: '基础共享' }]
+      r.resolvedReferences.set(
+        'base:base',
+        new Map([['references/shared.md', '/abs/studio/base/references/shared.md']])
+      )
+    }
+    r.workflows.set(
+      'longform',
+      makeWorkflow('longform', 'LONG-WF', [
+        { path: 'references/shared.md', description: '工作流共享' }
+      ])
+    )
+    r.resolvedReferences.set(
+      'workflow:longform',
+      new Map([['references/shared.md', '/abs/studio/workflows/longform/references/shared.md']])
+    )
+    const profile = r.profiles.get('watercolor')
+    if (profile) {
+      profile.references = [{ path: 'references/shared.md', description: '风格共享' }]
+      r.resolvedReferences.set(
+        'profile:watercolor',
+        new Map([['references/shared.md', '/abs/studio/profiles/watercolor/references/shared.md']])
+      )
+    }
+    const turn = assemble(r, {
+      status: 'ok',
+      design: designSnap(),
+      briefMissing: false
+    })
+    expect(turn.systemPrompt).toContain(
+      '- base:base/references/shared.md ⚠同名冲突，用限定形寻址 —— 基础共享（base）'
+    )
+    expect(turn.systemPrompt).toContain(
+      '- workflow:longform/references/shared.md ⚠同名冲突，用限定形寻址 —— 工作流共享（workflow: longform）'
+    )
+    expect(turn.systemPrompt).toContain(
+      '- profile:watercolor/references/shared.md ⚠同名冲突，用限定形寻址 —— 风格共享（profile: watercolor）'
+    )
+    // 裸路径 first-wins：base 最先（activeAssets 顺序：base → workflow → profile）
+    expect(turn.allowedReferences.get('references/shared.md')).toBe(
+      '/abs/studio/base/references/shared.md'
+    )
+    // 三方限定 key 全可达
+    expect(turn.allowedReferences.get('workflow:longform/references/shared.md')).toBe(
+      '/abs/studio/workflows/longform/references/shared.md'
+    )
+    expect(turn.allowedReferences.get('profile:watercolor/references/shared.md')).toBe(
+      '/abs/studio/profiles/watercolor/references/shared.md'
+    )
+  })
+})
+
 // ── prepareTurn 管线（桥假件）────────────────────────────────────────────────
 
 describe('prepareTurn 管线', () => {

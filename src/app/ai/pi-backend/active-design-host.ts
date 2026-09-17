@@ -63,8 +63,14 @@ import {
 import { readDiscoveryFile } from '@/app/bridge/server/discovery'
 
 import { postBridgeRPC } from './bridge-rpc'
-import { referenceBucketKey } from './studio/types'
-import type { StudioBase, StudioProfile, StudioRegistry, StudioWorkflow } from './studio/types'
+import {
+  referenceBucketKey,
+  type StudioAssetReference,
+  type StudioBase,
+  type StudioProfile,
+  type StudioRegistry,
+  type StudioWorkflow
+} from './studio/types'
 
 // ── 新建意图信封（共享契约：首行 `[新建意图确认 modeId=<id> profileId=<id> canvas=<值>]`，
 //    字段可缺省、顺序固定；canvas = 尺寸覆盖值，T65 §2.4）──────────────────────────
@@ -117,28 +123,108 @@ export interface TurnAssembly {
 /** 索引节标题（T85 定谳 3 字面口径；P2-3 同步工具名） */
 const REFERENCES_INDEX_HEADING = '## 按需参考（load_reference 工具按需读取）'
 
-/** 本回合 active 资产的 references 并集：base 恒在 + 命中的 workflow + 命中的 profile */
+/** 限定形寻址 key：冲突时多桶同名 path 经此形区分（基桶 key + '/' + relPath） */
+function referenceQualifiedKey(
+  kind: 'base' | 'workflow' | 'profile',
+  id: string,
+  path: string
+): string {
+  return `${referenceBucketKey(kind, id)}/${path}`
+}
+
+/** 索引行「同名冲突」注记字面 */
+const CONFLICT_NOTE = '⚠同名冲突，用限定形寻址'
+
+/** 本回合 active 资产的 references 并集：base 恒在 + 命中的 workflow + 命中的 profile。
+ *
+ *  同 path 跨桶冲突消歧：
+ *  - 无冲突：裸 path 行为不变（索引行 + 允许集首项均指向裸 path，first-wins）
+ *  - 有冲突：所有冲突方的索引行改为限定形 `${bucketKey}/${path}` + ⚠ 注记；
+ *    允许集同时登记限定 key（所有冲突方可寻址）；裸 path 仍 first-wins 保留
+ *    （旧语义不变——索引首条与裸 path 寻址一致）。
+ */
 function collectActiveReferences(
   registry: StudioRegistry,
   assets: Array<StudioBase | StudioWorkflow | StudioProfile>
 ): { indexSection: string; allowed: Map<string, string> } {
-  const lines: string[] = []
-  const allowed = new Map<string, string>()
-  for (const asset of assets) {
-    if (!asset.references || asset.references.length === 0) continue
-    const source = asset.kind === 'base' ? 'base' : `${asset.kind}: ${asset.id}`
-    const bucket = registry.resolvedReferences.get(referenceBucketKey(asset.kind, asset.id))
-    for (const ref of asset.references) {
-      lines.push(`- ${ref.path} —— ${ref.description}（${source}）`)
-      const abs = bucket?.get(ref.path)
-      // 同 path 多资产声明冲突：先声明先赢（索引首条与允许集指向一致）
-      if (abs && !allowed.has(ref.path)) allowed.set(ref.path, abs)
-    }
-  }
+  const entries = collectReferenceEntries(registry, assets)
+  const lines = renderIndexLines(entries)
+  const allowed = buildAllowedSet(entries)
   return {
     indexSection: lines.length === 0 ? '' : `${REFERENCES_INDEX_HEADING}\n${lines.join('\n')}`,
     allowed
   }
+}
+
+interface ReferenceEntry {
+  asset: StudioBase | StudioWorkflow | StudioProfile
+  source: string
+  bucket: ReadonlyMap<string, string> | undefined
+  ref: StudioAssetReference
+}
+
+/** 累积声明 → 标记每个 entry 的冲突位（仅不同 bucketKey 计冲突；同桶同 path 不计）。
+ *  Map 而非数组：维持发现顺序同时为每条 entry 预存冲突标记，渲染侧与允许集侧
+ *  分别按 Map 序遍历、共享同一冲突视图。
+ *
+ *  实现：先纯统计 → 二次按累积结果给每条 entry 设标记（避免第一次出现某 path 时
+ *  误把首条标成 false——同 path 后续加入第二桶后才知冲突）。 */
+function collectReferenceEntries(
+  registry: StudioRegistry,
+  assets: Array<StudioBase | StudioWorkflow | StudioProfile>
+): Map<ReferenceEntry, boolean> {
+  const rawEntries: ReferenceEntry[] = []
+  const distinctBucketsByPath = new Map<string, Set<string>>()
+  for (const asset of assets) {
+    if (!asset.references || asset.references.length === 0) continue
+    const source = asset.kind === 'base' ? 'base' : `${asset.kind}: ${asset.id}`
+    const bucket = registry.resolvedReferences.get(referenceBucketKey(asset.kind, asset.id))
+    const bucketKey = bucket ? referenceBucketKey(asset.kind, asset.id) : ''
+    for (const ref of asset.references) {
+      rawEntries.push({ asset, source, bucket, ref })
+      let set = distinctBucketsByPath.get(ref.path)
+      if (!set) {
+        set = new Set<string>()
+        distinctBucketsByPath.set(ref.path, set)
+      }
+      if (bucketKey) set.add(bucketKey)
+    }
+  }
+  const entries = new Map<ReferenceEntry, boolean>()
+  for (const entry of rawEntries) {
+    const conflict = (distinctBucketsByPath.get(entry.ref.path)?.size ?? 0) > 1
+    entries.set(entry, conflict)
+  }
+  return entries
+}
+
+/** 渲染索引行：冲突行用限定形 + ⚠ 注记；非冲突行保持裸路径零噪音 */
+function renderIndexLines(entries: Map<ReferenceEntry, boolean>): string[] {
+  const lines: string[] = []
+  for (const [e, conflict] of entries) {
+    if (conflict && e.bucket) {
+      const qualified = referenceQualifiedKey(e.asset.kind, e.asset.id, e.ref.path)
+      lines.push(`- ${qualified} ${CONFLICT_NOTE} —— ${e.ref.description}（${e.source}）`)
+    } else {
+      lines.push(`- ${e.ref.path} —— ${e.ref.description}（${e.source}）`)
+    }
+  }
+  return lines
+}
+
+/** 填充允许集：限定 key 全冲突方登记 + 裸 path first-wins（同桶同 path 不再冲突计数） */
+function buildAllowedSet(entries: Map<ReferenceEntry, boolean>): Map<string, string> {
+  const allowed = new Map<string, string>()
+  for (const [e, conflict] of entries) {
+    const abs = e.bucket?.get(e.ref.path)
+    if (!abs) continue
+    if (conflict && e.bucket) {
+      const qualified = referenceQualifiedKey(e.asset.kind, e.asset.id, e.ref.path)
+      if (!allowed.has(qualified)) allowed.set(qualified, abs)
+    }
+    if (!allowed.has(e.ref.path)) allowed.set(e.ref.path, abs)
+  }
+  return allowed
 }
 
 /** 组装收尾：references 索引节追加进 systemPrompt 尾段（并集非空时）+ 允许集入 TurnAssembly */
