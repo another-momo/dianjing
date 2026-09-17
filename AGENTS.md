@@ -32,7 +32,7 @@
 - commit 前 `git status` 核对无残留未暂存改动——pre-commit 门禁跑的是工作区，绿 ≠ 已入库（2026-09-08 事故：三文件台账改动未暂存，随 worktree 拆除灭失，CI 红一轮才兜住）。
 - 日常收口门禁：`bun run check:quick`（format + lint + typecheck + zones 四步串行）。
 - 变更集含 `.vue` 时收口补跑 `bun run check:vue`（约 72s，不进 check:quick 是刻意的——主 agent 收口职责，worker 无责）。
-- 注意：本机 oxlint 目录取文件为 0（静默假绿，2026-09-07 起未定位；2026-09-15 第 8 次实证——全量 lint:structure 本地 EXIT=0，日志写明 881ms 扫 0 files）——本地 lint 结果不可信，lint 类门禁以 CI 为准。本地复现 CI lint 的替代法：`bunx oxlint -c oxlint.json --type-aware --type-check <单文件>`（单文件参数不受 0 文件问题影响）。CI lint 分两段不同规则集——lint:structure 全目录 311 条 / type-aware（src+packages）345 条，两段互有独有规则（4728a46d4 实证：optional 参数显式 undefined 单段复现不出）；逐文件复现先对照 CI 失败日志属哪一段，且 `&&` 串行使第一段失败屏蔽第二段——修绿一段后须预期下一段浮出新错（2026-09-15 实证：structure 修绿后 type-aware 浮出 3 错）。
+- 注意：本机 oxlint 目录参数静默 0-file 假绿（多轮实证未定位）——本地 lint 结果不可信，以 CI 为准。本地复现 CI lint 用逐文件钉版：`bunx oxlint -c oxlint.json --type-aware --type-check <单文件>`（单文件参数不受 0-file 影响）。CI lint 分两段规则集——lint:structure 311 条 / type-aware（src+packages）345 条，互有独有规则；逐文件复现先对照 CI 失败日志属哪段，且 `&&` 串行使首段失败屏蔽次段——修绿一段须预期下一段浮新错（2026-09-15 实证）。
 - 大改动（≥10 文件或 ≥200 行）收口跑全量 `bun run check`，跑前停 dev server。全量 check 链在 check:audit 404（npmmirror 镜像环境性、基线同挂）处 `&&` 短路——其后 secrets/monorepo/arch/type-shapes/tools/dupes 六项须逐个补跑（2026-09-15 实证：「audit 不追究」掩盖后段门禁，三项 CI 红出于此）。
 - studio 资产增删改名的耦合断言不止 tests/engine——`spikes/s-pi/backend-smoke/`（CI smoke:pi 契约层）直拷真资产目录并断言具体 id/数量/顺序；改资产同步扫 spikes/（2026-09-08 Phase 2 事故：派单 scope 只圈 tests/engine，CI 红一轮才浮出）。
 - 状态根/目录布局/路径契约类改动同样必扫 spikes：`spikes/s-pi/backend-smoke/` 钉死 token/状态文件相对布局，且冒烟 spawn 后端不带 env 时后端状态根不再跟 cwd（2026-09-14 D2 实证：15 处布局钉 + 7 处 env 注入漏扫，CI 红一轮）。**sweep 输出禁截断**——`grep | head` 截断漏掉 t28 archiveDir 钉，本地复现二轮才兜住。
@@ -59,7 +59,7 @@
 - `.vue` SFC 不进 type-aware 覆盖（实证盲区）——同一段防御写法在 .vue 里历年全绿、抽纯成 .ts 即被狙；.vue → .ts 抽纯后按 .ts 口径逐文件过 `--type-aware`（同上实证）。
 - `check:quick` 的 typecheck 段（tsgo）同样不覆盖 `.vue`——SFC 内消费已退役字段/类型改名在 check:quick 全绿下潜伏，只有 `check:vue`（vue-tsc ×2）能兜；.vue 触面的改动收口前必跑 check:vue 或交 L2/CI（2026-09-16 A3 实证：PiChatMessage.vue 归一器消费已退役 caseKind/references，波间 check:quick 连环绿，L2 才揪出）。
 - no-nested-ternary 的「加括号」修法会被 oxfmt 重新展开回无括号形（格式器归化优先级高于括号保留）——唯一格式器稳定解 = 抽归化助手/显式分支；lint 结构红修完必须 oxfmt 后再复 lint（2026-09-16 A3 修红实证：括号修复被 formatter 静默还原，逐文件复 lint 才抓住）。
-- 手跑 oxfmt 必须走 `node_modules/.bin` 钉版 exe 禁 bunx——bunx 全局缓存副本与钉版同版本号（0.67.0）不同构建，对三元分支 `Number(...)||0` 括号行为分叉（bunx 放行、钉版剥括号），bunx 过格式的文件 CI format 照红（2026-09-16 splash 修红实证：main.ts 一处括号，84236bec3）。
+- 手跑 oxfmt 必须走 `node_modules/.bin` 钉版 exe 禁 bunx、首参必须带 `.oxfmtrc.json`——bunx 全局缓存副本与钉版同版本号（0.67.0）不同构建，括号行为分叉，bunx 过格式的文件 CI format 照红（2026-09-16 实证）；缺省配置 ≠ 项目配置（重建期 CI format 红实证）。
 - steiger（check:arch）FSD 同前缀兄弟文件阈值 = 3（非 4）：同目录 ≥3 个同前缀文件即红——归域目录（ask/ 式）或错开前缀（2026-09-15 ask 测试四件归域实证）。tools/<domain>/ 布局契约：工具文件必须落 `tools/<domain>/src/**`（strict-tools-layout），且域目录必须有 package.json 标记（test:tools 逐域读取，缺即 ENOENT——2026-09-15 git-rescue 入库首轮 CI 双红实证）。
 - ai SDK 就地改 tool part 对象（引用不变）——卡片状态门禁 computed 读 `part.state` 恒陈旧，须父级重渲染直传原值 prop（`:part-state` 模式；2026-09-15 ask 波2 实证：作答摘要此前只在历史重载时渲染）。
 - CI windows runner checkout 把文本物化成 CRLF（Git for Windows 默认 `autocrlf=true`）——打包产物内资产字节与本机 dev 不同；行尾敏感的解析（frontmatter / yaml 末行标量）必须解析层归一（`\r\n?`→`\n`）+ 资产侧 `.gitattributes` 钉 `eol=lf` 双保险（2026-09-17 安装版 profile 静默全灭实证：`version: 2\r` 被 yaml 并进末行标量，parseVersion typeof 拒收，profile 整件弃注册）。
