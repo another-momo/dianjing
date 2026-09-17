@@ -10,7 +10,7 @@
  *  ④ documentId 不进工具 schema（parameters 无 document_id 键，T22-plan D4
  *     「不对模型暴露实现细节」）
  *
- * discovery 文件经 DIANJING_MCP_DISCOVERY_PATH 指到临时文件（paths.ts:135
+ * discovery 文件经 DIANJING_BRIDGE_DISCOVERY_PATH 指到临时文件（paths.ts:135
  * override），不碰真实桥 discovery。
  *
  * 运行：bun spikes/s-pi/backend-smoke/t22/target-smoke.mjs（仓根）
@@ -55,7 +55,7 @@ const bridgePort = bridge.address().port
 // ── 临时 discovery 文件（pid 指向本进程，存活检查通过）
 const tempRoot = mkdtempSync(join(tmpdir(), 't22-target-'))
 const discoveryPath = join(tempRoot, 'discovery.json')
-process.env.DIANJING_MCP_DISCOVERY_PATH = discoveryPath
+process.env.DIANJING_BRIDGE_DISCOVERY_PATH = discoveryPath
 writeFileSync(
   discoveryPath,
   JSON.stringify({

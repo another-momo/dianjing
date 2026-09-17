@@ -44,8 +44,8 @@ export const USER_DATA_DIR_NAME = 'Dianjing'
 
 // ── 进程内 / tmpdir 常量 ──
 
-/** dev MCP discovery tmpdir 子目录前缀，原位 src/app/orchestration/discovery.ts:21。 */
-export const DEV_MCP_TMP_PREFIX = 'dianjing-mcp'
+/** dev bridge discovery tmpdir 子目录前缀，原位 src/app/orchestration/discovery.ts:21。 */
+export const DEV_BRIDGE_TMP_PREFIX = 'dianjing-bridge'
 
 /**
  * 子进程 ready marker 前缀——父进程按此前缀 + UUID 判定子进程就绪。

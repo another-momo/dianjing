@@ -9,7 +9,12 @@ import type { Hono } from 'hono'
 import type { WebSocketServer } from 'ws'
 
 import { removeDiscoveryFile, removeStaleSocket, writeDiscoveryFile } from './discovery'
-import { getDiscoveryPath, getSocketDir, getSocketPath, platformHasUnixSockets } from './paths'
+import {
+  getSocketDir,
+  getSocketPath,
+  platformHasUnixSockets,
+  resolveDiscoveryPathForRead
+} from './paths'
 
 /**
  * setTimeout/setInterval 在 src/ 的 DOM lib 类型下返回 number；桥是 bun 拉起的
@@ -97,7 +102,7 @@ export async function startSocketListener(
   wireUpgrade(server, wss)
 
   const ss = server
-  ss.on('error', (err) => console.error('[MCP] Socket server error:', err))
+  ss.on('error', (err) => console.error('[bridge] Socket server error:', err))
   await new Promise<void>((resolve, reject) => {
     ss.on('error', reject)
     ss.listen(resolvedPath, () => {
@@ -124,7 +129,7 @@ export async function startSocketListener(
   } catch (e) {
     // Fail closed: if we cannot restrict socket permissions, refuse to
     // serve on this socket. A world-readable socket with auth disabled
-    // (DIANJING_MCP_AUTH_TOKEN="") is a security hole.
+    // (DIANJING_BRIDGE_AUTH_TOKEN="") is a security hole.
     await closeServer(server).catch(() => undefined)
     await cleanupSocket(resolvedPath).catch(() => undefined)
     throw new Error(
@@ -146,7 +151,7 @@ export async function startTcpListener(
   wireUpgrade(server, wss)
 
   const ts = server
-  ts.on('error', (err) => console.error('[MCP] TCP server error:', err))
+  ts.on('error', (err) => console.error('[bridge] TCP server error:', err))
   const actualPort = await new Promise<number>((resolve, reject) => {
     ts.on('error', reject)
     ts.listen(httpPort, host, () => {
@@ -271,7 +276,7 @@ export async function cleanupDiscovery(
   // two servers share the same null token. The startedAt timestamp uniquely
   // identifies the instance since two servers starting at the exact same
   // millisecond is extremely unlikely.
-  const discoveryPath = await getDiscoveryPath()
+  const discoveryPath = await resolveDiscoveryPathForRead()
   try {
     const raw = await readFile(discoveryPath, 'utf-8')
     const parsed = JSON.parse(raw)
@@ -329,7 +334,7 @@ export async function closeWssGracefully(wss: WebSocketServer): Promise<void> {
       try {
         ws.close(1001, 'Server shutting down')
       } catch (e) {
-        console.warn('[MCP] Failed to close WebSocket client:', e)
+        console.warn('[bridge] Failed to close WebSocket client:', e)
       }
     }
     const graceTimer = unrefTimer(
@@ -341,7 +346,7 @@ export async function closeWssGracefully(wss: WebSocketServer): Promise<void> {
           try {
             ws.terminate()
           } catch (e) {
-            console.warn('[MCP] Failed to terminate WebSocket client:', e)
+            console.warn('[bridge] Failed to terminate WebSocket client:', e)
           }
         }
         done()

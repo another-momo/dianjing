@@ -114,33 +114,33 @@ export function readBridgeTcpPort(env: EnvSource = process.env): number {
  *  - 全空白 → 抛错（防「我以为设了其实只是空格」的静默回退）
  *  - 其他 → trim 后值
  */
-export type MCPAuthToken = string | null | undefined
-export function readMCPAuthToken(env: EnvSource = process.env): MCPAuthToken {
-  const raw = env?.[`${ENV_PREFIX}MCP_AUTH_TOKEN`]
+export type BridgeAuthToken = string | null | undefined
+export function readBridgeAuthToken(env: EnvSource = process.env): BridgeAuthToken {
+  const raw = env?.[`${ENV_PREFIX}BRIDGE_AUTH_TOKEN`]
   if (raw === undefined) return undefined
   if (raw === '') return null
   const trimmed = raw.trim()
   if (!trimmed) {
     throw new Error(
-      `${ENV_PREFIX}MCP_AUTH_TOKEN is whitespace-only. Set a real token, or use an empty string to disable auth.`
+      `${ENV_PREFIX}BRIDGE_AUTH_TOKEN is whitespace-only. Set a real token, or use an empty string to disable auth.`
     )
   }
   return trimmed
 }
 
 /** CORS origin——bridge/server/index.ts:84。trim，空串归 null。 */
-export function readMCPCORSOrigin(env: EnvSource = process.env): string | null {
-  return env?.[`${ENV_PREFIX}MCP_CORS_ORIGIN`]?.trim() || null
+export function readBridgeCORSOrigin(env: EnvSource = process.env): string | null {
+  return env?.[`${ENV_PREFIX}BRIDGE_CORS_ORIGIN`]?.trim() || null
 }
 
 /** Socket 路径覆盖——bridge/server/paths.ts:84 / 107 / index.ts:66。trim，空串归 null。 */
-export function readMCPSocketPath(env: EnvSource = process.env): string | null {
-  return env?.[`${ENV_PREFIX}MCP_SOCKET`]?.trim() || null
+export function readBridgeSocketPath(env: EnvSource = process.env): string | null {
+  return env?.[`${ENV_PREFIX}BRIDGE_SOCKET`]?.trim() || null
 }
 
 /** Discovery 路径覆盖——bridge/server/paths.ts:133。trim，空串归 null。 */
-export function readMCPDiscoveryPathOverride(env: EnvSource = process.env): string | null {
-  return env?.[`${ENV_PREFIX}MCP_DISCOVERY_PATH`]?.trim() || null
+export function readBridgeDiscoveryPathOverride(env: EnvSource = process.env): string | null {
+  return env?.[`${ENV_PREFIX}BRIDGE_DISCOVERY_PATH`]?.trim() || null
 }
 
 /**
@@ -148,10 +148,10 @@ export function readMCPDiscoveryPathOverride(env: EnvSource = process.env): stri
  * 未设置/0 → undefined（禁用）。否则严格 parse，> MAX_SAFE_INTEGER 抛错。
  */
 const MAX_APP_TIMEOUT_MS = 2_147_483_647
-export function readMCPAppAttachTimeoutMs(env: EnvSource = process.env): number | undefined {
-  const raw = env?.[`${ENV_PREFIX}MCP_APP_TIMEOUT_MS`]?.trim()
+export function readBridgeAppAttachTimeoutMs(env: EnvSource = process.env): number | undefined {
+  const raw = env?.[`${ENV_PREFIX}BRIDGE_APP_TIMEOUT_MS`]?.trim()
   if (!raw) return undefined
-  return readStrictNonNegativeInt(raw, `${ENV_PREFIX}MCP_APP_TIMEOUT_MS`, MAX_APP_TIMEOUT_MS)
+  return readStrictNonNegativeInt(raw, `${ENV_PREFIX}BRIDGE_APP_TIMEOUT_MS`, MAX_APP_TIMEOUT_MS)
 }
 
 /**
@@ -171,14 +171,14 @@ export function readRPCTimeoutMs(
  * 桥 ready marker——bridge/server/index.ts:88 读后写 stderr。
  * 返回 trim 后值；调用方自己做正则校验（^dianjing-ready:[a-f0-9-]{36}$）。
  */
-export function readMCPReadyMarker(env: EnvSource = process.env): string | null {
-  const raw = env?.[`${ENV_PREFIX}MCP_READY_MARKER`]
+export function readBridgeReadyMarker(env: EnvSource = process.env): string | null {
+  const raw = env?.[`${ENV_PREFIX}BRIDGE_READY_MARKER`]
   return raw && raw.trim().length > 0 ? raw.trim() : null
 }
 
-/** MCP root（sidecar 形态下 cwd 不可依赖时的显式覆盖）——bridge/server/root.ts:8。trim。 */
-export function readMCPRoot(env: EnvSource = process.env): string | null {
-  return env?.[`${ENV_PREFIX}MCP_ROOT`]?.trim() || null
+/** Bridge root（sidecar 形态下 cwd 不可依赖时的显式覆盖）——bridge/server/root.ts:8。trim。 */
+export function readBridgeRoot(env: EnvSource = process.env): string | null {
+  return env?.[`${ENV_PREFIX}BRIDGE_ROOT`]?.trim() || null
 }
 
 /**
@@ -274,16 +274,16 @@ export function readDevAutomationAuthToken(env: EnvSource = process.env): string
 }
 
 /**
- * dev MCP 端口——vite/automation.ts:20。
+ * dev 桥端口——vite/automation.ts:20。
  * 解析语义：原位 Number(env ?? AUTOMATION_HTTP_PORT) ——未设置走默认；
  * 非整数 / < 1024 / > 65535 → 抛错（与原位 throw 等价）。
  * 缺省走 AUTOMATION_HTTP_PORT 常量（7600）——与原位一致。
  */
-export function readDevMCPPort(env: EnvSource = process.env): number {
-  const raw = env?.[`${ENV_PREFIX}DEV_MCP_PORT`]
+export function readDevBridgePort(env: EnvSource = process.env): number {
+  const raw = env?.[`${ENV_PREFIX}DEV_BRIDGE_PORT`]
   const port = raw === undefined ? AUTOMATION_HTTP_PORT : Number(raw)
   if (!Number.isInteger(port) || port < 1024 || port > 65535) {
-    throw new Error(`${ENV_PREFIX}DEV_MCP_PORT must be an integer between 1024 and 65535`)
+    throw new Error(`${ENV_PREFIX}DEV_BRIDGE_PORT must be an integer between 1024 and 65535`)
   }
   return port
 }

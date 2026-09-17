@@ -50,9 +50,11 @@ export default defineConfig(async ({ command }) => ({
     Icons({ compiler: 'vue3' }),
     Components({ resolvers: [IconsResolver({ prefix: 'icon' })] }),
     openPencilAutomationPlugin(command, host),
-    // T38：mcpRuntimeId 与 automation 桥插件单源（同一 automationRoute），
+    // T38：bridgeRuntimeId 与 automation 桥插件单源（同一 automationRoute），
     // 让 pi 后端能定位被上游 0f981ff2 隔离到 tmpdir 的桥 discovery 文件
-    ...(command === 'serve' ? [piBackendPlugin({ mcpRuntimeId: automationRoute.runtimeId })] : []),
+    ...(command === 'serve'
+      ? [piBackendPlugin({ bridgeRuntimeId: automationRoute.runtimeId })]
+      : []),
     vue()
   ],
   clearScreen: false,

@@ -2,7 +2,12 @@ import { randomBytes } from 'node:crypto'
 import { access, constants, lstat, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { Socket } from 'node:net'
 
-import { getDiscoveryPath, getSocketPath, platformHasUnixSockets } from './paths'
+import {
+  getDiscoveryPath,
+  getSocketPath,
+  platformHasUnixSockets,
+  resolveDiscoveryPathForRead
+} from './paths'
 
 /**
  * Metadata written to the discovery file so clients can auto-locate
@@ -61,7 +66,7 @@ export async function writeDiscoveryFile(info: DiscoveryInfo): Promise<void> {
  * On success, returns the parsed DiscoveryInfo.
  */
 export async function readDiscoveryFile(): Promise<DiscoveryInfo | null> {
-  const path = await getDiscoveryPath()
+  const path = await resolveDiscoveryPathForRead()
   let raw: string
   try {
     raw = await readFile(path, 'utf-8')
@@ -115,7 +120,7 @@ function validateDiscoveryFields(obj: { [key: string]: unknown }): DiscoveryInfo
  * Removes the discovery file. Does not throw if the file does not exist.
  */
 export async function removeDiscoveryFile(): Promise<void> {
-  const path = await getDiscoveryPath()
+  const path = await resolveDiscoveryPathForRead()
   try {
     await unlink(path)
   } catch (e) {
@@ -130,7 +135,7 @@ export async function removeDiscoveryFile(): Promise<void> {
 async function isSocketLiveViaTcp(socketPath: string): Promise<boolean> {
   let discoveryPath: string
   try {
-    discoveryPath = await getDiscoveryPath()
+    discoveryPath = await resolveDiscoveryPathForRead()
   } catch {
     return false
   }
@@ -211,7 +216,7 @@ export async function removeStaleSocket(socketPathOverride?: string): Promise<vo
   if (!exists) return
 
   // Verify the path is actually a socket before unlinking it.
-  // A misconfigured DIANJING_MCP_SOCKET could point at a regular file;
+  // A misconfigured DIANJING_BRIDGE_SOCKET could point at a regular file;
   // we must never delete non-socket paths.
   const stat = await lstat(socketPath).catch((e) => {
     if (isEnoent(e)) return null

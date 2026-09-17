@@ -84,11 +84,11 @@ async function spawnBridge(): Promise<void> {
   // env 语义复制自 automation/bridge/vite-plugin.ts createAutomationEnvironment
   // （鉴权开、corsOrigin 指向宿主来源）
   //
-  // T34 评估：跟不跟 DIANJING_MCP_DISCOVERY_PATH 隔离（0f981ff2）？
+  // T34 评估：跟不跟 DIANJING_BRIDGE_DISCOVERY_PATH 隔离（0f981ff2）？
   // 不跟——host.ts 自身是生产形态，7600 端口独占（serveOrigin 也固定），
   // 多实例会被端口 EADDRINUSE 拦截，不存在 dev-plugin 同款「worktree 隔离」
-  // 场景。discovery 默认路径 `~/.dianjing/mcp.json` 在 host.ts 单实例下不
-  // 构成冲突；若未来扩成同主机多 host.ts 实例，再补 DIANJING_MCP_DISCOVERY_PATH
+  // 场景。discovery 默认路径 `~/.dianjing/bridge.json` 在 host.ts 单实例下不
+  // 构成冲突；若未来扩成同主机多 host.ts 实例，再补 DIANJING_BRIDGE_DISCOVERY_PATH
   // 临时目录隔离——届时复用 vite-plugin 的 sha256(runtimeId) 方案即可。
   const socketPath = platformHasUnixSockets() ? await getSocketPath() : null
   bridge = spawn('bun', ['run', 'src/app/bridge/server/index.ts'], {
@@ -96,9 +96,9 @@ async function spawnBridge(): Promise<void> {
     env: {
       ...process.env,
       PORT: String(AUTOMATION_HTTP_PORT),
-      ...(socketPath ? { DIANJING_MCP_SOCKET: socketPath } : {}),
-      DIANJING_MCP_AUTH_TOKEN: automationToken,
-      DIANJING_MCP_CORS_ORIGIN: serveOrigin
+      ...(socketPath ? { DIANJING_BRIDGE_SOCKET: socketPath } : {}),
+      DIANJING_BRIDGE_AUTH_TOKEN: automationToken,
+      DIANJING_BRIDGE_CORS_ORIGIN: serveOrigin
     }
   })
   bridge.on('error', (err) => console.error(`[host] 无法 spawn 自动化桥：${err.message}`))

@@ -49,17 +49,19 @@ function discoveryPath() {
   // D2 状态根：与 src/app/orchestration/app-data.ts resolveAppDataRoot 真源对齐
   // win32 = %APPDATA%/Dianjing（roaming）；darwin = ~/Library/Application Support/Dianjing；
   // linux = $XDG_CONFIG_HOME/Dianjing || ~/.config/Dianjing
+  let dir
   if (process.platform === 'win32') {
     const appData = process.env.APPDATA?.trim()
-    const base = appData && appData.length > 0 ? appData : join(homedir(), 'AppData', 'Roaming')
-    return join(base, 'Dianjing', 'mcp.json')
+    dir = appData && appData.length > 0 ? appData : join(homedir(), 'AppData', 'Roaming')
+  } else if (process.platform === 'darwin') {
+    dir = join(homedir(), 'Library', 'Application Support')
+  } else {
+    const xdgConfig = process.env.XDG_CONFIG_HOME?.trim()
+    dir = xdgConfig && xdgConfig.length > 0 ? xdgConfig : join(homedir(), '.config')
   }
-  if (process.platform === 'darwin') {
-    return join(homedir(), 'Library', 'Application Support', 'Dianjing', 'mcp.json')
-  }
-  const xdgConfig = process.env.XDG_CONFIG_HOME?.trim()
-  const base = xdgConfig && xdgConfig.length > 0 ? xdgConfig : join(homedir(), '.config')
-  return join(base, 'Dianjing', 'mcp.json')
+  // 存量兼容：新版桥写 bridge.json，缺省时回退旧版 mcp.json
+  const primary = join(dir, 'Dianjing', 'bridge.json')
+  return existsSync(primary) ? primary : join(dir, 'Dianjing', 'mcp.json')
 }
 
 function readDiscovery() {

@@ -4,7 +4,7 @@ import { devAutomationRoute } from '../src/app/bridge/portless-route'
 import { automationPlugin } from '../src/app/bridge/vite-plugin'
 import {
   readDevAutomationAuthToken,
-  readDevMCPPort,
+  readDevBridgePort,
   readDevOrigin,
   readPortlessURL
 } from '../src/app/orchestration/env'
@@ -23,7 +23,7 @@ export function automationCORSOrigin(host: string | undefined): string {
 export function localAutomationRoute(host: string | undefined) {
   // 解析 dev 端口 + 端口范围校验抛错（与原位 throw 等价）；reader 自身抛错，
   // 调用方让 vite plugin 启动失败——与原位 throw 同一时序。
-  const port = readDevMCPPort()
+  const port = readDevBridgePort()
   const envOrigin = readDevOrigin()
   const origin = envOrigin ?? automationCORSOrigin(host)
   // origin 校验在 reader 阶段完成（readDevOrigin 已抛非 http(s)），

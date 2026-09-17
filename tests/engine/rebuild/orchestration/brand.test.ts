@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   APP_ID,
   BRIDGE_DIR_NAME_UNIX,
-  DEV_MCP_TMP_PREFIX,
+  DEV_BRIDGE_TMP_PREFIX,
   ENV_PREFIX,
   PRODUCT_NAME_DISPLAY,
   READY_MARKER_PREFIX,
@@ -40,8 +40,8 @@ describe('orchestration/brand — product & filesystem constants', () => {
 })
 
 describe('orchestration/brand — process / tmpdir constants', () => {
-  test('DEV_MCP_TMP_PREFIX is "dianjing-mcp" (matches devMCPRuntimeDir path segment)', () => {
-    expect(DEV_MCP_TMP_PREFIX).toBe('dianjing-mcp')
+  test('DEV_BRIDGE_TMP_PREFIX is "dianjing-bridge" (matches devBridgeRuntimeDir path segment)', () => {
+    expect(DEV_BRIDGE_TMP_PREFIX).toBe('dianjing-bridge')
   })
 
   test('READY_MARKER_PREFIX ends with colon and matches makeReadyMarker shape', () => {

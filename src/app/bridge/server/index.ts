@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import { ENV_PREFIX, READY_MARKER_PREFIX } from '@/app/orchestration/brand'
 import {
-  readBridgeTcpPort,
-  readMCPAppAttachTimeoutMs,
-  readMCPAuthToken,
-  readMCPCORSOrigin,
-  readMCPReadyMarker,
-  readMCPSocketPath
+  readBridgeAppAttachTimeoutMs,
+  readBridgeAuthToken,
+  readBridgeCORSOrigin,
+  readBridgeReadyMarker,
+  readBridgeSocketPath,
+  readBridgeTcpPort
 } from '@/app/orchestration/env'
 
 import { startServer } from './server'
@@ -21,12 +21,12 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
       `  --help, -h    Show this help message\n\n` +
       `Environment variables:\n` +
       `  PORT                         TCP port (default: 7600, set to 0 to disable TCP)\n` +
-      `  ${ENV_PREFIX}MCP_SOCKET        Override Unix socket path (recorded in the discovery file)\n` +
-      `  ${ENV_PREFIX}MCP_DISCOVERY_PATH Override discovery file (mcp.json) location; defaults to the\n` +
+      `  ${ENV_PREFIX}BRIDGE_SOCKET        Override Unix socket path (recorded in the discovery file)\n` +
+      `  ${ENV_PREFIX}BRIDGE_DISCOVERY_PATH Override discovery file (bridge.json) location; defaults to the\n` +
       `                               platform path. Parent dir created 0o700. Mainly for test isolation.\n` +
-      `  ${ENV_PREFIX}MCP_AUTH_TOKEN    Bearer token for /rpc auth\n` +
-      `  ${ENV_PREFIX}MCP_CORS_ORIGIN   Allowed CORS origin\n` +
-      `  ${ENV_PREFIX}MCP_APP_TIMEOUT_MS  If set, close the bridge and remove its discovery\n` +
+      `  ${ENV_PREFIX}BRIDGE_AUTH_TOKEN    Bearer token for /rpc auth\n` +
+      `  ${ENV_PREFIX}BRIDGE_CORS_ORIGIN   Allowed CORS origin\n` +
+      `  ${ENV_PREFIX}BRIDGE_APP_TIMEOUT_MS  If set, close the bridge and remove its discovery\n` +
       `                               file after no app is attached for this many ms. The\n` +
       `                               grace period starts at startup and after disconnects.\n` +
       `                               Unset/0 disables it (default) — do not set this for\n` +
@@ -46,7 +46,7 @@ const withTcp = port > 0
 
 let appAttachTimeoutMs: number | undefined
 try {
-  appAttachTimeoutMs = readMCPAppAttachTimeoutMs()
+  appAttachTimeoutMs = readBridgeAppAttachTimeoutMs()
 } catch (error) {
   process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`)
   process.exit(1)
@@ -54,7 +54,7 @@ try {
 
 let authToken: string | null | undefined
 try {
-  authToken = readMCPAuthToken()
+  authToken = readBridgeAuthToken()
 } catch (error) {
   process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`)
   process.exit(1)
@@ -63,13 +63,13 @@ try {
 const handle = await startServer({
   httpPort: withTcp ? port : 0,
   withTcp,
-  socketPath: readMCPSocketPath(),
+  socketPath: readBridgeSocketPath(),
   authToken,
-  corsOrigin: readMCPCORSOrigin(),
+  corsOrigin: readBridgeCORSOrigin(),
   appAttachTimeoutMs
 })
 
-const readyMarker = readMCPReadyMarker()
+const readyMarker = readBridgeReadyMarker()
 if (readyMarker && new RegExp(`^${READY_MARKER_PREFIX}[a-f0-9-]{36}$`).test(readyMarker)) {
   process.stderr.write(`${readyMarker}
 `)

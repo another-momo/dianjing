@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import type { Plugin } from 'vite'
 
-import { devMCPRuntimeDir } from '../orchestration/discovery'
+import { devBridgeRuntimeDir } from '../orchestration/discovery'
 import {
   attachStderrPassthrough,
   makeReadyMarker,
@@ -27,16 +27,16 @@ export function createAutomationEnvironment(
 ): NodeJS.ProcessEnv {
   const { authToken, baseEnv, corsOrigin, discoveryPath, httpPort, socketPath } = options
   const childEnv = { ...baseEnv }
-  delete childEnv.DIANJING_MCP_SOCKET
-  delete childEnv.DIANJING_MCP_AUTH_TOKEN
+  delete childEnv.DIANJING_BRIDGE_SOCKET
+  delete childEnv.DIANJING_BRIDGE_AUTH_TOKEN
   const childProcessEnv: NodeJS.ProcessEnv = {
     ...childEnv,
     PORT: String(httpPort),
-    DIANJING_MCP_AUTH_TOKEN: authToken ?? '',
-    DIANJING_MCP_CORS_ORIGIN: corsOrigin
+    DIANJING_BRIDGE_AUTH_TOKEN: authToken ?? '',
+    DIANJING_BRIDGE_CORS_ORIGIN: corsOrigin
   }
-  if (socketPath) childProcessEnv.DIANJING_MCP_SOCKET = socketPath
-  if (discoveryPath) childProcessEnv.DIANJING_MCP_DISCOVERY_PATH = discoveryPath
+  if (socketPath) childProcessEnv.DIANJING_BRIDGE_SOCKET = socketPath
+  if (discoveryPath) childProcessEnv.DIANJING_BRIDGE_DISCOVERY_PATH = discoveryPath
   return childProcessEnv
 }
 
@@ -104,10 +104,10 @@ export function automationPlugin(
   }
 
   async function startChild(): Promise<void> {
-    const runtimeDir = devMCPRuntimeDir(options.runtimeId)
+    const runtimeDir = devBridgeRuntimeDir(options.runtimeId)
     await mkdir(runtimeDir, { recursive: true, mode: 0o700 })
     const socketPath = platformHasUnixSockets() ? join(runtimeDir, 'mcp.sock') : null
-    const discoveryPath = join(runtimeDir, 'mcp.json')
+    const discoveryPath = join(runtimeDir, 'bridge.json')
     const command = ['bun', 'run', 'src/app/bridge/server/index.ts']
     const spawnCommand = options.portlessServiceName ? 'portless' : command[0]
     const spawnArgs = options.portlessServiceName
@@ -125,7 +125,7 @@ export function automationPlugin(
           httpPort: options.httpPort,
           socketPath
         }),
-        DIANJING_MCP_READY_MARKER: readyMarker
+        DIANJING_BRIDGE_READY_MARKER: readyMarker
       }
     })
     const ready = waitForChildReady(spawned, readyMarker)

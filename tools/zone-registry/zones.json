@@ -79,7 +79,7 @@
     "tests/engine/app/ai/bridge-errors.test.ts",
     "tests/engine/app/bridge/child-ready.test.ts",
     "tests/engine/app/bridge/mcp-runtime.test.ts",
-    "tests/engine/app/bridge/mcp-vite-plugin.test.ts",
+    "tests/engine/app/bridge/bridge-vite-plugin.test.ts",
     "tests/engine/app/bridge/portless-route.test.ts",
     "electron-builder.yml",
     "src/components/Toolbar/useAddImage.ts"

@@ -18,8 +18,8 @@
  * 前端同源调用零改动，token 不落盘不打印。
  *
  * T38：dev 拓扑下 7600 桥的 discovery 文件已被上游 0f981ff2（经 T34 合入）隔离到
- * tmpdir 路径（桥插件 startChild 的 DIANJING_MCP_DISCOVERY_PATH），不再是平台
- * 默认路径；本插件经 mcpRuntimeId 选项同源推导该路径并注入后端子进程 env，
+ * tmpdir 路径（桥插件 startChild 的 DIANJING_BRIDGE_DISCOVERY_PATH），不再是平台
+ * 默认路径；本插件经 bridgeRuntimeId 选项同源推导该路径并注入后端子进程 env，
  * 后端 tools.ts 的 readDiscoveryFile()（getDiscoveryPath 吃同一 env）才能找到
  * 活桥。算法漂移由 tests/engine/rebuild/pi-backend/dev-discovery.test.ts 钉扎。
  */
@@ -33,7 +33,7 @@ import type { Plugin } from 'vite'
 // （orchestration-consolidation 2026-09-14 CI 修红）。本文件改用相对 import，
 // 配合下方逐行 oxlint-disable 绕过 no-deep-parent-relative-imports 规则。
 // oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
-import { devMCPDiscoveryPath } from '../../orchestration/discovery'
+import { devBridgeDiscoveryPath } from '../../orchestration/discovery'
 // oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
 import { readPiBackendPort } from '../../orchestration/env'
 // oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
@@ -55,27 +55,27 @@ export interface PiBackendPluginOptions {
   /**
    * T38：dev 桥（automation vite 插件）的 runtimeId（vite.config 里
    * devAutomationRoute() 的返回值，单源）。给定时把同源推导的桥 discovery
-   * 路径注入后端子进程 env DIANJING_MCP_DISCOVERY_PATH。
+   * 路径注入后端子进程 env DIANJING_BRIDGE_DISCOVERY_PATH。
    */
-  mcpRuntimeId?: string
+  bridgeRuntimeId?: string
 }
 
 /**
  * T38：与桥 vite 插件 startChild 同源的 discovery 路径推导——
- * tmpdir()/dianjing-mcp/sha256(runtimeId)[:16]/mcp.json。
+ * tmpdir()/dianjing-bridge/sha256(runtimeId)[:16]/bridge.json。
  * 算法实现已迁入 @/app/orchestration/discovery，本处 re-export 保持既有
  * 测试（tests/engine/rebuild/pi-backend/dev-discovery.test.ts）的 import 路径与硬
  * 编码 digest 钉扎不变。一致性由该测试钉扎。
  */
-export { devMCPDiscoveryPath }
+export { devBridgeDiscoveryPath }
 
 export function piBackendPlugin(options: PiBackendPluginOptions = {}): Plugin {
   const port = readPiBackendPort(PI_BACKEND_DEFAULT_PORT)
   // T28：每 vite 进程一枚鉴权 token（子进程 env 注入 + proxy 补头，两侧共享）
   const authToken = generateToken()
   // T38：dev 桥 discovery 路径（同源推导；无 runtimeId 时不注入，后端落平台默认路径）
-  const mcpDiscoveryPath = options.mcpRuntimeId
-    ? devMCPDiscoveryPath(options.mcpRuntimeId)
+  const bridgeDiscoveryPath = options.bridgeRuntimeId
+    ? devBridgeDiscoveryPath(options.bridgeRuntimeId)
     : undefined
   let child: ReturnType<typeof spawn> | null = null
   let restartCount = 0
@@ -142,7 +142,7 @@ export function piBackendPlugin(options: PiBackendPluginOptions = {}): Plugin {
         DIANJING_STUDIO_BUILTIN_DIR: resolve(process.cwd(), BUILTIN_STUDIO_SUBPATH),
         // T38：dev 桥 discovery 隔离路径注入（后端 readDiscoveryFile 经
         // getDiscoveryPath 吃该 env；不注入则盲读平台默认路径找不到活桥）
-        ...(mcpDiscoveryPath ? { DIANJING_MCP_DISCOVERY_PATH: mcpDiscoveryPath } : {})
+        ...(bridgeDiscoveryPath ? { DIANJING_BRIDGE_DISCOVERY_PATH: bridgeDiscoveryPath } : {})
       }
     })
     child = spawned

@@ -202,7 +202,7 @@ function wireConnectionHandling(
 
 function buildServerContext(options: ServerOptions) {
   const httpPort = options.httpPort ?? 7600
-  // Auto-generated so all transports require auth by default. Override via DIANJING_MCP_AUTH_TOKEN or authToken option.
+  // Auto-generated so all transports require auth by default. Override via DIANJING_BRIDGE_AUTH_TOKEN or authToken option.
   // Pass authToken: null explicitly to disable auth entirely.
   const authToken =
     options.authToken === undefined ? randomBytes(16).toString('hex') : options.authToken
@@ -217,7 +217,7 @@ function buildServerContext(options: ServerOptions) {
     process.stderr.write(
       `WARNING: automation bridge is running without authentication on TCP port ${httpPort}. ` +
         'Any local process can interact with the server. ' +
-        'Set DIANJING_MCP_AUTH_TOKEN to enable auth, or use PORT=0 for socket-only transport.\n'
+        'Set DIANJING_BRIDGE_AUTH_TOKEN to enable auth, or use PORT=0 for socket-only transport.\n'
     )
   }
 

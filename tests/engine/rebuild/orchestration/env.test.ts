@@ -12,9 +12,16 @@ import {
   RUNTIME_ELECTRON_KEY,
   RUNTIME_GLOBALS,
   isRuntimeGlobalKey,
+  readBridgeAppAttachTimeoutMs,
+  readBridgeAuthToken,
+  readBridgeCORSOrigin,
+  readBridgeDiscoveryPathOverride,
+  readBridgeReadyMarker,
+  readBridgeRoot,
+  readBridgeSocketPath,
   readBridgeTcpPort,
   readDevAutomationAuthToken,
-  readDevMCPPort,
+  readDevBridgePort,
   readDevOrigin,
   readElectronBackendPort,
   readElectronBridgePort,
@@ -22,13 +29,6 @@ import {
   readFullSmokeMode,
   readImageGenTimeoutMs,
   readMaxSessions,
-  readMCPAppAttachTimeoutMs,
-  readMCPAuthToken,
-  readMCPCORSOrigin,
-  readMCPDiscoveryPathOverride,
-  readMCPReadyMarker,
-  readMCPRoot,
-  readMCPSocketPath,
   readPiAuthToken,
   readPiBackendPort,
   readPortlessURL,
@@ -100,65 +100,67 @@ describe('orchestration/env — readBridgeTcpPort', () => {
   })
 })
 
-describe('orchestration/env — readMCPAuthToken', () => {
+describe('orchestration/env — readBridgeAuthToken', () => {
   test('undefined → undefined (let startServer auto-generate)', () => {
-    expect(readMCPAuthToken({})).toBeUndefined()
+    expect(readBridgeAuthToken({})).toBeUndefined()
   })
 
   test('empty string → null (explicit disable auth)', () => {
-    expect(readMCPAuthToken({ DIANJING_MCP_AUTH_TOKEN: '' })).toBeNull()
+    expect(readBridgeAuthToken({ DIANJING_BRIDGE_AUTH_TOKEN: '' })).toBeNull()
   })
 
   test('non-empty string is trimmed', () => {
-    expect(readMCPAuthToken({ DIANJING_MCP_AUTH_TOKEN: 'tok-xyz' })).toBe('tok-xyz')
-    expect(readMCPAuthToken({ DIANJING_MCP_AUTH_TOKEN: '  tok  ' })).toBe('tok')
+    expect(readBridgeAuthToken({ DIANJING_BRIDGE_AUTH_TOKEN: 'tok-xyz' })).toBe('tok-xyz')
+    expect(readBridgeAuthToken({ DIANJING_BRIDGE_AUTH_TOKEN: '  tok  ' })).toBe('tok')
   })
 
   test('whitespace-only throws (silent fallback protection)', () => {
-    expect(() => readMCPAuthToken({ DIANJING_MCP_AUTH_TOKEN: '   ' })).toThrow(/whitespace-only/)
+    expect(() => readBridgeAuthToken({ DIANJING_BRIDGE_AUTH_TOKEN: '   ' })).toThrow(
+      /whitespace-only/
+    )
   })
 })
 
-describe('orchestration/env — readMCPCORSOrigin / Socket / Discovery / Root', () => {
-  test('readMCPCORSOrigin returns null for unset/empty and trimmed value otherwise', () => {
-    expect(readMCPCORSOrigin({})).toBeNull()
-    expect(readMCPCORSOrigin({ DIANJING_MCP_CORS_ORIGIN: '' })).toBeNull()
-    expect(readMCPCORSOrigin({ DIANJING_MCP_CORS_ORIGIN: '  http://x  ' })).toBe('http://x')
+describe('orchestration/env — readBridgeCORSOrigin / Socket / Discovery / Root', () => {
+  test('readBridgeCORSOrigin returns null for unset/empty and trimmed value otherwise', () => {
+    expect(readBridgeCORSOrigin({})).toBeNull()
+    expect(readBridgeCORSOrigin({ DIANJING_BRIDGE_CORS_ORIGIN: '' })).toBeNull()
+    expect(readBridgeCORSOrigin({ DIANJING_BRIDGE_CORS_ORIGIN: '  http://x  ' })).toBe('http://x')
   })
 
-  test('readMCPSocketPath trims and treats empty as null', () => {
-    expect(readMCPSocketPath({})).toBeNull()
-    expect(readMCPSocketPath({ DIANJING_MCP_SOCKET: '/tmp/x.sock' })).toBe('/tmp/x.sock')
-    expect(readMCPSocketPath({ DIANJING_MCP_SOCKET: '  ' })).toBeNull()
+  test('readBridgeSocketPath trims and treats empty as null', () => {
+    expect(readBridgeSocketPath({})).toBeNull()
+    expect(readBridgeSocketPath({ DIANJING_BRIDGE_SOCKET: '/tmp/x.sock' })).toBe('/tmp/x.sock')
+    expect(readBridgeSocketPath({ DIANJING_BRIDGE_SOCKET: '  ' })).toBeNull()
   })
 
-  test('readMCPDiscoveryPathOverride trims and treats empty as null', () => {
-    expect(readMCPDiscoveryPathOverride({})).toBeNull()
-    expect(readMCPDiscoveryPathOverride({ DIANJING_MCP_DISCOVERY_PATH: '/tmp/x.json' })).toBe(
+  test('readBridgeDiscoveryPathOverride trims and treats empty as null', () => {
+    expect(readBridgeDiscoveryPathOverride({})).toBeNull()
+    expect(readBridgeDiscoveryPathOverride({ DIANJING_BRIDGE_DISCOVERY_PATH: '/tmp/x.json' })).toBe(
       '/tmp/x.json'
     )
   })
 
-  test('readMCPRoot returns null for unset and trimmed value otherwise', () => {
-    expect(readMCPRoot({})).toBeNull()
-    expect(readMCPRoot({ DIANJING_MCP_ROOT: '/path' })).toBe('/path')
-    expect(readMCPRoot({ DIANJING_MCP_ROOT: '  ' })).toBeNull()
+  test('readBridgeRoot returns null for unset and trimmed value otherwise', () => {
+    expect(readBridgeRoot({})).toBeNull()
+    expect(readBridgeRoot({ DIANJING_BRIDGE_ROOT: '/path' })).toBe('/path')
+    expect(readBridgeRoot({ DIANJING_BRIDGE_ROOT: '  ' })).toBeNull()
   })
 })
 
-describe('orchestration/env — readMCPAppAttachTimeoutMs', () => {
+describe('orchestration/env — readBridgeAppAttachTimeoutMs', () => {
   test('undefined / unset → undefined (timeout disabled)', () => {
-    expect(readMCPAppAttachTimeoutMs({})).toBeUndefined()
-    expect(readMCPAppAttachTimeoutMs({ DIANJING_MCP_APP_TIMEOUT_MS: '' })).toBeUndefined()
-    expect(readMCPAppAttachTimeoutMs({ DIANJING_MCP_APP_TIMEOUT_MS: '  ' })).toBeUndefined()
+    expect(readBridgeAppAttachTimeoutMs({})).toBeUndefined()
+    expect(readBridgeAppAttachTimeoutMs({ DIANJING_BRIDGE_APP_TIMEOUT_MS: '' })).toBeUndefined()
+    expect(readBridgeAppAttachTimeoutMs({ DIANJING_BRIDGE_APP_TIMEOUT_MS: '  ' })).toBeUndefined()
   })
 
   test('valid integer returns the value', () => {
-    expect(readMCPAppAttachTimeoutMs({ DIANJING_MCP_APP_TIMEOUT_MS: '5000' })).toBe(5000)
+    expect(readBridgeAppAttachTimeoutMs({ DIANJING_BRIDGE_APP_TIMEOUT_MS: '5000' })).toBe(5000)
   })
 
   test('rejects non-digit strings (mirrors bridge/server/index.ts strict parse)', () => {
-    expect(() => readMCPAppAttachTimeoutMs({ DIANJING_MCP_APP_TIMEOUT_MS: '5s' })).toThrow(
+    expect(() => readBridgeAppAttachTimeoutMs({ DIANJING_BRIDGE_APP_TIMEOUT_MS: '5s' })).toThrow(
       /non-negative integer/
     )
   })
@@ -186,15 +188,15 @@ describe('orchestration/env — readRPCTimeoutMs / DEFAULT_RPC_TIMEOUT_MS', () =
   })
 })
 
-describe('orchestration/env — readMCPReadyMarker', () => {
+describe('orchestration/env — readBridgeReadyMarker', () => {
   test('returns null for unset or empty', () => {
-    expect(readMCPReadyMarker({})).toBeNull()
-    expect(readMCPReadyMarker({ DIANJING_MCP_READY_MARKER: '' })).toBeNull()
-    expect(readMCPReadyMarker({ DIANJING_MCP_READY_MARKER: '   ' })).toBeNull()
+    expect(readBridgeReadyMarker({})).toBeNull()
+    expect(readBridgeReadyMarker({ DIANJING_BRIDGE_READY_MARKER: '' })).toBeNull()
+    expect(readBridgeReadyMarker({ DIANJING_BRIDGE_READY_MARKER: '   ' })).toBeNull()
   })
 
   test('returns trimmed value when set', () => {
-    expect(readMCPReadyMarker({ DIANJING_MCP_READY_MARKER: 'marker-x' })).toBe('marker-x')
+    expect(readBridgeReadyMarker({ DIANJING_BRIDGE_READY_MARKER: 'marker-x' })).toBe('marker-x')
   })
 })
 
@@ -271,15 +273,15 @@ describe('orchestration/env — dev / vite topology readers', () => {
     expect(readDevAutomationAuthToken({ DIANJING_DEV_TOKEN: '  xyz  ' })).toBe('xyz')
   })
 
-  test('readDevMCPPort: defaults to AUTOMATION_HTTP_PORT (7600) when unset', () => {
-    expect(readDevMCPPort({})).toBe(7600)
-    expect(readDevMCPPort({ DIANJING_DEV_MCP_PORT: '7700' })).toBe(7700)
+  test('readDevBridgePort: defaults to AUTOMATION_HTTP_PORT (7600) when unset', () => {
+    expect(readDevBridgePort({})).toBe(7600)
+    expect(readDevBridgePort({ DIANJING_DEV_BRIDGE_PORT: '7700' })).toBe(7700)
   })
 
-  test('readDevMCPPort: throws when out of [1024, 65535] range or non-integer', () => {
-    expect(() => readDevMCPPort({ DIANJING_DEV_MCP_PORT: '80' })).toThrow(/between 1024/)
-    expect(() => readDevMCPPort({ DIANJING_DEV_MCP_PORT: '70000' })).toThrow(/between 1024/)
-    expect(() => readDevMCPPort({ DIANJING_DEV_MCP_PORT: '1.5' })).toThrow(/between 1024/)
+  test('readDevBridgePort: throws when out of [1024, 65535] range or non-integer', () => {
+    expect(() => readDevBridgePort({ DIANJING_DEV_BRIDGE_PORT: '80' })).toThrow(/between 1024/)
+    expect(() => readDevBridgePort({ DIANJING_DEV_BRIDGE_PORT: '70000' })).toThrow(/between 1024/)
+    expect(() => readDevBridgePort({ DIANJING_DEV_BRIDGE_PORT: '1.5' })).toThrow(/between 1024/)
   })
 
   test('readDevOrigin: null when unset, returns origin when valid http(s)', () => {

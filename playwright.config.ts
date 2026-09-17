@@ -1,13 +1,13 @@
 import { defineConfig } from '@playwright/test'
 
 const appPort = process.env.OPENPENCIL_TEST_PORT ?? '1420'
-const mcpPort = process.env.OPENPENCIL_TEST_MCP_PORT ?? '7600'
-for (const port of [appPort, mcpPort]) {
+const bridgePort = process.env.OPENPENCIL_TEST_BRIDGE_PORT ?? '7600'
+for (const port of [appPort, bridgePort]) {
   if (!/^\d+$/.test(port) || Number(port) < 1024 || Number(port) > 65535) {
     throw new Error('Browser test ports must be integers between 1024 and 65535')
   }
 }
-if (Number(appPort) === Number(mcpPort)) throw new Error('App and MCP test ports must differ')
+if (Number(appPort) === Number(bridgePort)) throw new Error('App and bridge test ports must differ')
 const origin = `http://localhost:${appPort}`
 const reuse = process.env.OPENPENCIL_TEST_REUSE_SERVER
 if (reuse !== undefined && reuse !== '0' && reuse !== '1') {
@@ -69,7 +69,7 @@ export default defineConfig({
     url: origin,
     env: {
       DIANJING_DEV_ORIGIN: origin,
-      DIANJING_DEV_MCP_PORT: mcpPort,
+      DIANJING_DEV_BRIDGE_PORT: bridgePort,
       PORTLESS_URL: ''
     },
     reuseExistingServer: !process.env.CI && reuse === '1'
