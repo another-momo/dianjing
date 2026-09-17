@@ -6,7 +6,10 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="128x128" href="/favicon-128.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#1e1e1e" />
     <title>点睛设计</title>
     <style>
@@ -28,10 +31,15 @@
         --loader-bg: #f3f4f6;
         --loader-fg: 32, 33, 36;
       }
-      body { margin: 0; background: var(--loader-bg); }
+      body {
+        margin: 0;
+        background: var(--loader-bg);
+      }
 
       /* 启动过渡页：slogan 动效播完由 main.ts 加 boot-splash--exit 淡出移除。
-         必须与 #app 同级——mount 会替换 #app 内部内容。 */
+         必须与 #app 同级——mount 会替换 #app 内部内容。
+         动画写法：元素基态 = 终态，backwards fill 在 delay 期套用 0% 关键帧——
+         reduced-motion 只需 animation:none 即自然落到完整终态。 */
       #boot-splash {
         position: fixed;
         inset: 0;
@@ -52,60 +60,90 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 26px;
+        gap: 28px;
         padding: 0 32px;
         text-align: center;
       }
 
-      /* 点睛 motif：杏仁眼廓一笔画出，瞳仁随后落定 + 涟漪——画龙点睛的定格。
+      /* 品牌 logo 点睛：白瓷圆角砖落定 → 藏青光标浮起 → 青色环点弹出 → 涟漪。
          类名纪律：避让 Tailwind 工具类（`outline` 实测定撞——Tailwind 的
-         outline-style:solid 会沿路径包围盒描出矩形框，2026-09-16 L3 实证）。 */
-      #boot-splash .loong { width: 88px; height: 88px; overflow: visible; }
-      #boot-splash .loong .eye-outline {
-        stroke-dasharray: 230;
-        stroke-dashoffset: 230;
-        animation: draw 0.95s cubic-bezier(0.55, 0.06, 0.35, 1) 0.15s forwards;
+         outline-style:solid 会沿路径包围盒描出矩形框，2026-09-16 L3 实证；
+         本批 `ring` 同为 Tailwind 工具类，故名 dot-ring）。 */
+      #boot-splash .logo {
+        width: 92px;
+        height: 92px;
+        filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.28));
       }
-      #boot-splash .loong .pupil {
-        transform: scale(0);
-        transform-origin: 48px 48px;
-        animation: dot 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.25) 1.05s forwards;
+      #boot-splash .logo-tile {
+        animation: tilein 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
       }
-      #boot-splash .loong .ripple {
+      @keyframes tilein {
+        from {
+          opacity: 0;
+          transform: scale(0.88);
+        }
+      }
+      #boot-splash .cursor-arrow {
+        animation: arrowin 0.45s cubic-bezier(0.25, 0.6, 0.3, 1) 0.25s backwards;
+      }
+      @keyframes arrowin {
+        from {
+          opacity: 0;
+          transform: translateY(5px);
+        }
+      }
+      #boot-splash .dot-ring {
+        transform-origin: 77px 77px;
+        animation: pop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.3) 0.6s backwards;
+      }
+      @keyframes pop {
+        from {
+          opacity: 0;
+          transform: scale(0);
+        }
+      }
+      #boot-splash .dot-ripple {
+        transform-origin: 77px 77px;
         opacity: 0;
-        transform: scale(0.4);
-        transform-origin: 48px 48px;
-        animation: ripple 0.8s cubic-bezier(0.25, 0.6, 0.35, 1) 1.2s forwards;
+        animation: dotripple 0.85s cubic-bezier(0.25, 0.6, 0.35, 1) 0.85s backwards;
       }
-      @keyframes draw {
-        to { stroke-dashoffset: 0; }
-      }
-      @keyframes dot {
-        to { transform: scale(1); }
-      }
-      @keyframes ripple {
-        0% { opacity: 0.45; transform: scale(0.4); }
-        100% { opacity: 0; transform: scale(2.6); }
+      @keyframes dotripple {
+        0% {
+          opacity: 0;
+          transform: scale(0.9);
+        }
+        18% {
+          opacity: 0.5;
+        }
+        100% {
+          opacity: 0;
+          transform: scale(1.9);
+        }
       }
 
       #boot-splash .slogan {
         margin: 0;
         max-width: 30em;
-        font-family: Georgia, 'Times New Roman', 'Songti SC', serif;
-        font-style: italic;
-        font-size: 15px;
-        line-height: 1.8;
-        letter-spacing: 0.01em;
-        color: rgba(var(--loader-fg), 0.82);
+        font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+        font-size: 21px;
+        font-weight: 500;
+        line-height: 1.75;
+        letter-spacing: 0.012em;
+        color: rgba(var(--loader-fg), 0.88);
       }
       #boot-splash .slogan span {
         display: inline-block;
-        opacity: 0;
-        transform: translateY(5px);
-        animation: rise 0.55s cubic-bezier(0.25, 0.6, 0.3, 1) forwards;
+        animation: rise 0.55s cubic-bezier(0.25, 0.6, 0.3, 1) backwards;
       }
       @keyframes rise {
-        to { opacity: 1; transform: translateY(0); }
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+      }
+      #boot-splash .slogan .you {
+        color: #22d3ee;
+        font-weight: 700;
       }
 
       #boot-splash .mark {
@@ -114,11 +152,12 @@
         letter-spacing: 0.42em;
         text-indent: 0.42em; /* 视觉居中——末字不带的字距补回 */
         color: rgba(var(--loader-fg), 0.42);
-        opacity: 0;
-        animation: fadein 0.6s ease 1.5s forwards;
+        animation: fadein 0.6s ease 1.9s backwards;
       }
       @keyframes fadein {
-        to { opacity: 1; }
+        from {
+          opacity: 0;
+        }
       }
 
       #boot-splash .bar {
@@ -138,17 +177,24 @@
         animation: slide 1.1s ease-in-out infinite;
       }
       @keyframes slide {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(350%); }
+        from {
+          transform: translateX(-100%);
+        }
+        to {
+          transform: translateX(350%);
+        }
       }
 
       @media (prefers-reduced-motion: reduce) {
-        #boot-splash .loong .eye-outline { animation: none; stroke-dashoffset: 0; }
-        #boot-splash .loong .pupil { animation: none; transform: scale(1); }
-        #boot-splash .loong .ripple { animation: none; opacity: 0; }
-        #boot-splash .slogan span { animation: none; opacity: 1; transform: none; }
-        #boot-splash .mark { animation: none; opacity: 1; }
-        #boot-splash .bar::after { animation: none; }
+        #boot-splash .logo-tile,
+        #boot-splash .cursor-arrow,
+        #boot-splash .dot-ring,
+        #boot-splash .dot-ripple,
+        #boot-splash .slogan span,
+        #boot-splash .mark,
+        #boot-splash .bar::after {
+          animation: none;
+        }
       }
     </style>
   </head>
@@ -157,31 +203,42 @@
     <div id="app"></div>
     <div id="boot-splash">
       <div class="scene">
-        <svg class="loong" viewBox="0 0 96 96" fill="none">
-          <path
-            class="eye-outline"
-            d="M14 48 C 28 24, 68 24, 82 48 C 68 72, 28 72, 14 48 Z"
-            stroke="rgba(var(--loader-fg), 0.85)"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-          <circle class="ripple" cx="48" cy="48" r="7" stroke="rgba(var(--loader-fg), 0.5)" stroke-width="1.5" />
-          <circle class="pupil" cx="48" cy="48" r="6.5" fill="rgba(var(--loader-fg), 0.9)" />
+        <svg class="logo" viewBox="0 0 280 280" role="img" aria-label="点睛设计 logo">
+          <rect class="logo-tile" width="280" height="280" rx="56" fill="#FFFFFF" />
+          <g transform="translate(50, 50)">
+            <path
+              class="cursor-arrow"
+              d="M27 27L27 153L68.4 111.6L104.4 171L126 158.4L90 99L140.4 99L27 27Z"
+              fill="#0F172A"
+            />
+            <circle
+              class="dot-ripple"
+              cx="27"
+              cy="27"
+              r="23.4"
+              fill="none"
+              stroke="#22D3EE"
+              stroke-width="2"
+            />
+            <g class="dot-ring">
+              <circle cx="27" cy="27" r="23.4" fill="#22D3EE" />
+              <circle cx="27" cy="27" r="9" fill="#FFFFFF" />
+            </g>
+          </g>
         </svg>
-        <p class="slogan" aria-label="AI can't paint a true loong without you to dot the eyes.">
-          <span style="animation-delay:1.25s">AI</span>
-          <span style="animation-delay:1.31s">can't</span>
-          <span style="animation-delay:1.37s">paint</span>
-          <span style="animation-delay:1.43s">a</span>
-          <span style="animation-delay:1.47s">true</span>
-          <span style="animation-delay:1.53s">loong</span>
-          <span style="animation-delay:1.62s">without</span>
-          <span style="animation-delay:1.69s">you</span>
-          <span style="animation-delay:1.75s">to</span>
-          <span style="animation-delay:1.80s">dot</span>
-          <span style="animation-delay:1.86s">the</span>
-          <span style="animation-delay:1.92s">eyes.</span>
+        <p class="slogan" aria-label="AI can't paint a true loong without YOU to dot the eyes.">
+          <span style="animation-delay: 1.1s">AI</span>
+          <span style="animation-delay: 1.17s">can't</span>
+          <span style="animation-delay: 1.24s">paint</span>
+          <span style="animation-delay: 1.31s">a</span>
+          <span style="animation-delay: 1.38s">true</span>
+          <span style="animation-delay: 1.45s">loong</span>
+          <span style="animation-delay: 1.52s">without</span>
+          <span class="you" style="animation-delay: 1.59s">YOU</span>
+          <span style="animation-delay: 1.66s">to</span>
+          <span style="animation-delay: 1.73s">dot</span>
+          <span style="animation-delay: 1.8s">the</span>
+          <span style="animation-delay: 1.87s">eyes.</span>
         </p>
         <p class="mark">点睛设计</p>
         <div class="bar"></div>
