@@ -62,6 +62,9 @@
 - 手跑 oxfmt 必须走 `node_modules/.bin` 钉版 exe 禁 bunx——bunx 全局缓存副本与钉版同版本号（0.67.0）不同构建，对三元分支 `Number(...)||0` 括号行为分叉（bunx 放行、钉版剥括号），bunx 过格式的文件 CI format 照红（2026-09-16 splash 修红实证：main.ts 一处括号，84236bec3）。
 - steiger（check:arch）FSD 同前缀兄弟文件阈值 = 3（非 4）：同目录 ≥3 个同前缀文件即红——归域目录（ask/ 式）或错开前缀（2026-09-15 ask 测试四件归域实证）。tools/<domain>/ 布局契约：工具文件必须落 `tools/<domain>/src/**`（strict-tools-layout），且域目录必须有 package.json 标记（test:tools 逐域读取，缺即 ENOENT——2026-09-15 git-rescue 入库首轮 CI 双红实证）。
 - ai SDK 就地改 tool part 对象（引用不变）——卡片状态门禁 computed 读 `part.state` 恒陈旧，须父级重渲染直传原值 prop（`:part-state` 模式；2026-09-15 ask 波2 实证：作答摘要此前只在历史重载时渲染）。
+- CI windows runner checkout 把文本物化成 CRLF（Git for Windows 默认 `autocrlf=true`）——打包产物内资产字节与本机 dev 不同；行尾敏感的解析（frontmatter / yaml 末行标量）必须解析层归一（`\r\n?`→`\n`）+ 资产侧 `.gitattributes` 钉 `eol=lf` 双保险（2026-09-17 安装版 profile 静默全灭实证：`version: 2\r` 被 yaml 并进末行标量，parseVersion typeof 拒收，profile 整件弃注册）。
+- guard 类路径/字符串匹配器禁依赖 node 平台语义 API（`path.isAbsolute` 等）——同代码 Windows 绿 Linux 红；先统一分隔符再按自定义跨平台规则判定（2026-09-16 key-guard CI 修红实证：反斜杠用例 Windows 全绿 Linux 漏挡）。
+- 多行字符串字面量 `+` 拼接会被 oxfmt 折叠成单行、触发 no-useless-concat——测试夹具/多行串构造用 `['...', ...].join(...)`（2026-09-17 crlf.test.ts 修红实证；与 no-nested-ternary 括号还原同属「格式器归化撞 lint」家族）。
 
 ## 6. 测试纪律
 
@@ -69,6 +72,7 @@
 - worker 只跑目标测试文件；全量单测用 `bun run test:unit:serial`（套件分批串行，带 `(i/N)` 批次进度），禁单次全仓 `bun test tests/engine`（单进程内存累积）。serial 可按批次过滤（`bun tools/unit-tests/src/serial.ts editor scene`，批次 = tests/engine 一级目录）——改动域明确时本地只跑受影响批次，全量交 CI（分片并行）或后台长跑。
 - playwright（`test` / `test:figma`）主 agent 独占，与任何重型任务互斥。
 - bun mock 生命周期：`mock.restore()` 只恢复 spy，**不撤销 `mock.module()` 覆盖**——模块级 mock 不随 cleanup 钩子隔离；引入全局/模块级插桩前先读现装 runner 的 mock 文档（采上游 2026-09-14 约定）。
+- globalThis 桩（fetch 等）的还原钩子禁放共享 helpers 的模块级 `afterEach`——bun 模块缓存致该钩子只随首个 import 者注册一次，第二消费者的桩无人还原，泄漏污染同进程分片后续全部 fetch（2026-09-17 Engine tests—app 40 红实证：hanging-SSE 桩致路由 4xx 期望全收 200、桥探针误判存活、window-routing EADDRINUSE 七连）；每个消费文件各自 `afterEach` 还原。
 - 桩贴真实故障边界：协议/验真类路径桩全局 fetch（或 socket），不桩 SDK 方法——SDK 方法桩遵守 throw/成功契约，盖不住实现吞状态（2026-09-15 实证：completeSimple 把 openrouter 401 解析成 content:[] 假成功，单测全绿、L3 才浮出）。
 
 ## 7. 仓库地图
