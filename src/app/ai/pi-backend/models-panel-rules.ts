@@ -245,6 +245,18 @@ export function classifyAuthSource(source: string | undefined): PiAuthSourceClas
 }
 
 /**
+ * T100 D1 补钉：env shadow 判定——SDK envApiKeyAuth 既定优先级「stored 赢」，但
+ * checkAuth 只回单值 source，被忽略的 env 静默不可见。本函数把「被忽略」显式化：
+ * stored 赢 + 后端 probe 出 shadowedEnvVars 非空 → true；env 自身赢（classifyAuthSource
+ * 返 'environment'）时不存在 shadow（env 就是生效源）。
+ *
+ * 纯展示规则，不读 env、不读 DOM——测试可桩、不污染面板 reactive 链路。
+ */
+export function isEnvShadowed(auth: { source?: string; shadowedEnvVars?: string[] }): boolean {
+  return classifyAuthSource(auth.source) === 'stored' && !!auth.shadowedEnvVars?.length
+}
+
+/**
  * 设计模型卡（合并面板顶部）的初始选中 provider —— 优先级：
  *   1. 当前指派 provider（已有指派 → 一致性优先）
  *   2. 第一个已配置 provider（让无指派用户能直接落 key + 用模型）

@@ -28,7 +28,17 @@ export type PiCatalogProvider = {
    *  也避免前端 import SDK node-only 模块（仓内 §5 "Window API 增强归编译边界"同源问题）。 */
   kind?: 'builtin' | 'custom'
   baseUrl?: string
-  auth: { configured: boolean; type?: 'api_key' | 'oauth'; source?: string }
+  auth: {
+    configured: boolean
+    type?: 'api_key' | 'oauth'
+    source?: string
+    /** T100 D1 补钉：同存时显式化「环境变量已忽略」——stored 赢（SDK envApiKeyAuth 既定
+     *  优先级），但 SDK checkAuth 只回单值 source，env 被静默忽略。该字段仅在 stored 赢
+     *  且同存的 env 变量可被 probe 解析时带出。resolve 只报首个命中（envVars 语义
+     *  「首个 set 生效」即准确语义），契约留数组为将来多报名留口。
+     *  oauth 场景刻意不标 env shadow（scope 窄化，避免误报非 api_key 路径）。 */
+    shadowedEnvVars?: string[]
+  }
   models: PiCatalogModel[]
 }
 

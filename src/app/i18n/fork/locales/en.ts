@@ -71,9 +71,12 @@ export const piMessageDefaults = {
   providerFormIdReadonlyHint: 'Provider ID cannot be changed.',
   providerFormSaveEdit: 'Save changes',
   // T100：D1 source 回显——stored/environment 标签文案；SDK 真实 source 值
-  // （'stored credential' / 环境变量名本身）经 classifyAuthSource 归类；
-  // shadow 提示不在 catalog 透传范围（key-env 拍板见讨论稿 §6.3，本单范围内）
+  // （'stored credential' / 环境变量名本身）经 classifyAuthSource 归类
   providerAuthSourceEnvironment: 'Environment variable',
+  // T100：D1 补钉——env shadow 提示（stored 赢时把被忽略的 env 显式化）
+  providerAuthEnvShadowed: params(
+    'Environment variable {names} ignored — stored key takes precedence'
+  ),
   // T100：引导门（讨论稿 §3 落地清单 1）——needs-setup / needs-credential 两变体 +
   // catalog 加载中骨架条 + 卡脚 hint；function 键走 params 占位（providerModels 先例）。
   // 注：Translations 扁平（string | TranslationFunction），禁嵌套对象——键名带前缀分组

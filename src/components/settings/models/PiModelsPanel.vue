@@ -49,6 +49,7 @@ import {
   filterCatalogProviders,
   isCurrentAssignment,
   isCustomProvider,
+  isEnvShadowed,
   resolveDefaultModelId,
   resolveInitialSelectedProvider,
   shouldAutoAssignOnModelChange,
@@ -456,12 +457,21 @@ async function submitCustomForm(): Promise<void> {
  *  规则层：'stored credential' / 环境变量名本身）；未知形态不渲染（保守）。
  *  只对 environment 来源打标——「设置存储」是冗余信息（configured 即说明已存），
  *  env 来源才是用户需要解释的非常态（未存却 configured + shadow 语义）。
- *  catalog 未透传 env 并存标志，shadow 提示超出本单范围（讨论稿 §5.D1 +
- *  §6.3 key-env 拍板联动项）。 */
+ *  stored 赢 + env shadow 的提示走 envShadowHint（独立 function，避免单一 source
+ *  返多字符串的歧义；shadow 时 source 必是 'stored credential' 不会进本 function）。 */
 function sourceLabel(source: string | undefined): string | null {
   const sourceClass = classifyAuthSource(source)
   if (sourceClass === 'environment') return dialogs.value.providerAuthSourceEnvironment
   return null
+}
+
+/** T100 D1 补钉：env shadow 提示文案——仅当 stored 赢且后端 probe 出 shadowedEnvVars
+ *  非空时渲染（isEnvShadowed 规则）。与 sourceLabel 的「environment」标签互斥：
+ *  shadow 时 source 必是 'stored credential'，不会同时打 environment 标签。 */
+function envShadowHint(auth: { source?: string; shadowedEnvVars?: string[] }): string | null {
+  if (!isEnvShadowed(auth)) return null
+  const names = (auth.shadowedEnvVars ?? []).join(', ')
+  return dialogs.value.providerAuthEnvShadowed({ names })
 }
 
 /** T97：watch 深链锚点——引导门传 { provider } 时展开该行 + 聚焦 key 输入。
@@ -654,8 +664,7 @@ onMounted(() => void refreshPiCatalog())
                       <span>{{
                         provider.auth.configured ? uiCollab.connected : ai.modelNeedsCredential
                       }}</span>
-                      <!-- T100 D1：source 标签——仅 configured 时按 catalog.auth.source 渲染；
-                       shadow 提示不在本单范围（讨论稿 §5.D1 + §6.3 key-env 拍板联动） -->
+                      <!-- T100 D1：source 标签——仅 configured 时按 catalog.auth.source 渲染 -->
                       <span
                         v-if="sourceLabel(provider.auth.source)"
                         class="rounded border border-border px-1 text-[9px] text-muted"
@@ -663,6 +672,18 @@ onMounted(() => void refreshPiCatalog())
                         data-test-id="pi-auth-source"
                       >
                         {{ sourceLabel(provider.auth.source) }}
+                      </span>
+                      <!-- T100 D1 补钉：env shadow 提示——stored 赢且后端 probe 出 shadowedEnvVars 非空时渲染；
+                       与 sourceLabel 互斥（shadow 时 source 必是 'stored credential' 不进 environment 标签）。
+                       色值走 warning 语义 token（双主题自适应——硬编码 amber-400 浅色下对比度不足，
+                       2026-09-17 L3 双主题核色实证） -->
+                      <span
+                        v-if="envShadowHint(provider.auth)"
+                        class="rounded border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] px-1 text-[9px] text-[var(--color-warning-text)]"
+                        :data-shadowed-vars="provider.auth.shadowedEnvVars?.join(',') ?? ''"
+                        data-test-id="pi-auth-env-shadowed"
+                      >
+                        {{ envShadowHint(provider.auth) }}
                       </span>
                     </span>
                     <icon-lucide-chevron-right

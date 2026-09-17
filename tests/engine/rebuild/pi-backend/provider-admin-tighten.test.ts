@@ -460,3 +460,80 @@ describe('d. verifyCredential anthropic-messages 分支（T101）', () => {
     })
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────
+// e. T100 D1 补钉：env shadow probe——stored+env 并存时把被忽略的 env 显式化
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('e. getCatalog env shadow probe（T100 D1 补钉）', () => {
+  /** 写 openrouter fixture（auth.json 直写 stored key；SDK checkAuth 命中即 source='stored credential'） */
+  function writeOpenrouterStoredKey(key: string): void {
+    mkdirSync(agentDir, { recursive: true })
+    writeFileSync(
+      join(agentDir, 'auth.json'),
+      JSON.stringify({ openrouter: { type: 'api_key', key } }, null, 2)
+    )
+  }
+
+  /** 临时置 env；finally 归还（不污染同进程后续用例） */
+  async function withEnv(
+    name: string,
+    value: string | undefined,
+    run: () => Promise<void>
+  ): Promise<void> {
+    const original = process.env[name]
+    if (value === undefined) {
+      delete process.env[name]
+    } else {
+      process.env[name] = value
+    }
+    try {
+      await run()
+    } finally {
+      if (original === undefined) {
+        delete process.env[name]
+      } else {
+        process.env[name] = original
+      }
+    }
+  }
+
+  test('stored + env 并存 → auth.shadowedEnvVars 透出 OPENROUTER_API_KEY', async () => {
+    writeOpenrouterStoredKey('sk-or-stored')
+    const admin = createProviderAdmin({ agentDir })
+    await withEnv('OPENROUTER_API_KEY', 'sk-or-env', async () => {
+      const catalog = await admin.getCatalog()
+      const openrouter = catalog.providers.find((p) => p.id === 'openrouter')
+      expect(openrouter).toBeDefined()
+      // stored 赢 → source = 'stored credential'
+      expect(openrouter?.auth.source).toBe('stored credential')
+      // shadow probe 命中 → shadowedEnvVars 字段带出 env 名
+      expect(openrouter?.auth.shadowedEnvVars).toEqual(['OPENROUTER_API_KEY'])
+    })
+  })
+
+  test('仅 stored（无 env） → auth.shadowedEnvVars 字段不带', async () => {
+    writeOpenrouterStoredKey('sk-or-stored')
+    const admin = createProviderAdmin({ agentDir })
+    await withEnv('OPENROUTER_API_KEY', undefined, async () => {
+      const catalog = await admin.getCatalog()
+      const openrouter = catalog.providers.find((p) => p.id === 'openrouter')
+      expect(openrouter?.auth.source).toBe('stored credential')
+      // probe 未命中 → 字段缺省（DTO 条件展开对齐 baseUrl/source 既有写法）
+      expect(openrouter?.auth.shadowedEnvVars).toBeUndefined()
+    })
+  })
+
+  test('仅 env（无 stored） → source 是 env 名本身 + shadowedEnvVars 字段不带', async () => {
+    // 不写 auth.json → SDK checkAuth 走 env 分支
+    const admin = createProviderAdmin({ agentDir })
+    await withEnv('OPENROUTER_API_KEY', 'sk-or-env-only', async () => {
+      const catalog = await admin.getCatalog()
+      const openrouter = catalog.providers.find((p) => p.id === 'openrouter')
+      // env 自身赢 → source = env 变量名本身
+      expect(openrouter?.auth.source).toBe('OPENROUTER_API_KEY')
+      // probe 仅在 stored 命中才跑；env 赢场景不跑 → 字段缺省
+      expect(openrouter?.auth.shadowedEnvVars).toBeUndefined()
+    })
+  })
+})

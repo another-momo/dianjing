@@ -31,6 +31,7 @@ import {
   filterCatalogModels,
   filterCatalogProviders,
   groupProvidersByConfigured,
+  isEnvShadowed,
   type VerifyResultClass
 } from '@/app/ai/pi-backend/models-panel-rules'
 import { useForkPi } from '@/app/i18n/fork'
@@ -141,6 +142,16 @@ function designKeySourceLabel(): string | null {
   const sourceClass = classifyAuthSource(provider.auth.source)
   if (sourceClass === 'environment') return dialogs.value.providerAuthSourceEnvironment
   return null
+}
+
+/** 子卡独占 env shadow 摘要——与父面板 envShadowHint 同源（isEnvShadowed 规则）。
+ *  设计卡场景下 stored 赢 + env 并存的高发路径，hint 直接贴 source 标签同位。 */
+function designEnvShadowHint(): string | null {
+  const provider = selectedProvider.value
+  if (!provider?.auth.configured) return null
+  if (!isEnvShadowed(provider.auth)) return null
+  const names = (provider.auth.shadowedEnvVars ?? []).join(', ')
+  return dialogs.value.providerAuthEnvShadowed({ names })
 }
 
 function supportsImageInput(model: PiCatalogModel): boolean {
@@ -483,6 +494,16 @@ const currentKeyDraft = computed({
             data-test-id="pi-design-key-source"
           >
             {{ designKeySourceLabel() }}
+          </span>
+          <!-- T100 D1 补钉：env shadow 提示——与父面板 envShadowHint 同源（isEnvShadowed 规则）；
+           色值走 warning 语义 token（双主题自适应，同父面板口径） -->
+          <span
+            v-if="designEnvShadowHint()"
+            class="rounded border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] px-1 text-[9px] text-[var(--color-warning-text)]"
+            :data-shadowed-vars="selectedProvider?.auth.shadowedEnvVars?.join(',') ?? ''"
+            data-test-id="pi-design-key-env-shadowed"
+          >
+            {{ designEnvShadowHint() }}
           </span>
         </span>
       </div>

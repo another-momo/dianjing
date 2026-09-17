@@ -282,9 +282,10 @@ const zhCN = {
     providerFormTitleEdit: '编辑自定义 Provider',
     providerFormIdReadonlyHint: 'Provider ID 不可修改。',
     providerFormSaveEdit: '保存修改',
-    // T100：D1 source 回显（SDK 真实 source 值经 classifyAuthSource 归类；shadow 提示
-    // 需 catalog 额外透传 env 并存标志，超出本单范围——见讨论稿 §5.D1）
+    // T100：D1 source 回显（SDK 真实 source 值经 classifyAuthSource 归类）
     providerAuthSourceEnvironment: '环境变量',
+    // T100：D1 补钉——env shadow 提示（stored 赢时把被忽略的 env 显式化）
+    providerAuthEnvShadowed: '环境变量 {names} 已忽略——设置中存储的 key 优先',
     // T100：引导门——needs-setup / needs-credential 两变体 + 加载骨架条 + 卡脚 hint；
     // 带 {name} 占位的键对应 en 侧 params function（providerModels 先例）；
     // Translations 扁平禁嵌套——键名带 providerGate 前缀分组

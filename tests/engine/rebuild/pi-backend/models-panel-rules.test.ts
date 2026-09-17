@@ -27,6 +27,7 @@ import {
   groupProvidersByConfigured,
   isCurrentAssignment,
   isCustomProvider,
+  isEnvShadowed,
   resolveDefaultModelId,
   resolveInitialSelectedProvider,
   shouldAutoAssignOnModelChange,
@@ -459,5 +460,58 @@ describe('resolveInitialSelectedProvider', () => {
         providers: []
       })
     ).toBe('')
+  })
+})
+
+// T100：D1 补钉——env shadow 判定（catalog 后端 probe 出 shadowedEnvVars 时）
+describe('isEnvShadowed', () => {
+  test("source='stored credential' + shadowedEnvVars 非空 → true（典型同存路径）", () => {
+    expect(
+      isEnvShadowed({
+        source: 'stored credential',
+        shadowedEnvVars: ['OPENROUTER_API_KEY']
+      })
+    ).toBe(true)
+  })
+
+  test('source=stored + 多名 env → 仍 true（数组语义归一化）', () => {
+    expect(
+      isEnvShadowed({
+        source: 'stored credential',
+        shadowedEnvVars: ['OPENROUTER_API_KEY', 'OPENAI_API_KEY']
+      })
+    ).toBe(true)
+  })
+
+  test('source=stored + shadowedEnvVars 空数组 → false（probe 未命中）', () => {
+    expect(isEnvShadowed({ source: 'stored credential', shadowedEnvVars: [] })).toBe(false)
+  })
+
+  test('source=stored + shadowedEnvVars 缺省 → false（probe 字段不带 = 无 shadow）', () => {
+    expect(isEnvShadowed({ source: 'stored credential' })).toBe(false)
+    expect(isEnvShadowed({ source: 'stored credential', shadowedEnvVars: undefined })).toBe(false)
+  })
+
+  test('source=环境变量名（env 自身赢）→ false（不存在 shadow，env 是生效源）', () => {
+    expect(
+      isEnvShadowed({
+        source: 'OPENROUTER_API_KEY',
+        shadowedEnvVars: ['OPENROUTER_API_KEY']
+      })
+    ).toBe(false)
+  })
+
+  test("source='environment variable' 字面（bedrock 等）→ false（环境赢，不是 stored）", () => {
+    expect(
+      isEnvShadowed({
+        source: 'environment variable',
+        shadowedEnvVars: ['AWS_ACCESS_KEY_ID']
+      })
+    ).toBe(false)
+  })
+
+  test('source 缺省 → false', () => {
+    expect(isEnvShadowed({})).toBe(false)
+    expect(isEnvShadowed({ shadowedEnvVars: ['X'] })).toBe(false)
   })
 })

@@ -23,6 +23,14 @@ import { join } from 'node:path'
 import { builtinProviders } from '@earendil-works/pi-ai/providers/all'
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'
 
+/** T100 D1 补钉：env-shadow probe 用 AuthContext.fileExists 的最小 stub —
+ *  SDK AuthContext.fileExists 在 probe 路径只决定 `~/.aws/credentials` 等文件型凭据，
+ *  probe 仅查 envVars，固定返回 false 即可；true/false 都不影响 env 命中结果。 */
+const envShadowAuthCtx = {
+  env: async (name: string): Promise<string | undefined> => process.env[name],
+  fileExists: async (_path: string): Promise<boolean> => false
+}
+
 // T27：catalog DTO 单源在 ./catalog（type-only，与前端 client.ts 共享契约）
 import type { PiCatalog, PiCatalogModel, PiCatalogProvider } from './catalog'
 
@@ -140,6 +148,31 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
     const providers: PiCatalogProvider[] = []
     for (const provider of runtime.getProviders()) {
       const check = await runtime.checkAuth(provider.id).catch(() => undefined)
+      // T100 D1 补钉：env shadow probe——仅在 stored credential 命中时跑（probe 频次受控，
+      // 不传 credential 调 resolve 让 SDK 走 envVars 分支，命中即返回 env 变量名作为 source）。
+      // 异常一律视作无 shadow（SDK resolve 内部本身就有 throwIfAborted 等异常点，吞兜底安全）。
+      // oauth 场景刻意不标 env shadow（check.type 守卫 + probe 跑 apiKey.resolve，scope 窄化）。
+      let shadowedEnvVars: string[] | undefined
+      if (
+        check?.source === 'stored credential' &&
+        check.type === 'api_key' &&
+        provider.auth.apiKey?.resolve
+      ) {
+        try {
+          const probe = await provider.auth.apiKey.resolve({
+            ctx: envShadowAuthCtx,
+            signal: new AbortController().signal
+          })
+          // 只收 env 形态名（全大写下划线，口径同 models-panel-rules classifyAuthSource）——
+          // 非标准 provider（bedrock 等）的 resolve 可能回 '~/.aws/credentials' 类路径 source，
+          // 不过滤会让面板把文件路径误报为「环境变量已忽略」。
+          if (probe && typeof probe.source === 'string' && /^[A-Z][A-Z0-9_]+$/.test(probe.source)) {
+            shadowedEnvVars = [probe.source]
+          }
+        } catch {
+          shadowedEnvVars = undefined
+        }
+      }
       providers.push({
         id: provider.id,
         name: provider.name,
@@ -149,7 +182,8 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
           ? {
               configured: true,
               type: check.type,
-              ...(check.source ? { source: check.source } : {})
+              ...(check.source ? { source: check.source } : {}),
+              ...(shadowedEnvVars ? { shadowedEnvVars } : {})
             }
           : { configured: false },
         models: provider.getModels().map((m) => ({
