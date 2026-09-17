@@ -21,6 +21,7 @@
     "tools/unit-tests/",
     "tools/git-rescue/",
     "desktop-electron/",
+    "tools/design-jsx-doc/",
     "build/"
   ],
   "ownedFiles": [

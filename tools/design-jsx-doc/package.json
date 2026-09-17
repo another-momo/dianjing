@@ -1,0 +1,8 @@
+{
+  "name": "@open-pencil/design-jsx-doc-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  }
+}
