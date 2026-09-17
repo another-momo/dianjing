@@ -12,13 +12,15 @@
  *  - regenerate：末条是 assistant（regenerate 重生成场景），裁剪点固定为「末条 user 索引」，
  *    末条 assistant 及其后所有消息都保留
  */
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 
 import type { UIMessage } from 'ai'
 
 import { PiBackendChatTransport, trimToLastUserSuffix } from '@/app/ai/pi-backend/transport'
 
-import { stubFetch, type FetchCall } from './helpers'
+import { restoreFetch, stubFetch, type FetchCall } from './helpers'
+
+afterEach(restoreFetch)
 
 function makeTransport(): PiBackendChatTransport {
   return new PiBackendChatTransport(

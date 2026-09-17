@@ -483,7 +483,7 @@ describe('e. getCatalog env shadow probe（T100 D1 补钉）', () => {
   ): Promise<void> {
     const original = process.env[name]
     if (value === undefined) {
-      delete process.env[name]
+      Reflect.deleteProperty(process.env, name)
     } else {
       process.env[name] = value
     }
@@ -491,7 +491,7 @@ describe('e. getCatalog env shadow probe（T100 D1 补钉）', () => {
       await run()
     } finally {
       if (original === undefined) {
-        delete process.env[name]
+        Reflect.deleteProperty(process.env, name)
       } else {
         process.env[name] = original
       }

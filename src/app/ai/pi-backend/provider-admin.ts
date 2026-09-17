@@ -173,19 +173,22 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
           shadowedEnvVars = undefined
         }
       }
+      // 显式分支装配（no-conditional-object-spreads：同对象 ≥2 条件展开触门禁）
+      const auth: PiCatalogProvider['auth'] = check
+        ? { configured: true, type: check.type }
+        : { configured: false }
+      if (check?.source) {
+        auth.source = check.source
+      }
+      if (shadowedEnvVars) {
+        auth.shadowedEnvVars = shadowedEnvVars
+      }
       providers.push({
         id: provider.id,
         name: provider.name,
         kind: builtinIds.has(provider.id) ? 'builtin' : 'custom',
         ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
-        auth: check
-          ? {
-              configured: true,
-              type: check.type,
-              ...(check.source ? { source: check.source } : {}),
-              ...(shadowedEnvVars ? { shadowedEnvVars } : {})
-            }
-          : { configured: false },
+        auth,
         models: provider.getModels().map((m) => ({
           id: m.id,
           name: m.name,

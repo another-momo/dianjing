@@ -27,7 +27,7 @@ import {
   DESIGN_JSX_ELEMENTS,
   DESIGN_JSX_SUPPORTED_PROPERTY_NAMES,
   DESIGN_JSX_HELPERS
-} from '../../../packages/core/src/design-jsx/schema'
+} from '#core/design-jsx/schema'
 
 const MD_PATH = resolve(
   import.meta.dir,

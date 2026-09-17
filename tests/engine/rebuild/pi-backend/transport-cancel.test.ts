@@ -8,11 +8,13 @@
  *
  * 本文件钉扎 transport 侧行为；路由侧 HTTP 往返见 chat-cancel-route.test.ts。
  */
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 
 import { PiBackendChatTransport } from '@/app/ai/pi-backend/transport'
 
-import { stubFetch, type FetchCall } from './helpers'
+import { restoreFetch, stubFetch, type FetchCall } from './helpers'
+
+afterEach(restoreFetch)
 
 function makeTransport() {
   return new PiBackendChatTransport(
