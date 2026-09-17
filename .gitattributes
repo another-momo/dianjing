@@ -1,3 +1,9 @@
 tests/fixtures/*.fig filter=lfs diff=lfs merge=lfs -text
 tests/fixtures/fonts/*.ttf filter=lfs diff=lfs merge=lfs -text
 packages/core/vendor/canvaskit-webgpu/*.wasm filter=lfs diff=lfs merge=lfs -text
+
+# studio 资产 md 强制 LF——CI windows runner checkout（Git for Windows 默认
+# autocrlf=true）会把 md 物化成 CRLF，extraResources 逐字节拷进安装包后
+# frontmatter 解析翻车（2026-09-17 v0.1.0-ci.4 安装版 profile 全灭实证）。
+# parse 层已同步做 CRLF 归一（双保险）；此处保证分发产物本身不带 \r。
+src/app/ai/pi-backend/studio/**/*.md text eol=lf

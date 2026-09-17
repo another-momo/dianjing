@@ -38,6 +38,10 @@
 
       /* 启动过渡页：slogan 动效播完由 main.ts 加 boot-splash--exit 淡出移除。
          必须与 #app 同级——mount 会替换 #app 内部内容。
+         动效闸门：入场动画全部挂在 boot-splash--run 类下，main.ts 在首帧绘制
+         （rAF）时才加类并起计时——Electron show:false + ready-to-show 形态下，
+         窗口可见前的 bundle 加载耗时会吃掉动画前段（2026-09-17 安装版过渡页
+         一闪而过实证）。
          动画写法：元素基态 = 终态，backwards fill 在 delay 期套用 0% 关键帧——
          reduced-motion 只需 animation:none 即自然落到完整终态。 */
       #boot-splash {
@@ -74,7 +78,7 @@
         height: 92px;
         filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.28));
       }
-      #boot-splash .logo-tile {
+      #boot-splash.boot-splash--run .logo-tile {
         animation: tilein 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
       }
       @keyframes tilein {
@@ -83,7 +87,7 @@
           transform: scale(0.88);
         }
       }
-      #boot-splash .cursor-arrow {
+      #boot-splash.boot-splash--run .cursor-arrow {
         animation: arrowin 0.45s cubic-bezier(0.25, 0.6, 0.3, 1) 0.25s backwards;
       }
       @keyframes arrowin {
@@ -92,7 +96,7 @@
           transform: translateY(5px);
         }
       }
-      #boot-splash .dot-ring {
+      #boot-splash.boot-splash--run .dot-ring {
         transform-origin: 77px 77px;
         animation: pop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.3) 0.6s backwards;
       }
@@ -105,6 +109,8 @@
       #boot-splash .dot-ripple {
         transform-origin: 77px 77px;
         opacity: 0;
+      }
+      #boot-splash.boot-splash--run .dot-ripple {
         animation: dotripple 0.85s cubic-bezier(0.25, 0.6, 0.35, 1) 0.85s backwards;
       }
       @keyframes dotripple {
@@ -131,7 +137,7 @@
         letter-spacing: 0.012em;
         color: rgba(var(--loader-fg), 0.88);
       }
-      #boot-splash .slogan span {
+      #boot-splash.boot-splash--run .slogan span {
         display: inline-block;
         animation: rise 0.55s cubic-bezier(0.25, 0.6, 0.3, 1) backwards;
       }
@@ -152,6 +158,8 @@
         letter-spacing: 0.42em;
         text-indent: 0.42em; /* 视觉居中——末字不带的字距补回 */
         color: rgba(var(--loader-fg), 0.42);
+      }
+      #boot-splash.boot-splash--run .mark {
         animation: fadein 0.6s ease 1.9s backwards;
       }
       @keyframes fadein {
@@ -167,7 +175,7 @@
         border-radius: 1px;
         overflow: hidden;
       }
-      #boot-splash .bar::after {
+      #boot-splash.boot-splash--run .bar::after {
         content: '';
         display: block;
         height: 100%;
@@ -186,13 +194,13 @@
       }
 
       @media (prefers-reduced-motion: reduce) {
-        #boot-splash .logo-tile,
-        #boot-splash .cursor-arrow,
-        #boot-splash .dot-ring,
-        #boot-splash .dot-ripple,
-        #boot-splash .slogan span,
-        #boot-splash .mark,
-        #boot-splash .bar::after {
+        #boot-splash.boot-splash--run .logo-tile,
+        #boot-splash.boot-splash--run .cursor-arrow,
+        #boot-splash.boot-splash--run .dot-ring,
+        #boot-splash.boot-splash--run .dot-ripple,
+        #boot-splash.boot-splash--run .slogan span,
+        #boot-splash.boot-splash--run .mark,
+        #boot-splash.boot-splash--run .bar::after {
           animation: none;
         }
       }

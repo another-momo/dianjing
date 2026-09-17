@@ -1577,6 +1577,13 @@
       "reason": "2026-09-17：pi-chat 4MB→32MB 请求体上限配套——en 源新增 chatPayloadTooLarge 键（413/502/ECONNRESET 归因「请求体过大或本地连接中断」）；zh 翻译随附 locales/zh-cn/ai.json（P247 既有条目覆盖）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-17"
+    },
+    {
+      "id": "P270",
+      "file": ".gitattributes",
+      "reason": "2026-09-17：studio 资产 md 强制 LF（src/app/ai/pi-backend/studio/**/*.md text eol=lf）——CI windows runner checkout（Git for Windows 默认 autocrlf=true）把 md 物化成 CRLF，extraResources 逐字节入包后 frontmatter 末行孤立 CR 被 yaml 并入标量、version 校验拒绝 → v0.1.0-ci.4 安装版 profile 全灭；与 parse.ts CRLF 归一互为双保险",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-17"
     }
   ],
   "deletedPaths": [

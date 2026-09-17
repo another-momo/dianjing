@@ -36,9 +36,18 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * 切分 frontmatter 与正文。文件首行必须是 `---`，其后到下一个独占行 `---` 为
  * YAML frontmatter（必须解析为 map），再往后为 markdown 正文。
+ *
+ * 行尾归一（2026-09-17）：剥 BOM 后立即把 `\r\n` 与孤立 `\r` 归一为 `\n`。
+ * 必修背景——split 按 `\n` 切不剥 `\r`，CRLF 文件的 frontmatter 末行会残留孤立 `\r`
+ * 在 YAML 文本 EOF 处，被 yaml 库并进最后一个标量。实测 `version: 2\r` 解析成字符串
+ * `"2\r"`（typeof !== number），validate.ts parseVersion 拒绝，整条 profile 静默不
+ * 注册。CI windows runner checkout（autocrlf 默认 true）把内置 studio md 资产转成
+ * CRLF 打进安装包 → v0.1.0-ci.4 安装版 profile 全灭；用户在 Windows 上编辑
+ * `%APPDATA%` 下的自定义资产同样撞。归一也连带把 body 从 CRLF 变 LF——可接受
+ * （prompt 文本，按行处理即可）。
  */
 export function splitFrontmatter(raw: string): ParsedAsset {
-  const normalized = raw.replace(/^﻿/, '')
+  const normalized = raw.replace(/^﻿/, '').replace(/\r\n?/g, '\n')
   const lines = normalized.split('\n')
   if (lines[0]?.trim() !== '---') {
     return {

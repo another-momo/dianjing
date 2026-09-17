@@ -132,14 +132,15 @@ nsis:
   # 目录选择页生效（否则用户看不到选择控件，一步到下页装默认位）。
   oneClick: false
   allowToChangeInstallationDirectory: true
-  # 卸载时清干净 app 数据；createDesktopShortcut 已默认 true。
-  # D2：deleteAppDataOnUninstall 只删 %APPDATA% 下 userData——但状态根已
-  # 统一进 userData（resolveAppDataRoot = %APPDATA%/Dianjing，与 Electron
-  # userData 同位），所有持久化资产（pi-agent/ / pi-sessions/ / studio/
-  # / pi-backend-token / key-env）皆在 userData 之内，无需再补 nsis 自定义
-  # 钩子删 %USERPROFILE%\.dianjing\studio\。原 shell-polish B2 的
-  # desktop-electron/nsis/include.nsh 已退役删除。
-  deleteAppDataOnUninstall: true
+  # createDesktopShortcut 已默认 true。
+  # 卸载用户数据可选化（2026-09-17 owner 拍板）：deleteAppDataOnUninstall 是
+  # 无条件静默删——状态根已统一进 %APPDATA%/Dianjing（D2，resolveAppDataRoot
+  # 与 userData 同位，pi-agent 凭据 / pi-sessions / studio 用户拓展 / workspace
+  # 全在其中），误删代价高。改为卸载段开头弹问（默认「否」保留；/S 静默与
+  # 升级卸载一律保留），宏定义见下 include 文件（UTF-8 BOM 勿丢——makensis
+  # 缺省按 ANSI 读无 BOM 脚本，中文会乱码）。
+  deleteAppDataOnUninstall: false
+  include: desktop-electron/nsis/uninstall-prompt.nsh
   # artifactName 在 win.* 已设，这里保留 nsis 自身的命名兜底
   artifactName: ${productName}-Setup-${version}.${ext}
 
