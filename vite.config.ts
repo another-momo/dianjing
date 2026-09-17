@@ -5,6 +5,8 @@ import Icons from 'unplugin-icons/vite'
 import Components from 'unplugin-vue-components/vite'
 import { defineConfig } from 'vite'
 
+import { ensureBrandAssets } from '@open-pencil/brand-tools'
+
 import packageJson from './package.json'
 import { piBackendPlugin } from './src/app/ai/pi-backend/vite-plugin'
 import { devAutomationRoute } from './src/app/bridge/portless-route'

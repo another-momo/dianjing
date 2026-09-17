@@ -77,7 +77,10 @@ async function bindAssociatedFileOpen(): Promise<void> {
   await openPendingAssociatedFiles()
 }
 
+let stopWebMCP: (() => void) | undefined
+
 onMounted(async () => {
+  stopWebMCP = startWebMCP(getActiveStore)
   await startMCPRuntime(getActiveStore)
 
   try {
@@ -88,6 +91,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  stopWebMCP?.()
   void stopMCPRuntime()
   fileAssociationCleanup.value?.()
 })

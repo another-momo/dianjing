@@ -82,32 +82,51 @@
     "tests/engine/app/bridge/bridge-vite-plugin.test.ts",
     "tests/engine/app/bridge/portless-route.test.ts",
     "electron-builder.yml",
-    "src/components/Toolbar/useAddImage.ts"
+    "src/components/Toolbar/useAddImage.ts",
+    "public/apple-touch-icon.png",
+    "public/favicon-128.png",
+    "public/favicon-32.png",
+    "public/favicon.ico",
+    "public/pwa-192.png",
+    "public/pwa-512.png",
+    "public/pwa-maskable-512.png",
+    "src/components/settings/provider/StockPhotoKeysSection.vue"
   ],
-  "stubs": ["src/app/collab/use.ts"],
+  "stubs": [
+    "src/app/collab/use.ts"
+  ],
   "pendingReclass": [],
   "relocations": [
     {
       "oldPath": "packages/mcp/",
-      "newPaths": ["src/app/bridge/server/"],
+      "newPaths": [
+        "src/app/bridge/server/"
+      ],
       "since": "Batch 2c (2026-09-05)",
       "note": "mcp 裁撤内核迁入；stdio/tool registration 等外壳未迁；2026-09-14 合并采 child-ready 机制（server/index.ts 吸收 marker 块；vite-plugin 就绪探测移植另行）"
     },
     {
       "oldPath": "packages/cli/",
-      "newPaths": ["packages/core/src/io/", "tools/visual-oracles/src/render-fixture.ts"],
+      "newPaths": [
+        "packages/core/src/io/",
+        "tools/visual-oracles/src/render-fixture.ts"
+      ],
       "since": "Batch 2b (2026-09-05)",
       "note": "cli 裁撤；CanvasKit 初始化/字体预备吸收进 core/io，fixture 导出归 visual-oracles；2026-09-08 合并吸收上游改动（import.ts 随删除批）；2026-09-14 上游改动仅 package.json 版本噪音，无实质"
     },
     {
       "oldPath": "src/app/ai/chat/",
-      "newPaths": ["src/app/ai/fork/"],
+      "newPaths": [
+        "src/app/ai/fork/"
+      ],
       "since": "Batch 2a (2026-09-05)",
       "note": "路径分离：use/failure/transports 迁 fork；2026-09-05 整目录进 deletedPaths；2026-09-08 合并吸收上游改动（storage/use.ts 随删除批）；2026-09-14 合并拒收 #661 会话历史（owner 拍板：pi-backend 自有 JSONL 历史，数据源不同不移植）"
     },
     {
       "oldPath": "src/components/chat/",
-      "newPaths": ["src/components/assistant/"],
+      "newPaths": [
+        "src/components/assistant/"
+      ],
       "since": "Batch 2f (2026-09-05)",
       "note": "整目录搬家腾出上游仍在用的目录名；2026-09-08 合并吸收上游改动（6 组件随删除批）；2026-09-14 合并拒收 #661 历史组件（ChatComposer/ChatHistory/ChatTranscript 等 9 件随删除批）"
     },
@@ -119,31 +138,41 @@
     },
     {
       "oldPath": "tests/engine/mcp/",
-      "newPaths": ["tests/engine/tools/"],
+      "newPaths": [
+        "tests/engine/tools/"
+      ],
       "since": "Batch 2c (2026-09-05)",
       "note": "mcp 测试随迁"
     },
     {
       "oldPath": "src/app/ai/chat/system-prompt.md",
-      "newPaths": ["src/app/ai/pi-backend/studio/base.md"],
+      "newPaths": [
+        "src/app/ai/pi-backend/studio/base.md"
+      ],
       "since": "T46 (2026-08)",
       "note": "提示词谱系：T46 转写副本 2026-09-05 退役，studio/ 唯一真源；2026-09-14 上游转 compose 架构（17+/569-，system-prompt.ts + design-jsx/reference），不采；内容净增量扫描另行；2026-09-15 studio-assets-import：base.md 双姿态重写 + JSX 语法下沉 studio/references/render-jsx.md（base references 按需机制首个消费者；与 design-jsx/reference/authoring.md 按三分法对账——schema 清单全用/教义改写用/我方纪律自留，变量组件层缓入待吸收评估）"
     },
     {
       "oldPath": "src/components/settings/models/ModelsPanel.vue",
-      "newPaths": ["src/components/settings/models/PiModelsPanel.vue"],
+      "newPaths": [
+        "src/components/settings/models/PiModelsPanel.vue"
+      ],
       "since": "upstream-merge d82aaff9e..9dac52da1 (2026-09-08)",
       "note": "路径分离（owner 拍板①）：上游推平重写依赖已裁 ai/models 域，彻底抛弃；SettingsDialog 直引 PiModelsPanel（pi SDK 自持），P37 塌缩 patch 随之退役；2026-09-14 上游 118/78 重构（editingModel 稳定化），架构不同源不移植"
     },
     {
       "oldPath": "src/app/automation/",
-      "newPaths": ["src/app/bridge/"],
+      "newPaths": [
+        "src/app/bridge/"
+      ],
       "since": "bridge-path-separation (2026-09-14)",
       "note": "整目录改名自立门户（chat→assistant 先例）；mcp/ 子目录早已裁撤不随迁；上游引用者（acp/transport、ai/tools、integrations/mcp/pi、MCPSettingsPanel）我方树已全裁，切断 follow 无连带；8 个字节一致叶文件的免费修复通道就此关闭，以后要上游修复手动 port。"
     },
     {
       "oldPath": "tests/engine/app/automation/",
-      "newPaths": ["tests/engine/app/bridge/"],
+      "newPaths": [
+        "tests/engine/app/bridge/"
+      ],
       "since": "bridge-path-separation (2026-09-14)",
       "note": "测试镜像随 src 改名随迁；两件 mcp 相关测试 patch 随文件转 ownedFiles 退役（T74/P142 历史见 git log）"
     }
@@ -243,9 +272,9 @@
     {
       "id": "P19",
       "file": "tools/unit-tests/src/shards.ts",
-      "reason": "app group: drop acp/tauri dirs, add tests/engine/rebuild；2026-09-08 上游合并：上游扩 app group（acp/cli/collab/tauri）未采——四目录均为 fork deletedPaths；按其归组语义吸收既有未覆盖目录：core→editor、bytes/library→scene（新版严格分片测试要求每测试恰好一片）",
+      "reason": "app group: drop acp/tauri dirs, add tests/engine/rebuild；2026-09-08 上游合并：上游扩 app group（acp/cli/collab/tauri）未采——四目录均为 fork deletedPaths；按其归组语义吸收既有未覆盖目录：core→editor、bytes/library→scene（新版严格分片测试要求每测试恰好一片） ｜ 2026-09-18 重锚 PR715 新结构：保持 fork 七组（app/dom/editor/fig/render/scene/vue），登记 packages/<owner>/tests 与 tests/app、tests/integration 守卫路径；不取上游 cli/mcp 组（包不存在）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-14"
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P20",
@@ -299,30 +328,30 @@
     {
       "id": "P27",
       "file": "public/apple-touch-icon.png",
-      "reason": "symlink pointed into deleted desktop/ (dangling on Linux CI, broke storybook); replaced with real PNG (pwa-192 copy)",
-      "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
+      "reason": "symlink pointed into deleted desktop/ (dangling on Linux CI, broke storybook); replaced with real PNG (pwa-192 copy) ｜ revoked 2026-09-18：上游 PR707 删除该文件，patch 失去 base——转 ownedFiles 登记",
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P28",
       "file": "public/favicon-128.png",
-      "reason": "symlink into deleted desktop/ (dangling on Linux CI) — replaced with real PNG extracted from git history",
-      "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
+      "reason": "symlink into deleted desktop/ (dangling on Linux CI) — replaced with real PNG extracted from git history ｜ revoked 2026-09-18：上游 PR707 删除该文件，patch 失去 base——转 ownedFiles 登记",
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P29",
       "file": "public/favicon-32.png",
-      "reason": "same as P28",
-      "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
+      "reason": "same as P28 ｜ revoked 2026-09-18：上游 PR707 删除该文件，patch 失去 base——转 ownedFiles 登记",
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P30",
       "file": "public/favicon.ico",
-      "reason": "same as P28",
-      "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
+      "reason": "same as P28 ｜ revoked 2026-09-18：上游 PR707 删除该文件，patch 失去 base——转 ownedFiles 登记",
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P31",
@@ -681,9 +710,9 @@
     {
       "id": "P138",
       "file": "packages/core/src/tools/schema.ts",
-      "reason": "T72（2026-09-01）：ToolDef/defineTool 增 internal?: boolean——内部流水线段机器可读标记（image_gen_begin/commit 不透出 agent/MCP 面；docs/202609010000-tool-internal-visibility-review.md 方案 A）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-01",
+      "reason": "T72（2026-09-01）：ToolDef/defineTool 增 internal?: boolean——内部流水线段机器可读标记（image_gen_begin/commit 不透出 agent/MCP 面；docs/202609010000-tool-internal-visibility-review.md 方案 A） ｜ revoked 2026-09-18：PR697 schema.ts Valibot 重写全取——schema.ts 转 follow-pure；fork 工具面（internal 语义）迁移至 owned 域 fork/image-gen 等（exposure 元数据），不再以 patch 形态存在",
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-18",
       "task": "T72"
     },
     {
@@ -983,16 +1012,16 @@
     {
       "id": "P185",
       "file": "src/components/settings/provider/StockPhotoKeysSection.vue",
-      "reason": "Batch 2a（2026-09-05，chat/ai 依赖点解耦）：pexels/unsplash 凭证读写由 useAIChat() 间接面改直引 @/app/settings/credentials/stock-photo-keys（2a 三处解耦点之一）；2026-09-08 上游合并：上游收敛同语义（其新 credentials/media.ts）——未采，stock-photo-keys 仍为唯一凭证面；media.ts 依赖已删 migration.ts 成死链，进 deletedPaths",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-08"
+      "reason": "Batch 2a（2026-09-05，chat/ai 依赖点解耦）：pexels/unsplash 凭证读写由 useAIChat() 间接面改直引 @/app/settings/credentials/stock-photo-keys（2a 三处解耦点之一）；2026-09-08 上游合并：上游收敛同语义（其新 credentials/media.ts）——未采，stock-photo-keys 仍为唯一凭证面；media.ts 依赖已删 migration.ts 成死链，进 deletedPaths ｜ revoked 2026-09-18：上游 PR713 删除该文件（patch 失 base），转 ownedFiles 登记",
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P186",
       "file": "tests/engine/app/ai/debug-log.test.ts",
-      "reason": "Batch 2a（2026-09-05）：@/app/ai/debug 改指 @/app/ai/fork/debug（路径分离产物）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-05"
+      "reason": "Batch 2a（2026-09-05）：@/app/ai/debug 改指 @/app/ai/fork/debug（路径分离产物） ｜ revoked 2026-09-18：PR713 下线 ai/debug 模块，tests/engine/app/ai/debug-log.test.ts 随上游删除退役",
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P187",
@@ -1047,9 +1076,9 @@
     {
       "id": "P194",
       "file": "tests/engine/app/diagnostics/recorder.test.ts",
-      "reason": "ux3（2026-09-05）：移除 isDiagnosticsEnabled 占位 import（面板删除后无人读 UI 路径）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-05"
+      "reason": "ux3（2026-09-05）：移除 isDiagnosticsEnabled 占位 import（面板删除后无人读 UI 路径） ｜ revoked 2026-09-18：PR713 diagnostics 测试重写，recorder.test.ts 取上游版（recordToolCompleted 新签名面），patch 语义消失",
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P195",
@@ -1138,16 +1167,16 @@
     {
       "id": "P207",
       "file": "packages/core/src/canvas/labels/paragraph-cache.ts",
-      "reason": "T98（2026-09-06，场景 1 tofu 根治之二）：上游硬编码 fontFamilies:['Inter']，而 TypefaceFontProvider 不做按字符跨族回退（实测 ['Inter'] 单链 CJK 落 glyph 0）——paragraph 构建改读 ['Inter', ...fontManager.getCJKFallbackFamilies(), ...fontManager.getArabicFallbackFamilies()] 现值链；族集合随注册推进 generation 触发本缓存 clear 重建，未注册族名被 Skia 静默跳过，无害。A2 NOTES §3 闸门 1 前提的缓存侧配套。",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-06"
+      "reason": "T98（2026-09-06，场景 1 tofu 根治之二）：上游硬编码 fontFamilies:['Inter']，而 TypefaceFontProvider 不做按字符跨族回退（实测 ['Inter'] 单链 CJK 落 glyph 0）——paragraph 构建改读 ['Inter', ...fontManager.getCJKFallbackFamilies(), ...fontManager.getArabicFallbackFamilies()] 现值链；族集合随注册推进 generation 触发本缓存 clear 重建，未注册族名被 Skia 静默跳过，无害。A2 NOTES §3 闸门 1 前提的缓存侧配套。 ｜ revoked 2026-09-18：PR699 ResourceCache + resolveParagraphFontFamilies 吸收 tofu 补丁语义（2026-09-18 合并撤销）",
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P208",
       "file": "packages/core/src/canvas/renderer/fonts.ts",
-      "reason": "T98（2026-09-06，场景 1 tofu 根治之一，P143  revoked 后的新分歧）：上游 loadFonts 只装 Inter，T88 启动期 CJK/Arabic 预加载随整文件回退丢失，且 label 无 trackFontDemand 需求入口（该链只挂 text 节点）——fontsLoaded/syncFontGeneration 终态前注入 fontManager.ensureFallbackPack()（bundled PuHuiTi + Noto Naskh Arabic 远端链），保证 paragraph-cache 见到的 generation 覆盖本次注册，CJK label 首渲染不豆腐。A2 NOTES §3 闸门 1 明示前提的落地。",
+      "reason": "T98（2026-09-06，场景 1 tofu 根治之一，P143  revoked 后的新分歧）：上游 loadFonts 只装 Inter，T88 启动期 CJK/Arabic 预加载随整文件回退丢失，且 label 无 trackFontDemand 需求入口（该链只挂 text 节点）——fontsLoaded/syncFontGeneration 终态前注入 fontManager.ensureFallbackPack()（bundled PuHuiTi + Noto Naskh Arabic 远端链），保证 paragraph-cache 见到的 generation 覆盖本次注册，CJK label 首渲染不豆腐。A2 NOTES §3 闸门 1 明示前提的落地。 ｜ 2026-09-18 PR699 后 byte diff 仍存（fontsLoaded/syncFontGeneration 区域外残差），保活待 L1 验证语义吸收度",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-06"
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P209",
@@ -1321,7 +1350,7 @@
     {
       "id": "P233",
       "file": "packages/core/src/canvaskit.ts",
-      "reason": "2026-09-14 合并：Windows 下 import.meta.resolve 的 file URL pathname 带前导斜杠（/D:/...），Emscripten 读 wasm ENOENT——剥 /^\/[A-Za-z]:\// 前导斜杠。上游同病未修（其 CI 全 Linux 无感）；暴露路径=上游新 clipboard 测试首次在本机触发 CanvasKit 加载。适机回敬上游；node/浏览器分支判定用 'Bun' in globalThis + hasWindowGlobal 复合——纯活探在 bun 测试 window stub 下返真误走 fetch 分支挂起（render 批次 30s 超时实证，同日修正）",
+      "reason": "2026-09-14 合并：Windows 下 import.meta.resolve 的 file URL pathname 带前导斜杠（/D:/...），Emscripten 读 wasm ENOENT——剥 /^/[A-Za-z]:// 前导斜杠。上游同病未修（其 CI 全 Linux 无感）；暴露路径=上游新 clipboard 测试首次在本机触发 CanvasKit 加载。适机回敬上游；node/浏览器分支判定用 'Bun' in globalThis + hasWindowGlobal 复合——纯活探在 bun 测试 window stub 下返真误走 fetch 分支挂起（render 批次 30s 超时实证，同日修正）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-14"
     },
@@ -1370,9 +1399,9 @@
     {
       "id": "P240",
       "file": "packages/core/src/canvas/renderer.ts",
-      "reason": "2026-09-14 合并后 L1：dpr/document 两处守卫换 hasWindowGlobal/typeof 活探（T40 污染链根治；P144 revoked 后本文件回 follow-pure，此为新一轮独立 patch）",
+      "reason": "2026-09-14 合并后 L1：dpr/document 两处守卫换 hasWindowGlobal/typeof 活探（T40 污染链根治；P144 revoked 后本文件回 follow-pure，此为新一轮独立 patch） ｜ 2026-09-18 PR699 后 byte diff 仍存，保活待 L1 验证语义吸收度",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-14"
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P241",
@@ -1397,10 +1426,10 @@
     },
     {
       "id": "P244",
-      "file": "src/components/Shell/AppMenu.vue",
-      "reason": "改名期②（2026-09-14）：app-logo img alt 翻转「点睛设计」",
+      "file": "src/components/shell/AppMenu.vue",
+      "reason": "改名期②（2026-09-14）：app-logo img alt 翻转「点睛设计」 ｜ 2026-09-18：PR707 Shell→shell 重命名，登记路径跟随",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-14"
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P245",
@@ -1454,23 +1483,23 @@
     {
       "id": "P252",
       "file": "public/pwa-192.png",
-      "reason": "点睛 logo 接入（2026-09-15）：dianjing-logo.svg 栅格化 192×192 替换旧标（同批 favicon 全家族 + build/icon.ico 桌面图标）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-15"
+      "reason": "点睛 logo 接入（2026-09-15）：dianjing-logo.svg 栅格化 192×192 替换旧标（同批 favicon 全家族 + build/icon.ico 桌面图标） ｜ revoked 2026-09-18：上游 PR707 删除该文件，patch 失去 base——转 ownedFiles 登记",
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P253",
       "file": "public/pwa-512.png",
-      "reason": "点睛 logo 接入（2026-09-15）：同 P252，512×512",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-15"
+      "reason": "点睛 logo 接入（2026-09-15）：同 P252，512×512 ｜ revoked 2026-09-18：上游 PR707 删除该文件，patch 失去 base——转 ownedFiles 登记",
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P254",
       "file": "public/pwa-maskable-512.png",
-      "reason": "点睛 logo 接入（2026-09-15）：同 P252，maskable 变体（80% 安全区居中白底）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-15"
+      "reason": "点睛 logo 接入（2026-09-15）：同 P252，maskable 变体（80% 安全区居中白底） ｜ revoked 2026-09-18：上游 PR707 删除该文件，patch 失去 base——转 ownedFiles 登记",
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P255",
@@ -1503,9 +1532,9 @@
     {
       "id": "P259",
       "file": ".github/copilot-instructions.md",
-      "reason": "2026-09-16 重写为 fork 版：去 OpenPencil 标题/Tauri（已裁）/English PR 要求/CHANGELOG 与 CONTRIBUTING 死引用；保留与本仓 lint 一致的约定（no any/禁非空断言/getRandomValues/Vue 无 style 块）+ 唯一向导锚 AGENTS.md",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-16"
+      "reason": "2026-09-16 重写为 fork 版：去 OpenPencil 标题/Tauri（已裁）/English PR 要求/CHANGELOG 与 CONTRIBUTING 死引用；保留与本仓 lint 一致的约定（no any/禁非空断言/getRandomValues/Vue 无 style 块）+ 唯一向导锚 AGENTS.md ｜ revoked 2026-09-18：上游 b70a4a2c5 删除 .github/copilot-instructions.md（内容并入 AGENTS.md），随上游删除退役",
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P260",
@@ -1584,6 +1613,34 @@
       "reason": "2026-09-17：studio 资产 md 强制 LF（src/app/ai/pi-backend/studio/**/*.md text eol=lf）——CI windows runner checkout（Git for Windows 默认 autocrlf=true）把 md 物化成 CRLF，extraResources 逐字节入包后 frontmatter 末行孤立 CR 被 yaml 并入标量、version 校验拒绝 → v0.1.0-ci.4 安装版 profile 全灭；与 parse.ts CRLF 归一互为双保险",
       "disposition": "permanent",
       "lastReviewed": "2026-09-17"
+    },
+    {
+      "id": "P271",
+      "file": "tools/unit-tests/src/run.ts",
+      "reason": "T91j solo 内化：SOLO_UNIT_TEST_FILES（shards.ts 登记）拆独立进程跑，替代原 ci.yml bash 拆分（PR715 list.ts→run.ts 迁移后的承载点）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P272",
+      "file": "packages/core/src/canvas/text/font-families.ts",
+      "reason": "CDN 互斥分片 renderFamilyAliases 合流并进缓存键（PR699 上游新建本文件承接 resolveParagraphFontFamilies，移植自旧 text/index.ts 内 patch 语义）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P273",
+      "file": "src/app/shell/menu/schema.ts",
+      "reason": "PR713 新增 APP_MENU_APP_ITEMS（about/check-updates/quit）品牌字面量 OpenPencil→Dianjing",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P274",
+      "file": "src/components/preparation/canvas/Overlay.vue",
+      "reason": "摘除 PR707 带入的 BrandMark 加载图标（品牌系统拒收；恢复 fork 原无图标加载覆盖层）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
     }
   ],
   "deletedPaths": [
@@ -1747,7 +1804,14 @@
     "tests/engine/render/jsx/reference.test.ts",
     "src/app/automation/",
     "tests/engine/app/automation/",
-    "src/app/ai/pi-backend/studio/workflows/general/"
+    "src/app/ai/pi-backend/studio/workflows/general/",
+    "tools/brand/",
+    "src/components/brand/",
+    "src/theme/brand.ts",
+    "assets/brand/",
+    "tests/e2e/brand/",
+    "tests/e2e/canvas/demo-workspace.spec.ts",
+    "tests/e2e/canvas/demo-workspace.spec.ts-snapshots/"
   ],
   "upstreamMergeTarball": []
 }

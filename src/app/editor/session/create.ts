@@ -55,6 +55,7 @@ export function createEditorStore(initialGraph?: SceneGraph) {
             height: hasWindowGlobal() ? window.innerHeight : 1080
           }
   })
+  const canvasReadiness = Promise.withResolvers<undefined>()
   const io = new IORegistry(BUILTIN_IO_FORMATS)
   bindClipboardNotifications(editor)
 
@@ -62,7 +63,10 @@ export function createEditorStore(initialGraph?: SceneGraph) {
     editor.subscribeToGraph()
   }
 
-  const { selectedNodes, selectedNode, layerTree } = createEditorComputedRefs(editor, state)
+  const { selectedNodes, selectedNode, layerTree, disposeSelection } = createEditorComputedRefs(
+    editor,
+    state
+  )
   const preparationEvents = createEditorPreparationEvents()
   const preparationLifecycle = new Map<
     number,
@@ -191,6 +195,8 @@ export function createEditorStore(initialGraph?: SceneGraph) {
     ...editor,
     state,
     preparationController,
+    canvasReady: canvasReadiness.promise,
+    markCanvasReady: () => canvasReadiness.resolve(undefined),
     onPreparationEvent<Event extends EditorPreparationEventName>(
       event: Event,
       handler: EditorPreparationEvents[Event]
@@ -213,7 +219,11 @@ export function createEditorStore(initialGraph?: SceneGraph) {
     setSplitSizes: panes.setSplitSizes,
 
     // App-specific overrides and additions
-    ...modules
+    ...modules,
+    dispose() {
+      disposeSelection()
+      modules.dispose()
+    }
   }
 
   defineEditorStoreAccessors(store, editor)

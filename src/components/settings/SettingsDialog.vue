@@ -52,8 +52,9 @@ const navigationClass =
 <template>
   <AppDialogRoot
     :open="settingsDialogOpen"
-    size="lg"
-    height="tall"
+    size="xl"
+    :ui="{ content: 'w-[min(52.5rem,96vw)]' }"
+    height="full"
     data-test-id="app-settings-dialog"
     @update:open="onOpenChange"
   >
@@ -186,4 +187,19 @@ const navigationClass =
       </DialogClose>
     </AppDialogFooter>
   </AppDialogRoot>
+  <AppAlertDialogRoot :open="confirming" @update:open="!$event && navigation.keepEditing()">
+    <AppDialogHeader
+      :heading="settings.discardChanges"
+      :description="settings.discardChangesDescription"
+      :show-close="false"
+    />
+    <AppDialogFooter>
+      <AlertDialogCancel as-child
+        ><AppButton>{{ settings.keepEditing }}</AppButton></AlertDialogCancel
+      >
+      <AppButton color="error" variant="solid" @click="navigation.discard">{{
+        settings.discard
+      }}</AppButton>
+    </AppDialogFooter>
+  </AppAlertDialogRoot>
 </template>

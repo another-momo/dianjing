@@ -56,6 +56,13 @@ jobs:
 
       - uses: ./.github/actions/setup-bun
 
+      - name: Cache npm consumer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.npm
+          key: npm-consumers-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: npm-consumers-${{ runner.os }}-
+
       - name: Build publishable packages
         run: bun run build:packages
 
@@ -238,7 +245,7 @@ jobs:
       fail-fast: true
       matrix:
         group: [app, dom, editor, fig, render, scene, vue]
-    name: Engine tests — ${{ matrix.group }}
+    name: Unit tests — ${{ matrix.group }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -247,36 +254,11 @@ jobs:
       - uses: ./.github/actions/setup-bun
         with:
           lfs: 'true'
+          # Quick shards read only the small fixtures; heavy-tests.yml pulls the large .fig corpora.
+          lfs-include: tests/fixtures/gold-preview.fig,tests/fixtures/circle-text.fig,tests/fixtures/fonts/*
 
       - name: Build shared Core test dependency
         run: bun --filter @open-pencil/core build
 
-      - name: Run ${{ matrix.group }} engine tests
-        shell: bash
-        run: |
-          mapfile -t test_files < <(bun tools/unit-tests/src/list.ts "${{ matrix.group }}")
-          if [ "${#test_files[@]}" -eq 0 ]; then
-            echo "No tests found for shard ${{ matrix.group }}"
-            exit 0
-          fi
-          # T91j：store.test.ts（fake-indexeddb）在多文件同进程下偶发事件投递
-          # stall（run 33840822799/33844404386 实证：事件循环空闲挂满 watchdog，
-          # bun 版本与测试规模均无相关变化）。拆独立进程跑——单进程从未复现
-          # （本地 600ms 全绿），确定性消除 flake。
-          solo_files=()
-          batch_files=()
-          for f in "${test_files[@]}"; do
-            if [ "$f" = "tests/engine/app/document/recovery/store.test.ts" ]; then
-              solo_files+=("$f")
-            else
-              batch_files+=("$f")
-            fi
-          done
-          if [ "${#batch_files[@]}" -gt 0 ]; then
-            bun test "${batch_files[@]}"
-          fi
-          if [ "${#solo_files[@]}" -gt 0 ]; then
-            bun test "${solo_files[@]}"
-          fi
-        env:
-          BUN_HEAVY_TESTS: 'false'
+      - name: Run ${{ matrix.group }} unit tests
+        run: bun tools/unit-tests/src/run.ts "${{ matrix.group }}"

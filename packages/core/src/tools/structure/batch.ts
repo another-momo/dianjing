@@ -1,4 +1,5 @@
 import { safeDestr } from 'destr'
+import * as v from 'valibot'
 
 import type { FigmaNodeProxy } from '#core/figma-api'
 import { defineTool } from '#core/tools/schema'
@@ -115,20 +116,21 @@ function applyBatchProps(node: FigmaNodeProxy, props: Record<string, unknown>): 
 
 export const batchUpdate = defineTool({
   name: 'batch_update',
-  mutates: true,
+
   description:
     `Execute multiple modifications in one call. Each operation is {id, props} where props can include: ${Object.keys(SCENE_PROP_MAP).join(', ')}. ` +
     `auto_resize applies to text nodes only. ` +
     `Unrecognized prop keys are reported per operation (known keys in the same op are still applied). ` +
     `Callers MUST inspect errors and the top-level partial flag — if partial: true, some operations failed; treat the result as a partial success and continue with the errors fixed.`,
-  params: {
-    operations: {
-      type: 'string',
-      description:
-        'JSON array: [{"id":"0:5","props":{"spacing":8}},{"id":"0:6","props":{"sizing_horizontal":"FILL","grow":1}}]',
-      required: true
-    }
-  },
+  execution: { kind: 'sync', mutation: 'document' },
+  input: v.object({
+    operations: v.pipe(
+      v.string(),
+      v.description(
+        'JSON array: [{"id":"0:5","props":{"spacing":8}},{"id":"0:6","props":{"sizing_horizontal":"FILL","grow":1}}]'
+      )
+    )
+  }),
   execute: (figma, { operations }) => {
     let ops: BatchOp[]
     try {

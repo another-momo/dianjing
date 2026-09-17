@@ -152,7 +152,7 @@ export function createBrowserRPCBridge({ authToken, onConnectionChange }: Browse
       const timer = setTimeout(() => {
         if (waiter) connectionWaiters.delete(waiter)
         reject(new Error(APP_NOT_CONNECTED_MESSAGE))
-      }, APP_WAIT_TIMEOUT)
+      }, appWaitTimeoutMs)
 
       waiter = {
         resolve: () => {
@@ -169,7 +169,7 @@ export function createBrowserRPCBridge({ authToken, onConnectionChange }: Browse
       // race: if the browser registers between sendRPC's initial check and
       // this point, notifyConnectionWaiters() will have already fired and
       // cleared the set. Without this re-check, the waiter would stall for
-      // APP_WAIT_TIMEOUT even though the browser is connected.
+      // appWaitTimeoutMs even though the browser is connected.
       connectionWaiters.add(waiter)
       if (windows.size > 0) {
         waiter.resolve(undefined)

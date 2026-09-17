@@ -1,12 +1,11 @@
-import { tryOnScopeDispose } from '@vueuse/core'
-import { computed, onMounted, ref, watch, type Ref } from 'vue'
+import { tryOnMounted, tryOnScopeDispose } from '@vueuse/core'
+import { isEqual } from 'es-toolkit'
+import { computed, ref, watch, type Ref } from 'vue'
 
 import {
-  createActiveStorageAdapter,
   activeStorageProviderID,
   readStoragePreferences,
   storageCredentialStatuses,
-  storagePreferencesComplete,
   storageProviderRegistry,
   writeStoragePreference
 } from '@/app/integrations/storage'
@@ -15,7 +14,23 @@ import { credentialRef } from '@/app/settings/credentials/reference'
 import type { CredentialStatus } from '@/app/settings/credentials/types'
 import { resumeStorageSync } from '@/app/storage/sync'
 
-export function useStorageSettings(credentialDrafts: Ref<Record<string, string>>) {
+import { testStorageDraft } from './draft'
+
+const storageSettingsServices = {
+  readPreferences: readStoragePreferences,
+  writePreference: writeStoragePreference,
+  statuses: storageCredentialStatuses,
+  manager: appCredentialServices.manager,
+  test: testStorageDraft,
+  resume: resumeStorageSync
+}
+
+import type { SettingsSaveResult } from '@/app/settings/save-result'
+
+export function useStorageSettings(
+  credentialDrafts: Ref<Record<string, string>>,
+  services = storageSettingsServices
+) {
   const provider = computed(() => storageProviderRegistry.get(activeStorageProviderID.value))
 
   // AppInput 的 modelValue 是 required——草稿记录先给全部字段 '' 入座，
@@ -32,30 +47,39 @@ export function useStorageSettings(credentialDrafts: Ref<Record<string, string>>
 
   const configured = computed(
     () =>
-      storagePreferencesComplete(provider.value.id) &&
+      provider.value.preferenceFields.every(
+        (field) =>
+          !field.required || Boolean(services.readPreferences(provider.value.id)[field.id]?.trim())
+      ) &&
       provider.value.credentialFields.every(
-        (field) => !field.required || credentialStatuses.value[field.id] === 'configured'
+        (field) => !field.required || savedStatuses.value[field.id] === 'configured'
       )
   )
-
   let statusRequest = 0
+  let version = 0
   let disposed = false
 
   tryOnScopeDispose(() => {
     disposed = true
+    version++
     statusRequest++
+    credentialDrafts.value = {}
   })
 
-  async function refreshStatuses(): Promise<void> {
+  function current(request: number) {
+    return !disposed && request === version
+  }
+
+  async function refreshStatuses() {
     const request = ++statusRequest
     const target = provider.value
     try {
-      const statuses = await storageCredentialStatuses(target.id)
-      if (!disposed && statusRequest === request && provider.value.id === target.id)
-        credentialStatuses.value = statuses
+      const statuses = await services.statuses(target.id)
+      if (!disposed && request === statusRequest && provider.value.id === target.id)
+        savedStatuses.value = statuses
     } catch {
-      if (!disposed && statusRequest === request && provider.value.id === target.id) {
-        credentialStatuses.value = Object.fromEntries(
+      if (!disposed && request === statusRequest && provider.value.id === target.id) {
+        savedStatuses.value = Object.fromEntries(
           target.credentialFields.map((field) => [field.id, 'unavailable' as const])
         )
       }
@@ -99,44 +123,105 @@ export function useStorageSettings(credentialDrafts: Ref<Record<string, string>>
       storageProviderRegistry.get(providerID).credentialFields.map((field) => [field.id, ''])
     )
     void refreshStatuses()
-  })
+  }
 
-  onMounted(() => void refreshStatuses())
+  function clearCredential(field: string) {
+    if (busy.value || !provider.value.credentialFields.some((item) => item.id === field)) return
+    credentialDrafts.value = { ...credentialDrafts.value, [field]: '' }
+    cleared.value = [...new Set([...cleared.value, field])]
+  }
 
-  async function testConnection() {
-    busy.value = true
+  async function save(): Promise<SettingsSaveResult> {
+    if (busy.value || disposed) return 'failed'
+    let persisted = false
+    saveResult.value = null
+    operation.value = 'save'
+    error.value = ''
+    const request = ++version
     const target = provider.value
-
+    const preferences = { ...preferenceDrafts.value }
+    const credentials = { ...credentialDrafts.value }
+    const removals = new Set(cleared.value)
     try {
-      savePreferences()
-      for (const field of target.credentialFields) {
-        if (provider.value.id !== target.id) return null
-
-        await saveCredential(field.id)
+      // Persistence spans preferences and the native credential store; it is not atomic.
+      for (const field of target.preferenceFields) {
+        services.writePreference(target.id, field.id, preferences[field.id] ?? '')
+        persisted = true
       }
-      await resumeStorageSync()
-      if (provider.value.id !== target.id) return null
-
-      const result = await createActiveStorageAdapter(target.id).testConnection()
-      return provider.value.id === target.id ? result : null
-    } catch (error) {
-      if (provider.value.id !== target.id) return null
-
-      return { ok: false as const, message: error instanceof Error ? error.message : String(error) }
+      for (const field of target.credentialFields) {
+        if (!current(request)) return persisted ? 'partial' : 'failed'
+        const reference = credentialRef(target.id, field.id)
+        const replacement = credentials[field.id]?.trim()
+        if (replacement) await services.manager.set(reference, replacement)
+        else if (removals.has(field.id)) await services.manager.clear(reference)
+        if (replacement || removals.has(field.id)) persisted = true
+      }
+      if (!current(request)) return persisted ? 'partial' : 'failed'
+      reset()
+      void services
+        .resume()
+        .catch(() =>
+          console.warn('[Storage] Could not resume synchronization after saving settings')
+        )
+      saveResult.value = 'saved'
+      return 'saved'
+    } catch (cause) {
+      const result = persisted ? 'partial' : 'failed'
+      if (current(request)) {
+        error.value = cause instanceof Error ? cause.message : String(cause)
+        saveResult.value = result
+        await refreshStatuses()
+      }
+      return result
     } finally {
-      busy.value = false
+      operation.value = null
     }
   }
 
+  async function testConnection() {
+    if (busy.value || disposed) return null
+    operation.value = 'test'
+    const request = version
+    const target = provider.value.id
+    const credentials = { ...credentialDrafts.value }
+    const removals = cleared.value.filter((field) => !credentials[field]?.trim())
+    try {
+      const result = await services.test(
+        target,
+        { ...preferenceDrafts.value },
+        credentials,
+        removals
+      )
+      return current(request) ? result : null
+    } catch (cause) {
+      return current(request)
+        ? { ok: false as const, message: cause instanceof Error ? cause.message : String(cause) }
+        : null
+    } finally {
+      operation.value = null
+    }
+  }
+
+  watch(activeStorageProviderID, () => {
+    savedStatuses.value = {}
+    reset()
+  })
+  tryOnMounted(() => void refreshStatuses())
+
   return {
-    testConnection,
     provider,
     preferenceDrafts,
     credentialStatuses,
+    operation,
     busy,
     configured,
-    savePreferences,
-    saveCredential,
-    clearCredential
+    dirty,
+    error,
+    saveResult,
+    begin: reset,
+    cancel: reset,
+    save,
+    clearCredential,
+    testConnection
   }
 }
