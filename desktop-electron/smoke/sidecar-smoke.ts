@@ -132,8 +132,8 @@ async function main(): Promise<void> {
       env: {
         ...process.env,
         PORT: String(bridgePort),
-        DIANJING_MCP_DISCOVERY_PATH: bridgeDiscovery,
-        DIANJING_MCP_AUTH_TOKEN: bridgeToken
+        DIANJING_BRIDGE_DISCOVERY_PATH: bridgeDiscovery,
+        DIANJING_BRIDGE_AUTH_TOKEN: bridgeToken
       },
       stdio: ['ignore', 'pipe', 'pipe']
     })

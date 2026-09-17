@@ -6,7 +6,7 @@
  *  ① 经回环代理 GET /api/pi/catalog 带 Bearer 得 200（证代理+鉴权+backend 活）
  *  ② 桥 /health 显示**执行器已注册**（status='ok' 而非 'no_app'——证 token
  *     三方对齐：index.html 注入的 __DIANJING_RUNTIME_AUTOMATION_TOKEN__
- *     === bridge DIANJING_MCP_AUTH_TOKEN === 任何客户端 WS 鉴权用的 token。
+ *     === bridge DIANJING_BRIDGE_AUTH_TOKEN === 任何客户端 WS 鉴权用的 token。
  *     spike-electron-spike 起：桥 URL 改为运行时全局注入（main.ts 经
  *     index.html 前置 <script> 注入 __DIANJING_RUNTIME_BRIDGE_URL__=ws://
  *     127.0.0.1:<bridgePort>），dist 不再烤死 ws://127.0.0.1:7600——本步

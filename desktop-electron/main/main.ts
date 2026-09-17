@@ -721,7 +721,7 @@ function buildSidecars(distDir: string, loopbackOrigin: string): { bridge: Sidec
   const studioBuiltinDir = app.isPackaged
     ? join(process.resourcesPath, 'app', 'studio')
     : join(__dirname, '..', '..', 'src', 'app', 'ai', 'pi-backend', 'studio')
-  // DIANJING_MCP_SOCKET / DIANJING_MCP_DISCOVERY_PATH：host.ts 不隔离（单
+  // DIANJING_BRIDGE_SOCKET / DIANJING_BRIDGE_DISCOVERY_PATH：host.ts 不隔离（单
   // 实例 + 平台默认路径）；Electron 同款——不注入则 sidecar 落平台默认路径。
   // full-smoke 通过 env 覆盖到 tmp 子目录即可隔离多 smoke 实例。
   const baseEnv: NodeJS.ProcessEnv = {
@@ -746,13 +746,13 @@ function buildSidecars(distDir: string, loopbackOrigin: string): { bridge: Sidec
       ...baseEnv,
       PORT: String(bridgePort),
       // bridge token 经 env 进 sidecar——与 index.html 注入的 token 同源
-      DIANJING_MCP_AUTH_TOKEN: bridgeToken,
+      DIANJING_BRIDGE_AUTH_TOKEN: bridgeToken,
       // spike-electron-spike：跨源兜底——页面在 loopback 端口（http://127.0.0.1:
       // <loopback>）发 fetch 到 bridge 端口（http://127.0.0.1:<bridge>），跨
       // 源；显式给 bridge CORS origin = 页面 origin，让预检通过。旧「空字符
       // 串禁用 cors middleware」在跨源 fetch 时会让浏览器预检 401，readAutomationHealth
       // 失败 → connectAutomation 永不 register → bridge /health 永 no_app。
-      DIANJING_MCP_CORS_ORIGIN: loopbackOrigin
+      DIANJING_BRIDGE_CORS_ORIGIN: loopbackOrigin
     },
     healthUrl: `http://127.0.0.1:${bridgePort}/health`,
     current: null,
@@ -863,6 +863,16 @@ async function main(): Promise<void> {
   // 让 Windows 下 %APPDATA%/Dianjing、macOS 下 ~/Library/Application
   // Support/Dianjing，与产品名（electron-builder productName）一致且可读
   app.setName(USER_DATA_DIR_NAME)
+
+  // full-smoke 的 Chromium profile 隔离——userData 缺省 = %APPDATA%/Dianjing，
+  // 与 dev / 已安装打包版共享；owner 开着打包版跑 full-smoke 时两实例抢同一
+  // profile 的 IndexedDB/quota 锁，探针 idb 断言假红（quota_database 打不开）。
+  // full-smoke 脚本已钉 DIANJING_ROOT_DIR 到临时目录，profile 随迁其下即可
+  // 彻底隔离。必须在 whenReady 之前 setPath（Chromium profile 初始化不可改）。
+  const fullSmokeRootDir = readFullSmokeMode() ? readRootDir() : null
+  if (fullSmokeRootDir) {
+    app.setPath('userData', join(fullSmokeRootDir, 'chromium-profile'))
+  }
 
   // P0.5.2 单实例锁——必须在 whenReady 之前 requestSingleInstanceLock：
   //   1. 文档要求；2. 二实例启动 race 下第二个进程必须抢在 Electron 派发
