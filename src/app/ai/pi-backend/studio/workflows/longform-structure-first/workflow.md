@@ -22,6 +22,7 @@ references:
 通用规则：
 
 - **每节 render 必带 parent_id = 根框 id**，JSX 不写 id——不只骨架阶段，所有 render 调用都遵守。
+- **CP 载体一律是 ask_user_question 表单**——每个 ══ CP ══ 节点到点必须调 ask_user_question 发结构化表单，一次调用批量提该 CP 的全部问题（方向/确认择取用 single_select，候选 nodeId 择优用 image_select，缺事实追问用 text），禁以纯文本提问替代、禁跳过。CP 表单不受工具描述「每 session 最多两个表单」的约束——本 workflow 的 CP 节点数即表单数。
 
 ## 阶段 0 · 需求接入
 

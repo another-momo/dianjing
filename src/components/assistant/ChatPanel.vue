@@ -38,6 +38,7 @@ import {
 } from '@/app/ai/pi-backend/document-key'
 import {
   clearPiPendingNewIntent,
+  markPiIntentInFlight,
   piActiveDesign,
   piPendingNewIntent,
   piStudioManifest,
@@ -596,7 +597,9 @@ async function handleIntentConfirm(payload: {
   const draft = pendingIntentDraft.value ?? ''
   resolveIntentPart(payload.messageId, 'confirmed')
   pendingIntentDraft.value = null
-  clearPiPendingNewIntent()
+  // 确认后暂存转在途（不即时清空）——chip/状态栏在 setup_design 落槽前持续
+  // 显示所选 mode；物化为匹配身份的 active design 时由 mode-selection 清偿
+  if (intent) markPiIntentInFlight(intent)
   chatInputRef.value?.clearDraft()
   // A3：B2 写读定序——先 await postIntentConfirm 把确认参数落 pluginData 四键，
   // 再 handleSubmit。失败降级为现行一次性信封语义（信封照发，P0-1 兼容路径保留），

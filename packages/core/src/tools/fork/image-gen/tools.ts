@@ -25,8 +25,8 @@ export const imageGenBegin = defineTool({
     'INTERNAL pipeline segment — called by the pi-backend generate_image orchestrator, not meant for direct AI use. Resolves the output target (creating and auto-placing a new frame when no valid replace target is given), extracts reference images (base64), and reports the final API size. Pair with image_gen_commit after the backend has generated the image bytes.',
   params: {
     prompt: { type: 'string', description: 'Generation prompt', required: true },
-    width: { type: 'number', description: 'Requested width (normalized)' },
-    height: { type: 'number', description: 'Requested height (normalized)' },
+    width: { type: 'number', description: 'Requested width (raw; normalized for the API call)' },
+    height: { type: 'number', description: 'Requested height (raw; normalized for the API call)' },
     replace_id: { type: 'string', description: 'Existing node whose fill gets replaced' },
     references: {
       type: 'string',

@@ -197,9 +197,11 @@ interface ResolvedOutput {
 
 /**
  * Resolve the output node: the requested target, or a fresh frame when there
- * is no target (or the target was protected-redirected). Requests without an
- * explicit size inherit the target node's real dimensions for the API size
- * (16px-aligned + constraint-clipped); explicit width/height always win.
+ * is no target (or the target was protected-redirected). New frames are created
+ * at the request's RAW dimensions — 16px alignment and edge/ratio/pixel clipping
+ * are provider/API constraints and apply only to finalWidth/finalHeight (the
+ * generation-call size), never to the canvas node. Requests without an explicit
+ * size inherit the target node's real dimensions (normalized) for the API size.
  */
 function resolveOutputTarget(
   figma: FigmaAPI,
@@ -225,7 +227,14 @@ function resolveOutputTarget(
 
   let finalWidth = req.width ?? 1024
   let finalHeight = req.height ?? 1024
-  if (req.width === undefined || req.height === undefined) {
+  if (req.width !== undefined && req.height !== undefined) {
+    // 显式尺寸：节点已按原始请求值创建，此处只为生图调用归一出 API size
+    const normalized = normalizeSize(req.width, req.height)
+    if (!('error' in normalized)) {
+      finalWidth = normalized.width
+      finalHeight = normalized.height
+    }
+  } else {
     const normalized = normalizeSize(Math.round(target.width), Math.round(target.height))
     if (!('error' in normalized)) {
       finalWidth = normalized.width
@@ -238,7 +247,7 @@ function resolveOutputTarget(
 export interface ImageGenBeginResult {
   /** Output node: the requested replace target, or a freshly created frame */
   targetId: string
-  /** Final API size (explicit dims win; otherwise the target's, normalized) */
+  /** Final API size (16px-aligned/clamped; explicit dims normalized, else the target's) */
   width: number
   height: number
   canvasWidth: number

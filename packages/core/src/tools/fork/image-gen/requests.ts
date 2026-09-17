@@ -346,8 +346,12 @@ function parseSingleRequest(
   if (hasDims) {
     const normalized = normalizeSize(width, height)
     if ('error' in normalized) return { error: normalized.error }
-    outWidth = normalized.width
-    outHeight = normalized.height
+    // 请求面保留 agent 原始尺寸——16px 对齐与边长/纵横比/像素钳制是
+    // provider/API 约束，只在落图段归一为 API size（apply.ts
+    // resolveOutputTarget）；画布节点按请求值创建，归一值不得泄露为
+    // 节点尺寸（750x950 的 hero 候选帧曾因此落成 752x944，偏离槽位网格）。
+    outWidth = Math.max(1, Math.round(width))
+    outHeight = Math.max(1, Math.round(height))
     if (normalized.adjusted) {
       sizeNotes.push(`${width}x${height} → ${normalized.width}x${normalized.height}`)
     }
@@ -402,7 +406,7 @@ export function parseImageGenRequests(value: unknown): ParsedImageGenRequests | 
     requests: out
   }
   if (sizeNotes.length > 0) {
-    result.sizeNote = `Adjusted to API constraints (16px alignment, edge/ratio/pixel limits): ${sizeNotes.join(', ')}`
+    result.sizeNote = `Generation-call size adjusted to API constraints (16px alignment, edge/ratio/pixel limits) — canvas nodes are not resized by this adjustment: ${sizeNotes.join(', ')}`
   }
   if (parsed.warning) result.warning = parsed.warning
   return result

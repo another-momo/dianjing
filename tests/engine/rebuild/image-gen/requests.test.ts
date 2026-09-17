@@ -81,12 +81,13 @@ describe('parseImageGenRequests', () => {
     expect(result.requests[0].width).toBeUndefined()
   })
 
-  test('尺寸越界自动调整并进 sizeNote', () => {
+  test('请求面保留原始尺寸，API 归一只进 sizeNote', () => {
     const result = parseImageGenRequests('[{"prompt":"hero","width":1000,"height":500}]')
     if ('error' in result) throw new Error(result.error)
-    // 16px 对齐 1008x496 后像素数低于下限，保宽高比抬升至 1168x576
-    expect(result.requests[0].width).toBe(1168)
-    expect(result.requests[0].height).toBe(576)
+    // 节点尺寸 = agent 原始请求值；16px 对齐 + 像素钳制（1000x500 → 1168x576）
+    // 只作用于生图调用的 API size（apply.ts resolveOutputTarget 落图前归一）
+    expect(result.requests[0].width).toBe(1000)
+    expect(result.requests[0].height).toBe(500)
     expect(result.sizeNote).toContain('1000x500 → 1168x576')
   })
 
@@ -134,7 +135,7 @@ describe('parseImageGenRequests（T66 P4：原生数组通道——schema 化后
     ])
     if ('error' in result) throw new Error(result.error)
     expect(result.requests).toHaveLength(2)
-    expect(result.requests[0].width).toBe(1168)
+    expect(result.requests[0].width).toBe(1000)
     expect(result.requests[0].quality).toBe('high')
     expect(result.requests[1].replaceId).toBe('0:7')
     expect(result.requests[1].references).toEqual([{ id: '0:7' }])

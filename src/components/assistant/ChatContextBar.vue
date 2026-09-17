@@ -30,6 +30,7 @@ import type { MarketingDesignRef } from '@open-pencil/core/tools/fork/marketing/
 
 import {
   piActiveDesign,
+  piInFlightIntent,
   piStudioManifest,
   resyncPiActiveDesign
 } from '@/app/ai/pi-backend/mode-selection'
@@ -62,6 +63,8 @@ const open = ref(false)
 // ── ① 设计区列表（当前页；active 徽标 + mode/profile 随行；点击 = 定位不切换） ──
 
 const active = computed(() => piActiveDesign.value)
+/** 在途意向（已确认待物化）——空槽窗口期顶替 trigger 显示，不闪「待新建」 */
+const inFlight = computed(() => piInFlightIntent.value)
 
 function modeLabel(modeId: string): string {
   return piStudioManifest.value?.modes.find((mode) => mode.id === modeId)?.label ?? modeId
@@ -212,6 +215,7 @@ function handleOpen(value: boolean) {
         <span class="min-w-0 truncate" data-test-id="chat-context-trigger-design">
           <span class="text-muted">{{ panelsText.contextTriggerDesignLabel }}</span>
           <template v-if="active">{{ active.name }}</template>
+          <template v-else-if="inFlight">{{ modeLabel(inFlight.modeId) }}</template>
           <span v-else class="text-muted">{{ panelsText.contextTriggerDesignEmpty }}</span>
         </span>
         <span class="shrink-0 text-muted">|</span>
