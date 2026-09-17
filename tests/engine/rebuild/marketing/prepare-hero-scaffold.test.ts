@@ -38,7 +38,7 @@ import { HERO_TOOLS, prepareHeroScaffoldTool } from '#core/tools/fork/marketing/
 import { PLACEMENT_GAP } from '#core/tools/fork/placement'
 
 import { childIdAt, expectDefined } from '#tests/helpers/assert'
-import { setupToolTest } from '#tests/helpers/tools'
+import { setupToolTest, toolInputSchema } from '#tests/helpers/tools'
 
 function makeRoot(graph: SceneGraph, pageId: string, position = { x: 200, y: 300 }) {
   return graph.createNode('FRAME', pageId, {
@@ -122,17 +122,17 @@ function setupPage() {
   return { graph, figma, pageId, root, source, run }
 }
 
-test('工具定义钉扎：name/mutates/params + HERO_TOOLS 交付面', () => {
+test('工具定义钉扎：name/mutates/input + HERO_TOOLS 交付面', () => {
   expect(prepareHeroScaffoldTool.name).toBe('prepare_hero_scaffold')
   expect(prepareHeroScaffoldTool.mutates).toBe(true)
-  const params = prepareHeroScaffoldTool.params
-  expect(params.root_id.required).toBe(true)
-  expect(params.source_node_id.required).toBe(true)
-  expect(params.underlap_px.default).toBe(100)
-  expect(params.underlap_px.min).toBe(0)
-  expect(params.underlap_px.max).toBe(1000)
-  expect(params.transition_zone_px.default).toBe(100)
-  expect(params.transition_zone_px.min).toBe(0)
+  // PR697 后钉扎 wire contract（LLM 可见的 JSON Schema）而非内部 ParamDef
+  const schema = toolInputSchema(prepareHeroScaffoldTool)
+  expect(schema.required).toEqual(['root_id', 'source_node_id'])
+  expect(schema.properties.underlap_px?.default).toBe(100)
+  expect(schema.properties.underlap_px?.minimum).toBe(0)
+  expect(schema.properties.underlap_px?.maximum).toBe(1000)
+  expect(schema.properties.transition_zone_px?.default).toBe(100)
+  expect(schema.properties.transition_zone_px?.minimum).toBe(0)
   expect(HERO_TOOLS.map((tool) => tool.name)).toEqual(['prepare_hero_scaffold'])
   expect(HERO_GEOMETRY_KEY).toBe('hero-geometry')
   expect(BRIEF_PLUGIN_NAMESPACE).toBe('open-pencil-marketing')
@@ -185,7 +185,8 @@ describe('⑦ 校验错误路径', () => {
   test('校验失败不建框：页面顶层节点数不变', () => {
     const { graph, pageId, run } = setupPage()
     const before = graph.getNode(pageId)?.childIds.length
-    err(run({ underlap_px: -5 }), 'invalid_params')
+    // PR697：schema 级违规（负值）由 v.parse 前置抛错，不进工具体
+    expect(() => run({ underlap_px: -5 })).toThrow()
     expect(graph.getNode(pageId)?.childIds.length).toBe(before)
   })
 })
@@ -226,16 +227,16 @@ describe('③ 几何参数校验与钳制', () => {
     expect(graph.getNode(zeroUnderlap.scaffold_id)?.height).toBe(750)
   })
 
-  test('非有限/负/超上限 → invalid_params 结构化错误', () => {
+  test('非有限/负/超上限 → schema 前置拒绝（v.parse 抛错）', () => {
+    // PR697：数值域违规全部由 input schema 的 minValue/maxValue 前置拦截，
+    // 不再进工具体的 invalid_params 信封路径
     const { run } = setupPage()
-    const negative = err(run({ underlap_px: -5 }), 'invalid_params')
-    expect(negative.message).toContain('underlap_px')
-    err(run({ underlap_px: 5000 }), 'invalid_params')
-    err(run({ underlap_px: Number.NaN }), 'invalid_params')
-    err(run({ underlap_px: Number.POSITIVE_INFINITY }), 'invalid_params')
-    const badTransition = err(run({ transition_zone_px: -1 }), 'invalid_params')
-    expect(badTransition.message).toContain('transition_zone_px')
-    err(run({ transition_zone_px: Number.NaN }), 'invalid_params')
+    expect(() => run({ underlap_px: -5 })).toThrow()
+    expect(() => run({ underlap_px: 5000 })).toThrow()
+    expect(() => run({ underlap_px: Number.NaN })).toThrow()
+    expect(() => run({ underlap_px: Number.POSITIVE_INFINITY })).toThrow()
+    expect(() => run({ transition_zone_px: -1 })).toThrow()
+    expect(() => run({ transition_zone_px: Number.NaN })).toThrow()
   })
 })
 

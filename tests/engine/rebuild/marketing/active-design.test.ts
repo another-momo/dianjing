@@ -38,7 +38,7 @@ import {
 import { setupDesign } from '#core/tools/fork/marketing/setup'
 
 import { expectDefined } from '#tests/helpers/assert'
-import { setupToolTest } from '#tests/helpers/tools'
+import { setupToolTest, toolInputSchema } from '#tests/helpers/tools'
 
 /** 一页一 brief 一设计根的标准前置（general mode，无 profile） */
 function setupPageWithDesign() {
@@ -224,7 +224,8 @@ describe('set_active_design 工具', () => {
     expect(setActiveDesignTool.mutates).toBe(false)
     expect(ACTIVE_DESIGN_TOOLS).toHaveLength(1)
     expect(ACTIVE_DESIGN_TOOLS[0]?.name).toBe('set_active_design')
-    expect(Object.keys(setActiveDesignTool.params)).toEqual(['node_id'])
+    // PR697 后钉扎 wire contract（LLM 可见的 JSON Schema）而非内部 ParamDef
+    expect(Object.keys(toolInputSchema(setActiveDesignTool).properties)).toEqual(['node_id'])
   })
 
   test('合法目标 → {proposed:{nodeId,name,modeId,profileId,briefId}}，不落槽', () => {

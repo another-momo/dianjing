@@ -1,8 +1,9 @@
 import { beforeAll, expect, spyOn, test } from 'bun:test'
 
+import { initCanvasKit } from '#cli/headless'
+
 import { SceneGraph } from '@open-pencil/scene-graph'
 
-import { initCanvasKit } from '#cli/headless'
 import { SkiaRenderer } from '#core/canvas'
 import { render } from '#core/canvas/renderer/pipeline'
 import { renderSceneBacking } from '#core/canvas/renderer/retained-backing'

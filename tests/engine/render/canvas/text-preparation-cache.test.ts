@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 
+import { initCanvasKit } from '#cli/headless'
 import type { CanvasKit, Paragraph } from 'canvaskit-wasm'
 
 import { SceneGraph } from '@open-pencil/scene-graph'
 
-import { initCanvasKit } from '#cli/headless'
 import { buildParagraph, nodeFontReadiness } from '#core/canvas/text'
 import type { ParagraphNode } from '#core/canvas/text/paragraph-inputs'
 import { TextPreparationCache } from '#core/canvas/text/preparation-cache'

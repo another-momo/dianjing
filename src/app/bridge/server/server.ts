@@ -227,7 +227,10 @@ function buildServerContext(options: ServerOptions) {
     )
   }
 
-  const browserRPC = createBrowserRPCBridge({ authToken })
+  const browserRPC = createBrowserRPCBridge({
+    authToken,
+    appWaitTimeoutMs: options.appWaitTimeoutMs
+  })
   const sendToBrowser = browserRPC.sendRPC
 
   const app = createHonoApp({

@@ -23,6 +23,8 @@
  * 统一接线，ACTIVE_DESIGN_TOOLS 数组是唯一交付面（同 HERO_TOOLS 先例）。
  */
 
+import * as v from 'valibot'
+
 import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 
 import type { FigmaAPI } from '#core/figma-api'
@@ -273,17 +275,18 @@ export function walkSubtree(
 
 export const setActiveDesignTool = defineTool({
   name: 'set_active_design',
-  mutates: false,
+  execution: { kind: 'sync', mutation: 'none' },
+  exposure: { mcp: false, webmcp: false },
   description:
     'Propose switching the current design target (the `[当前设计目标 …]` context line) to ANOTHER EXISTING marketing design root — used when the user wants to keep working on a prior design (e.g. when the user says "let\'s keep working on the previous long image" / "继续之前那张长图" / "改一下上一张"). This only DECLARES the intent: it validates the target and returns {proposed:{nodeId,name,modeId,profileId,briefId}} WITHOUT moving the active design — the user confirms in the chat UI, and only then does the host move the slot via the host endpoint. Never use this to create a new design (that is setup_design), and never retry it to "force" a switch: an {error} result means the target is not a valid switch candidate (not_found / not_design_root / cross_page / brief_mismatch) — tell the user and stop.',
-  params: {
-    node_id: {
-      type: 'string',
-      required: true,
-      description:
+  input: v.object({
+    node_id: v.pipe(
+      v.string(),
+      v.description(
         'Node id of the existing marketing design root frame to propose as the new current design target.'
-    }
-  },
+      )
+    )
+  }),
   execute: (figma, args) => {
     const check = validateActiveDesignCandidate(figma, args.node_id)
     if (!check.ok) return { error: check.reason, message: check.message }

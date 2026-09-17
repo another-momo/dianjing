@@ -83,9 +83,7 @@ export const HEAVY_UNIT_TEST_PATTERNS = [
 // fork patch（T91j）：store.test.ts（fake-indexeddb）在多文件同进程下偶发事件
 // 投递 stall（CI run 33840822799/33844404386 实证）。列入本表的文件由 run.ts
 // 拆独立进程跑——单进程从未复现（本地 600ms 全绿），确定性消除 flake。
-export const SOLO_UNIT_TEST_FILES = [
-  'tests/engine/app/document/recovery/store.test.ts'
-] as const
+export const SOLO_UNIT_TEST_FILES = ['tests/engine/app/document/recovery/store.test.ts'] as const
 
 export function unitTestGroupNames(): UnitTestGroup[] {
   return [...Object.keys(UNIT_TEST_GROUPS), 'all'] as UnitTestGroup[]

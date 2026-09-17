@@ -92,6 +92,7 @@
         "@figma/plugin-typings": "^1.134.0",
         "@hono/node-server": "^1.19.17",
         "@iconify-json/lucide": "^1.2.123",
+        "@oxlint/plugins": "1.57.0",
         "@playwright/test": "^1.62.1",
         "@storybook/addon-a11y": "^10.5.8",
         "@storybook/addon-docs": "^10.5.8",
@@ -884,6 +885,8 @@
     "@oxlint/binding-win32-ia32-msvc": ["@oxlint/binding-win32-ia32-msvc@1.57.0", "", { "os": "win32", "cpu": "ia32" }, "sha512-StOZ9nFMVKvevicbQfql6Pouu9pgbeQnu60Fvhz2S6yfMaii+wnueLnqQ5I1JPgNF0Syew4voBlAaHD13wH6tw=="],
 
     "@oxlint/binding-win32-x64-msvc": ["@oxlint/binding-win32-x64-msvc@1.57.0", "", { "os": "win32", "cpu": "x64" }, "sha512-6PuxhYgth8TuW0+ABPOIkGdBYw+qYGxgIdXPHSVpiCDm+hqTTWCmC739St1Xni0DJBt8HnSHTG67i1y6gr8qrA=="],
+
+    "@oxlint/plugins": ["@oxlint/plugins@1.57.0", "https://registry.npmmirror.com/@oxlint/plugins/-/plugins-1.57.0.tgz", {}, "sha512-4mAGdfUZNQSZwUbHs0xoUcKjByrdBSJ9iaCI3STn/d1ZVRKhW/82oCA6rdfSzO4vxrWH3/l+qYWh/tyrwPSpag=="],
 
     "@peculiar/asn1-schema": ["@peculiar/asn1-schema@2.9.4", "https://registry.npmmirror.com/@peculiar/asn1-schema/-/asn1-schema-2.9.4.tgz", { "dependencies": { "@peculiar/utils": "^2.0.2", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-GjzePcT9Iw8NzeOPf73iNS9xM+TBhd/FilAfP+RQGkTMQJTVWtytN3JHJACCjf/ABNau5S7mS3g+DcuxmRgYEg=="],
 

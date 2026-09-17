@@ -88,7 +88,10 @@ describe('look tool', () => {
   test('errors without an id — the id is always required', async () => {
     const { figma } = setupToolTest()
     mockExportImage(figma, [])
-    const result = await runLook(figma, {})
+    // PR697：必填 id 缺失由 input schema（defineTool 的 v.parse）在 execute 体前拒绝
+    await expect(runLook(figma, {})).rejects.toThrow()
+    // 空串过 schema，仍走工具自身的友好信封
+    const result = await runLook(figma, { id: '' })
     expect(result.error).toContain('Pass an explicit node id')
   })
 

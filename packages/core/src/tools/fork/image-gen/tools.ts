@@ -5,10 +5,13 @@
  * 进程执行（provider HTTP 直发、凭证不出后端）；这两个 core 工具是落图段的
  * 桥端点——图像字节经桥进出（base64），凭证永不进桥 payload。
  *
- * 不对 AI 直接暴露：T72 起以 `internal: true` 机器可读标记落地——agent 工具集
- * （pi-backend tools.ts）与 MCP 注册面按此过滤；桥执行面不过滤（编排器经
- * bridge RPC 按名调用，tool-handlers.ts 的 ALL_TOOLS 分发不受影响）。
+ * 不对 AI 直接暴露：T72 起以机器可读标记落地（现形：`exposure` 三面全关）
+ * ——agent 工具集（pi-backend tools.ts 按 isToolExposed(def,'ai') 过滤）与
+ * MCP 注册面按此过滤；桥执行面不过滤（编排器经 bridge RPC 按名调用，
+ * tool-handlers.ts 的 ALL_TOOLS 分发不受影响）。
  */
+
+import * as v from 'valibot'
 
 import { decodeBase64, encodeBase64 } from '#core/bytes'
 import { defineTool } from '#core/tools/schema'
@@ -18,21 +21,29 @@ import { parseReferences, type ImageGenReference } from './requests'
 
 export const imageGenBegin = defineTool({
   name: 'image_gen_begin',
-  mutates: true,
-  // T72：internal 标记 = 注册面机器可读过滤（agent 工具集 / MCP 均不透出）
-  internal: true,
+  execution: { kind: 'async', mutation: 'document' },
+  // T72：注册面机器可读过滤（agent 工具集 / MCP 均不透出）
+  exposure: { ai: false, mcp: false, webmcp: false },
   description:
     'INTERNAL pipeline segment — called by the pi-backend generate_image orchestrator, not meant for direct AI use. Resolves the output target (creating and auto-placing a new frame when no valid replace target is given), extracts reference images (base64), and reports the final API size. Pair with image_gen_commit after the backend has generated the image bytes.',
-  params: {
-    prompt: { type: 'string', description: 'Generation prompt', required: true },
-    width: { type: 'number', description: 'Requested width (raw; normalized for the API call)' },
-    height: { type: 'number', description: 'Requested height (raw; normalized for the API call)' },
-    replace_id: { type: 'string', description: 'Existing node whose fill gets replaced' },
-    references: {
-      type: 'string',
-      description: 'JSON array of node ids or {"id":"...","composite":true} entries'
-    }
-  },
+  input: v.object({
+    prompt: v.pipe(v.string(), v.description('Generation prompt')),
+    width: v.optional(
+      v.pipe(v.number(), v.description('Requested width (raw; normalized for the API call)'))
+    ),
+    height: v.optional(
+      v.pipe(v.number(), v.description('Requested height (raw; normalized for the API call)'))
+    ),
+    replace_id: v.optional(
+      v.pipe(v.string(), v.description('Existing node whose fill gets replaced'))
+    ),
+    references: v.optional(
+      v.pipe(
+        v.string(),
+        v.description('JSON array of node ids or {"id":"...","composite":true} entries')
+      )
+    )
+  }),
   execute: async (figma, { prompt, width, height, replace_id, references }) => {
     let rawRefs: unknown
     if (references !== undefined) {
@@ -75,18 +86,14 @@ export const imageGenBegin = defineTool({
 
 export const imageGenCommit = defineTool({
   name: 'image_gen_commit',
-  mutates: true,
-  internal: true,
+  execution: { kind: 'sync', mutation: 'document' },
+  exposure: { ai: false, mcp: false, webmcp: false },
   description:
     'INTERNAL pipeline segment — called by the pi-backend generate_image orchestrator, not meant for direct AI use. Writes generated image bytes (base64) into the target node resolved by image_gen_begin, snapshotting the previous image into the page generation-history container first (only IMAGE fills; same-hash dedupe).',
-  params: {
-    id: { type: 'string', description: 'Target node id from image_gen_begin', required: true },
-    image_data: {
-      type: 'string',
-      description: 'Base64-encoded generated image bytes',
-      required: true
-    }
-  },
+  input: v.object({
+    id: v.pipe(v.string(), v.description('Target node id from image_gen_begin')),
+    image_data: v.pipe(v.string(), v.description('Base64-encoded generated image bytes'))
+  }),
   execute: (figma, { id, image_data }) => {
     return commitImageGen(figma, id, decodeBase64(image_data))
   }

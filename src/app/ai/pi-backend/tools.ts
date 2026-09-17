@@ -41,13 +41,14 @@
  */
 
 import { defineTool, type AgentToolResult } from '@earendil-works/pi-coding-agent'
-import { Type, type TSchema } from 'typebox'
+import { toJsonSchema } from '@valibot/to-json-schema'
+import { type TSchema } from 'typebox'
 
 import {
   CORE_TOOLS,
   EXTENDED_TOOLS,
   FORK_TOOLS,
-  type ParamDef,
+  isToolExposed,
   type ToolDef
 } from '@open-pencil/core/tools'
 
@@ -182,36 +183,13 @@ async function callBridgeTool(
   return body.result ?? {}
 }
 
-function paramToTypeBox(param: ParamDef): TSchema {
-  const description = param.description
-  let schema: TSchema
-  switch (param.type) {
-    case 'string':
-      schema = param.enum
-        ? Type.Union(
-            param.enum.map((v) => Type.Literal(v)),
-            { description }
-          )
-        : Type.String({ description })
-      break
-    case 'number': {
-      const numOpts: { description: string; minimum?: number; maximum?: number } = { description }
-      if (param.min !== undefined) numOpts.minimum = param.min
-      if (param.max !== undefined) numOpts.maximum = param.max
-      schema = Type.Number(numOpts)
-      break
-    }
-    case 'boolean':
-      schema = Type.Boolean({ description })
-      break
-    case 'color':
-      schema = Type.String({ description })
-      break
-    case 'string[]':
-      schema = Type.Array(Type.String(), { minItems: 1, description })
-      break
-  }
-  return param.required ? schema : Type.Optional(schema)
+/**
+ * core ToolDef 的原生 Valibot input → pi 参数 schema（JSON Schema 直供 LLM）。
+ * PR697 后 core 侧 v.parse 是唯一权威校验（defineTool 内执行前解析），pi 边界
+ * 不再做逐参数类型转置（旧 paramToTypeBox 随 ParamDef 退役）。
+ */
+function toolParameters(def: ToolDef): TSchema {
+  return toJsonSchema(def.input, { typeMode: 'input' }) as TSchema
 }
 
 function maybeAppendStepWarning(
@@ -240,16 +218,16 @@ function defineBridgeTool(
   setupDesignHooks?: SetupDesignHooks,
   modelSupportsVision?: () => boolean
 ) {
-  const shape: Record<string, TSchema> = {}
-  for (const [key, param] of Object.entries(def.params)) {
-    shape[key] = paramToTypeBox(param)
-  }
   return defineTool({
     name: def.name,
     label: toolLabel(def.name),
     description: def.description,
-    parameters: Type.Object(shape),
+    parameters: toolParameters(def),
     async execute(_toolCallId, params): Promise<AgentToolResult<BridgeToolResult>> {
+      // PR697 后 parameters 是 JSON Schema 投影（非 typebox 字面量），params 静态
+      // 类型退化为 unknown——桥 args 本来就是开放记录，这里显式收窄。
+      const toolArgs: Record<string, unknown> =
+        params !== null && typeof params === 'object' ? (params as Record<string, unknown>) : {}
       // T81 P-04（决策 B）：前置拒绝——登记媒体工具（look 等）的产物会原路回
       // 灌给模型作为图像内容；若当前模型不含 `image` 模态，工具跑通也是浪费
       // 凭据/时间，且 pi 没有"按工具结果裁模态"概念（imageContent 强喂）——
@@ -270,7 +248,7 @@ function defineBridgeTool(
         if (setupDesign.newIntentConfirmed()) extra.__confirmedNewIntent = 'true'
       }
       const result = maybeAppendStepWarning(
-        await callBridgeTool(def.name, { ...params, ...extra }, target),
+        await callBridgeTool(def.name, { ...toolArgs, ...extra }, target),
         budget
       )
       // T60 事件①：setup_design 成功（结果含新 root id 且无 error）→ 宿主移槽
@@ -323,7 +301,8 @@ export function createOpenPencilTools(
     // prepare_hero_scaffold 等；T72：internal 段（image_gen_begin/commit）过滤——
     // 它们是 generate_image 编排器的桥端点，agent 直调会绕过凭证检查与编排逻辑
     // （generate_image 本体由 service 后端段另行装配，不在此面）。
-    ...FORK_TOOLS.filter((def) => !def.internal)
+    // PR697 后过滤谓词改读 exposure（isToolExposed，缺省 = 暴露）。
+    ...FORK_TOOLS.filter((def) => isToolExposed(def, 'ai'))
   ]
   return toolSet.map((def) =>
     defineBridgeTool(def, budget, target, setupDesign, setupDesignHooks, modelSupportsVision)

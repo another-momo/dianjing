@@ -92,41 +92,30 @@
     "public/pwa-maskable-512.png",
     "src/components/settings/provider/StockPhotoKeysSection.vue"
   ],
-  "stubs": [
-    "src/app/collab/use.ts"
-  ],
+  "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
   "relocations": [
     {
       "oldPath": "packages/mcp/",
-      "newPaths": [
-        "src/app/bridge/server/"
-      ],
+      "newPaths": ["src/app/bridge/server/"],
       "since": "Batch 2c (2026-09-05)",
       "note": "mcp 裁撤内核迁入；stdio/tool registration 等外壳未迁；2026-09-14 合并采 child-ready 机制（server/index.ts 吸收 marker 块；vite-plugin 就绪探测移植另行）"
     },
     {
       "oldPath": "packages/cli/",
-      "newPaths": [
-        "packages/core/src/io/",
-        "tools/visual-oracles/src/render-fixture.ts"
-      ],
+      "newPaths": ["packages/core/src/io/", "tools/visual-oracles/src/render-fixture.ts"],
       "since": "Batch 2b (2026-09-05)",
       "note": "cli 裁撤；CanvasKit 初始化/字体预备吸收进 core/io，fixture 导出归 visual-oracles；2026-09-08 合并吸收上游改动（import.ts 随删除批）；2026-09-14 上游改动仅 package.json 版本噪音，无实质"
     },
     {
       "oldPath": "src/app/ai/chat/",
-      "newPaths": [
-        "src/app/ai/fork/"
-      ],
+      "newPaths": ["src/app/ai/fork/"],
       "since": "Batch 2a (2026-09-05)",
       "note": "路径分离：use/failure/transports 迁 fork；2026-09-05 整目录进 deletedPaths；2026-09-08 合并吸收上游改动（storage/use.ts 随删除批）；2026-09-14 合并拒收 #661 会话历史（owner 拍板：pi-backend 自有 JSONL 历史，数据源不同不移植）"
     },
     {
       "oldPath": "src/components/chat/",
-      "newPaths": [
-        "src/components/assistant/"
-      ],
+      "newPaths": ["src/components/assistant/"],
       "since": "Batch 2f (2026-09-05)",
       "note": "整目录搬家腾出上游仍在用的目录名；2026-09-08 合并吸收上游改动（6 组件随删除批）；2026-09-14 合并拒收 #661 历史组件（ChatComposer/ChatHistory/ChatTranscript 等 9 件随删除批）"
     },
@@ -138,41 +127,31 @@
     },
     {
       "oldPath": "tests/engine/mcp/",
-      "newPaths": [
-        "tests/engine/tools/"
-      ],
+      "newPaths": ["tests/engine/tools/"],
       "since": "Batch 2c (2026-09-05)",
       "note": "mcp 测试随迁"
     },
     {
       "oldPath": "src/app/ai/chat/system-prompt.md",
-      "newPaths": [
-        "src/app/ai/pi-backend/studio/base.md"
-      ],
+      "newPaths": ["src/app/ai/pi-backend/studio/base.md"],
       "since": "T46 (2026-08)",
       "note": "提示词谱系：T46 转写副本 2026-09-05 退役，studio/ 唯一真源；2026-09-14 上游转 compose 架构（17+/569-，system-prompt.ts + design-jsx/reference），不采；内容净增量扫描另行；2026-09-15 studio-assets-import：base.md 双姿态重写 + JSX 语法下沉 studio/references/render-jsx.md（base references 按需机制首个消费者；与 design-jsx/reference/authoring.md 按三分法对账——schema 清单全用/教义改写用/我方纪律自留，变量组件层缓入待吸收评估）"
     },
     {
       "oldPath": "src/components/settings/models/ModelsPanel.vue",
-      "newPaths": [
-        "src/components/settings/models/PiModelsPanel.vue"
-      ],
+      "newPaths": ["src/components/settings/models/PiModelsPanel.vue"],
       "since": "upstream-merge d82aaff9e..9dac52da1 (2026-09-08)",
       "note": "路径分离（owner 拍板①）：上游推平重写依赖已裁 ai/models 域，彻底抛弃；SettingsDialog 直引 PiModelsPanel（pi SDK 自持），P37 塌缩 patch 随之退役；2026-09-14 上游 118/78 重构（editingModel 稳定化），架构不同源不移植"
     },
     {
       "oldPath": "src/app/automation/",
-      "newPaths": [
-        "src/app/bridge/"
-      ],
+      "newPaths": ["src/app/bridge/"],
       "since": "bridge-path-separation (2026-09-14)",
       "note": "整目录改名自立门户（chat→assistant 先例）；mcp/ 子目录早已裁撤不随迁；上游引用者（acp/transport、ai/tools、integrations/mcp/pi、MCPSettingsPanel）我方树已全裁，切断 follow 无连带；8 个字节一致叶文件的免费修复通道就此关闭，以后要上游修复手动 port。"
     },
     {
       "oldPath": "tests/engine/app/automation/",
-      "newPaths": [
-        "tests/engine/app/bridge/"
-      ],
+      "newPaths": ["tests/engine/app/bridge/"],
       "since": "bridge-path-separation (2026-09-14)",
       "note": "测试镜像随 src 改名随迁；两件 mcp 相关测试 patch 随文件转 ownedFiles 退役（T74/P142 历史见 git log）"
     }
@@ -1641,6 +1620,69 @@
       "reason": "摘除 PR707 带入的 BrandMark 加载图标（品牌系统拒收；恢复 fork 原无图标加载覆盖层）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P275",
+      "file": "tests/engine/tools/ai-adapter.test.ts",
+      "reason": "PR697 后 ALL_TOOLS 含 fork internal 段（ai:false）——全量钉扎改为仅断言 ai 暴露子集",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P276",
+      "file": "tests/helpers/tools.ts",
+      "reason": "新增 toolInputSchema 共享投影（PR697 后参数钉扎走 LLM 可见 JSON Schema，非内部 ParamDef）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P277",
+      "file": "tests/engine/render/canvas/painted-text.test.ts",
+      "reason": "oxfmt 格式化偏差（format 门禁统一 LF/风格；语义跟随上游）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P278",
+      "file": "tests/engine/render/canvas/retained-backing-pixels.test.ts",
+      "reason": "oxfmt 格式化偏差（同 P277）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P279",
+      "file": "tests/engine/render/canvas/text-preparation-cache.test.ts",
+      "reason": "oxfmt 格式化偏差（同 P277）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P280",
+      "file": "tests/engine/render/canvas/labels/paragraph-reuse.test.ts",
+      "reason": "oxfmt 格式化偏差（同 P277）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P281",
+      "file": "tests/engine/render/canvas/diamond-gradient.test.ts",
+      "reason": "oxfmt 格式化偏差（同 P277）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P282",
+      "file": "tests/engine/render/canvas/labels/fonts.test.ts",
+      "reason": "oxfmt 格式化偏差（同 P277）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P283",
+      "file": "src/components/settings/storage/StorageSettingsPanel.vue",
+      "reason": "PR713 settings-dirty 改写拒收——保留 fork 凭据服务流面板（与 use.ts all:ours 配套）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
     }
   ],
   "deletedPaths": [
@@ -1811,7 +1853,9 @@
     "assets/brand/",
     "tests/e2e/brand/",
     "tests/e2e/canvas/demo-workspace.spec.ts",
-    "tests/e2e/canvas/demo-workspace.spec.ts-snapshots/"
+    "tests/e2e/canvas/demo-workspace.spec.ts-snapshots/",
+    "src/app/settings/media/",
+    "src/components/settings/media/"
   ],
   "upstreamMergeTarball": []
 }

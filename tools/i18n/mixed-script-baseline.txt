@@ -97,7 +97,6 @@ zh-cn:storage.copyCors
 zh-cn:storage.providerS3
 zh-cn:updates.unavailable
 
-zh-cn:ai.copyACPLog
 
-zh-cn:credentials.settingsTitle
+zh-cn:credentials.apiKey
 zh-cn:credentials.rememberDevice

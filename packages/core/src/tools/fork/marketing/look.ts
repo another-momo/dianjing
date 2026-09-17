@@ -9,6 +9,8 @@
  *   供 pi-backend 媒体登记层（src/app/ai/pi-backend/media-output.ts）识别并转媒体块。
  */
 
+import * as v from 'valibot'
+
 import type { Fill, SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
@@ -275,22 +277,26 @@ async function renderNodeForInspection(
 
 export const lookTool = defineTool({
   name: 'look',
-  mutates: false,
+  execution: { kind: 'async', mutation: 'none' },
+  exposure: { mcp: false, webmcp: false },
   description:
     'Visually inspect a node by rendering it to an image you can actually see. Use for questions describe cannot answer: text over busy backgrounds, visual style consistency, generated-image content (e.g. garbled text in AI images), or what a user-provided image shows. For text legibility on a large design, look at the section or text-bearing child node, not the root — the tool tells you when text is too small to read and lists child node ids to drill into. Nodes whose appearance depends on their surroundings (transparent frames, light text over images) are automatically rendered in their design context, and small nodes are upscaled to a legible size — both declared in the note. Observations are advisory — structural concerns (layout, hierarchy, alignment) come from `describe`; what the eye sees is not a substitute.',
-  params: {
-    id: {
-      type: 'string',
-      description:
-        'Node id to inspect — e.g. the design root frame id returned by setup_design, or an imageNodeId from brief material entries.',
-      required: true
-    },
-    focus: {
-      type: 'string',
-      description:
-        'What to check this time, e.g. "text readability", "consistency with locked palette", "what does this image show"'
-    }
-  },
+  input: v.object({
+    id: v.pipe(
+      v.string(),
+      v.description(
+        'Node id to inspect — e.g. the design root frame id returned by setup_design, or an imageNodeId from brief material entries.'
+      )
+    ),
+    focus: v.optional(
+      v.pipe(
+        v.string(),
+        v.description(
+          'What to check this time, e.g. "text readability", "consistency with locked palette", "what does this image show"'
+        )
+      )
+    )
+  }),
   execute: async (figma, { id, focus }) => {
     if (typeof id !== 'string' || !id) {
       return {

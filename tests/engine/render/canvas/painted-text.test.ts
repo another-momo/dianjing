@@ -1,11 +1,11 @@
 import { beforeAll, expect, test } from 'bun:test'
 
+import { initCanvasKit } from '#cli/headless'
 import type { Paragraph } from 'canvaskit-wasm'
 
 import type { Fill } from '@open-pencil/scene-graph'
 import { SceneGraph } from '@open-pencil/scene-graph'
 
-import { initCanvasKit } from '#cli/headless'
 import { SkiaRenderer } from '#core/canvas/renderer'
 import { withTextParagraph } from '#core/canvas/text'
 import { fontManager } from '#core/text/fonts'
