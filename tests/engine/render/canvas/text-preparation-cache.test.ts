@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { initCanvasKit } from '#cli/headless'
+import { initCanvasKit } from '@open-pencil/core/io'
 import type { CanvasKit, Paragraph } from 'canvaskit-wasm'
 
 import { SceneGraph } from '@open-pencil/scene-graph'

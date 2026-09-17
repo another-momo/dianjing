@@ -1,6 +1,6 @@
 import { beforeAll, expect, spyOn, test } from 'bun:test'
 
-import { initCanvasKit } from '#cli/headless'
+import { initCanvasKit } from '@open-pencil/core/io'
 
 import { SceneGraph } from '@open-pencil/scene-graph'
 

@@ -1,6 +1,6 @@
 import { beforeAll, expect, test } from 'bun:test'
 
-import { initCanvasKit } from '#cli/headless'
+import { initCanvasKit } from '@open-pencil/core/io'
 import type { Paragraph } from 'canvaskit-wasm'
 
 import type { Fill } from '@open-pencil/scene-graph'
