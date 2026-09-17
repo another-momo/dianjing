@@ -13,8 +13,10 @@ export function sendJSON(res: ServerResponse, status: number, payload: unknown):
   res.end(JSON.stringify(payload))
 }
 
-// T27：UIMessage[] 全量上报的最大合理体量留有数量级余量（聊天文本 KB 级）
-export const MAX_BODY_BYTES = 4 * 1024 * 1024
+// T27：UIMessage[] 最大合理体量——32MB 兜底多模态单回合多张大图
+// （聊天文本 KB 级；图片 base64 内联按张数放大）。主体流量已由 transport 末条
+// user 后缀裁剪裁掉旧消息，此处保留一个数量级余量。
+export const MAX_BODY_BYTES = 32 * 1024 * 1024
 
 export class PayloadTooLargeError extends Error {
   constructor() {
@@ -23,16 +25,26 @@ export class PayloadTooLargeError extends Error {
   }
 }
 
+/**
+ * T27 顺序语义：readBody 不在 reject 时同步 destroy() socket——
+ * 旧行为先拆 socket 再写 413，响应字节落死连接、前端呈不透明 ECONNRESET 502。
+ * 新行为 = 由调用方（parseJSONBody 等）写 413 后挂 res.on('finish') 兜底 destroy，
+ * 响应字节先于 socket 关闭落地客户端。此处仅 stop listening + reject，让调用方
+ * 拿到 PayloadTooLargeError 自行写响应。
+ */
 export function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     let size = 0
+    let aborted = false
     req.on('data', (chunk: Buffer) => {
+      if (aborted) return
       size += chunk.length
-      // T27：请求体上限——超限即拒并断流，防无界读取打爆后端内存
+      // T27：请求体上限——超限即拒（不立即 destroy，由 parseJSONBody 写 413 后
+      // 再断流，防 socket 提前关闭吞掉响应字节）
       if (size > MAX_BODY_BYTES) {
+        aborted = true
         reject(new PayloadTooLargeError())
-        req.destroy()
         return
       }
       chunks.push(chunk)
@@ -46,7 +58,17 @@ export function readBody(req: IncomingMessage): Promise<string> {
  * 解析 POST/PUT JSON body。返回 { ok: true, body } 或 { ok: false }（已写响应）。
  * 调用方拿到 ok=false 时直接 return 即可——避免各 handler 重复 try/catch + writeHead。
  * 超限按 413（readBody 拦截抛 PayloadTooLargeError），其余坏 JSON 一律 400。
+ *
+ * T27 顺序语义：超限写 413 时挂 'connection: close' + res.on('finish') 兜底
+ * destroy socket——响应字节先落地客户端，再断流截断剩余上传；旧实现先 destroy
+ * 再写 413，响应进死 socket 客户端呈不透明 ECONNRESET 502。
  */
+export function sendPayloadTooLarge(req: IncomingMessage, res: ServerResponse): void {
+  res.writeHead(413, { connection: 'close' })
+  res.end('Payload Too Large')
+  res.on('finish', () => req.destroy())
+}
+
 export async function parseJSONBody(
   req: IncomingMessage,
   res: ServerResponse
@@ -56,7 +78,7 @@ export async function parseJSONBody(
     return { ok: true, body }
   } catch (error) {
     if (error instanceof PayloadTooLargeError) {
-      res.writeHead(413).end('Payload Too Large')
+      sendPayloadTooLarge(req, res)
     } else {
       res.writeHead(400).end('Bad Request: invalid JSON')
     }

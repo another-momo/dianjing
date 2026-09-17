@@ -8,50 +8,11 @@
  *
  * 本文件钉扎 transport 侧行为；路由侧 HTTP 往返见 chat-cancel-route.test.ts。
  */
-import { afterEach, describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 
 import { PiBackendChatTransport } from '@/app/ai/pi-backend/transport'
 
-interface FetchCall {
-  url: string
-  method: string | undefined
-  body: unknown
-}
-
-const realFetch = globalThis.fetch
-
-/** 挂起永不结束的 SSE 响应（sendMessages 拿到 body 即返回，不消费） */
-function hangingSSEResponse(): Response {
-  return new Response(
-    new ReadableStream<Uint8Array>({
-      start() {
-        /* 永不 enqueue——模拟进行中的 SSE 流 */
-      }
-    }),
-    { status: 200, headers: { 'content-type': 'text/event-stream' } }
-  )
-}
-
-function stubFetch(calls: FetchCall[], cancelFails = false) {
-  globalThis.fetch = (async (input: unknown, init?: RequestInit) => {
-    const url = String(typeof input === 'string' ? input : (input as Request).url)
-    if (url.endsWith('/cancel')) {
-      calls.push({
-        url,
-        method: init?.method,
-        body: init?.body ? JSON.parse(String(init.body)) : null
-      })
-      if (cancelFails) throw new Error('network down')
-      return new Response(null, { status: 204 })
-    }
-    calls.push({
-      url,
-      method: init?.method,
-      body: init?.body ? JSON.parse(String(init.body)) : null
-    })
-    return hangingSSEResponse()
-  }) as typeof fetch
-}
+import { stubFetch, type FetchCall } from './transport-fetch.helpers'
 
 function makeTransport() {
   return new PiBackendChatTransport(
@@ -68,10 +29,6 @@ function sleep(ms: number): Promise<void> {
 }
 
 describe('PiBackendChatTransport stop 带外取消（T73）', () => {
-  afterEach(() => {
-    globalThis.fetch = realFetch
-  })
-
   test('abortSignal 触发 → 恰好一次 POST /api/pi-chat/cancel 且 body 带当次 sessionId', async () => {
     const calls: FetchCall[] = []
     stubFetch(calls)

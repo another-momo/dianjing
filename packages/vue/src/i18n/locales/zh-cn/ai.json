@@ -105,6 +105,7 @@
   "chatModelNotFound": "所选模型不可用。请在设置中选择其他模型。",
   "chatNetworkFailed": "点睛设计无法连接提供商。请检查网络和端点。",
   "chatRateLimited": "已达到提供商请求限制。请稍候再试。",
+  "chatPayloadTooLarge": "请求体过大或本地 AI 连接中断。请尝试减少附件后重试。",
   "openProviderSettingsAction": "打开设置",
   "chatInsufficientCredit": "提供商账户的余额或配额不足。请充值后重试。",
   "chatOutputLimit": "模型在推理时耗尽了输出词元。请提高最大输出词元数或降低推理强度。",

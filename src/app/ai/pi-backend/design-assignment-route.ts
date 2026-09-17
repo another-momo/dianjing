@@ -17,7 +17,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import type { PiModelSpec } from './client'
-import { PayloadTooLargeError, readBody, sendJSON } from './http-utils'
+import { PayloadTooLargeError, readBody, sendJSON, sendPayloadTooLarge } from './http-utils'
 import type { createPiChatService } from './service'
 
 type DesignAssignmentService = Pick<
@@ -47,7 +47,7 @@ export async function handleDesignAssignmentRequest(
     body = JSON.parse(await readBody(req)) as DesignAssignmentBody
   } catch (error) {
     if (error instanceof PayloadTooLargeError) {
-      res.writeHead(413).end('Payload Too Large')
+      sendPayloadTooLarge(req, res)
       return
     }
     res.writeHead(400).end('Bad Request: invalid JSON')

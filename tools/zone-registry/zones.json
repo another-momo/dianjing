@@ -1569,6 +1569,13 @@
       "disposition": "revoked",
       "lastReviewed": "2026-09-16",
       "retiredReason": "文件改登记于 ownedRoots[] (tools/release/) 后此 patch 条目冗余且会触发 R-diff（未追踪新建文件与 base 无 diff）；保留作为本次变更设计意图记录——check.ts R-diff / R-mutex 均豁免 revoked 条目"
+    },
+    {
+      "id": "P269",
+      "file": "packages/vue/src/i18n/messages/ai.ts",
+      "reason": "2026-09-17：pi-chat 4MB→32MB 请求体上限配套——en 源新增 chatPayloadTooLarge 键（413/502/ECONNRESET 归因「请求体过大或本地连接中断」）；zh 翻译随附 locales/zh-cn/ai.json（P247 既有条目覆盖）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-17"
     }
   ],
   "deletedPaths": [

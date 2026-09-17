@@ -16,7 +16,9 @@
  *
  * 请求体：{ sessionId: string, messages: UIMessage[], model?: ModelSpec,
  * documentId?: string, windowId?: string }
- * （ai SDK Chat 默认全量 messages 上报；本 service 只取末条 user 文本，
+ * （ai SDK Chat 默认全量 messages 上报；前端 transport 已按末条 user 后缀
+ * 裁剪——保留末条 user 及其后全部消息（regenerate 末条可能是 assistant，
+ * 后端 reverse-find 末条 user 语义必须保住）。本 service 只取末条 user 文本，
  * 历史由后端 SessionManager 持有。model 为前端 design role 解析结果，T21。
  * documentId 为桥目标注入，T22。T98-路由：windowId 经 transport 直传——
  * 桥按发起窗路由 RPC（window-id.ts 设计取舍见其头注）。T60 起
@@ -59,7 +61,8 @@ import {
   parseJSONBody,
   parsePostBody,
   readBody,
-  sendJSON
+  sendJSON,
+  sendPayloadTooLarge
 } from './http-utils'
 import { createImageGenCredentialStore } from './image-gen/credentials'
 import { handleImageGenAdminRequest } from './image-gen/routes'
@@ -282,12 +285,7 @@ async function handleActiveDesignRequest(
 
 /** 2026-09-15：POST /api/pi/ask-answer 实现见 ./ask-answer-route.ts */
 
-/**
- * T87：GET/PUT /api/pi/capabilities——capabilities 读写。GET 返
- * `{ builtinTools, agentSkills }`（settings 面板初始值）；PUT 校验 agentSkills
- * 布尔 + builtinTools 三档字面量（T96，缺省保留旧值）、落盘、返新态。
- * 校验失败 400；超限 413（沿用 readBody 拦截）。
- */
+/** T87：GET/PUT /api/pi/capabilities——capabilities 读写（T96 三档字面量）。超限 413。 */
 async function handleCapabilitiesRequest(
   service: ReturnType<typeof createPiChatService>,
   req: IncomingMessage,
@@ -309,7 +307,7 @@ async function handleCapabilitiesRequest(
     }
   } catch (error) {
     if (error instanceof PayloadTooLargeError) {
-      res.writeHead(413).end('Payload Too Large')
+      sendPayloadTooLarge(req, res)
       return
     }
     res.writeHead(400).end('Bad Request: invalid JSON')
@@ -328,11 +326,7 @@ async function handleCapabilitiesRequest(
   }
 }
 
-/**
- * T100 C1：DELETE /api/pi/providers/{providerId}——只删自定义 provider，
- * 内建 providerId 抛 400（provider-admin 兜底）；错误由 handleAdminRequest
- * catch 统一返 400 JSON。独立 handler 控制 handleAdminRequest 复杂度（oxlint 上限）。
- */
+/** T100 C1：DELETE /api/pi/providers/{providerId}——只删自定义 provider，内建 400。 */
 async function handleDeleteProviderRequest(
   admin: ReturnType<typeof createProviderAdmin>,
   req: IncomingMessage,
@@ -352,11 +346,7 @@ async function handleDeleteProviderRequest(
   sendJSON(res, 200, { ok: true })
 }
 
-/**
- * T100 B1：POST /api/pi/credentials/verify {providerId}——对该 provider 发
- * 最小 chat 请求（maxTokens=1）验真。返回 {ok:true} 或 {ok:false, error:中文}；
- * 不抛错（异常已被 provider-admin.verifyCredential 内部捕获翻译为 error 字段）。
- */
+/** T100 B1：POST /api/pi/credentials/verify {providerId}——最小 chat 验真（maxTokens=1）。 */
 async function handleVerifyCredentialRequest(
   admin: ReturnType<typeof createProviderAdmin>,
   req: IncomingMessage,
@@ -439,9 +429,8 @@ async function handleAdminRequest(
     }
     res.writeHead(404).end('Not Found')
   } catch (error) {
-    // T27：超限 413；其余错误文案由 provider-admin 保证不含 key 本体
     if (error instanceof PayloadTooLargeError) {
-      res.writeHead(413).end('Payload Too Large')
+      sendPayloadTooLarge(req, res)
       return
     }
     sendJSON(res, 400, { error: error instanceof Error ? error.message : String(error) })

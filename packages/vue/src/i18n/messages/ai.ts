@@ -157,6 +157,8 @@ export const aiMessageDefaults = {
   chatNetworkFailed: 'OpenPencil could not reach the provider. Check your connection and endpoint.',
   chatRateLimited: 'The provider rate limit was reached. Wait a moment and try again.',
   chatRequestFailed: 'The model request failed. Check the provider settings and try again.',
+  chatPayloadTooLarge:
+    'The request was too large or the local AI connection dropped. Try removing some attachments or retrying.',
   openProviderSettingsAction: 'Open settings',
   visionModelUnavailable: 'Choose a Vision model in Settings before attaching images.',
   completions: 'Completions',

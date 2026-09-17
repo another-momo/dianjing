@@ -4,6 +4,7 @@ zh-cn:ai.baseURL
 zh-cn:ai.baseURLPlaceholder
 zh-cn:ai.chatAuthenticationFailed
 zh-cn:ai.chatForbidden
+zh-cn:ai.chatPayloadTooLarge
 zh-cn:ai.connectionTestAPITypeMismatch
 zh-cn:ai.connectionTestAuthFailed
 zh-cn:ai.connectionTestBrowserNetworkFailed

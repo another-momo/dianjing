@@ -201,6 +201,10 @@ const failureMessage = computed(() => {
       return ai.value.chatInsufficientCredit
     case 'output-limit':
       return ai.value.chatOutputLimit
+    case 'payload-too-large':
+      // 2026-09-15：HTTP 413/502/ECONNRESET 类归因——前端裁剪后仍出现多为
+      // 多模态兜底击穿或后端瞬断，给用户具体线索
+      return ai.value.chatPayloadTooLarge
     case 'request-failed':
       return ai.value.chatRequestFailed
     default:

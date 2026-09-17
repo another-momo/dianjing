@@ -6,6 +6,11 @@
  * T98-路由：body 加 windowId（window-id.ts，模块级 UUID）——桥侧按发起
  * 窗口路由 RPC，避免同 app 多窗共享单槽位时 agent 操作被顶窗偷走。
  *
+ * 2026-09-15：body.messages 末条 user 后缀裁剪——后端 chat 路由 reverse-find
+ * 末条 user 文本（server.ts lastUserText），历史由 SessionManager 持有，
+ * 前端全量上报旧消息纯浪费带宽、多模态场景易撞 4MB 上限。保留末条 user 及其后
+ * 全部消息（含 regenerate 末条可能是 assistant 的场景——后端语义已覆盖）。
+ *
  * 契约与 tests/e2e/chat/panel.spec.ts 的 mock transport 完全一致（对象实现
  * ChatTransport 接口，sendMessages 返回 UIMessageChunk 流），因此 Chat 类与
  * ChatPanel.vue 零改动。
@@ -55,7 +60,7 @@ export class PiBackendChatTransport implements ChatTransport<UIMessage> {
       documentId?: string
       windowId?: string
       model?: PiModelSpec
-    } = { sessionId: context.sessionId, messages }
+    } = { sessionId: context.sessionId, messages: trimToLastUserSuffix(messages) }
     if (context.documentId) bodyPayload.documentId = context.documentId
     bodyPayload.windowId = getWindowId()
     // T61：T24 四层装配载荷退役（PD-16 翻案）——chatMode/pickedProfileId 停发；
@@ -150,4 +155,30 @@ export function isAbortLikeError(error: unknown): boolean {
   const code = (error as { code?: unknown }).code
   if (code === 'ABORT_ERR' || code === 20) return true
   return /abort(ed)?/i.test(error.message)
+}
+
+/**
+ * 2026-09-15：messages 末条 user 后缀裁剪——保留末条 user 及其后全部消息。
+ *
+ * 消费点单一：server.ts lastUserText reverse-find 末条 user 文本，历史由
+ * SessionManager 持有（request body 旧消息纯浪费带宽、多模态大图易撞 32MB 兜底）。
+ * 末条 user 之后的所有消息一并保留——regenerate 末条可能是 assistant（后端 reverse-find
+ * 仍命中其前那条 user）；多模态连续对话 user/assistant 交替时，末条 assistant 之后的
+ * 工具结果/后续回合也保留（裁剪点固定为「末条 user 索引」）。
+ *
+ * 边界：空数组 → 空；无 user → 原样返回（兜底——行为退化回裁剪前全量上报，
+ * 后端 reverse-find 语义不受影响）；input 类型窄化为
+ * UIMessage[]，避免调用方类型推断膨胀。
+ */
+export function trimToLastUserSuffix(messages: UIMessage[]): UIMessage[] {
+  if (messages.length === 0) return messages
+  let lastUserIndex = -1
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'user') {
+      lastUserIndex = i
+      break
+    }
+  }
+  if (lastUserIndex === -1) return messages
+  return messages.slice(lastUserIndex)
 }
