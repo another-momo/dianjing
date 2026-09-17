@@ -12,7 +12,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { PiBackendChatTransport } from '@/app/ai/pi-backend/transport'
 
-import { stubFetch, type FetchCall } from './transport-fetch.helpers'
+import { stubFetch, type FetchCall } from './helpers'
 
 function makeTransport() {
   return new PiBackendChatTransport(
