@@ -48,9 +48,12 @@ import { deriveGateState, type GateState } from '@/app/ai/pi-backend/provider-ga
 import { getActiveEditorStore } from '@/app/editor/active-store'
 import { useForkConfirm, useForkPi } from '@/app/i18n/fork'
 import { useNotificationMessages } from '@/app/i18n/notifications'
+import { openSettingsDialog } from '@/app/settings/dialog'
 import { toast } from '@/app/shell/ui'
 import { activeTab } from '@/app/tabs'
 import AppTextButton from '@/components/ui/AppTextButton.vue'
+import AppButton from '@/components/ui/button/AppButton.vue'
+import IconButton from '@/components/ui/button/IconButton.vue'
 import AppPlaceholder from '@/components/ui/feedback/AppPlaceholder.vue'
 import { menuItem, useMenuUI } from '@/components/ui/menu/menu'
 import Tip from '@/components/ui/overlay/Tip.vue'
@@ -73,6 +76,7 @@ import ChatContextBar from './ChatContextBar.vue'
 import PiChatInput from './PiChatInput.vue'
 import PiChatMessage from './PiChatMessage.vue'
 import PiProviderGateCard from './PiProviderGateCard.vue'
+import { useScrollFollowing } from './useScrollFollowing'
 
 const IS_DEV = import.meta.env.DEV
 
@@ -102,7 +106,6 @@ void ensureChat()
       })
     )
   })
-const messagesEnd = ref<HTMLDivElement>()
 // T98：PiChatInput patch 崩溃（insertBefore/__vnode null——contenteditable 非受控
 // 编辑器与 Vue  vnode 树偶发失配）后，旧 vnode 带 null el 留在树里，后续每次
 // 更新必再崩（级联，owner 实测 Enter/发送/停止全报同一错）。捕获该签名错误后
@@ -237,13 +240,33 @@ const isThinking = computed(() => {
   return s === 'submitted'
 })
 
-function scrollToBottom() {
-  nextTick(() => {
-    messagesEnd.value?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  })
+// D3（2026-09-18 chat-p1）：智能滚动跟随替换粗暴 watch(messages, scrollToBottom,
+// {deep:true})——后者在任何 part 变化时强制滚底，流式期间用户上翻读历史会被反复
+// 拽回。行为契约见 useScrollFollowing.ts 文件头（移植自上游 d7971ff03）。
+const transcriptContent = ref<HTMLDivElement>()
+const viewportComponent = ref<{ viewportElement?: HTMLElement }>()
+const viewport = computed(() => viewportComponent.value?.viewportElement)
+const { arrivedState, resumeFollowing, notifyExplicitScrollGesture } = useScrollFollowing(
+  viewport,
+  transcriptContent,
+  computed(() => status.value === 'submitted')
+)
+
+// D8（2026-09-18 chat-p1）：output-limit（finishReason='length'）= 模型输出额度
+// 耗尽中断——上游 didHitStepLimit Continue 场景的 fork 对应物（pi-backend 无
+// maxTurns 硬限，T21 注「硬停能力不再」，output-limit 是唯一可续跑场景）。
+// Continue 把本地化「继续」作为用户消息重发；handleSubmit 入口 clearChatFailure
+// 顺带清偿失败态。
+const showContinue = computed(() => {
+  if (status.value !== 'ready') return false
+  if (chatFailure.value?.reason !== 'output-limit') return false
+  return messages.value[messages.value.length - 1]?.role === 'assistant'
+})
+
+function handleContinue() {
+  void handleSubmit(ai.value.continueChat)
 }
 
-watch(messages, scrollToBottom, { deep: true })
 watch(
   () => chatFailure.value?.reason,
   (reason) => {
@@ -254,7 +277,14 @@ watch(
       clearChatFailure()
       return
     }
-    toast.error(failureMessage.value ?? ai.value.chatRequestFailed)
+    // D8（2026-09-18 chat-p1）：四类归因 toast 统一带「打开设置」动作（跳设置
+    // 对话框 AI 页）——上游同款交互（d7971ff03 ChatPanel failure watcher 的
+    // failureHasSettingsAction 分支；我方四类归因全部可经设置页自救：换
+    // provider / 调 output limit / 减附件，不设白名单）
+    toast.error(failureMessage.value ?? ai.value.chatRequestFailed, {
+      label: ai.value.openProviderSettingsAction,
+      run: () => openSettingsDialog('ai')
+    })
   }
 )
 // T94：停止收尾——ready = 正常停止（toast + 末条消息瞬时「已停止」行）；
@@ -888,8 +918,8 @@ function handleClearChat() {
       />
     </div>
 
-    <ScrollAreaRoot class="min-h-0 flex-1">
-      <ScrollAreaViewport class="h-full px-3 py-3 [&>div]:h-full">
+    <ScrollAreaRoot class="relative min-h-0 flex-1">
+      <ScrollAreaViewport ref="viewportComponent" class="h-full px-3 py-3 [&>div]:h-full">
         <AppPlaceholder
           v-if="messages.length === 0"
           data-test-id="chat-empty-state"
@@ -902,7 +932,12 @@ function handleClearChat() {
         </AppPlaceholder>
 
         <!-- Messages -->
-        <div v-else data-test-id="chat-messages" class="flex flex-col gap-3">
+        <div
+          v-else
+          ref="transcriptContent"
+          data-test-id="chat-messages"
+          class="flex flex-col gap-3"
+        >
           <PiChatMessage
             v-for="(msg, index) in messages"
             :key="msg.id"
@@ -942,12 +977,40 @@ function handleClearChat() {
             </div>
           </div>
 
-          <div ref="messagesEnd" />
+          <!-- D8：output-limit 续跑——模型输出额度耗尽中断时给「继续」（上游
+               didHitStepLimit Continue 的 fork 对应物，见 script 注） -->
+          <div v-if="showContinue" class="flex justify-center py-2">
+            <AppButton
+              color="primary"
+              variant="soft"
+              shape="pill"
+              data-test-id="chat-continue"
+              @click="handleContinue"
+            >
+              <template #leading><icon-lucide-play class="size-3" /></template>
+              {{ ai.continueChat }}
+            </AppButton>
+          </div>
         </div>
       </ScrollAreaViewport>
-      <ScrollAreaScrollbar orientation="vertical" class="flex w-1.5 touch-none p-px select-none">
+      <ScrollAreaScrollbar
+        orientation="vertical"
+        class="flex w-1.5 touch-none p-px select-none"
+        @pointerdown="notifyExplicitScrollGesture"
+      >
         <ScrollAreaThumb class="relative flex-1 rounded-full bg-muted/30" />
       </ScrollAreaScrollbar>
+      <!-- D3：不在底部时浮出「跳到底部」（reka 隐藏原生滚动条，拖动由
+           ScrollAreaScrollbar pointerdown 显式接入置停） -->
+      <IconButton
+        v-if="messages.length && !arrivedState.bottom"
+        :label="ai.jumpToLatest"
+        data-test-id="chat-jump-to-latest"
+        class="absolute right-3 bottom-3 border border-border bg-panel shadow-sm"
+        @click="resumeFollowing"
+      >
+        <icon-lucide-arrow-down class="size-4" />
+      </IconButton>
     </ScrollAreaRoot>
 
     <!-- Chat toolbar -->

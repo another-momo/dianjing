@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useClipboard } from '@vueuse/core'
 import { isFileUIPart, isReasoningUIPart, isTextUIPart, isToolUIPart, getToolName } from 'ai'
 import type { UIDataTypes, UIMessage, UIMessagePart, UITools } from 'ai'
 import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui'
@@ -10,6 +11,7 @@ import type { AskFormSubmission } from '@open-pencil/core/tools/fork/marketing/a
 import { useI18n, vTestId } from '@open-pencil/vue'
 
 import { useForkConfirm } from '@/app/i18n/fork'
+import IconButton from '@/components/ui/button/IconButton.vue'
 
 import {
   CONTEXT_SWITCH_PART_TYPE,
@@ -57,6 +59,26 @@ const emit = defineEmits<{
 const { ai } = useI18n()
 const confirmText = useForkConfirm()
 const markdownMode = computed(() => (streaming ? 'streaming' : 'static'))
+
+// D9（2026-09-18 chat-p1）：复制响应按钮——移植上游 d7971ff03 ChatMessage.vue：
+// 首个非空 text part 气泡右下角挂复制钮，复制整条 assistant 文本（全 text part
+// 拼接），1.5s 对勾复位。clipboard 复用仓内 CodePanel 先例（useClipboard +
+// copiedDuring 自复位），不引入上游组件。
+const assistantText = computed(() =>
+  message.parts
+    .filter(isTextUIPart)
+    .map((part) => part.text)
+    .join('')
+)
+const firstAssistantTextPartIndex = computed(() =>
+  message.parts.findIndex((part) => isTextUIPart(part) && part.text.length > 0)
+)
+const { copy, copied, isSupported: clipboardSupported } = useClipboard({ copiedDuring: 1500 })
+
+async function copyResponse(): Promise<void> {
+  if (!assistantText.value || !clipboardSupported.value) return
+  await copy(assistantText.value)
+}
 
 type ToolPart = Extract<UIMessagePart<UIDataTypes, UITools>, { toolCallId: string }>
 
@@ -283,6 +305,7 @@ function filePartFilename(part: FilePart): string {
             class="rounded-lg border border-border bg-canvas px-2 py-1"
           >
             <summary
+              data-slot="chat-reasoning-trigger"
               class="flex cursor-pointer items-center gap-1 text-[11px] text-muted select-none"
             >
               <icon-lucide-brain class="size-3" />
@@ -311,9 +334,22 @@ function filePartFilename(part: FilePart): string {
           <div
             v-else-if="isTextUIPart(part) && part.text"
             data-test-id="chat-text-bubble"
-            class="rounded-xl rounded-tl-md bg-hover px-3 py-2 text-xs leading-relaxed text-surface"
+            class="group/response relative rounded-xl rounded-tl-md bg-hover px-3 py-2 text-xs leading-relaxed text-surface"
           >
             <ChatMarkdown :content="part.text" :mode="markdownMode" />
+            <!-- D9：复制响应——首个非空 text part 挂钮，hover/聚焦显现 -->
+            <IconButton
+              v-if="i === firstAssistantTextPartIndex && assistantText && clipboardSupported"
+              :label="copied ? ai.responseCopied : ai.copyResponse"
+              size="xs"
+              data-slot="chat-copy-response"
+              data-test-id="chat-copy-response"
+              class="absolute right-1 bottom-1 opacity-0 focus-visible:opacity-100 group-hover/response:opacity-100"
+              @click="copyResponse"
+            >
+              <icon-lucide-check v-if="copied" class="size-3 text-green-400" />
+              <icon-lucide-copy v-else class="size-3" />
+            </IconButton>
           </div>
           <!-- T81 P-01：AI SDK `file` chunk（media-output.ts:48-70）补位渲染。
             图像直渲 data URL；非图像（视频/音频）回落文件名占位，不吞。 -->
