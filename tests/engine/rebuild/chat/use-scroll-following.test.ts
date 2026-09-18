@@ -107,10 +107,18 @@ function createRig(options: { scrollHeight?: number; clientHeight?: number } = {
   return { viewportEl, contentEl, viewport, content, submitted, ...api }
 }
 
+/** 合成容器 → hook 入参的 HTMLElement 视图：桩刻意不实现完整 DOM 契约，
+ *  hook 只触 scrollTop/scrollHeight/clientHeight + add/removeEventListener
+ *  （disable 同款先例：tests/engine/rebuild/pi-backend/http-utils-413.test.ts） */
+function asElement(el: FakeElement): HTMLElement {
+  // oxlint-disable-next-line open-pencil/no-broad-double-cast -- 桩与真实 DOM 的结构差由 hook 的窄使用面兜住
+  return el as unknown as HTMLElement
+}
+
 /** 挂载容器 + 内容并消化首批调度（watch post 沿 + rAF 队列 + RO 初次回发） */
 async function mount(rig: ReturnType<typeof createRig>): Promise<void> {
-  rig.viewport.value = rig.viewportEl as unknown as HTMLElement
-  rig.content.value = rig.contentEl as unknown as HTMLElement
+  rig.viewport.value = asElement(rig.viewportEl)
+  rig.content.value = asElement(rig.contentEl)
   await nextTick()
   flushFrames()
 }
