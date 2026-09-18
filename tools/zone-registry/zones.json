@@ -409,7 +409,7 @@
     {
       "id": "P44",
       "file": "src/components/settings/SettingsDialog.vue",
-      "reason": "T25: MCP 导航/区块/导入切除（settings-mcp 面随 integrations/mcp 删除） T34: git merge 把 base 88c10770 的 mcp nav button 带回（面板未回——点击落裸 v-else 的 Storage，僵尸 nav） T36(2026-08-28): 删 mcp nav button + 裸 v-else 收窄为 v-else-if storage + 显式空态 fallback（owner 拍板③）；i18n 死键 settingsMCP 保留不删——packages/vue 的 messages/dialogs.ts 与 zh-cn/dialogs.json 经 T35 还原与上游字节一致，删键会制造新 patch 徒增下轮合并冲突面，死文案无害（取舍注记，owner 拍板③附带评估）；T41：设置对话框接入字体分区（FontsSettingsPanel 分支 + 导航按钮）；T54（2026-09-01）：media 段挂载 ImageGenKeysSection（生图凭证预设下拉+单 key 输入）；T96（2026-09-04）：ai 区 ModelsPanel 与 AgentSettingsPanel 之间加分隔线（预研 §5.3 视觉分组）；T91k（2026-09-04）：ai 区去 h-full，AgentSettingsPanel 进入对话框容器统一滚动流（owner 拍板：独立悬挂挤压模型清单可视面积）；2026-09-08 上游合并：ModelsPanel 路径分离（owner 拍板①）——import/模板改直引 PiModelsPanel，上游重写版（依赖已裁 ai/models 域）弃收；2026-09-18 PR713 凭据延迟链吸收（P291 同批）：remember 开关由内联 computed+stock-photo-keys 改接 useCredentialSettings()（remembered/busy/failed 接线；paused/retry 为 Tauri 面，Electron 下休眠不接线），stock-photo-keys.ts 废弃删除，browserCredentialsRemembered 改从 credentials/app 取",
+      "reason": "壳层随上游 AppTabs 族回迁（2026-09-18 外观对齐批）；保留差异 = nav 板块集（fork 五板块 general/ai/media/fonts/storage，无 usage/diagnostics/mcp——437b931cb owner 拍板永不吸收）+ ai 区三件同流（T96/T87/ai-panel-ux-consolidation）+ footer 左侧 remember 凭据控件（PR713 吸收接线，上游无）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-18"
     },
@@ -1728,6 +1728,20 @@
       "reason": "PR713 凭据延迟链手术版吸收（2026-09-18，B 案）：取上游 media.ts（惰性 resolver 注入 core）四处手术——①PEXELS/UNSPLASH_CREDENTIAL import 改指 ./media-credentials（fork 既有常量叶子，persistence.ts 等消费方零 churn）；②删 refreshStatus 的 hasLegacyCredential 分支（migration.ts 不取：fork 无旧格式存量、迁移无对象，owner 已确认）；③删 resolveMediaCredential/setMediaKey/setRememberCredentials 三处 initializeCredentialMigration 调用；④文件尾补模块加载 void refreshMediaCredentials()——承接已删 stock-photo-keys.ts/chat-storage credentialsReady 的启动注入职责，上游的启动触发点在其 chat 面（fork 已裁），不补则 remembered key 启动即失联。credentialPersistenceRevision 保留",
       "disposition": "permanent",
       "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P292",
+      "file": "src/components/settings/general/RenderingSettingsSection.vue",
+      "reason": "2026-09-18 外观对齐批（PR713 吸收 workstream 外观 phase，P44 同批）：版式回迁上游 SettingsSectionHeader 式（合并基线后上游重构：SettingsSection 包裹→SettingsSectionHeader + 裸 label + 尾部 muted <p>），保留两 fork 增量——行内 AppBadge experimental（渐进渲染实验标记，上游无）+ AppAlert 警示（urlOverride/reloadRequired，警示语义强于上游 muted <p>）；SettingsRow.vue/SettingsSection.stories.ts/SettingsSection.vue 随之删除（deletedPaths 同批——storage/StorageSettingsPanel.vue 两处引用已就地迁移 SettingsSectionHeader + 裸 section，渲染类逐字节同构）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P293",
+      "file": "src/components/settings/storage/StorageSettingsPanel.vue",
+      "reason": "2026-09-18 外观对齐批（PR713 吸收 workstream 外观 phase，P44/P292 同批）：两处 SettingsSection 包裹就地迁移 SettingsSectionHeader + 裸 section（渲染类逐字节同构，worker 报备意外引用者后主 agent 裁决执行）——SettingsSection.vue 随之零引用删除（deletedPaths 同批）；面板主体为 PR713 上游重写版整取",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
     }
   ],
   "deletedPaths": [
@@ -1751,6 +1765,9 @@
     "src/app/shell/markdown/index.ts",
     "src/components/SafariBanner.vue",
     "src/components/CollabPanel",
+    "src/components/settings/layout/SettingsRow.vue",
+    "src/components/settings/layout/SettingsSection.vue",
+    "src/components/settings/layout/SettingsSection.stories.ts",
     "src/app/ai/acp",
     "src/app/collab/awareness.ts",
     "src/app/collab/local-awareness.ts",

@@ -17,7 +17,7 @@ import { useSettingsFormGuard } from '@/app/settings/navigation/use'
 import { focusInvalidField } from '@/components/settings/layout/focus'
 import SettingsPage from '@/components/settings/layout/SettingsPage.vue'
 import SettingsSaveFeedback from '@/components/settings/layout/SettingsSaveFeedback.vue'
-import SettingsSection from '@/components/settings/layout/SettingsSection.vue'
+import SettingsSectionHeader from '@/components/settings/layout/SettingsSectionHeader.vue'
 import ProviderSettingsField from '@/components/settings/provider/ProviderSettingsField.vue'
 import AppButton from '@/components/ui/button/AppButton.vue'
 import AppAlert from '@/components/ui/feedback/AppAlert.vue'
@@ -105,9 +105,11 @@ async function testConnection() {
     @submit.prevent="save"
   >
     <SettingsPage data-test-id="settings-storage-panel">
-      <SettingsSection v-if="!editing">
-        <template #title>{{ settings.storage }}</template>
-        <template #description>{{ provider.description }}</template>
+      <section v-if="!editing" class="flex flex-col gap-3">
+        <SettingsSectionHeader>
+          {{ settings.storage }}
+          <template #description>{{ provider.description }}</template>
+        </SettingsSectionHeader>
         <AppActionRow @click="edit">
           {{ provider.label }}
           <template #description>{{
@@ -126,10 +128,12 @@ async function testConnection() {
           >{{ storage.openWorkspace }}</AppButton
         >
         <p v-if="!configured" class="text-[11px] text-muted">{{ settings.configureStorageHint }}</p>
-      </SettingsSection>
-      <SettingsSection v-else>
-        <template #title>{{ settings.storage }}</template>
-        <template #description>{{ settings.saveChangesDescription }}</template>
+      </section>
+      <section v-else class="flex flex-col gap-3">
+        <SettingsSectionHeader>
+          {{ settings.storage }}
+          <template #description>{{ settings.saveChangesDescription }}</template>
+        </SettingsSectionHeader>
         <fieldset :disabled="busy" class="flex min-w-0 flex-col gap-4">
           <ProviderSettingsField
             v-for="field in provider.preferenceFields"
@@ -201,7 +205,7 @@ async function testConnection() {
           "
         />
         <SettingsSaveFeedback :error="error" :result="saveResult" />
-      </SettingsSection>
+      </section>
       <template v-if="editing" #footer>
         <AppButton :disabled="busy" @click="cancel">{{ common.cancel }}</AppButton>
         <AppButton
