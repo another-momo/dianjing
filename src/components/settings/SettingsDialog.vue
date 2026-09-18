@@ -12,12 +12,10 @@ import { settingsDialogOpen, settingsDialogSection } from '@/app/settings/dialog
 import AgentSettingsPanel from '@/components/settings/agent/AgentSettingsPanel.vue'
 import FontsSettingsPanel from '@/components/settings/fonts/FontsSettingsPanel.vue'
 import GeneralSettingsPanel from '@/components/settings/general/GeneralSettingsPanel.vue'
-import SettingsSectionHeader from '@/components/settings/layout/SettingsSectionHeader.vue'
+import MediaSettingsPanel from '@/components/settings/media/MediaSettingsPanel.vue'
 import PiModelsPanel from '@/components/settings/models/PiModelsPanel.vue'
 import ImageGenKeysSection from '@/components/settings/provider/ImageGenKeysSection.vue'
-import StockPhotoKeysSection from '@/components/settings/provider/StockPhotoKeysSection.vue'
 import StorageSettingsPanel from '@/components/settings/storage/StorageSettingsPanel.vue'
-import VectorizeSettingsSection from '@/components/settings/vectorize/VectorizeSettingsSection.vue'
 import AppButton from '@/components/ui/button/AppButton.vue'
 import {
   AppDialogBody,
@@ -118,13 +116,8 @@ const credentialBackendLabel = computed(() => {
         </AppDialogBody>
       </AppTabsContent>
       <AppTabsContent value="media" as-child>
-        <AppDialogBody>
-          <section class="flex flex-col gap-2.5" data-test-id="settings-media-panel">
-            <SettingsSectionHeader>{{ settings.media }}</SettingsSectionHeader>
-            <StockPhotoKeysSection />
-            <VectorizeSettingsSection />
-          </section>
-        </AppDialogBody>
+        <!-- v0.15.0 内容代吸收：媒体段整取上游钻取式面板（AppActionRow 列表 + MediaCredentialEditor） -->
+        <AppDialogBody><MediaSettingsPanel /></AppDialogBody>
       </AppTabsContent>
       <AppTabsContent value="fonts" as-child>
         <AppDialogBody><FontsSettingsPanel /></AppDialogBody>

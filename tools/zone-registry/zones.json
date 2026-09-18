@@ -30,7 +30,6 @@
     "src/components/settings/models/PiDesignModelCard.vue",
     "src/components/settings/agent/AgentSettingsPanel.vue",
     "src/app/settings/credentials/media-credentials.ts",
-    "src/components/settings/vectorize/VectorizeSettingsSection.vue",
     "src/components/settings/layout/SettingsSectionHeader.vue",
     "src/components/ui/AppTextButton.vue",
     "tests/engine/text/fonts/registry.test.ts",
@@ -92,8 +91,7 @@
     "public/favicon.ico",
     "public/pwa-192.png",
     "public/pwa-512.png",
-    "public/pwa-maskable-512.png",
-    "src/components/settings/provider/StockPhotoKeysSection.vue"
+    "public/pwa-maskable-512.png"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -409,7 +407,7 @@
     {
       "id": "P44",
       "file": "src/components/settings/SettingsDialog.vue",
-      "reason": "壳层随上游 AppTabs 族回迁（2026-09-18 外观对齐批）；保留差异 = nav 板块集（fork 五板块 general/ai/media/fonts/storage，无 usage/diagnostics/mcp——437b931cb owner 拍板永不吸收）+ ai 区三件同流（T96/T87/ai-panel-ux-consolidation）+ footer 左侧 remember 凭据控件（PR713 吸收接线，上游无）",
+      "reason": "壳层随上游 AppTabs 族回迁（2026-09-18 外观对齐批）；保留差异 = nav 板块集（fork 五板块 general/ai/media/fonts/storage，无 usage/diagnostics/mcp——437b931cb owner 拍板永不吸收）+ ai 区三件同流（T96/T87/ai-panel-ux-consolidation）+ footer 左侧 remember 凭据控件（PR713 吸收接线，上游无）｜ 2026-09-18 内容代吸收：media 段整取 v0.15.0 MediaSettingsPanel 钻取式（StockPhotoKeysSection/VectorizeSettingsSection 随删进 deletedPaths），media/general/storage 面板内容层与 v0.15.0 字节对齐",
       "disposition": "permanent",
       "lastReviewed": "2026-09-18"
     },
@@ -994,7 +992,7 @@
     {
       "id": "P185",
       "file": "src/components/settings/provider/StockPhotoKeysSection.vue",
-      "reason": "Batch 2a（2026-09-05，chat/ai 依赖点解耦）：pexels/unsplash 凭证读写由 useAIChat() 间接面改直引 @/app/settings/credentials/stock-photo-keys（2a 三处解耦点之一）；2026-09-08 上游合并：上游收敛同语义（其新 credentials/media.ts）——未采，stock-photo-keys 仍为唯一凭证面；media.ts 依赖已删 migration.ts 成死链，进 deletedPaths ｜ revoked 2026-09-18：上游 PR713 删除该文件（patch 失 base），转 ownedFiles 登记",
+      "reason": "Batch 2a（2026-09-05，chat/ai 依赖点解耦）：pexels/unsplash 凭证读写由 useAIChat() 间接面改直引 @/app/settings/credentials/stock-photo-keys（2a 三处解耦点之一）；2026-09-08 上游合并：上游收敛同语义（其新 credentials/media.ts）——未采，stock-photo-keys 仍为唯一凭证面；media.ts 依赖已删 migration.ts 成死链，进 deletedPaths ｜ revoked 2026-09-18：上游 PR713 删除该文件（patch 失 base），转 ownedFiles 登记 ｜ 2026-09-18 v0.15.0 内容代吸收：fork 侧随删（媒体面板改取上游钻取式 MediaSettingsPanel + MediaCredentialEditor），转 deletedPaths",
       "disposition": "revoked",
       "lastReviewed": "2026-09-18"
     },
@@ -1213,9 +1211,9 @@
     {
       "id": "P219",
       "file": "src/components/settings/general/GeneralSettingsPanel.vue",
-      "reason": "P2-11（2026-09-07）：「Studio 资产扩展」节——展示 ~/.openpencil/studio 用户扩展目录路径 + 复制按钮三态（studio seed 机制配套入口，Phase 4+5 泳道 C）；改名期②（2026-09-14）：展示路径随 STATE_DIR_NAME 翻转改 ~/.dianjing/studio（用户可见文案与注释同步）；改名期③ D2（2026-09-14）：userDir 随状态根走（rootDir/studio），路径展示同步迁移",
+      "reason": "P2-11（2026-09-07）：「Studio 资产扩展」节——展示 ~/.openpencil/studio 用户扩展目录路径 + 复制按钮三态（studio seed 机制配套入口，Phase 4+5 泳道 C）；改名期②（2026-09-14）：展示路径随 STATE_DIR_NAME 翻转改 ~/.dianjing/studio（用户可见文案与注释同步）；改名期③ D2（2026-09-14）：userDir 随状态根走（rootDir/studio），路径展示同步迁移；f9607ee7e：Studio 节迁出本文件入 AI 和代理面板 ｜ 2026-09-18 v0.15.0 内容代回迁：面板整取 v0.15.0 结构（SettingsSection 四节 + SettingsGroup 整宽行 + 外观节主题/动画下拉，接 fork theme.ts），唯一差异 = 摘 CredentialSettingsSection（凭据 remember/后端展示在对话框 footer，见 P44）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-14"
+      "lastReviewed": "2026-09-18"
     },
     {
       "id": "P215",
@@ -1728,20 +1726,6 @@
       "reason": "PR713 凭据延迟链手术版吸收（2026-09-18，B 案）：取上游 media.ts（惰性 resolver 注入 core）四处手术——①PEXELS/UNSPLASH_CREDENTIAL import 改指 ./media-credentials（fork 既有常量叶子，persistence.ts 等消费方零 churn）；②删 refreshStatus 的 hasLegacyCredential 分支（migration.ts 不取：fork 无旧格式存量、迁移无对象，owner 已确认）；③删 resolveMediaCredential/setMediaKey/setRememberCredentials 三处 initializeCredentialMigration 调用；④文件尾补模块加载 void refreshMediaCredentials()——承接已删 stock-photo-keys.ts/chat-storage credentialsReady 的启动注入职责，上游的启动触发点在其 chat 面（fork 已裁），不补则 remembered key 启动即失联。credentialPersistenceRevision 保留",
       "disposition": "permanent",
       "lastReviewed": "2026-09-18"
-    },
-    {
-      "id": "P292",
-      "file": "src/components/settings/general/RenderingSettingsSection.vue",
-      "reason": "2026-09-18 外观对齐批（PR713 吸收 workstream 外观 phase，P44 同批）：版式回迁上游 SettingsSectionHeader 式（合并基线后上游重构：SettingsSection 包裹→SettingsSectionHeader + 裸 label + 尾部 muted <p>），保留两 fork 增量——行内 AppBadge experimental（渐进渲染实验标记，上游无）+ AppAlert 警示（urlOverride/reloadRequired，警示语义强于上游 muted <p>）；SettingsRow.vue/SettingsSection.stories.ts/SettingsSection.vue 随之删除（deletedPaths 同批——storage/StorageSettingsPanel.vue 两处引用已就地迁移 SettingsSectionHeader + 裸 section，渲染类逐字节同构）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-18"
-    },
-    {
-      "id": "P293",
-      "file": "src/components/settings/storage/StorageSettingsPanel.vue",
-      "reason": "2026-09-18 外观对齐批（PR713 吸收 workstream 外观 phase，P44/P292 同批）：两处 SettingsSection 包裹就地迁移 SettingsSectionHeader + 裸 section（渲染类逐字节同构，worker 报备意外引用者后主 agent 裁决执行）——SettingsSection.vue 随之零引用删除（deletedPaths 同批）；面板主体为 PR713 上游重写版整取",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-18"
     }
   ],
   "deletedPaths": [
@@ -1765,9 +1749,8 @@
     "src/app/shell/markdown/index.ts",
     "src/components/SafariBanner.vue",
     "src/components/CollabPanel",
-    "src/components/settings/layout/SettingsRow.vue",
-    "src/components/settings/layout/SettingsSection.vue",
-    "src/components/settings/layout/SettingsSection.stories.ts",
+    "src/components/settings/provider/StockPhotoKeysSection.vue",
+    "src/components/settings/vectorize/VectorizeSettingsSection.vue",
     "src/app/ai/acp",
     "src/app/collab/awareness.ts",
     "src/app/collab/local-awareness.ts",
@@ -1918,8 +1901,6 @@
     "tests/e2e/brand/",
     "tests/e2e/canvas/demo-workspace.spec.ts",
     "tests/e2e/canvas/demo-workspace.spec.ts-snapshots/",
-    "src/app/settings/media/",
-    "src/components/settings/media/",
     "tests/e2e/app/webmcp.spec.ts"
   ],
   "upstreamMergeTarball": []
