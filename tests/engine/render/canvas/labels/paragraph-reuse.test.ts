@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
-import { initCanvasKit } from '@open-pencil/core/io'
 import type { CanvasKit, Paragraph, ParagraphBuilder, TypefaceFontProvider } from 'canvaskit-wasm'
+
+import { initCanvasKit } from '@open-pencil/core/io'
 
 import { LabelParagraphCache } from '#core/canvas/labels/paragraph-cache'
 

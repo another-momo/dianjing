@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 
-import { initCanvasKit } from '@open-pencil/core/io'
 import type { CanvasKit, Paragraph } from 'canvaskit-wasm'
 
+import { initCanvasKit } from '@open-pencil/core/io'
 import { SceneGraph } from '@open-pencil/scene-graph'
 
 import { buildParagraph, nodeFontReadiness } from '#core/canvas/text'

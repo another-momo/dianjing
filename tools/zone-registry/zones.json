@@ -31,6 +31,7 @@
     "src/components/settings/agent/AgentSettingsPanel.vue",
     "src/app/settings/credentials/stock-photo-keys.ts",
     "src/app/settings/credentials/media-credentials.ts",
+    "src/components/settings/vectorize/VectorizeSettingsSection.vue",
     "src/components/ui/AppTextButton.vue",
     "tests/engine/text/fonts/registry.test.ts",
     "tools/font-subset/subset-fonts.py",
@@ -1855,7 +1856,8 @@
     "tests/e2e/canvas/demo-workspace.spec.ts",
     "tests/e2e/canvas/demo-workspace.spec.ts-snapshots/",
     "src/app/settings/media/",
-    "src/components/settings/media/"
+    "src/components/settings/media/",
+    "tests/e2e/app/webmcp.spec.ts"
   ],
   "upstreamMergeTarball": []
 }

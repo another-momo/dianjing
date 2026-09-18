@@ -1,7 +1,6 @@
 import { beforeAll, expect, spyOn, test } from 'bun:test'
 
 import { initCanvasKit } from '@open-pencil/core/io'
-
 import { SceneGraph } from '@open-pencil/scene-graph'
 
 import { SkiaRenderer } from '#core/canvas'
