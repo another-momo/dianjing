@@ -62,7 +62,7 @@ function putJSON(baseURL: string, path: string, body: unknown): Promise<Response
 }
 
 describe('GET/PUT /api/pi/image-gen/settings', () => {
-  test('GET 缺省 OFF：retainLocal:false + dir 为 <rootDir>/image-gen-output/（绝对路径）', async () => {
+  test('GET 缺省 OFF：retainLocal:false + dir 为 <rootDir>/workspace/image-gen-output/（绝对路径）', async () => {
     const { rootDir, cleanup } = tempRoot()
     try {
       const credentials = createImageGenCredentialStore({ agentDir: join(rootDir, 'pi-agent') })
@@ -73,7 +73,7 @@ describe('GET/PUT /api/pi/image-gen/settings', () => {
         const body = (await res.json()) as ImageGenSettingsStatus
         expect(body.retainLocal).toBe(false)
         expect(body.dir.replaceAll('\\', '/')).toBe(
-          join(rootDir, 'image-gen-output').replaceAll('\\', '/')
+          join(rootDir, 'workspace', 'image-gen-output').replaceAll('\\', '/')
         )
         expect(body.dir.length).toBeGreaterThan(0)
       })
@@ -92,7 +92,7 @@ describe('GET/PUT /api/pi/image-gen/settings', () => {
         expect(put1.status).toBe(200)
         const body1 = (await put1.json()) as ImageGenSettingsStatus
         expect(body1.retainLocal).toBe(true)
-        expect(body1.dir).toBe(join(rootDir, 'image-gen-output'))
+        expect(body1.dir).toBe(join(rootDir, 'workspace', 'image-gen-output'))
 
         // 后续 GET 跟随
         const get1 = await fetch(`${baseURL}/api/pi/image-gen/settings`)

@@ -77,16 +77,16 @@ const builtinTools = computed({
 // 显式展示路径文本 + 「复制路径」按钮——用户自行粘贴到资源管理器/终端/Finder
 // 打开。后续打开文件夹通路就位后可在此 hook 上接，UI 与 i18n 不变。
 //
-// D2 起 userDir 随状态根走 = <OS 应用数据目录>/Dianjing/studio（resolveAppDataRoot
-// 单源，与 Electron userData 同位）。浏览器侧无 IPC 解析绝对路径，按 UA 粗判
-// 平台给出对应形态的展示路径（env 变量/`~` token 形态，资源管理器与 shell 均可
-// 直接粘贴识别）；判不出的平台回退 Linux 形态。
+// D2 起 userDir 随状态根走；2026-09-18 userdata 重排后 = <OS 应用数据目录>/Dianjing/
+// workspace/.agents（resolveAppDataRoot 单源，与 Electron userData 同位）。浏览器侧无
+// IPC 解析绝对路径，按 UA 粗判平台给出对应形态的展示路径（env 变量/`~` token 形态，
+// 资源管理器与 shell 均可直接粘贴识别）；判不出的平台回退 Linux 形态。
 const isWindowsUA = navigator.userAgent.includes('Windows')
 const isMacUA = !isWindowsUA && navigator.userAgent.includes('Mac')
 function platformStudioFolderPath(): string {
-  if (isWindowsUA) return '%APPDATA%\\Dianjing\\studio'
-  if (isMacUA) return '~/Library/Application Support/Dianjing/studio'
-  return '~/.config/Dianjing/studio'
+  if (isWindowsUA) return '%APPDATA%\\Dianjing\\workspace\\.agents'
+  if (isMacUA) return '~/Library/Application Support/Dianjing/workspace/.agents'
+  return '~/.config/Dianjing/workspace/.agents'
 }
 const studioFolderPath = platformStudioFolderPath()
 // ai-panel-ux-consolidation：按钮态机——idle 默认「打开文件夹」；ok=true

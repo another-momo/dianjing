@@ -3,7 +3,9 @@
  * tool_call 拦内建文件工具对凭据四件的读/写/搜，阻断 key 明文进模型上下文；
  * 写侧扩 deny `pi-agent/**` 全局面（settings.json / SYSTEM.md / APPEND_SYSTEM.md /
  * extensions / skills / prompts / themes）与 `workspace/.pi/**`（纵深件——trust
- * 关闭后已惰性，防上游语义漂移）。预研与拍板 = 仓外
+ * 关闭后已惰性，防上游语义漂移）。2026-09-18 userdata 重排再扩
+ * `workspace/.agents/**`（用户扩展层移入 workspace 后的新增自植面，与目录
+ * 启用同批落地，无空窗）。预研与拍板 = 仓外
  * docs/202609151649-pi-agent-key-file-guard-research.md。
  *
  * 装配位 = service.ts 的 extensionFactories（InlineExtension 数组）——
@@ -37,6 +39,11 @@
  *    已惰性，本 guard 写侧纵深件防上游语义漂移。
  *  - workspace/.pi/**（纵深件）——服务 cwd 下沉 rootDir/workspace 后的
  *    .pi 子树（paths.ts PI_WORKSPACE_SUBDIR）；同语义冗余防御。
+ *  - workspace/.agents/**（2026-09-18 userdata 重排新增）——用户扩展层
+ *    移入 workspace 后是**新增暴露面**：agent 文件工具本可达，自写
+ *    skills/base.md/workflows = 持久注入面，必须与目录启用同批 deny
+ *    （无空窗）。读侧不动（.agents 内无凭据，凭据四件留在 rootDir 一级）。
+ *  - workspace/image-gen-output/** 不 deny（用户数据面，agent 可读写无注入风险）。
  */
 
 import { homedir } from 'node:os'
@@ -74,14 +81,20 @@ function joinInAgent(agentDir: string, filename: string): string {
 }
 
 /**
- * 写侧 deny 面（绝对路径）——pi-agent/** 与 workspace/.pi/** 两个目录的
- * 后代均不可由 agent 写（双注关 trust 后已惰性，纵深防御）。
+ * 写侧 deny 面（绝对路径）——pi-agent/** 与 workspace/.pi/** 与
+ * workspace/.agents/** 三个目录的后代均不可由 agent 写（双注关 trust 后
+ * 已惰性，纵深防御；.agents = 2026-09-18 重排后的用户扩展层，自植面）。
  *
  * 路径形态与 protectedCredentialFiles 同构：join 拼，rootDir 单源全在 paths.ts。
  * handler 内部归一化后比对——prefix 命中即拒。
  */
 export function protectedWriteRoots(rootDir: string): string[] {
-  return [resolveAgentDir(rootDir), joinPath(resolveWorkspaceDir(rootDir), '.pi')]
+  const workspaceDir = resolveWorkspaceDir(rootDir)
+  return [
+    resolveAgentDir(rootDir),
+    joinPath(workspaceDir, '.pi'),
+    joinPath(workspaceDir, '.agents')
+  ]
 }
 
 /** `<base>/<file>` —— 仿 joinInAgent 形态（给 protectedWriteRoots 用，避免再开 import） */

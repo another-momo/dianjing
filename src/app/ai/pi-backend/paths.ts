@@ -11,10 +11,17 @@
  *    数据目录（resolveAppDataRoot），三形态（dev/host/Electron）共享同一
  *    真源。DIANJING_ROOT_DIR override 语义改为「直接指向状态根本身」
  *    （不再内含 .dianjing 子层），smoke/spike 同步重写。
+ *  - 2026-09-18 userdata 目录重排：用户扩展层 `studio/` → `workspace/.agents/`
+ *    （平铺迁移，复数命名对齐 pi SDK 原生 `.agents/skills` 约定），生图留存
+ *    `image-gen-output/` → `workspace/image-gen-output/` 且写盘按生图日期
+ *    建 `YYYY-MM-DD/` 子桶——agent 读写面收拢进 workspace 单根。存量一次性
+ *    迁移由 migrate.ts 承担（启动序列 seed 之前）；配套 key-guard 写侧 deny
+ *    扩 `workspace/.agents/**`（新增自植暴露面同批关闭，无空窗）。
  *
  * 行为纪律（搬迁 = 纯重构）：
- *  - 子目录名（`pi-agent` / `pi-sessions` / `key-env` / `skills` / `studio` /
- *    `pi-backend-token` / `pi-sessions-archive` / `workspace`）单源——搬家时只动本文件
+ *  - 子目录名（`pi-agent` / `pi-sessions` / `key-env` / `skills` /
+ *    `workspace/.agents` / `workspace/image-gen-output` / `pi-backend-token` /
+ *    `pi-sessions-archive` / `workspace`）单源——搬家时只动本文件
  *  - `DIANJING_ROOT_DIR` override 直指根（smoke/spike 配套重写）
  *  - studio 双源（builtinDir / userDir）解析语义保留；userDir 与 rootDir
  *    一致（D2 起不再独立于 rootDir）
@@ -51,9 +58,6 @@ export const SKILLS_SUBDIR = 'skills'
 /** standalone 模式鉴权 token 落盘文件名 */
 export const PI_BACKEND_TOKEN_FILENAME = 'pi-backend-token'
 
-/** studio 用户扩展目录子路径（D2 起相对 rootDir，无双层嵌套） */
-export const USER_STUDIO_SUBPATH = 'studio'
-
 /**
  * 会话工作目录子目录（agent 文件工具/bash 的相对路径基点）——与凭据文件所在根隔离
  * （2026-09-16 key 守卫 B 案，须配 key-guard A 案）。createAgentSession options.cwd 下沉
@@ -61,6 +65,15 @@ export const USER_STUDIO_SUBPATH = 'studio'
  * `options.cwd ?? options.sessionManager?.getCwd()` 实证，options 优先）。
  */
 export const PI_WORKSPACE_SUBDIR = 'workspace'
+
+/**
+ * studio 用户扩展目录子路径（2026-09-18 起 = `workspace/.agents`，平铺：
+ * base.md / workflows/ / profiles/ / skills/ / references/ 直接放 `.agents/`
+ * 根，不做 `.agents/studio` 嵌套）。复数 `.agents` 对齐 pi SDK 原生
+ * `.agents/skills` 约定；内置层目录名仍叫 studio（源码树/打包 resources 位，
+ * dot-directory 不进源码树防工具链盲区）——不一致点在此消解，勿再对齐。
+ */
+export const USER_STUDIO_SUBPATH = join(PI_WORKSPACE_SUBDIR, '.agents')
 
 /**
  * studio 内置资产目录相对仓库根的子路径——三形态 spawn 方（vite-plugin /
@@ -141,10 +154,10 @@ export function resolveKeyEnvPath(rootDir: string): string {
   return join(rootDir, KEY_ENV_FILENAME)
 }
 
-/** `rootDir/studio/skills/` —— skills 与 studio workflows/profiles 同根：
- *  上层 studio 双源解析（builtin/user）已承载资产覆盖语义；skills 也按 user 覆盖
+/** `rootDir/workspace/.agents/skills/` —— skills 与用户扩展资产 workflows/profiles
+ *  同根：上层 studio 双源解析（builtin/user）已承载资产覆盖语义；skills 也按 user 覆盖
  *  builtin 加载（service.ts 的 DefaultResourceLoader.additionalSkillPaths 喂同一 userDir
- *  路径，SDK 跑默认扫描仅看 builtin 模板目录）。把 skills 收进 studio/ 后三类资产
+ *  路径，SDK 跑默认扫描仅看 builtin 模板目录）。skills 收进用户扩展目录后三类资产
  *  同一目录根——用户复制内置 `_example` 即可看到完整样例。 */
 export function resolveSkillsDir(rootDir: string): string {
   return join(rootDir, USER_STUDIO_SUBPATH, SKILLS_SUBDIR)
@@ -163,13 +176,33 @@ export function resolveBuiltinSkillsDir(builtinStudioDir: string): string {
   return join(builtinStudioDir, SKILLS_SUBDIR)
 }
 
-/** `rootDir/image-gen-output/` —— generate_image 「图片本地留存」目录（owner 拍板）；
- *  本地副本与画布 IMAGE fill 是同一份 bytes（透明背景后处理之后）。 */
-export const IMAGE_GEN_OUTPUT_SUBDIR = 'image-gen-output'
+/** `rootDir/workspace/image-gen-output/` —— generate_image 「图片本地留存」根目录
+ * （2026-09-18 起移入 workspace，与 .agents 同根收拢 agent 读写面）；本地副本
+ * 与画布 IMAGE fill 是同一份 bytes（透明背景后处理之后）。实际写盘按生图日期
+ * 分桶到 `<根>/YYYY-MM-DD/`（见 resolveImageGenDatedDir）——本常量只是桶的
+ * 父根，DTO `dir` 字段与「打开文件夹」端点仍下发/打开根目录（用户进根自选
+ * 日期桶）。 */
+export const IMAGE_GEN_OUTPUT_SUBDIR = join(PI_WORKSPACE_SUBDIR, 'image-gen-output')
 
-/** `rootDir/image-gen-output/` */
+/** `rootDir/workspace/image-gen-output/` —— 留存根目录（UI 展示 / 端点打开用） */
 export function resolveImageGenOutputDir(rootDir: string): string {
   return join(rootDir, IMAGE_GEN_OUTPUT_SUBDIR)
+}
+
+/**
+ * 日期桶名 `YYYY-MM-DD`（本地时区，与 writeLocalCopy 文件名时间戳同口径）；
+ * ISO 形态让资源管理器字典序 = 时序。
+ */
+export function formatImageGenDateBucket(date: Date): string {
+  const yyyy = date.getFullYear().toString().padStart(4, '0')
+  const mm = (date.getMonth() + 1).toString().padStart(2, '0')
+  const dd = date.getDate().toString().padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+/** `rootDir/workspace/image-gen-output/YYYY-MM-DD/` —— 生图留存日期分桶落点 */
+export function resolveImageGenDatedDir(rootDir: string, date: Date): string {
+  return join(resolveImageGenOutputDir(rootDir), formatImageGenDateBucket(date))
 }
 
 // ── studio 双源 resolver ──
@@ -182,7 +215,8 @@ export function resolveImageGenOutputDir(rootDir: string): string {
  *  - userDir：`join(homedir(), '.dianjing', 'studio')`（D2 前）
  *
  * D2 起：userDir 不再独立走 homedir——状态根已统一进 OS 应用数据目录，
- * userDir 随 rootDir 走（= `<状态根>/studio`）；内置只读 + 用户可写同 id
+ * userDir 随 rootDir 走；2026-09-18 起 = `<状态根>/workspace/.agents`
+ * （USER_STUDIO_SUBPATH 单源）。内置只读 + 用户可写同 id
  * 覆盖 + _ 前缀跳过 + seed warn-only 等两层资产语义由 registry / seed /
  * service 各层承担，本函数不掺行为。
  */

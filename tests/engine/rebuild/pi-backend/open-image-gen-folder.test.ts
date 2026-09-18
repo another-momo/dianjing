@@ -125,23 +125,23 @@ async function openFolder_(): Promise<{ status: number; body: { ok: boolean; err
 }
 
 describe('POST /api/pi/open-image-gen-folder（图片本地留存目录）', () => {
-  test('happy path：传 <rootDir>/image-gen-output 给 opener，目录不存在时兜底 mkdir', async () => {
+  test('happy path：传 <rootDir>/workspace/image-gen-output 给 opener，目录不存在时兜底 mkdir', async () => {
     openerBehavior = { kind: 'ok' }
     const r = await openFolder_()
     expect(r.status).toBe(200)
     expect(r.body).toEqual({ ok: true })
     expect(capturedOpens).toHaveLength(1)
     expect((capturedOpens[0] ?? '').replaceAll('\\', '/')).toBe(
-      join(rootDir, 'image-gen-output').replaceAll('\\', '/')
+      join(rootDir, 'workspace', 'image-gen-output').replaceAll('\\', '/')
     )
     // 兜底 mkdir 落地
-    const stat = (await import('node:fs')).statSync(join(rootDir, 'image-gen-output'))
+    const stat = (await import('node:fs')).statSync(join(rootDir, 'workspace', 'image-gen-output'))
     expect(stat.isDirectory()).toBe(true)
   })
 
   test('目录已存在 → 不抛，opener 仍拿到正确目录', async () => {
     openerBehavior = { kind: 'ok' }
-    mkdirSync(join(rootDir, 'image-gen-output'), { recursive: true })
+    mkdirSync(join(rootDir, 'workspace', 'image-gen-output'), { recursive: true })
     const r = await openFolder_()
     expect(r.status).toBe(200)
     expect(r.body).toEqual({ ok: true })

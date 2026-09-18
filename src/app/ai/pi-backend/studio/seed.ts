@@ -6,8 +6,9 @@
  *
  * 设计要点：
  * - 内置模板以 `_` 前缀命名（`_example`），registry 加载时跳过不注册——仅作
- *   复制源，用户首跑检测到 `~/.dianjing/studio/` 下没有任何 `_` 前缀资产即
- *   递归复制整套 `_example`（workflows + profiles）。
+ *   复制源，用户首跑检测到用户扩展目录（2026-09-18 起 = `<状态根>/workspace/
+ *   .agents`）下没有任何 `_` 前缀资产即递归复制整套 `_example`
+ *   （workflows + profiles）。
  * - 纯逻辑、无 I/O 副作用外的依赖：用户目录路径由调用方注入，便于测试用临时
  *   目录；不挂进 loadStudioFromDirs（加载路径有测试用临时目录，副作用会污染）。
  * - 复制用 bun node:fs API，UTF-8 无关（纯文件复制，不读不解析）——避 GBK 链
@@ -36,13 +37,20 @@ const SEED_TOP_DIRS = ['_example'] as const
 
 /** 用户目录首次启动时落地的 README——中文操作手册（内嵌字符串，避免依赖
  *  额外文件）。SDK 真实加载约定见同模块头注（SKILL.md + frontmatter
- *  `description` 必填，`name` 可省略回退父目录名；顶层平铺或子目录递归）。 */
-const README_CONTENT = `# 自定义拓展目录
+ *  `description` 必填，`name` 可省略回退父目录名；顶层平铺或子目录递归）。
+ *  2026-09-18 userdata 重排：用户层 = `<状态根>/workspace/.agents`（平铺，
+ *  agent 会话 cwd 内；写侧被 key-guard deny——AI 只读，改动须用户手动）。 */
+const README_CONTENT = `# 自定义拓展目录（.agents）
 
-这是 Dianjing / OpenPencil 的本地扩展存放目录。把
-\`workflows/<id>/workflow.md\` / \`profiles/<id>/profile.md\` /
+这是 Dianjing / OpenPencil 的本地扩展存放目录，位于应用数据根的
+\`workspace/.agents\`（AI 会话的工作目录之内，命名对齐通行的 \`.agents\`
+约定）。把 \`workflows/<id>/workflow.md\` / \`profiles/<id>/profile.md\` /
 \`skills/<id>/SKILL.md\` 三类资产放在这里，AI 聊天代理会按内置 + 用户
 两层覆盖规则读取——同名 id 用户版覆盖内置版。
+
+> 安全边界：AI 代理对本目录**只读**——它可以看到这里的资产，但一切写入
+> 都会被安全守卫拒绝。新增 / 修改 / 删除资产请用你的编辑器手动完成，
+> 改完重启应用或等待下次会话生效。
 
 ## 三种资产形态
 
@@ -136,8 +144,8 @@ function copyTree(src: string, dst: string): void {
  * 检测用户目录是否已有 `_` 前缀模板；无则从内置目录递归复制 `_example`。
  *
  * 调用方契约：
- *  - `userStudioDir`：用户 studio 目录绝对路径（默认 = `~/.dianjing/studio`）。
- *    若目录不存在本函数会创建它。
+ *  - `userStudioDir`：用户扩展目录绝对路径（现行 = `<状态根>/workspace/.agents`，
+ *    paths.ts USER_STUDIO_SUBPATH 单源）。若目录不存在本函数会创建它。
  *  - `builtinStudioDir`：内置 studio 目录绝对路径（含 `workflows/` `profiles/` 子目录）。
  *    缺失对应子目录视为「无内置模板可 seed」，跳过并返回。
  *

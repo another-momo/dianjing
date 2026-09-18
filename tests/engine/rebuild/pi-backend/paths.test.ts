@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import {
   BUILTIN_STUDIO_SUBPATH,
+  IMAGE_GEN_OUTPUT_SUBDIR,
   KEY_ENV_FILENAME,
   PI_AGENT_SUBDIR,
   PI_BACKEND_TOKEN_FILENAME,
@@ -11,9 +12,12 @@ import {
   PI_WORKSPACE_SUBDIR,
   SKILLS_SUBDIR,
   USER_STUDIO_SUBPATH,
+  formatImageGenDateBucket,
   resolveAgentDir,
   resolveArchiveDir,
   resolveElectronRootDir,
+  resolveImageGenDatedDir,
+  resolveImageGenOutputDir,
   resolveKeyEnvPath,
   resolvePiBackendTokenPath,
   resolveRootDir,
@@ -39,9 +43,10 @@ describe('pi-backend/paths — constants', () => {
     expect(PI_BACKEND_TOKEN_FILENAME).toBe('pi-backend-token')
   })
 
-  test('USER_STUDIO_SUBPATH is just "studio" (no STATE_DIR_NAME layer, D2)', () => {
-    // D2 起 USER_STUDIO_SUBPATH 不再嵌入 `.dianjing`——userDir 随 rootDir 走
-    expect(USER_STUDIO_SUBPATH).toBe('studio')
+  test('USER_STUDIO_SUBPATH is workspace/.agents（2026-09-18 重排：平铺进 workspace）', () => {
+    // 2026-09-18 userdata 重排：用户扩展层 `studio` → `workspace/.agents`
+    // （复数命名对齐 pi SDK 原生 `.agents/skills` 约定）
+    expect(USER_STUDIO_SUBPATH.replaceAll('\\', '/')).toBe('workspace/.agents')
   })
 
   test('BUILTIN_STUDIO_SUBPATH is the dev source-tree location', () => {
@@ -72,8 +77,23 @@ describe('pi-backend/paths — resolveStateDir and friends (D2: flat under rootD
     expect(resolveKeyEnvPath(rootDir)).toBe(join(rootDir, 'key-env'))
   })
 
-  test('resolveSkillsDir appends skills under rootDir/studio (与 workflows/profiles 同根)', () => {
-    expect(resolveSkillsDir(rootDir)).toBe(join(rootDir, 'studio', 'skills'))
+  test('resolveSkillsDir appends skills under workspace/.agents（与 workflows/profiles 同根）', () => {
+    expect(resolveSkillsDir(rootDir)).toBe(join(rootDir, 'workspace', '.agents', 'skills'))
+  })
+
+  test('resolveImageGenOutputDir = workspace/image-gen-output（2026-09-18 重排进 workspace）', () => {
+    expect(IMAGE_GEN_OUTPUT_SUBDIR.replaceAll('\\', '/')).toBe('workspace/image-gen-output')
+    expect(resolveImageGenOutputDir(rootDir)).toBe(join(rootDir, 'workspace', 'image-gen-output'))
+  })
+
+  test('resolveImageGenDatedDir = 输出根 + YYYY-MM-DD 桶（本地时区，字典序=时序）', () => {
+    const date = new Date(2026, 0, 5) // 2026-01-05 本地
+    expect(formatImageGenDateBucket(date)).toBe('2026-01-05')
+    expect(resolveImageGenDatedDir(rootDir, date)).toBe(
+      join(rootDir, 'workspace', 'image-gen-output', '2026-01-05')
+    )
+    // 年末/月末零填充钉扎
+    expect(formatImageGenDateBucket(new Date(2026, 11, 31))).toBe('2026-12-31')
   })
 
   test('resolvePiBackendTokenPath appends pi-backend-token filename directly under rootDir', () => {
@@ -110,36 +130,36 @@ describe('pi-backend/paths — resolveRootDir / resolveElectronRootDir', () => {
   })
 })
 
-describe('pi-backend/paths — resolveStudioDirs (D2: userDir 随 rootDir 走)', () => {
-  test('with env override: builtinDir uses override; userDir = rootDir/studio', () => {
+describe('pi-backend/paths — resolveStudioDirs（2026-09-18：userDir = rootDir/workspace/.agents）', () => {
+  test('with env override: builtinDir uses override; userDir = rootDir/workspace/.agents', () => {
     const dirs = resolveStudioDirs('/repo/root', '/opt/custom/studio')
     expect(dirs.builtinDir.replaceAll('\\', '/')).toBe('/opt/custom/studio')
-    expect(dirs.userDir.replaceAll('\\', '/')).toBe('/repo/root/studio')
+    expect(dirs.userDir.replaceAll('\\', '/')).toBe('/repo/root/workspace/.agents')
   })
 
-  test('without env override: builtinDir = rootDir/BUILTIN_STUDIO_SUBPATH; userDir = rootDir/studio', () => {
+  test('without env override: builtinDir = rootDir/BUILTIN_STUDIO_SUBPATH; userDir = rootDir/workspace/.agents', () => {
     const rootDir = '/repo/root'
     const dirs = resolveStudioDirs(rootDir, null)
     expect(dirs.builtinDir).toBe(join(rootDir, 'src', 'app', 'ai', 'pi-backend', 'studio'))
-    expect(dirs.userDir).toBe(join(rootDir, 'studio'))
+    expect(dirs.userDir).toBe(join(rootDir, 'workspace', '.agents'))
   })
 
   test('userDir tracks rootDir (D2: 不再独立于 rootDir)', () => {
     const a = resolveStudioDirs('/repo/A', null)
     const b = resolveStudioDirs('/repo/B', null)
     expect(a.userDir).not.toBe(b.userDir)
-    expect(a.userDir.replaceAll('\\', '/')).toBe('/repo/A/studio')
-    expect(b.userDir.replaceAll('\\', '/')).toBe('/repo/B/studio')
+    expect(a.userDir.replaceAll('\\', '/')).toBe('/repo/A/workspace/.agents')
+    expect(b.userDir.replaceAll('\\', '/')).toBe('/repo/B/workspace/.agents')
   })
 
   test('两层资产语义零变化：内置只读 + 用户可写路径同源 (D2 验证)', () => {
     // 内置只读——builtinDir 走 rootDir + BUILTIN_STUDIO_SUBPATH（dev 源码树）
-    // 用户可写——userDir 走 rootDir + 'studio'（与状态根同位）
+    // 用户可写——userDir 走 rootDir + workspace/.agents（与状态根同位）
     // 两者同源 = 同一 rootDir，registry / seed / service 的同 id 覆盖 +
     // _ 前缀跳过 + seed warn-only 语义由上游层承担，本函数不掺行为。
     const dirs = resolveStudioDirs('/state/root', null)
     expect(dirs.builtinDir.replaceAll('\\', '/')).toBe('/state/root/src/app/ai/pi-backend/studio')
-    expect(dirs.userDir.replaceAll('\\', '/')).toBe('/state/root/studio')
+    expect(dirs.userDir.replaceAll('\\', '/')).toBe('/state/root/workspace/.agents')
     // userDir 不嵌任何 `.dianjing` 子层（D2 关键断言）
     expect(dirs.userDir.replaceAll('\\', '/')).not.toContain('.dianjing')
   })

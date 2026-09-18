@@ -72,13 +72,14 @@ describe('pi-backend/paths — resolveBuiltinSkillsDir', () => {
     expect(resolveBuiltinSkillsDir('')).toBe('skills')
   })
 
-  test('matches the user-layer resolver convention: …/studio/skills', async () => {
-    // 与 resolveSkillsDir(rootDir) 末段同为 'studio/skills'——用户层与内置层同构
+  test('user-layer 与 builtin-layer 均以 skills/ 收尾（双源各挂自根）', async () => {
+    // 用户层 = rootDir/workspace/.agents/skills（2026-09-18 重排）；内置层 =
+    // <builtinStudioDir>/skills（内置目录名仍叫 studio——dot-directory 不进源码树）
     const { resolveBuiltinSkillsDir, resolveSkillsDir } = await import('@/app/ai/pi-backend/paths')
     const rootDir = '/state/root'
     const userLayer = resolveSkillsDir(rootDir)
     const builtinLayer = resolveBuiltinSkillsDir('/state/root/src/app/ai/pi-backend/studio')
-    expect(userLayer.replaceAll('\\', '/').endsWith('/studio/skills')).toBe(true)
+    expect(userLayer.replaceAll('\\', '/').endsWith('/workspace/.agents/skills')).toBe(true)
     expect(builtinLayer.replaceAll('\\', '/').endsWith('/studio/skills')).toBe(true)
   })
 })
@@ -119,9 +120,9 @@ describe('pi-backend service.ts — additionalSkillPaths pins builtin layer (lay
     expect(Array.isArray(paths)).toBe(true)
     expect(paths?.length).toBe(2)
 
-    // 用户层：rootDir/studio/skills/
+    // 用户层：rootDir/workspace/.agents/skills/（2026-09-18 重排）
     expect(paths?.[0].replaceAll('\\', '/')).toBe(
-      join(rootDir, 'studio', 'skills').replaceAll('\\', '/')
+      join(rootDir, 'workspace', '.agents', 'skills').replaceAll('\\', '/')
     )
 
     // 内置层：<builtinDir>/skills/（env 注入直指 builtinDir，不再走 rootDir 默认拼接）

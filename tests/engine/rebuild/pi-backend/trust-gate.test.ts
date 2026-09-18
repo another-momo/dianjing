@@ -186,8 +186,9 @@ describe('pi-backend service.ts trust gate + skills 单源（2026-09-16 层 1 + 
     // 直接从 capturedLoaderOptions 取，避免双源硬编码漂移
     const paths = capturedLoaderOptions.at(-1)?.['additionalSkillPaths'] as string[]
     expect(Array.isArray(paths)).toBe(true)
-    // 用户层（rootDir/studio/skills）必含；内置层第二项视 env 解析或为 undefined
-    const userSkillsDir = join(rootDir, 'studio', 'skills')
+    // 用户层（rootDir/workspace/.agents/skills，2026-09-18 重排）必含；
+    // 内置层第二项视 env 解析或为 undefined
+    const userSkillsDir = join(rootDir, 'workspace', '.agents', 'skills')
     expect(paths).toContain(userSkillsDir)
 
     // 构造四来源——前两项在白名单应保留，pi-agent/skills 与 ~/.agents/skills 应被剔。
@@ -260,7 +261,7 @@ describe('pi-backend service.ts trust gate + skills 单源（2026-09-16 层 1 + 
     })
     const paths = capturedLoaderOptions.at(-1)?.['additionalSkillPaths'] as string[]
     expect(Array.isArray(paths)).toBe(true)
-    // 用户层（resolveSkillsDir = rootDir/studio/skills）必含
-    expect(paths).toContain(join(rootDir, 'studio', 'skills'))
+    // 用户层（resolveSkillsDir = rootDir/workspace/.agents/skills）必含
+    expect(paths).toContain(join(rootDir, 'workspace', '.agents', 'skills'))
   })
 })

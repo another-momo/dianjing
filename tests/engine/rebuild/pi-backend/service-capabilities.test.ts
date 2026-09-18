@@ -124,8 +124,8 @@ describe('pi-backend service.ts capabilities seam（T87）', () => {
   })
 
   test('getStudioManifest：capabilities ON 时 listSkills 反映 skills 扫描', () => {
-    // T89 → D2：扫描目录由 `.pi/skills` 改 `.dianjing/skills`，再 D2 扁平化改 `skills`
-    const skillDir = join(rootDir, 'studio', 'skills', 'svc-test')
+    // T89 → D2 → 2026-09-18 重排：扫描目录现行 = workspace/.agents/skills
+    const skillDir = join(rootDir, 'workspace', '.agents', 'skills', 'svc-test')
     mkdirSync(skillDir, { recursive: true })
     writeFileSync(
       join(skillDir, 'SKILL.md'),
@@ -147,7 +147,7 @@ description: service 装配 seam 测试
   })
 
   test('setCapabilities OFF → manifest.skills=[]（listSkills 守门）', () => {
-    const skillDir = join(rootDir, 'studio', 'skills', 'svc-test')
+    const skillDir = join(rootDir, 'workspace', '.agents', 'skills', 'svc-test')
     mkdirSync(skillDir, { recursive: true })
     writeFileSync(
       join(skillDir, 'SKILL.md'),

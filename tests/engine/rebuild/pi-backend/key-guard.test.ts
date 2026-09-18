@@ -23,6 +23,8 @@ import {
 const ROOT = resolve('/fake/kg-root')
 const WORKSPACE = resolve(ROOT, 'workspace')
 const WORKSPACE_PI = resolve(WORKSPACE, '.pi')
+// 2026-09-18 userdata 重排：用户扩展层 workspace/.agents——写侧 deny 面新增成员
+const WORKSPACE_AGENTS = resolve(WORKSPACE, '.agents')
 const AGENT_DIR = resolve(ROOT, 'pi-agent')
 const AUTH_JSON = resolve(AGENT_DIR, 'auth.json')
 const IMAGE_GEN_JSON = resolve(AGENT_DIR, 'image-gen.json')
@@ -97,9 +99,9 @@ describe('createKeyGuardHandler — read / edit / write 路径守卫', () => {
     }
   })
 
-  test('read 绝对 studio/base.md → 放行（非凭据文件）', () => {
+  test('read 绝对 workspace/.agents/base.md → 放行（读侧不扩——.agents 内无凭据）', () => {
     const handler = makeHandler()
-    const baseMd = join(ROOT, 'studio', 'base.md')
+    const baseMd = join(WORKSPACE_AGENTS, 'base.md')
     expect(handler({ toolName: 'read', input: { path: baseMd } })).toBeUndefined()
   })
 
@@ -158,18 +160,17 @@ describe('createKeyGuardHandler — grep 搜索根守卫', () => {
     })
   })
 
-  test('grep path 绝对 studio 目录 → 放行（不含凭据文件后代）', () => {
+  test('grep path 绝对 workspace/.agents 目录 → 放行（读/搜侧不含凭据文件后代）', () => {
     const handler = makeHandler()
-    const studioDir = join(ROOT, 'studio')
     expect(
-      handler({ toolName: 'grep', input: { pattern: 'foo', path: studioDir } })
+      handler({ toolName: 'grep', input: { pattern: 'foo', path: WORKSPACE_AGENTS } })
     ).toBeUndefined()
   })
 })
 
-describe('protectedWriteRoots — 2026-09-16 层 1 写侧纵深件', () => {
-  test('双根 = agentDir + workspace/.pi（写侧 deny 面）', () => {
-    expect(protectedWriteRoots(ROOT)).toEqual([AGENT_DIR, WORKSPACE_PI])
+describe('protectedWriteRoots — 2026-09-16 层 1 写侧纵深件（2026-09-18 扩 .agents）', () => {
+  test('三根 = agentDir + workspace/.pi + workspace/.agents（写侧 deny 面）', () => {
+    expect(protectedWriteRoots(ROOT)).toEqual([AGENT_DIR, WORKSPACE_PI, WORKSPACE_AGENTS])
   })
 })
 
@@ -234,6 +235,41 @@ describe('createKeyGuardHandler — 写侧 deny pi-agent/** 与 workspace/.pi/**
     })
   })
 
+  test('write workspace/.agents/base.md → block（2026-09-18 新增自植面，与目录启用同批）', () => {
+    const handler = makeHandler()
+    expect(
+      handler({ toolName: 'write', input: { path: resolve(WORKSPACE_AGENTS, 'base.md') } })
+    ).toEqual({
+      block: true,
+      reason: WRITE_FACET_DENY_REASON
+    })
+  })
+
+  test('edit 写 workspace/.agents/skills/foo/SKILL.md → block（嵌套后代 = 自植 skill）', () => {
+    const handler = makeHandler()
+    const nested = resolve(WORKSPACE_AGENTS, 'skills', 'foo', 'SKILL.md')
+    expect(handler({ toolName: 'edit', input: { path: nested } })).toEqual({
+      block: true,
+      reason: WRITE_FACET_DENY_REASON
+    })
+  })
+
+  test('edit .agents/workflows/x/workflow.md（cwd=workspace 相对路径）→ block', () => {
+    const handler = makeHandler()
+    expect(
+      handler({ toolName: 'edit', input: { path: '.agents/workflows/x/workflow.md' } })
+    ).toEqual({
+      block: true,
+      reason: WRITE_FACET_DENY_REASON
+    })
+  })
+
+  test('write workspace/image-gen-output/2026-09-18/x.png → 放行（留存目录不 deny，用户数据面）', () => {
+    const handler = makeHandler()
+    const target = resolve(WORKSPACE, 'image-gen-output', '2026-09-18', 'x.png')
+    expect(handler({ toolName: 'write', input: { path: target } })).toBeUndefined()
+  })
+
   test('edit ../pi-agent/settings.json（cwd=workspace 上行） → block', () => {
     const handler = makeHandler()
     expect(handler({ toolName: 'edit', input: { path: '../pi-agent/settings.json' } })).toEqual({
@@ -286,7 +322,7 @@ describe('createKeyGuardHandler — 写侧 deny pi-agent/** 与 workspace/.pi/**
     })
   })
 
-  test('write workspace/base.md（非 .pi） → 放行（纵深件仅挡 .pi 子树）', () => {
+  test('write workspace/base.md（非 .pi/.agents） → 放行（纵深件仅挡 .pi 与 .agents 子树）', () => {
     const handler = makeHandler()
     const base = resolve(WORKSPACE, 'base.md')
     expect(handler({ toolName: 'write', input: { path: base } })).toBeUndefined()

@@ -53,6 +53,7 @@ import {
   type ImageGenResult
 } from '@open-pencil/core/tools/fork/image-gen/requests'
 
+import { formatImageGenDateBucket } from '../paths'
 import { createBridgeCaller, type BridgeCaller, type BridgeCallTarget } from './bridge-call'
 import type { ImageGenCredentials, ImageGenCredentialStore } from './credentials'
 import { createProviderFor } from './factory'
@@ -92,8 +93,9 @@ export interface ImageGenToolDeps {
   /**
    * 图片本地留存开关（owner 拍板，默认 OFF）。service.ts 装配期注入——
    * enabled() 每条 item 实时问 settings store（用户可在 AI 运行期间切换）；
-   * dir() 每次返回绝对路径（resolveImageGenOutputDir(rootDir)），handler
-   * 内 mkdirSync 兜底。
+   * dir() 每次返回留存**根目录**绝对路径（resolveImageGenOutputDir(rootDir)），
+   * 实际写盘由 maybeRetain 按生图日期分桶 `<根>/<YYYY-MM-DD>/` 并 mkdir
+   * recursive 兜底。
    *
    * 失败语义：写盘异常 → 仅 console.warn，不进 toolResult / note / agent
    * 通道，画布 commit 不受影响（owner 拍板：静默失败，避免污染结果契约）。
@@ -161,6 +163,12 @@ function toErrorMessage(error: unknown): string {
  * 本地留存小函数（owner 拍板：writeFileSync 失败静默——只 console.warn，
  * 不进 toolResult / note / agent 通道）。
  *
+ * 落盘形态（2026-09-18 userdata 重排）：`<留存根>/<YYYY-MM-DD>/<文件名>`——
+ * 按生图日期分桶（ISO 日期，资源管理器字典序 = 时序），mkdir recursive
+ * 下沉到日期桶；时区 = 本地（与文件名时间戳同口径，formatImageGenDateBucket
+ * 单源）。留存根由 retention.dir() 注入（生产 = resolveImageGenOutputDir，
+ * DTO 下发根目录——用户经「打开文件夹」进根自选日期桶）。
+ *
  * 文件名口径：`YYYYMMDD-hhmmss-<批次内序号>-<宽>x<高>.<ext>`。
  *   - ext 取生成段最终生效格式（item.effectiveFormat，runGeneratePhase
  *     落袋）——transparent 强制 png 已反映；直接读 item.req 会在
@@ -181,9 +189,9 @@ function maybeRetain(
 ): void {
   if (!retention || !retention.enabled()) return
   try {
-    const dir = retention.dir()
-    mkdirSync(dir, { recursive: true })
     const now = new Date()
+    const dir = join(retention.dir(), formatImageGenDateBucket(now))
+    mkdirSync(dir, { recursive: true })
     const yyyy = now.getFullYear().toString().padStart(4, '0')
     const mm = (now.getMonth() + 1).toString().padStart(2, '0')
     const dd = now.getDate().toString().padStart(2, '0')

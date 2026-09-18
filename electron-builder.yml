@@ -37,8 +37,8 @@ extraResources:
     to: app/dist-sidecar
     # 滤掉 .map 等调试产物（如未来开了 sourcemap）
     filter:
-      - "**/*"
-      - "!**/*.map"
+      - '**/*'
+      - '!**/*.map'
   - from: desktop-electron/native-externals
     to: app/native-externals
   # studio 内置资产（modes/profiles/workflows 的 markdown 源）——registry.ts
@@ -50,20 +50,20 @@ extraResources:
     to: app/studio
     # 只分发 markdown 资产——.ts 源码已被 sidecar bundle 收编，平铺无意义
     filter:
-      - "**/*.md"
+      - '**/*.md'
   - from: dist
     to: app/dist
     # 双保险：输出目录已显式迁到 release/（见顶部 directories），win-unpacked/
     # nsis/ 等产物子目录不会再出现在 dist/ 下；保留过滤防未来有人改回默认
     # 输出目录时 extraResources 把产物当源自复制递归到 ENOSPC。
     filter:
-      - "**/*"
-      - "!win-unpacked/**"
-      - "!nsis/**"
-      - "!mac/**"
-      - "!linux-unpacked/**"
-      - "!mac-arm64/**"
-      - "!**/*.map"
+      - '**/*'
+      - '!win-unpacked/**'
+      - '!nsis/**'
+      - '!mac/**'
+      - '!linux-unpacked/**'
+      - '!mac-arm64/**'
+      - '!**/*.map'
   # 发版合规项：随 Windows 安装包分发第三方许可证声明——OFL 字体（必须随字
   # 体文件同包）/ BSD-3 canvaskit.wasm（BSD 三条义务）/ npm 生产闭包的全套
   # LICENSE 全文。生成器由 package.json#notices:generate 在 package:win
@@ -88,21 +88,21 @@ files:
   # ['electron'] 不需要运行期依赖；externals 走 extraResources 平铺。
   - desktop-electron/dist-main/**/*
   - package.json
-  - "!**/*.map"
-  - "!**/*.tsbuildinfo"
-  - "!**/node_modules/**"
-  - "!**/bun.lock"
-  - "!**/.git/**"
-  - "!**/.cache/**"
-  - "!**/release/**"
-  - "!**/spikes"
-  - "!**/src"
-  - "!**/packages"
-  - "!**/tests"
-  - "!**/scripts"
-  - "!**/tools"
-  - "!**/vite"
-  - "!**/node_modules"
+  - '!**/*.map'
+  - '!**/*.tsbuildinfo'
+  - '!**/node_modules/**'
+  - '!**/bun.lock'
+  - '!**/.git/**'
+  - '!**/.cache/**'
+  - '!**/release/**'
+  - '!**/spikes'
+  - '!**/src'
+  - '!**/packages'
+  - '!**/tests'
+  - '!**/scripts'
+  - '!**/tools'
+  - '!**/vite'
+  - '!**/node_modules'
 
 # 平台：本任务仅交付 Windows 安装包
 win:
@@ -135,10 +135,10 @@ nsis:
   # createDesktopShortcut 已默认 true。
   # 卸载用户数据可选化（2026-09-17 owner 拍板）：deleteAppDataOnUninstall 是
   # 无条件静默删——状态根已统一进 %APPDATA%/Dianjing（D2，resolveAppDataRoot
-  # 与 userData 同位，pi-agent 凭据 / pi-sessions / studio 用户拓展 / workspace
-  # 全在其中），误删代价高。改为卸载段开头弹问（默认「否」保留；/S 静默与
-  # 升级卸载一律保留），宏定义见下 include 文件（UTF-8 BOM 勿丢——makensis
-  # 缺省按 ANSI 读无 BOM 脚本，中文会乱码）。
+  # 与 userData 同位，pi-agent 凭据 / pi-sessions / workspace（含 .agents
+  # 用户拓展与生图留存）全在其中），误删代价高。改为卸载段开头弹问（默认
+  # 「否」保留；/S 静默与升级卸载一律保留），宏定义见下 include 文件（UTF-8
+  # BOM 勿丢——makensis 缺省按 ANSI 读无 BOM 脚本，中文会乱码）。
   deleteAppDataOnUninstall: false
   include: desktop-electron/nsis/uninstall-prompt.nsh
   # artifactName 在 win.* 已设，这里保留 nsis 自身的命名兜底

@@ -2,7 +2,8 @@
  * generate_image 本地留存挂钩钉扎（owner 拍板：写盘失败静默，不污染画布 commit）。
  *
  * 覆盖：
- *  - enabled()=true + 固定 bytes → 落盘文件字节一致、文件名形态匹配
+ *  - enabled()=true + 固定 bytes → 落盘字节一致、文件名形态不变；2026-09-18
+ *    重排起按生图日期分桶 `<根>/<YYYY-MM-DD>/`（桶目录自动创建）
  *  - enabled()=false → 目录无文件
  *  - dir() 抛错 → 工具结果正常且不含留存错误信息
  *  - writeFileSync 抛错（如目录权限拒）→ 工具结果正常且不含留存错误信息
@@ -26,6 +27,7 @@ import type { ImageGenProvider } from '@open-pencil/core/tools/fork/image-gen/re
 
 import type { ImageGenCredentialStore } from '@/app/ai/pi-backend/image-gen/credentials'
 import { createImageGenTool } from '@/app/ai/pi-backend/image-gen/generate'
+import { formatImageGenDateBucket } from '@/app/ai/pi-backend/paths'
 
 // 借 orchestration.test.ts 的 fakeStore 形态（这里重新声明以保持单测自包含）
 function fakeStore(): ImageGenCredentialStore {
@@ -108,7 +110,22 @@ describe('generate_image 本地留存挂钩', () => {
     tmpDir = ''
   })
 
-  test('enabled()=true → 落盘文件字节一致 + 文件名形态 YYYYMMDD-HHMMSS-<idx>-<w>x<h>.png', async () => {
+  /** 当天日期桶目录（2026-09-18 重排：`<留存根>/<YYYY-MM-DD>/`，本地时区） */
+  function todayBucketDir(): string {
+    return join(tmpDir, formatImageGenDateBucket(new Date()))
+  }
+
+  /** 读留存根下唯一日期桶内的文件清单（[桶名, 文件们]） */
+  function readBucketFiles(): { bucket: string; files: string[] } {
+    const buckets = readdirSync(tmpDir)
+    expect(buckets).toHaveLength(1)
+    const bucket = buckets[0] ?? ''
+    expect(bucket).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(bucket).toBe(formatImageGenDateBucket(new Date()))
+    return { bucket, files: readdirSync(join(tmpDir, bucket)) }
+  }
+
+  test('enabled()=true → 日期桶创建 + 落盘文件字节一致 + 文件名形态不变（YYYYMMDD-HHMMSS-<idx>-<w>x<h>.png）', async () => {
     const { callBridge } = fakeBridge(1024, 768)
     const tool = createImageGenTool({
       credentials: fakeStore(),
@@ -122,17 +139,17 @@ describe('generate_image 本地留存挂钩', () => {
 
     await tool.execute('call-1', { requests: [{ prompt: 'a', width: 1024, height: 768 }] })
 
-    const files = readdirSync(tmpDir)
+    const { bucket, files } = readBucketFiles()
     expect(files).toHaveLength(1)
     const name = files[0] ?? ''
-    // 文件名形态：YYYYMMDD-HHMMSS-0-1024x768.png
+    // 文件名形态（不变）：YYYYMMDD-HHMMSS-0-1024x768.png
     expect(name).toMatch(/^\d{8}-\d{6}-0-1024x768\.png$/)
     // 字节一致
-    const written = readFileSync(join(tmpDir, name))
+    const written = readFileSync(join(tmpDir, bucket, name))
     expect(Array.from(written)).toEqual(Array.from(GEN_BYTES))
   })
 
-  test('多 item 同秒：批次内序号后缀区分（0/1）', async () => {
+  test('多 item 同秒：同桶内批次序号后缀区分（0/1）', async () => {
     const { callBridge } = fakeBridge(512, 512)
     const tool = createImageGenTool({
       credentials: fakeStore(),
@@ -151,7 +168,7 @@ describe('generate_image 本地留存挂钩', () => {
       ]
     })
 
-    const files = readdirSync(tmpDir)
+    const { files } = readBucketFiles()
     expect(files).toHaveLength(2)
     const suffixes = files.map((name) => {
       const m = name.match(/-(\d+)-512x512\.png$/)
@@ -191,7 +208,7 @@ describe('generate_image 本地留存挂钩', () => {
       ]
     })
 
-    const files = readdirSync(tmpDir)
+    const { files } = readBucketFiles()
     expect(files).toHaveLength(1)
     expect(files[0] ?? '').toMatch(/\.png$/)
   })
@@ -264,9 +281,11 @@ describe('generate_image 本地留存挂钩', () => {
   })
 
   test('writeFileSync 抛错（只读目录）→ 工具结果正常，不含留存错误信息', async () => {
-    // 先建一个只读目录让 mkdirSync 走通但 writeFileSync 抛 EACCES
-    mkdirSync(tmpDir, { recursive: true })
-    chmodSync(tmpDir, 0o500) // 只读不可写（POSIX；win 下语义不同但 chmod 不抛错，writeFileSync 仍会失败）
+    // 2026-09-18 重排：写盘落点在日期桶——预建当天桶并把桶 chmod 只读，
+    // 让 mkdirSync 走通（桶已存在）而 writeFileSync 抛 EACCES
+    const bucketDir = todayBucketDir()
+    mkdirSync(bucketDir, { recursive: true })
+    chmodSync(bucketDir, 0o500) // 只读不可写（POSIX；win 下语义不同但 chmod 不抛错，writeFileSync 仍会失败）
     try {
       const { callBridge } = fakeBridge(1024, 768)
       const tool = createImageGenTool({
@@ -300,7 +319,7 @@ describe('generate_image 本地留存挂钩', () => {
     } finally {
       // 恢复权限让 cleanup 能删
       try {
-        chmodSync(tmpDir, 0o700)
+        chmodSync(bucketDir, 0o700)
       } catch (error) {
         // win 下可能不可恢复——tmpRoot cleanup force=true 一般能盖；留痕过 no-silent-catch
         console.warn(

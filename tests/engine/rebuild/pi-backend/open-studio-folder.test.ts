@@ -145,21 +145,22 @@ describe('POST /api/pi/open-studio-folder（ai-panel-ux-consolidation）', () =>
     const r = await openFolder_()
     expect(r.status).toBe(200)
     expect(r.body).toEqual({ ok: true })
-    // opener 收到的目录 = rootDir/studio（userDir 随 rootDir 走）
+    // opener 收到的目录 = rootDir/workspace/.agents（userDir 随 rootDir 走，
+    // 2026-09-18 userdata 重排）
     expect(capturedOpens).toHaveLength(1)
     expect((capturedOpens[0] ?? '').replaceAll('\\', '/')).toBe(
-      join(rootDir, 'studio').replaceAll('\\', '/')
+      join(rootDir, 'workspace', '.agents').replaceAll('\\', '/')
     )
     // 兜底 mkdir 落地
-    const stat = (await import('node:fs')).statSync(join(rootDir, 'studio'))
+    const stat = (await import('node:fs')).statSync(join(rootDir, 'workspace', '.agents'))
     expect(stat.isDirectory()).toBe(true)
   })
 
   test('目录已存在 → 不抛，opener 仍拿到 userDir', async () => {
     openerBehavior = { kind: 'ok' }
     // seed 应已建；显式再 mkdir 一次（验证幂等不误伤）
-    mkdirSync(join(rootDir, 'studio'), { recursive: true })
-    writeFileSync(join(rootDir, 'studio', 'README.md'), '# 占位', 'utf8')
+    mkdirSync(join(rootDir, 'workspace', '.agents'), { recursive: true })
+    writeFileSync(join(rootDir, 'workspace', '.agents', 'README.md'), '# 占位', 'utf8')
     const r = await openFolder_()
     expect(r.status).toBe(200)
     expect(r.body).toEqual({ ok: true })
@@ -195,7 +196,7 @@ describe('POST /api/pi/open-studio-folder（ai-panel-ux-consolidation）', () =>
     await openFolder_()
     const got = capturedOpens[0] ?? ''
     expect(got.length).toBeGreaterThan(0)
-    expect(got.replaceAll('\\', '/').endsWith('/studio')).toBe(true)
+    expect(got.replaceAll('\\', '/').endsWith('/workspace/.agents')).toBe(true)
   })
 
   test('GET → 405', async () => {

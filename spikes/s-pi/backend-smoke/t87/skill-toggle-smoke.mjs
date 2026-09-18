@@ -79,7 +79,8 @@ async function sendPrompt(base, body, token) {
   }
 }
 
-// ── fixture：studio 资产集复制 + 一份 fixture skill（单源 <rootDir>/studio/skills）
+// ── fixture：内置 studio 资产集复制 + 一份 fixture skill
+// （用户层单源 <rootDir>/workspace/.agents/skills，2026-09-18 userdata 重排）
 const tempRoot = mkdtempSync(join(tmpdir(), 't87-skill-'))
 mkdirSync(join(tempRoot, 'src/app/ai/pi-backend/studio'), { recursive: true })
 copyFileSync(
@@ -95,8 +96,9 @@ for (const sub of ['workflows', 'profiles', 'references']) {
 }
 mkdirSync(join(tempRoot, 'pi-agent'), { recursive: true })
 
-// 单源 fixture — 仅落一份 <rootDir>/studio/skills/t87-demo/SKILL.md（resolveSkillsDir 归位 studio/ 下随行）
-const userSkillDir = join(tempRoot, 'studio', 'skills', 't87-demo')
+// 单源 fixture — 仅落一份 <rootDir>/workspace/.agents/skills/t87-demo/SKILL.md
+// （resolveSkillsDir 归位 workspace/.agents/ 下随行）
+const userSkillDir = join(tempRoot, 'workspace', '.agents', 'skills', 't87-demo')
 mkdirSync(userSkillDir, { recursive: true })
 writeFileSync(
   join(userSkillDir, 'SKILL.md'),

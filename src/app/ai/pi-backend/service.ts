@@ -66,6 +66,7 @@ import { readPiHistoryFile } from './history'
 import type { ImageGenCredentialStore } from './image-gen/credentials'
 import type { ImageGenSettingsStore } from './image-gen/settings'
 import { createPiEventMapper } from './mapping'
+import { migrateUserdataLayout } from './migrate'
 import {
   resolveAgentDir,
   resolveArchiveDir,
@@ -187,6 +188,10 @@ export function createPiChatService({
   const archiveDir = resolveArchiveDir(rootDir)
   const maxSessions = readMaxSessions()
   const sessionMaxAgeDays = readSessionMaxAgeDays()
+
+  // 2026-09-18 userdata 重排存量迁移（migrate.ts，warn-only 不阻断）——必须先于
+  // seed：seed 会在新位建目录/写 README，先 seed 会让迁移撞「新目录已存在」分支整体跳过。
+  migrateUserdataLayout(rootDir)
 
   // P2-11：seed 用户 studio 目录——首跑检测无 `_` 前缀模板则复制内置 _example。
   // 失败仅 warn 不阻断（IO 权限 / 磁盘满等不应挂掉整个后端）。
