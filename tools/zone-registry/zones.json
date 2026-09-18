@@ -6,6 +6,7 @@
     "tools/hooks/",
     "src/app/i18n/fork/",
     "packages/core/src/tools/fork/",
+    "packages/core/src/tools/shared/",
     "tests/engine/rebuild/",
     "spikes/",
     "attic/",
@@ -1745,6 +1746,13 @@
       "id": "P296",
       "file": "tests/engine/icons/svg.test.ts",
       "reason": "2026-09-18：extractPaths prolog 剥离回归钉三态（声明/DOCTYPE 剥后等价裸体、注释保留无害）——P294 配套",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P297",
+      "file": "packages/core/src/tools/stock-photo/apply.ts",
+      "reason": "CI 修红 2026-09-18（run 35372599440，jscpd 阈值 0）：IMAGE fill 字面量三处克隆抽共享 helper（ownedRoots 新增 packages/core/src/tools/shared/image-fill.ts，place-image-from-bytes.ts 两处同换）——P226 之后本文件第二处 fork 偏离",
       "disposition": "permanent",
       "lastReviewed": "2026-09-18"
     }

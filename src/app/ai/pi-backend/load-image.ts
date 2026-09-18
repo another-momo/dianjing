@@ -11,9 +11,9 @@
  *   4. base64 桥调 core place_image_from_bytes（真解码闸/像素上限/矢量化/定位
  *      全在桥端点）
  *
- * 归一化与 deny 名单复用 key-guard 机制（normalizePath/isWriteHit 同算法；
- * key-guard 的 normalizePath 是模块私有，此处同形重述——口径漂移风险钉在
- * 测试里）。路径裁决与 export_image_to_file 共享（同文件导出
+ * 归一化与 deny 名单复用 key-guard 机制（normalizePathDual/isWriteHit 同
+ * 算法；2026-09-18 CI 修红起归一化单一真源在 ./path-normalize.ts，两侧
+ * 不再各自重述）。路径裁决与 export_image_to_file 共享（同文件导出
  * decideWorkspacePath，写侧口径一致）。
  *
  * key 卫生：桥 payload 只含文件名/字节 base64/MIME/节点 id，无路径之外的
@@ -22,7 +22,7 @@
 
 import { readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, resolve } from 'node:path'
+import { basename } from 'node:path'
 
 import { defineTool, type AgentToolResult } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
@@ -35,6 +35,7 @@ import {
   type BridgeCallTarget
 } from './image-gen/bridge-call'
 import { protectedWriteRoots } from './key-guard'
+import { normalizePathDual } from './path-normalize'
 import { resolveWorkspaceDir } from './paths'
 import { toToolResult } from './tool-result'
 
@@ -47,7 +48,7 @@ The file must be inside the workspace directory; paths outside it (and the prote
 
 返回的节点即工作产物——后续编辑/引用直接操作画布节点，不要再对同一文件反复调用本工具。`
 
-// ── 路径三态裁决（key-guard 同算法归一化 + deny 名单；§6） ──
+// ── 路径三态裁决（共享归一化算法 + deny 名单；§6） ──
 
 export interface PathDecisionOptions {
   rootDir: string
@@ -59,28 +60,6 @@ export interface PathDecisionOptions {
 export type PathDecision =
   | { ok: true; /** 绝对路径（大小写保留，供真实 IO） */ absolutePath: string }
   | { ok: false; error: string; reason: 'denied' }
-
-/**
- * key-guard normalizePath 同算法（模块私有无法直接复用）：~ 展开 → 分隔符统一
- * → 绝对判定（前导 '/' 或盘符）→ resolve(cwd, p)。本变体返回双形态：
- * compare 形态（全小写，供名单比对）与 absolute 形态（大小写保留，供真实 IO——
- * 小写化路径在大小写敏感 FS 上会写错位置）。
- */
-function normalizePathDual(
-  input: string,
-  cwd: string,
-  homeDir: string
-): { compare: string; absolute: string } {
-  const expanded =
-    input.startsWith('~') && (input.length === 1 || input[1] === '/' || input[1] === '\\')
-      ? homeDir + input.slice(1)
-      : input
-  const unifiedInput = expanded.replaceAll('\\', '/')
-  const isAbs = unifiedInput.startsWith('/') || /^[a-zA-Z]:\//.test(unifiedInput)
-  const absolute = isAbs ? unifiedInput : resolve(cwd, unifiedInput).replaceAll('\\', '/')
-  const trim = (p: string) => (p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p)
-  return { compare: trim(absolute.toLowerCase()), absolute: trim(absolute) }
-}
 
 /** key-guard isWriteHit 同算法：normalized 本身是受保护目录或其后代 */
 function hitsProtectedRoot(compare: string, protectedCompare: ReadonlySet<string>): boolean {

@@ -21,6 +21,8 @@ import { join } from 'node:path'
 import { createExportImageToFileTool } from '@/app/ai/pi-backend/export-image-to-file'
 import { formatImageGenDateBucket } from '@/app/ai/pi-backend/paths'
 
+import { bridgeStub, type BridgeStub } from './helpers'
+
 const EXPORT_BYTES = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 9, 9, 9])
 
 let rootDir = ''
@@ -36,33 +38,23 @@ afterEach(() => {
   rmSync(rootDir, { recursive: true, force: true })
 })
 
-type ExportBridgeStub = {
-  calls: Array<{ tool: string; args: Record<string, unknown> }>
-  callBridge: (tool: string, args: Record<string, unknown>) => Promise<Record<string, unknown>>
-}
-
 function exportBridge(
   overrides: Partial<{ result: Record<string, unknown>; throws: Error }> = {}
-): ExportBridgeStub {
-  const calls: ExportBridgeStub['calls'] = []
-  const callBridge = async (tool: string, args: Record<string, unknown>) => {
-    calls.push({ tool, args })
-    if (overrides.throws) throw overrides.throws
-    return (
-      overrides.result ?? {
-        base64: Buffer.from(EXPORT_BYTES).toString('base64'),
-        mimeType: 'image/png',
-        byteLength: EXPORT_BYTES.byteLength,
-        width: 640,
-        height: 480,
-        scale: 1
-      }
-    )
-  }
-  return { calls, callBridge }
+): BridgeStub {
+  return bridgeStub(
+    {
+      base64: Buffer.from(EXPORT_BYTES).toString('base64'),
+      mimeType: 'image/png',
+      byteLength: EXPORT_BYTES.byteLength,
+      width: 640,
+      height: 480,
+      scale: 1
+    },
+    overrides
+  )
 }
 
-function makeTool(stub: ExportBridgeStub) {
+function makeTool(stub: BridgeStub) {
   return createExportImageToFileTool({
     rootDir,
     homeDir: join(rootDir, 'home'),

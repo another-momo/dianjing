@@ -1,6 +1,7 @@
 import type { SceneNode } from '@open-pencil/scene-graph'
 
 import type { FigmaAPI } from '#core/figma-api'
+import { applyImageFill } from '#core/tools/shared/image-fill'
 
 import type { StockPhotoProvider, StockPhotoResult } from './providers'
 
@@ -85,17 +86,7 @@ export async function applyPhoto(
     return { id: req.id, error: `Download: ${err instanceof Error ? err.message : String(err)}` }
   }
 
-  const image = figma.createImage(imageBytes)
-  node.fills = [
-    {
-      type: 'IMAGE',
-      color: { r: 1, g: 1, b: 1, a: 1 },
-      imageHash: image.hash,
-      imageScaleMode: 'FILL',
-      visible: true,
-      opacity: 1
-    }
-  ]
+  applyImageFill(figma, node, imageBytes)
 
   return {
     id: node.id,

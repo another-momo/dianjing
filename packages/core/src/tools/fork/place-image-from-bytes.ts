@@ -33,9 +33,11 @@ import type { Size, Vector } from '@open-pencil/scene-graph/primitives'
 import { decodeBase64 } from '#core/bytes'
 import { type FigmaAPI } from '#core/figma-api'
 import { createSVGNodesFromImport, prepareSVGImport } from '#core/io/formats/svg'
+import { type ImageGenResult } from '#core/tools/fork/image-gen/requests'
 import { findPlacementPosition } from '#core/tools/fork/placement'
 import { toolNumber } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
+import { applyImageFill } from '#core/tools/shared/image-fill'
 
 /** 像素上限（总像素）——解码内存闸；超限拒绝并返实际宽高，不静默缩放 */
 export const PLACE_IMAGE_MAX_PIXELS = 64_000_000
@@ -108,7 +110,8 @@ function stripExtension(name: string): string {
 
 type NodeProxy = NonNullable<ReturnType<FigmaAPI['getNodeById']>>
 
-type CheckedRaster = { bytes: Uint8Array; width: number; height: number }
+// 同形对象类型按仓规别名复用（type-shapes 门禁），不另立字面量
+type CheckedRaster = ImageGenResult
 
 async function decodeAndCheckPixels(
   args: PlaceImageFromBytesArgs,
@@ -176,18 +179,8 @@ async function replaceNodeFill(
   if (!target) return { error: `Node "${args.replace_id}" not found` }
   const checked = await decodeAndCheckPixels(args, decodeRaster)
   if ('error' in checked) return checked
-  const image = figma.createImage(checked.bytes)
-  target.fills = [
-    {
-      type: 'IMAGE',
-      color: { r: 1, g: 1, b: 1, a: 1 },
-      imageHash: image.hash,
-      imageScaleMode: 'FILL',
-      visible: true,
-      opacity: 1
-    }
-  ]
-  return { id: target.id, width: checked.width, height: checked.height, imageHash: image.hash }
+  const imageHash = applyImageFill(figma, target, checked.bytes)
+  return { id: target.id, width: checked.width, height: checked.height, imageHash }
 }
 
 /** SVG 新建：矢量化建 FRAME（与手工「添加图片」同节点形态） */
@@ -226,28 +219,18 @@ async function placeRasterAsNewNode(
   const size = logicalSize(checked.width, checked.height)
   const position = resolveNewNodePosition(figma, args, size, parent, 'absolute')
 
-  // 宽化到 NodeProxy：createRectangle 返回值交叉了插件 typings RectangleNode，
-  // 其 fills 上下文里 IMAGE 变体无 color/imageScaleMode——新鲜字面量会撞超额
-  // 属性检查（TS2353）；proxy 侧 fills 按 scene-graph 平铺 Fill 校验
+  // 宽化到 NodeProxy：createRectangle 返回值交叉了插件 typings RectangleNode
+  // （fills 字面量 TS2353 坑见 tools/shared/image-fill.ts 头注）；proxy 侧
+  // fills 按 scene-graph 平铺 Fill 校验
   const node: NodeProxy = figma.createRectangle()
   node.name = stripExtension(args.name) || 'image'
   node.resize(size.width, size.height)
   node.x = position.x
   node.y = position.y
-  const image = figma.createImage(checked.bytes)
-  node.fills = [
-    {
-      type: 'IMAGE',
-      color: { r: 1, g: 1, b: 1, a: 1 },
-      imageHash: image.hash,
-      imageScaleMode: 'FILL',
-      visible: true,
-      opacity: 1
-    }
-  ]
+  const imageHash = applyImageFill(figma, node, checked.bytes)
   // appendChild 保持绝对坐标（reparentNode 语义），x/y 按页级解释不漂移
   if (parent) parent.appendChild(node)
-  return { id: node.id, width: size.width, height: size.height, imageHash: image.hash }
+  return { id: node.id, width: size.width, height: size.height, imageHash }
 }
 
 export async function placeImageFromBytes(

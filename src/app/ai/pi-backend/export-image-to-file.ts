@@ -28,12 +28,8 @@ import { Type } from 'typebox'
 
 import { decodeBase64 } from '@open-pencil/core/bytes'
 
-import {
-  createBridgeCaller,
-  type BridgeCaller,
-  type BridgeCallTarget
-} from './image-gen/bridge-call'
-import { decideWorkspacePath } from './load-image'
+import { createBridgeCaller } from './image-gen/bridge-call'
+import { decideWorkspacePath, type LoadImageToolDeps } from './load-image'
 import { resolveImageGenDatedDir } from './paths'
 import { toToolResult } from './tool-result'
 
@@ -52,16 +48,11 @@ function filenameTimestamp(now: Date): string {
 
 const FORMAT_TO_EXT: Record<string, string> = { PNG: 'png', JPG: 'jpg', WEBP: 'webp' }
 
-export interface ExportImageToFileToolDeps {
-  rootDir: string
-  /** 桥调用（缺省 createBridgeCaller()）；测试注入 mock */
-  callBridge?: BridgeCaller
-  /** 当次请求的桥目标袋（service 装配期注入） */
-  target?: BridgeCallTarget
-  /** 测试注入（路径裁决口径同 load_image） */
-  homeDir?: string
-  cwd?: string
-}
+/**
+ * 与 LoadImageToolDeps 完全同形（rootDir/callBridge?/target?/homeDir?/cwd?）——
+ * 仓规同形对象类型别名复用（type-shapes 门禁），字段语义注释见 load-image.ts。
+ */
+export type ExportImageToFileToolDeps = LoadImageToolDeps
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)

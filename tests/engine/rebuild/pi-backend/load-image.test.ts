@@ -27,6 +27,8 @@ import {
   sniffImageFormat
 } from '@/app/ai/pi-backend/load-image'
 
+import { bridgeStub as sharedBridgeStub, type BridgeStub } from './helpers'
+
 // ── 真实 magic bytes 前缀（文件体其余部分随意——嗅探层只看 magic + 扩展名） ──
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3])
 const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3])
@@ -62,11 +64,6 @@ function writeFixture(rel: string, bytes: Uint8Array | string): string {
   return path
 }
 
-type BridgeStub = {
-  calls: Array<{ tool: string; args: Record<string, unknown> }>
-  callBridge: (tool: string, args: Record<string, unknown>) => Promise<Record<string, unknown>>
-}
-
 /** 默认桥桩：记录调用 + 回成功结果；overrides 可换错误/抛错形态 */
 function bridgeStub(
   overrides: Partial<{
@@ -74,13 +71,7 @@ function bridgeStub(
     throws: Error
   }> = {}
 ): BridgeStub {
-  const calls: BridgeStub['calls'] = []
-  const callBridge = async (tool: string, args: Record<string, unknown>) => {
-    calls.push({ tool, args })
-    if (overrides.throws) throw overrides.throws
-    return overrides.result ?? { id: '1:2', width: 800, height: 600, imageHash: 'hash-x' }
-  }
-  return { calls, callBridge }
+  return sharedBridgeStub({ id: '1:2', width: 800, height: 600, imageHash: 'hash-x' }, overrides)
 }
 
 function makeTool(stub: BridgeStub) {
