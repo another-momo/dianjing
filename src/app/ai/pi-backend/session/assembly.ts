@@ -26,10 +26,12 @@ import { type AskPendingStore } from '../ask/pending'
 import { createAskPendingGuardExtension } from '../ask/pending-guard'
 import { createAskUserQuestionTool } from '../ask/user-question'
 import type { CapabilitiesStore } from '../capabilities'
+import { createExportImageToFileTool } from '../export-image-to-file'
 import type { ImageGenCredentialStore } from '../image-gen/credentials'
 import { createImageGenTool } from '../image-gen/generate'
 import type { ImageGenSettingsStore } from '../image-gen/settings'
 import { createKeyGuardExtension } from '../key-guard'
+import { createLoadImageTool } from '../load-image'
 import { createLoadReferenceTool } from '../load-reference'
 import {
   resolveBuiltinSkillsDir,
@@ -199,7 +201,13 @@ export async function assembleSession(
     // P2-3（2026-09-07）：read_reference → load_reference 重命名
     createLoadReferenceTool({
       allowedPaths: () => host.turnAssembly()?.allowedReferences ?? EMPTY_REFERENCES
-    })
+    }),
+    // 2026-09-18 本地图片工具链（仓外 docs/202609151700-load-image-tool-research.md）：
+    // load_image = 读本地图片上画布（路径三态裁决 + 嗅探 + 桥调
+    // place_image_from_bytes）；export_image_to_file = 画布节点写盘唯一入口
+    // （桥调 core export_image 拿 base64 → 三态裁决 → fs.writeFile）
+    createLoadImageTool({ rootDir, target }),
+    createExportImageToFileTool({ rootDir, target })
   ]
 
   // T60：每回合组装 = active-design-host prepareTurn 产出的

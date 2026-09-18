@@ -25,6 +25,7 @@ import {
   SETUP_TOOLS
 } from './marketing'
 import { lookTool } from './marketing/look'
+import { placeImageFromBytesTool } from './place-image-from-bytes'
 
 export const FORK_TOOLS: ToolDef[] = [
   ...BRIEF_TOOLS,
@@ -33,5 +34,6 @@ export const FORK_TOOLS: ToolDef[] = [
   ...HERO_TOOLS,
   ...IMAGE_GEN_TOOLS,
   ...COMPOSE_TOOLS,
-  ...ACTIVE_DESIGN_TOOLS
+  ...ACTIVE_DESIGN_TOOLS,
+  placeImageFromBytesTool
 ]

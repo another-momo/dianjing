@@ -70,17 +70,19 @@ const COMMIT_TOOL = 'image_gen_commit'
  * 备份机制为内部设施——不向模型暴露页名/容器等落点细节，仅声明
  * 「旧版本自动保留、可作 reference 复用」的功能语义（owner 2026-09-01 裁定）。
  */
-export const GENERATE_IMAGE_DESCRIPTION = `Generate or edit images via the configured OpenAI-compatible image API and place them on the canvas as image nodes. Batch: pass multiple items in \`requests\`.
+export const GENERATE_IMAGE_DESCRIPTION = `Generate or edit images via the configured OpenAI-compatible image API and place them on the canvas as image nodes.
 
-REPLACE vs CREATE: set \`replace_id\` to fill an existing node, replacing its current fill (on Frames the image becomes the frame background with children kept — the standard text-over-image hero and image-swap pattern). Omit it to create a new node (auto-placed right of page content, never overlapping). Replacing never loses an image: the previous version is auto-preserved and stays reusable as a reference.
+REPLACE vs CREATE: set \`replace_id\` to fill an existing node, replacing its current fill (on Frames it becomes the frame background with children kept — the standard text-over-image hero/image-swap pattern). Omit it to create a new node (auto-placed right of page content, never overlapping). Replacing never loses an image: the previous version is auto-preserved and stays reusable as a reference.
 
-REFERENCES are the ONLY input-image source: a node contributes its original IMAGE bytes by default (lossless); nodes WITHOUT an IMAGE fill (layout Frames, groups) are rendered automatically. Use {"id":"...","composite":true} for the rendered appearance (children, effects, rounded corners). No references = text-to-image; with references = image-to-image. To EDIT an image, set \`replace_id\` to it AND include its id in \`references\`; to REGENERATE unbiased (retrying a rejected result), set \`replace_id\` but omit the target from \`references\`. Name multiple references [image 1], [image 2], ... in the prompt in order. A reference must not point at another batch item's output — split dependent edits into separate calls.
+REFERENCES are the ONLY input-image source: a node contributes its original IMAGE bytes by default (lossless); nodes WITHOUT an IMAGE fill are rendered automatically. Use {"id":"...","composite":true} for the rendered appearance (children, effects, rounded corners). No references = text-to-image; with references = image-to-image. To EDIT an image, set \`replace_id\` to it AND include its id in \`references\`; to REGENERATE unbiased, set \`replace_id\` but omit the target from \`references\`. Name multiple references [image 1], [image 2], ... in the prompt in order. A reference must not point at another batch item's output — split dependent edits into separate calls.
 
 Generation is SLOW: batch ALL needed images in ONE call — never loop single calls. Any width/height is accepted — 16px-aligned and clipped to API constraints preserving aspect ratio; adjustments are reported in note.
 
 TRANSPARENT BACKGROUND: set \`transparent_background: true\` for cutouts needing a transparent canvas; omit when opaque.
 
-Returns node id metadata only (no image bytes): inspect with \`describe\`, visually accept with \`look\`; on miss, regenerate with an adjusted prompt (max 2 attempts). If the key is missing or the API returns 401, tell the user to add/check the Image Generation API key in AI chat settings (separate from the chat LLM key) — do NOT fall back to eval-drawn gradients.`
+Returns node metadata (no image bytes): inspect with \`describe\`, accept visually with \`look\`; on miss, regenerate with an adjusted prompt (max 2 attempts). On missing key or 401, tell the user to add/check the Image Generation API key in AI chat settings (separate from the chat LLM key) — do NOT fall back to eval-drawn gradients.
+
+结果项 \`file_path\` = 留存副本绝对路径（未留存为 null），仅供显式用户需求或字节类 skill 工作流使用；不要默认 \`load_image\` / \`export_image_to_file\` 回读画布——画布节点即工作产物，无谓磁盘往返会增加延迟、干扰画布流。`
 
 export interface ImageGenToolDeps {
   credentials: ImageGenCredentialStore
@@ -134,6 +136,12 @@ interface ItemResult {
   error?: string
   /** T33: true=透明背景后处理成功；false=未启用/未执行；'failed'=启用但后处理失败已回退原 bytes */
   transparent?: boolean | 'failed'
+  /** 2026-09-18：maybeRetain 命中留存时透出落盘绝对路径；未命中/失败 = null */
+  file_path?: string | null
+  /** 2026-09-18：最终生效输出格式的 MIME（transparent 强制 png 已反映） */
+  mimeType?: string
+  /** 2026-09-18：落盘字节数（与画布 IMAGE fill 同一份 bytes） */
+  byteLength?: number
 }
 
 type PipelineItem = {
@@ -177,6 +185,10 @@ function toErrorMessage(error: unknown): string {
  *   - 同秒多 item 靠批次内序号后缀区分；跨调用同秒同尺寸撞名覆盖即可——
  *     用户语义是「保留最近一次的本地副本」，无版本控制需求。
  *
+ * 2026-09-18 本地图片工具链（§4.1）：命中留存时返回落盘绝对路径，由
+ * runCommitPhase 透出到工具返回值 file_path 字段；写盘失败/未留存返回 null
+ * （静默语义不变——留存失败永不污染工具结果）。
+ *
  * 整个写盘 try/catch 包裹——禁空 catch，必须把 msg 透出到 warn；任何 IO
  * 异常（permission denied / disk full / readonly volume）都不应拖累画布
  * commit。
@@ -186,8 +198,8 @@ function maybeRetain(
   format: ImageGenRequest['outputFormat'],
   gen: ImageGenResult,
   batchIndex: number
-): void {
-  if (!retention || !retention.enabled()) return
+): string | null {
+  if (!retention || !retention.enabled()) return null
   try {
     const now = new Date()
     const dir = join(retention.dir(), formatImageGenDateBucket(now))
@@ -200,12 +212,15 @@ function maybeRetain(
     const SS = now.getSeconds().toString().padStart(2, '0')
     const ext = format ?? 'png'
     const filename = `${yyyy}${mm}${dd}-${HH}${MM}${SS}-${batchIndex}-${gen.width}x${gen.height}.${ext}`
-    writeFileSync(join(dir, filename), gen.bytes)
+    const filePath = join(dir, filename)
+    writeFileSync(filePath, gen.bytes)
+    return filePath
   } catch (error) {
     console.warn(
       '[pi-backend] image-gen 本地留存失败（忽略）：' +
         (error instanceof Error ? error.message : String(error))
     )
+    return null
   }
 }
 
@@ -330,8 +345,10 @@ async function runCommitPhase(
         continue
       }
       // 本地留存：commit 成功后立刻落盘——bytes 与画布 IMAGE fill 是同一份
-      // （透明背景后处理之后）；序号 = 批次内位置（同秒多 item 区分用）
-      maybeRetain(retention, item.effectiveFormat, item.gen, i)
+      // （透明背景后处理之后）；序号 = 批次内位置（同秒多 item 区分用）。
+      // 2026-09-18：命中透出绝对路径到 file_path（未命中/失败 = null）
+      const retainedPath = maybeRetain(retention, item.effectiveFormat, item.gen, i)
+      const effectiveFormat = item.effectiveFormat ?? 'png'
       const commitResult: {
         id: string
         width?: number
@@ -343,13 +360,19 @@ async function runCommitPhase(
         note?: string
         error?: string
         transparent?: boolean | 'failed'
+        file_path?: string | null
+        mimeType?: string
+        byteLength?: number
       } = {
         id: commit.id,
         width: item.gen.width,
         height: item.gen.height,
         canvasWidth: commit.canvasWidth,
         canvasHeight: commit.canvasHeight,
-        provider: provider.name
+        provider: provider.name,
+        file_path: retainedPath,
+        mimeType: `image/${effectiveFormat}`,
+        byteLength: item.gen.bytes.byteLength
       }
       if (commit.snapshot) commitResult.snapshot = commit.snapshot
       if (item.begin.note) commitResult.note = item.begin.note
