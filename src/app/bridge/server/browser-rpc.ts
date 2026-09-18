@@ -37,6 +37,8 @@ export class ToolExecutionError extends Error {
 type BrowserRPCBridgeOptions = {
   authToken: string | null
   onConnectionChange?: () => void
+  /** How long an RPC waits for the app to register before failing with APP_NOT_CONNECTED. Defaults to 10 s. */
+  appWaitTimeoutMs?: number
 }
 
 type ConnectionListener = (connected: boolean) => void
@@ -98,7 +100,11 @@ type WindowSlot = {
   pending: Map<string, PendingRequest>
 }
 
-export function createBrowserRPCBridge({ authToken, onConnectionChange }: BrowserRPCBridgeOptions) {
+export function createBrowserRPCBridge({
+  authToken,
+  onConnectionChange,
+  appWaitTimeoutMs = APP_WAIT_TIMEOUT
+}: BrowserRPCBridgeOptions) {
   // T98-路由：windowId → 槽位（含 ws + 该窗的 pending map）
   const windows = new Map<string, WindowSlot>()
   // ws → windowId 反向索引（handleBrowserResponse / handleClose O(1) 反查）
@@ -152,7 +158,7 @@ export function createBrowserRPCBridge({ authToken, onConnectionChange }: Browse
       const timer = setTimeout(() => {
         if (waiter) connectionWaiters.delete(waiter)
         reject(new Error(APP_NOT_CONNECTED_MESSAGE))
-      }, APP_WAIT_TIMEOUT)
+      }, appWaitTimeoutMs)
 
       waiter = {
         resolve: () => {
@@ -169,7 +175,7 @@ export function createBrowserRPCBridge({ authToken, onConnectionChange }: Browse
       // race: if the browser registers between sendRPC's initial check and
       // this point, notifyConnectionWaiters() will have already fired and
       // cleared the set. Without this re-check, the waiter would stall for
-      // APP_WAIT_TIMEOUT even though the browser is connected.
+      // appWaitTimeoutMs even though the browser is connected.
       connectionWaiters.add(waiter)
       if (windows.size > 0) {
         waiter.resolve(undefined)

@@ -1,3 +1,4 @@
+/* oxlint-disable open-pencil/no-module-mocking -- pi SDK/host 模块级桩（无 DI 缝）；DI 迁移评估挂 backlog */
 /**
  * 图片本地留存目录打开端点（POST /api/pi/open-image-gen-folder）——
  * 同 open-studio-folder.test.ts 形态：opener 注入桩、禁真起 explorer/open/xdg-open；

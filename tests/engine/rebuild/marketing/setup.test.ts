@@ -54,7 +54,7 @@ import { SETUP_TEXTS } from '#core/tools/fork/marketing/texts'
 import { PLACEMENT_GAP } from '#core/tools/fork/placement'
 
 import { expectDefined } from '#tests/helpers/assert'
-import { setupToolTest } from '#tests/helpers/tools'
+import { setupToolTest, toolInputSchema } from '#tests/helpers/tools'
 
 const CATALOG: SetupCatalog = {
   modes: [
@@ -556,14 +556,10 @@ describe('setup_design ToolDef：schema 与注入缝', () => {
     expect(SETUP_TOOLS).toEqual([setupDesignTool])
     expect(setupDesignTool.name).toBe('setup_design')
     expect(setupDesignTool.mutates).toBe(true)
-    expect(Object.keys(setupDesignTool.params)).toEqual([
-      'modeId',
-      'profileId',
-      'briefId',
-      'canvas'
-    ])
-    expect(setupDesignTool.params.modeId?.required).toBe(true)
-    expect(setupDesignTool.params.briefId?.required).toBe(true)
+    // PR697 后钉扎 wire contract（LLM 可见的 JSON Schema）而非内部 ParamDef
+    const schema = toolInputSchema(setupDesignTool)
+    expect(Object.keys(schema.properties)).toEqual(['modeId', 'profileId', 'briefId', 'canvas'])
+    expect(schema.required).toEqual(['modeId', 'briefId'])
   })
 
   test('__catalog JSON + __confirmedNewIntent=true 注入 → 建框成功', () => {

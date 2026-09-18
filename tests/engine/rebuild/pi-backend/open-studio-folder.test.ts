@@ -1,3 +1,4 @@
+/* oxlint-disable open-pencil/no-module-mocking -- pi SDK/host 模块级桩（无 DI 缝）；DI 迁移评估挂 backlog */
 /**
  * ai-panel-ux-consolidation：POST /api/pi/open-studio-folder 路由测试。
  *

@@ -1,5 +1,7 @@
 import 'fake-indexeddb/auto'
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
+
+import { IDBFactory } from 'fake-indexeddb'
 
 import { createIdbRecoveryStore } from '@/app/document/recovery/idb'
 import { createMemoryRecoveryStore } from '@/app/document/recovery/memory'
@@ -11,14 +13,20 @@ const bytes = new Uint8Array([1, 2, 3, 4])
 const CI_SAFE_TIMEOUT = 20_000
 
 describe('document recovery store', () => {
-  beforeEach(async () => {
-    await new Promise<void>((resolve) => {
-      const request = indexedDB.deleteDatabase('open-pencil-recovery')
-      request.onsuccess = () => resolve()
-      request.onerror = () => resolve()
-      request.onblocked = () => resolve()
-    })
-  }, CI_SAFE_TIMEOUT)
+  // Every file in a shard shares this process and its `indexedDB` global.
+  // Another suite may leave the production recovery store's connection open
+  // (createEditorStore() opens it), which would block a deleteDatabase() here
+  // and queue our open() behind it until the test times out. A fresh factory
+  // per test isolates this suite from that and from its own previous test.
+  const sharedFactory = indexedDB
+
+  beforeEach(() => {
+    globalThis.indexedDB = new IDBFactory()
+  })
+
+  afterAll(() => {
+    globalThis.indexedDB = sharedFactory
+  })
 
   test(
     'stores metadata and FIG bytes atomically in IndexedDB',

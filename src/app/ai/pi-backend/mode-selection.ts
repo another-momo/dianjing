@@ -177,12 +177,8 @@ function syncPiActiveDesign(store: EditorStore | null): void {
   const next = readActiveDesignIdentity(store)
   piActiveDesign.value = next
   const inFlight = piInFlightIntent.value
-  if (
-    next &&
-    inFlight &&
-    next.modeId === inFlight.modeId &&
-    next.profileId === inFlight.profileId
-  ) {
+  if (next === null || inFlight === null) return
+  if (next.modeId === inFlight.modeId && next.profileId === inFlight.profileId) {
     piInFlightIntent.value = null
   }
 }

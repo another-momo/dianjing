@@ -1,6 +1,8 @@
 import { createHead } from '@unhead/vue/client'
 import { createApp } from 'vue'
 
+import { createRetainedScopePlugin } from '@open-pencil/vue'
+
 import './app.css'
 import { attachPiBackendTransport } from '@/app/ai/pi-backend/attach'
 import { preloadFonts } from '@/app/editor/fonts'
@@ -23,7 +25,7 @@ const SPLASH_VISIBLE_MS = import.meta.env.PROD
   : Number(new URLSearchParams(location.search).get('splashMs')) || 0
 
 const head = createHead()
-createApp(App).use(router).use(head).mount('#app')
+createApp(App).use(router).use(head).use(createRetainedScopePlugin()).mount('#app')
 
 const bootSplash = document.getElementById('boot-splash')
 if (bootSplash) {

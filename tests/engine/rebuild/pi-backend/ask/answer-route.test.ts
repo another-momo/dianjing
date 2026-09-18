@@ -1,3 +1,4 @@
+/* oxlint-disable open-pencil/no-module-mocking -- pi SDK/host 模块级桩（无 DI 缝）；DI 迁移评估挂 backlog */
 /**
  * 2026-09-15 ask-answer 端点钉扎：POST /api/pi/ask-answer 路由 HTTP 往返。
  *

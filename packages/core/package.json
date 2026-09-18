@@ -26,6 +26,11 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./geometry": {
+      "types": "./dist/geometry/index.d.ts",
+      "import": "./dist/geometry/index.js",
+      "default": "./dist/geometry/index.js"
+    },
     "./color": {
       "types": "./dist/color/index.d.ts",
       "import": "./dist/color/index.js",
@@ -180,6 +185,7 @@
     "@open-pencil/pen": "workspace:*",
     "@open-pencil/scene-graph": "workspace:*",
     "@tauri-apps/api": "^2.11.1",
+    "@valibot/to-json-schema": "^1.8.0",
     "@xmldom/xmldom": "^0.9.11",
     "acorn": "^8.18.0",
     "canvaskit-wasm": "^0.41.1",

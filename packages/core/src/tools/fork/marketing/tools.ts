@@ -12,6 +12,8 @@
  * - 错误契约 {error} / note 形态，不抛异常。
  */
 
+import * as v from 'valibot'
+
 import type { FigmaAPI } from '#core/figma-api'
 import { findPlacementPosition } from '#core/tools/fork/placement'
 import { defineTool } from '#core/tools/schema'
@@ -42,16 +44,20 @@ const AMBIGUOUS_NOTE =
 
 export const readBriefTool = defineTool({
   name: 'read_brief',
-  mutates: false,
+  execution: { kind: 'sync', mutation: 'none' },
+  exposure: { mcp: false, webmcp: false },
   description:
     'Read the 需求单 (design brief) in one call — content text, material entries (each with imageNodeId for `look`, caption, hasImage), AI conclusions (with per-design attribution), and the designs registered in its 关联设计区 (id + name/mode/type projections; deleted designs are tombstoned, not removed). Pass briefId when several briefs exist on the page; without it the page must contain exactly one brief, otherwise the result is { brief: null, ambiguous: true, candidates } — ask the user which brief to use, do NOT create another one. Returns { brief: null } when no brief exists — a normal state, not an error; the marketing workflow then creates one with create_brief. Prefer this over find_nodes + describe when looking for the brief.',
-  params: {
-    briefId: {
-      type: 'string',
-      description:
-        'Brief frame id to read. Required when the page hosts several briefs (see the ambiguous result); omit when there is only one.'
-    }
-  },
+  input: v.object({
+    briefId: v.optional(
+      v.pipe(
+        v.string(),
+        v.description(
+          'Brief frame id to read. Required when the page hosts several briefs (see the ambiguous result); omit when there is only one.'
+        )
+      )
+    )
+  }),
   execute: (figma, { briefId }) => {
     const graph = figma.graph
     const resolution = findBrief(figma, briefId)
@@ -107,16 +113,20 @@ export const readBriefTool = defineTool({
 
 export const createBriefTool = defineTool({
   name: 'create_brief',
-  mutates: true,
+  execution: { kind: 'sync', mutation: 'document' },
+  exposure: { mcp: false, webmcp: false },
   description:
     "Create a 需求单 (design brief) frame on the canvas with the four-zone structure (内容区 / 素材区 / AI结论区 / 关联设计区), placed to the right of existing content. The marketing workflow calls this directly when read_brief reports none exists — no need to ask the user first. Pass the user's original request verbatim as initial_content — it is transcribed into the content zone as-is (never embellished, paraphrased, or expanded); beyond that transcription the AI never invents brief content. Idempotent: when the page already has exactly one brief, nothing is created and the result is { briefId, created: false }. When the page has MULTIPLE briefs there is no way to tell which one to extend — the result is { created: false, ambiguous: true, candidates }; ask the user instead of creating yet another one.",
-  params: {
-    initial_content: {
-      type: 'string',
-      description:
-        "The user's original request text, VERBATIM — seeded into the content zone so the brief captures the requirement as the user stated it. Never embellish or expand."
-    }
-  },
+  input: v.object({
+    initial_content: v.optional(
+      v.pipe(
+        v.string(),
+        v.description(
+          "The user's original request text, VERBATIM — seeded into the content zone so the brief captures the requirement as the user stated it. Never embellish or expand."
+        )
+      )
+    )
+  }),
   execute: (figma, { initial_content }) => {
     const resolution = findBrief(figma)
     if (resolution.status === 'ambiguous') {
@@ -145,25 +155,30 @@ export const createBriefTool = defineTool({
 
 export const appendBriefConclusionTool = defineTool({
   name: 'append_brief_conclusion',
-  mutates: true,
+  execution: { kind: 'sync', mutation: 'document' },
+  exposure: { mcp: false, webmcp: false },
   description:
     'Append one confirmed conclusion line to the AI结论区 of the 需求单 (design brief) — locked direction, confirmed campaign facts, or a one-line material description. Styling and placement are handled automatically; pass only the conclusion text (one line, no leading "·"). Append-only by design: existing lines cannot be edited or removed. Pass design_id to attribute the line to that design (it lands in the design\'s own group); pass briefId when several briefs exist on the page, otherwise the result is { ok: false, ambiguous: true, candidates }. Returns { ok: false } when no brief exists — create one first with create_brief.',
-  params: {
-    text: {
-      type: 'string',
-      description: 'One conclusion line, e.g. "方向A：水彩萌趣（嫩绿 #A8D5BA / 米白 #F5EFE0）".',
-      required: true
-    },
-    briefId: {
-      type: 'string',
-      description: 'Brief frame id — required when the page hosts several briefs.'
-    },
-    design_id: {
-      type: 'string',
-      description:
-        "Design root frame id this conclusion belongs to — the line is grouped under that design's name so one brief serving several designs keeps per-design conclusions."
-    }
-  },
+  input: v.object({
+    text: v.pipe(
+      v.string(),
+      v.description('One conclusion line, e.g. "方向A：水彩萌趣（嫩绿 #A8D5BA / 米白 #F5EFE0）".')
+    ),
+    briefId: v.optional(
+      v.pipe(
+        v.string(),
+        v.description('Brief frame id — required when the page hosts several briefs.')
+      )
+    ),
+    design_id: v.optional(
+      v.pipe(
+        v.string(),
+        v.description(
+          "Design root frame id this conclusion belongs to — the line is grouped under that design's name so one brief serving several designs keeps per-design conclusions."
+        )
+      )
+    )
+  }),
   execute: (figma, { text, briefId, design_id }) => {
     if (typeof text !== 'string' || !text.trim()) {
       return { ok: false, note: 'Pass the conclusion text.' }

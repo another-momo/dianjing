@@ -50,7 +50,7 @@ import {
 import { prepareHeroScaffoldTool } from '#core/tools/fork/marketing/hero-tools'
 
 import { expectDefined } from '#tests/helpers/assert'
-import { setupToolTest } from '#tests/helpers/tools'
+import { setupToolTest, toolInputSchema } from '#tests/helpers/tools'
 
 // ── fixture ──────────────────────────────────────────────────────────────────
 
@@ -162,22 +162,23 @@ function setupPipeline(rootHeight = 2120) {
 
 // ① 工具定义钉扎 ─────────────────────────────────────────────────────────────
 
-test('① 工具定义钉扎：name/mutates/params + COMPOSE_TOOLS 交付面 + 散参删除', () => {
+test('① 工具定义钉扎：name/mutates/input + COMPOSE_TOOLS 交付面 + 散参删除', () => {
   expect(composeBackdropTool.name).toBe('compose_backdrop')
   expect(composeBackdropTool.mutates).toBe(true)
-  const params = composeBackdropTool.params
-  expect(params.root_id.required).toBe(true)
-  expect(params.scaffold_id.required).toBeUndefined()
-  expect(params.hero_image_from.required).toBeUndefined()
-  expect(params.discard_hero.default).toBe(false)
-  expect(params.canvas_height.required).toBeUndefined()
-  expect(params.canvas_height.min).toBe(200)
-  expect(params.canvas_height.max).toBe(20000)
-  expect(params.hero_color.required).toBeUndefined()
-  // hero_height/hero_bleed/canvas_width 散参物理删除
-  expect(params).not.toHaveProperty('hero_height')
-  expect(params).not.toHaveProperty('hero_bleed')
-  expect(params).not.toHaveProperty('canvas_width')
+  // PR697 后钉扎 wire contract（LLM 可见的 JSON Schema）而非内部 ParamDef
+  const schema = toolInputSchema(composeBackdropTool)
+  expect(schema.required).toEqual(['root_id'])
+  expect(Object.keys(schema.properties)).toEqual([
+    'root_id',
+    'scaffold_id',
+    'hero_image_from',
+    'discard_hero',
+    'canvas_height',
+    'hero_color'
+  ])
+  expect(schema.properties.discard_hero.default).toBe(false)
+  expect(schema.properties.canvas_height.minimum).toBe(200)
+  expect(schema.properties.canvas_height.maximum).toBe(20000)
   expect(COMPOSE_TOOLS.map((tool) => tool.name)).toEqual(['compose_backdrop'])
   expect(COMPOSE_TEXTS.layerName).toBe('BackgroundLayer')
   expect(COMPOSE_TEXTS.heroContentName).toBe('HeroContent')

@@ -1,10 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 
-import { valibotSchema } from '@ai-sdk/valibot'
 import { tool } from 'ai'
-import * as v from 'valibot'
 
 import { ALL_TOOLS, FigmaAPI, SceneGraph, toolsToAI } from '@open-pencil/core'
+import { isToolExposed } from '@open-pencil/core/tools'
 
 import { expectDefined } from '#tests/helpers/assert'
 
@@ -29,19 +28,37 @@ function setup() {
       getFigma: () => figma,
       onAfterExecute: () => undefined
     },
-    { v, valibotSchema, tool }
+    { tool }
   )
 
   return { graph, figma, tools }
 }
 
 describe('AI adapter', () => {
+  test('honors AI exclusions independently of MCP and WebMCP exposure', () => {
+    const base = ALL_TOOLS[0]
+    if (!base) throw new Error('Missing tool fixture')
+    const { figma } = setup()
+    const tools = toolsToAI(
+      [
+        { ...base, name: 'default', exposure: {} },
+        { ...base, name: 'hidden', exposure: { ai: false } },
+        { ...base, name: 'other-interface', exposure: { webmcp: false, mcp: false } }
+      ],
+      { getFigma: () => figma },
+      { tool }
+    )
+    expect(Object.keys(tools)).toEqual(['default', 'other-interface'])
+  })
+
   test('generates tool for every definition', () => {
     const { tools } = setup()
-    for (const def of ALL_TOOLS) {
+    // fork：internal 流水线段（image_gen_begin/commit）exposure.ai=false，不在 AI 面
+    const exposed = ALL_TOOLS.filter((def) => isToolExposed(def, 'ai'))
+    for (const def of exposed) {
       expect(tools[def.name]).toBeDefined()
     }
-    expect(Object.keys(tools).length).toBe(ALL_TOOLS.length)
+    expect(Object.keys(tools).length).toBe(exposed.length)
   })
 
   test('each tool has description and execute', () => {
@@ -118,7 +135,7 @@ describe('AI adapter', () => {
           return def.execute(target, args)
         }
       },
-      { v, valibotSchema, tool }
+      { tool }
     )
 
     await adapterTool(tools, 'create_shape').execute({ type: 'RECTANGLE' })
@@ -138,7 +155,7 @@ describe('AI adapter', () => {
         onBeforeExecute: () => calls.push('before'),
         onAfterExecute: () => calls.push('after')
       },
-      { v, valibotSchema, tool }
+      { tool }
     )
 
     const listPages = adapterTool(tools, 'list_pages')
@@ -160,7 +177,7 @@ describe('AI adapter', () => {
           afterCalled = true
         }
       },
-      { v, valibotSchema, tool }
+      { tool }
     )
 
     const evalTool = adapterTool(tools, 'eval')

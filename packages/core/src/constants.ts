@@ -136,10 +136,11 @@ export const AUTO_LAYOUT_HOVER_MAGENTA_FILL = { r: 1, g: 0.32, b: 0.68, a: 0.1 }
 
 export const SECTION_CORNER_RADIUS = 5
 export const SECTION_TITLE_HEIGHT = 24
-export const SECTION_TITLE_PADDING_X = 8
+export const SECTION_TITLE_PADDING_X = 6
 export const SECTION_TITLE_RADIUS = 5
-export const SECTION_TITLE_FONT_SIZE = 12
+export const SECTION_TITLE_FONT_SIZE = 11
 export const SECTION_TITLE_GAP = 6
+export const SECTION_HOVER_STROKE_WIDTH = 2
 
 export const COMPONENT_SET_DASH = 6
 export const COMPONENT_SET_DASH_GAP = 4
@@ -517,6 +518,7 @@ export const PEN_CLOSE_THRESHOLD = 8
 export const ROTATION_SNAP_DEGREES = 15
 export const CORNER_ROTATE_ZONE = 16
 export const HANDLE_HIT_RADIUS = 6
+export const ROTATION_HANDLE_DISTANCE = 24
 export const DEFAULT_TEXT_WIDTH = 200
 export const DEFAULT_TEXT_HEIGHT = 24
 export const AUTO_LAYOUT_BREAK_THRESHOLD = 8

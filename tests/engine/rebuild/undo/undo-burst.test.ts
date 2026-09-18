@@ -1,3 +1,4 @@
+/* oxlint-disable open-pencil/no-module-mocking -- pi SDK/host 模块级桩（无 DI 缝）；DI 迁移评估挂 backlog */
 /**
  * T59（S3 §9 undo burst / PD-19）：一 AI 回合的 mutating 调用按设计区合并为
  * 一个撤销单元。桥侧机制 = undo_group begin/end 边界信号 + UndoManager 既有

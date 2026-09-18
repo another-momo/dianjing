@@ -12,44 +12,37 @@
  * 集成纪律：FORK_TOOLS / pi-backend 暴露面由主 agent 统一接线，本数组是唯一交付面。
  */
 
+import * as v from 'valibot'
+
 import { defineTool, type ToolDef } from '#core/tools/schema'
 
 import { COMPOSE_TEXTS, composeBackdrop } from './compose-backdrop'
 
 export const composeBackdropTool = defineTool({
   name: 'compose_backdrop',
-  mutates: true,
+  execution: { kind: 'async', mutation: 'document' },
+  exposure: { mcp: false, webmcp: false },
   description: COMPOSE_TEXTS.toolDescription,
-  params: {
-    root_id: {
-      type: 'string',
-      required: true,
-      description: COMPOSE_TEXTS.paramRootId
-    },
-    scaffold_id: {
-      type: 'string',
-      description: COMPOSE_TEXTS.paramScaffoldId
-    },
-    hero_image_from: {
-      type: 'string',
-      description: COMPOSE_TEXTS.paramHeroImageFrom
-    },
-    discard_hero: {
-      type: 'boolean',
-      default: false,
-      description: COMPOSE_TEXTS.paramDiscardHero
-    },
-    canvas_height: {
-      type: 'number',
-      min: 200,
-      max: 20000,
-      description: COMPOSE_TEXTS.paramCanvasHeight
-    },
-    hero_color: {
-      type: 'string',
-      description: COMPOSE_TEXTS.paramHeroColor
-    }
-  },
+  input: v.object({
+    root_id: v.pipe(v.string(), v.description(COMPOSE_TEXTS.paramRootId)),
+    scaffold_id: v.optional(v.pipe(v.string(), v.description(COMPOSE_TEXTS.paramScaffoldId))),
+    hero_image_from: v.optional(
+      v.pipe(v.string(), v.description(COMPOSE_TEXTS.paramHeroImageFrom))
+    ),
+    discard_hero: v.optional(
+      v.pipe(v.boolean(), v.description(COMPOSE_TEXTS.paramDiscardHero)),
+      false
+    ),
+    canvas_height: v.optional(
+      v.pipe(
+        v.number(),
+        v.minValue(200),
+        v.maxValue(20000),
+        v.description(COMPOSE_TEXTS.paramCanvasHeight)
+      )
+    ),
+    hero_color: v.optional(v.pipe(v.string(), v.description(COMPOSE_TEXTS.paramHeroColor)))
+  }),
   execute: (figma, args) =>
     composeBackdrop(figma, {
       rootId: args.root_id,

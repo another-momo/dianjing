@@ -17,6 +17,8 @@
  * workflow/profile 绑定，无高风险参数，不需确认。
  */
 
+import * as v from 'valibot'
+
 import { defineTool, type ToolDef } from '#core/tools/schema'
 
 import { setupDesign, type SetupCatalog } from './setup'
@@ -31,35 +33,53 @@ function parseInjectedCatalog(raw: unknown): SetupCatalog | undefined {
   }
 }
 
+/** setup_design 声明参数面（注入缝 __catalog/__confirmedNewIntent 刻意不在其中） */
+const setupDesignEntries = {
+  modeId: v.pipe(
+    v.string(),
+    v.description(
+      'Design mode id — "general" for a plain general workspace (no workflow binding, always valid; no out-of-band confirmation required when no profileId is given), or a mode id from the host studio catalog (specialized mode — host confirms new-design intent first).'
+    )
+  ),
+  profileId: v.optional(
+    v.pipe(
+      v.string(),
+      v.description(
+        'Style profile id from the host studio catalog (optional). Setting any profileId forces out-of-band confirmation regardless of modeId.'
+      )
+    )
+  ),
+  briefId: v.pipe(
+    v.string(),
+    v.description(
+      'Id of the 需求单 (design brief) this design serves — the new design is bound to it and registered in its 关联设计区.'
+    )
+  ),
+  canvas: v.optional(
+    v.pipe(
+      v.string(),
+      v.description(
+        'Canvas size override (optional) — a canvas value from the mode\'s sizes presets in the host catalog, or a free value: "<width>x" (height grows with content) or "<width>x<height>" (fixed height), e.g. "750x" / "750x2000". Invalid format returns { error: "invalid_canvas" } and nothing is created. Omit to use the mode\'s first preset, or the 750-wide HUG default when the mode has no presets.'
+      )
+    )
+  )
+}
+
 export const setupDesignTool = defineTool({
   name: 'setup_design',
-  mutates: true,
+  execution: { kind: 'sync', mutation: 'document' },
+  exposure: { mcp: false, webmcp: false },
   description:
     'Set up a design workspace: create a NEW marketing design root frame with a normalized canvas size and register it in the 关联设计区 of the 需求单 (design brief) it serves — root and brief let the work continue across turns. Call when the task needs a standardized size AND is complex, multi-step work that may continue in later turns; one-shot outputs (an image asset, a single quick card) go straight to generate_image / render instead. Mode binding needs out-of-band confirmation: for a specialized mode (any modeId other than "general", or any profileId) the host confirms the new-design intent first — without confirmation the call returns { status: "awaiting_new_intent_confirmation" } (an awaiting envelope, not an error) and the host prompts the user; once confirmed, the next call proceeds. A plain "general" workspace (no profileId) proceeds without confirmation. There is no adopt/continue here: repeat calls always create another frame (named "<label> 2", "3", ...). The new root becomes the conversation\'s current design target (the `[当前设计目标 …]` context line) for subsequent turns. Canvas size: each mode may declare size presets in the host catalog (modes[].sizes — pick the preset whose label matches the user intent, e.g. 小红书长图), overridable via the canvas param; with neither, the default is 750-wide with HUG height (grows with content). Height null in the result means HUG. Placement is automatic (right of existing page content) and the viewport scrolls to the new frame.',
-  params: {
-    modeId: {
-      type: 'string',
-      required: true,
-      description:
-        'Design mode id — "general" for a plain general workspace (no workflow binding, always valid; no out-of-band confirmation required when no profileId is given), or a mode id from the host studio catalog (specialized mode — host confirms new-design intent first).'
-    },
-    profileId: {
-      type: 'string',
-      description:
-        'Style profile id from the host studio catalog (optional). Setting any profileId forces out-of-band confirmation regardless of modeId.'
-    },
-    briefId: {
-      type: 'string',
-      required: true,
-      description:
-        'Id of the 需求单 (design brief) this design serves — the new design is bound to it and registered in its 关联设计区.'
-    },
-    canvas: {
-      type: 'string',
-      description:
-        'Canvas size override (optional) — a canvas value from the mode\'s sizes presets in the host catalog, or a free value: "<width>x" (height grows with content) or "<width>x<height>" (fixed height), e.g. "750x" / "750x2000". Invalid format returns { error: "invalid_canvas" } and nothing is created. Omit to use the mode\'s first preset, or the 750-wide HUG default when the mode has no presets.'
-    }
-  },
+  // looseObject：__catalog / __confirmedNewIntent 宿主注入缝（头部注释）须在
+  // v.parse 后仍可达——v.object 会剥离未声明键，注入参数会被静默丢弃。
+  // defineTool 静态类型只收 ObjectSchema，运行时两形均可解析——此处收窄声明、
+  // 保留 loose 运行时。
+  // oxlint-disable-next-line open-pencil/no-broad-double-cast -- looseObject 注入缝须在 v.parse 后存活；defineTool 名义类型只收 ObjectSchema，无其他类型通路
+  input: v.looseObject(setupDesignEntries) as unknown as v.ObjectSchema<
+    typeof setupDesignEntries,
+    undefined
+  >,
   execute: (figma, args) => {
     const injected: Record<string, unknown> = args
     return setupDesign(

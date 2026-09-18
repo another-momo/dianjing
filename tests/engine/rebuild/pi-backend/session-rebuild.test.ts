@@ -1,3 +1,4 @@
+/* oxlint-disable open-pencil/no-module-mocking -- pi SDK/host 模块级桩（无 DI 缝）；DI 迁移评估挂 backlog */
 /**
  * 2026-09-16（owner 拍板②）指派切换对下一个 prompt 生效——驱逐重建钉扎。
  *

@@ -6,6 +6,7 @@ function flattenPlugins(plugins: PluginOption[]): PluginOption[] {
 }
 
 const config: StorybookConfig = {
+  staticDirs: ['../public'],
   stories: ['../src/**/*.stories.@(js|ts)', '../packages/vue/src/**/*.stories.@(js|ts)'],
   addons: ['@storybook/addon-docs', '@storybook/addon-a11y', '@storybook/addon-themes'],
   framework: {

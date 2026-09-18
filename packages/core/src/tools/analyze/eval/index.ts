@@ -1,3 +1,5 @@
+import * as v from 'valibot'
+
 import { defineTool } from '#core/tools/schema'
 
 import { wrapEvalCode } from './wrap'
@@ -10,10 +12,13 @@ export const evalCode = defineTool({
     'The figma object has NO `*Async` methods — `getNodeByIdAsync` does not exist (use sync `getNodeById`); `loadFontAsync` is a no-op (assign `fontName` directly). ' +
     'A loop counter is NOT a write confirmation — after bulk mutations, `describe` a sample to verify writes landed. ' +
     'For bulk font changes loop `set_font` per node; for fills use `set_fill` (`batch_update` supports neither font nor fill props) — for structural rewrites prefer `render` `replace_id`; eval is the last resort.',
-  params: {
-    code: { type: 'string', description: 'JavaScript code to execute', required: true }
-  },
-  mutates: true,
+  execution: { kind: 'async', mutation: 'document' },
+  capabilities: ['document:read', 'document:write', 'code:execute'],
+  availability: 'eval',
+  input: v.object({
+    code: v.pipe(v.string(), v.description('JavaScript code to execute'))
+  }),
+
   execute: async (figma, { code }) => {
     type AsyncFunctionConstructor = new (
       ...args: string[]
