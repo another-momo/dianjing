@@ -1,3 +1,4 @@
+/* oxlint-disable open-pencil/no-module-mocking -- pi SDK/host 模块级桩（无 DI 缝）；DI 迁移评估挂 backlog */
 /**
  * T73 钉扎：POST /api/pi-chat/cancel 路由的 HTTP 往返。
  *

@@ -1,3 +1,4 @@
+/* oxlint-disable open-pencil/no-module-mocking -- pi SDK/host 模块级桩（无 DI 缝）；DI 迁移评估挂 backlog */
 /**
  * T87：service.ts 装配 capabilities seam——store 实例接进 service，
  * getStudioManifest 透传 capabilities + skills，getCapabilities/setCapabilities

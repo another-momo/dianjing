@@ -41,7 +41,7 @@
  */
 
 import { defineTool, type AgentToolResult } from '@earendil-works/pi-coding-agent'
-import { toJsonSchema } from '@valibot/to-json-schema'
+import { toJsonSchema as toJSONSchema } from '@valibot/to-json-schema'
 import { type TSchema } from 'typebox'
 
 import {
@@ -188,8 +188,12 @@ async function callBridgeTool(
  * PR697 后 core 侧 v.parse 是唯一权威校验（defineTool 内执行前解析），pi 边界
  * 不再做逐参数类型转置（旧 paramToTypeBox 随 ParamDef 退役）。
  */
+function isOpenRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
 function toolParameters(def: ToolDef): TSchema {
-  return toJsonSchema(def.input, { typeMode: 'input' }) as TSchema
+  return toJSONSchema(def.input, { typeMode: 'input' }) as TSchema
 }
 
 function maybeAppendStepWarning(
@@ -226,8 +230,7 @@ function defineBridgeTool(
     async execute(_toolCallId, params): Promise<AgentToolResult<BridgeToolResult>> {
       // PR697 后 parameters 是 JSON Schema 投影（非 typebox 字面量），params 静态
       // 类型退化为 unknown——桥 args 本来就是开放记录，这里显式收窄。
-      const toolArgs: Record<string, unknown> =
-        params !== null && typeof params === 'object' ? (params as Record<string, unknown>) : {}
+      const toolArgs: Record<string, unknown> = isOpenRecord(params) ? params : {}
       // T81 P-04（决策 B）：前置拒绝——登记媒体工具（look 等）的产物会原路回
       // 灌给模型作为图像内容；若当前模型不含 `image` 模态，工具跑通也是浪费
       // 凭据/时间，且 pi 没有"按工具结果裁模态"概念（imageContent 强喂）——

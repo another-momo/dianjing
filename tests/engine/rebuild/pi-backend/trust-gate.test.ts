@@ -1,3 +1,4 @@
+/* oxlint-disable open-pencil/no-module-mocking -- pi SDK/host 模块级桩（无 DI 缝）；DI 迁移评估挂 backlog */
 /**
  * 2026-09-16 pi agent 行为控管层 1 + 层 2（skills 单源）装配门控钉扎——
  * 自构 SettingsManager 双注（loader + session）+ noExtensions + skillsOverride

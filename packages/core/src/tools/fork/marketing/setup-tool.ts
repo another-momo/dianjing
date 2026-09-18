@@ -75,6 +75,7 @@ export const setupDesignTool = defineTool({
   // v.parse 后仍可达——v.object 会剥离未声明键，注入参数会被静默丢弃。
   // defineTool 静态类型只收 ObjectSchema，运行时两形均可解析——此处收窄声明、
   // 保留 loose 运行时。
+  // oxlint-disable-next-line open-pencil/no-broad-double-cast -- looseObject 注入缝须在 v.parse 后存活；defineTool 名义类型只收 ObjectSchema，无其他类型通路
   input: v.looseObject(setupDesignEntries) as unknown as v.ObjectSchema<
     typeof setupDesignEntries,
     undefined

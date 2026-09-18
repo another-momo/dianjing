@@ -1,3 +1,4 @@
+/* oxlint-disable open-pencil/no-module-mocking -- pi SDK/host 模块级桩（无 DI 缝）；DI 迁移评估挂 backlog */
 /**
  * layer-splitting 内置 skill 装配层 — 双测：
  *  1. resolveBuiltinSkillsDir 纯函数 join 语义

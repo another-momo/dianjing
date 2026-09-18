@@ -1720,6 +1720,13 @@
       "reason": "cli 包拒收——initCanvasKit 改从 @open-pencil/core/io 引入（同 P277-P282 类）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P289",
+      "file": "tools/lint/src/rules/policy.ts",
+      "reason": "noMixedCaseAcronymIdentifiers ignoredImports 增列 '@valibot/to-json-schema'——第三方包导出名豁免（同 culori/reka-ui 类）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
     }
   ],
   "deletedPaths": [
@@ -1897,7 +1904,10 @@
     "tests/e2e/canvas/demo-workspace.spec.ts-snapshots/",
     "src/app/settings/media/",
     "src/components/settings/media/",
-    "tests/e2e/app/webmcp.spec.ts"
+    "tests/e2e/app/webmcp.spec.ts",
+    "src/app/integrations/storage/settings/draft.ts",
+    "src/app/integrations/storage/settings/feedback.ts",
+    "tests/engine/app/settings/storage-workflow.test.ts"
   ],
   "upstreamMergeTarball": []
 }

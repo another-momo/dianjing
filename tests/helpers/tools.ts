@@ -1,4 +1,4 @@
-import { toJsonSchema } from '@valibot/to-json-schema'
+import { toJsonSchema as toJSONSchema } from '@valibot/to-json-schema'
 
 import { ALL_TOOLS, FigmaAPI, SceneGraph } from '@open-pencil/core'
 import type { ToolDef } from '@open-pencil/core/tools'
@@ -38,7 +38,7 @@ export function toolInputSchema(def: ToolDef): {
   properties: Record<string, Record<string, unknown>>
   required?: string[]
 } {
-  const schema = toJsonSchema(def.input, { typeMode: 'input' }) as {
+  const schema = toJSONSchema(def.input, { typeMode: 'input' }) as {
     properties?: Record<string, Record<string, unknown>>
     required?: string[]
   }

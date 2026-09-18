@@ -534,33 +534,7 @@ export function buildParagraph(
     textDirection: textDirection === 'RTL' ? ck.TextDirection.RTL : ck.TextDirection.LTR,
     textHeightBehavior: textHeightBehaviorValue(ck, node.leadingTrim),
     ...truncateOpts,
-    textStyle: {
-      color: baseColor,
-      fontFamilies: fontFamilies(
-        node.fontFamily || DEFAULT_FONT_FAMILY,
-        node.fontWeight,
-        node.italic
-      ),
-      fontSize: baseFontSize,
-      locale: node.textLanguage ?? undefined,
-      fontStyle: {
-        weight: { value: node.fontWeight } as FontWeight,
-        slant: node.italic ? ck.FontSlant.Italic : ck.FontSlant.Upright
-      },
-      fontVariations: withWeightAxisVariation(
-        node.fontFamily || DEFAULT_FONT_FAMILY,
-        node.fontWeight,
-        textFontVariations(node.fontVariations)
-      ),
-      fontFeatures: textFontFeatures(node.fontFeatures),
-      letterSpacing: node.letterSpacing || 0,
-      decoration: textDecorationValue(ck, node.textDecoration),
-      decorationStyle: textDecorationStyleValue(ck, node.textDecorationStyle),
-      decorationThickness: node.textDecorationThickness ?? undefined,
-      decorationColor: textDecorationColor(ck, node.textDecorationFills, baseColor),
-      heightMultiplier: node.lineHeight ? node.lineHeight / baseFontSize : undefined,
-      halfLeading
-    }
+    textStyle: baseTextStyle
   })
 
   if (!r.fontProvider) throw new Error('Font provider not initialized')

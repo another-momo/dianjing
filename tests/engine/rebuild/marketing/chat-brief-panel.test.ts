@@ -1,3 +1,4 @@
+/* oxlint-disable open-pencil/no-module-mocking -- pi SDK/host 模块级桩（无 DI 缝）；DI 迁移评估挂 backlog */
 /**
  * T66（Phase 3 W3，决策①②③）：ChatContextBar 双段式 trigger 计数口径 +
  * createBriefOnPage 排版结算四件套 + ChatBriefDialog 素材写回通路。

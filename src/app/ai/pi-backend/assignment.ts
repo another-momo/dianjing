@@ -42,11 +42,15 @@ interface AssignmentEnvelope {
   assignment?: PiModelSpec | null
 }
 
+async function throwAssignmentHttpError(res: Response): Promise<never> {
+  const body = (await res.json().catch(() => null)) as { error?: string } | null
+  throw new Error(body?.error ?? `HTTP ${res.status}`)
+}
+
 async function fetchAssignment(): Promise<PiModelSpec | null> {
   const res = await fetch('/api/pi/design-assignment')
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null
-    throw new Error(body?.error ?? `HTTP ${res.status}`)
+    await throwAssignmentHttpError(res)
   }
   const envelope = (await res.json()) as AssignmentEnvelope
   return envelope.assignment ?? null
@@ -60,8 +64,7 @@ async function putAssignment(assignment: PiModelSpec | null): Promise<void> {
   }
   const res = await fetch('/api/pi/design-assignment', init)
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null
-    throw new Error(body?.error ?? `HTTP ${res.status}`)
+    await throwAssignmentHttpError(res)
   }
 }
 

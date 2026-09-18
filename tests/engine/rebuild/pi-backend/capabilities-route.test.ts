@@ -1,3 +1,4 @@
+/* oxlint-disable open-pencil/no-module-mocking -- pi SDK/host 模块级桩（无 DI 缝）；DI 迁移评估挂 backlog */
 /**
  * T87：GET/PUT /api/pi/capabilities 路由的 HTTP 往返。
  * T96：v2 形状（builtinTools 三档）+ PUT 三档校验 + 部分更新（缺省保留旧值）。

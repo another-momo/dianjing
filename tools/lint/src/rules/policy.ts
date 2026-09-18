@@ -53,6 +53,7 @@ const noMixedCaseAcronymIdentifiers = {
       '@realfavicongenerator/generate-favicon',
       '@tauri-apps/plugin-clipboard-manager',
       '@tauri-apps/plugin-opener',
+      '@valibot/to-json-schema',
       '@vueuse/core',
       'culori',
       'reka-ui'
