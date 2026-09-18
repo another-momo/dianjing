@@ -42,21 +42,15 @@ const EXPLICIT_SCROLL_KEYS = new Set([
  *  details 的 summary，挂同款 data-slot） */
 const REASONING_TRIGGER_SELECTOR = '[data-slot="chat-reasoning-trigger"]'
 
-/** 帧句柄——有 rAF 环境为 number；无 rAF（bun/SSR）退化为 setTimeout 句柄 */
-type FrameHandle = number | ReturnType<typeof setTimeout>
-
 /** 调用期解析 rAF——模块求值期捕获会让测试桩失效（bun 无 rAF 全局） */
-function scheduleFrame(callback: () => void): FrameHandle {
+function scheduleFrame(callback: () => void): number {
   if (typeof requestAnimationFrame === 'function') return requestAnimationFrame(callback)
   return setTimeout(callback, 16)
 }
 
-function cancelFrame(handle: FrameHandle): void {
-  if (typeof cancelAnimationFrame === 'function' && typeof handle === 'number') {
-    cancelAnimationFrame(handle)
-  } else {
-    clearTimeout(handle)
-  }
+function cancelFrame(id: number): void {
+  if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(id)
+  else clearTimeout(id)
 }
 
 type ScrollTarget = Ref<HTMLElement | undefined>
@@ -76,7 +70,7 @@ export function useScrollFollowing(
   const following = ref(true)
   /** 浮钮显隐源——上游 arrivedState 全向，消费方只用 bottom，只维护这一向 */
   const arrivedState = reactive({ bottom: true })
-  let frame: FrameHandle | undefined
+  let frame: number | undefined
   let userScrolling = false
   let idleTimer: ReturnType<typeof setTimeout> | undefined
   let resizeObserver: ResizeObserver | undefined
