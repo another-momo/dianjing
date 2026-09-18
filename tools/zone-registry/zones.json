@@ -1380,7 +1380,7 @@
     {
       "id": "P240",
       "file": "packages/core/src/canvas/renderer.ts",
-      "reason": "2026-09-14 合并后 L1：dpr/document 两处守卫换 hasWindowGlobal/typeof 活探（T40 污染链根治；P144 revoked 后本文件回 follow-pure，此为新一轮独立 patch） ｜ 2026-09-18 PR699 后 byte diff 仍存，保活待 L1 验证语义吸收度",
+      "reason": "2026-09-14 合并后 L1：dpr/document 两处守卫换 hasWindowGlobal/typeof 活探（T40 污染链根治；P144 revoked 后本文件回 follow-pure，此为新一轮独立 patch） ｜ 2026-09-18 PR699 后 byte diff 仍存；同日定论：上游 v0.15.0 仍为模块级冻结常量（renderer.ts:590 IS_BROWSER 直读 dpr），T40 共享进程 mock/拆 window 场景下与调用期活探非等价，patch 长期保活",
       "disposition": "permanent",
       "lastReviewed": "2026-09-18"
     },

@@ -150,10 +150,6 @@
   "devDependencies": {
     "@agentclientprotocol/sdk": "^0.14.1",
     "@arethetypeswrong/cli": "0.18.4",
-    "@commitlint/cli": "^21.2.2",
-    "@commitlint/config-conventional": "^21.2.2",
-    "@commitlint/is-ignored": "^21.2.2",
-    "@commitlint/types": "^21.2.0",
     "@feature-sliced/steiger-plugin": "^0.5.8",
     "@figma/plugin-typings": "^1.134.0",
     "@hono/node-server": "^1.19.17",
