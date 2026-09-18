@@ -72,5 +72,6 @@ export async function setRememberCredentials(remembered: boolean): Promise<void>
 
 // 模块加载即刷新一次：把已存 key 注入 core（stockPhoto 工具经桥在编辑器侧
 // 读取 core 内 key）。承接已删除的 chat/storage.ts credentialsReady 职责
-// （T25 D2 切除迁移逻辑——T21 已拍板不做存量迁移）。
+// （T25 D2 切除上游旧格式迁移机——独立裁定：fork 无旧格式存量数据、迁移
+// 无对象；与 T21「LLM key 不迁入 pi」的拍板不同域，勿互引）。
 void refreshMediaCredentials()
