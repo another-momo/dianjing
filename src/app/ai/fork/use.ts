@@ -14,7 +14,7 @@ import { createChatSessionManager } from './transports'
 /**
  * T25：pi 单路径后的 chat 入口——会话钩子恒挂（T22 D2/D3），模型/凭证旧面
  * 已切除。Batch 2a 路径分离：stock-photo key 与 remember 开关不再经此处
- * re-export——设置 UI 直取源头 owned 文件 @/app/settings/credentials/stock-photo-keys。
+ * re-export——设置 UI 直取源头 @/app/settings/credentials/media（PR713 吸收后）。
  */
 const activeTab = ref<'design' | 'code' | 'ai'>('ai')
 

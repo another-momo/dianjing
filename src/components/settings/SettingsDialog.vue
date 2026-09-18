@@ -6,11 +6,8 @@ import { IS_TAURI } from '@open-pencil/core/constants'
 import { useI18n } from '@open-pencil/vue'
 
 import { useForkFonts } from '@/app/i18n/fork'
-import { appCredentialServices } from '@/app/settings/credentials/app'
-import {
-  browserCredentialsRemembered,
-  setRememberCredentials
-} from '@/app/settings/credentials/stock-photo-keys'
+import { appCredentialServices, browserCredentialsRemembered } from '@/app/settings/credentials/app'
+import { useCredentialSettings } from '@/app/settings/credentials/preferences/use'
 import { settingsDialogOpen, settingsDialogSection } from '@/app/settings/dialog'
 import AgentSettingsPanel from '@/components/settings/agent/AgentSettingsPanel.vue'
 import FontsSettingsPanel from '@/components/settings/fonts/FontsSettingsPanel.vue'
@@ -29,12 +26,13 @@ function onOpenChange(open: boolean): void {
   settingsDialogOpen.value = open
 }
 
-const rememberCredentials = computed({
-  get: () => browserCredentialsRemembered.value,
-  set: (remembered: boolean) => {
-    void setRememberCredentials(remembered)
-  }
-})
+// PR713 凭据延迟链吸收：remember 开关改接 useCredentialSettings（remembered/busy/failed；
+// paused/retry 是 Tauri 面，Electron 下休眠不接线——见 credentials/preferences/use.ts）
+const {
+  busy: credentialSettingsBusy,
+  failed: credentialSettingsFailed,
+  remembered: rememberCredentials
+} = useCredentialSettings()
 
 const credentialBackendLabel = computed(() => {
   void browserCredentialsRemembered.value
@@ -164,11 +162,15 @@ const navigationClass =
           v-if="!IS_TAURI"
           v-model="rememberCredentials"
           :label="credentials.remember"
+          :disabled="credentialSettingsBusy"
           data-test-id="settings-remember-credentials"
         />
         <div>
           <p v-if="!IS_TAURI" class="text-[10px] text-surface">
             {{ credentials.remember }}
+          </p>
+          <p v-if="credentialSettingsFailed" class="text-[10px] text-danger" role="alert">
+            {{ credentials.retryFailed }}
           </p>
           <p class="text-[10px] text-muted" data-test-id="settings-credential-backend">
             {{ credentials.storage({ backend: credentialBackendLabel }) }}

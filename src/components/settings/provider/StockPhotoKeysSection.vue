@@ -8,7 +8,7 @@ import {
   setPexelsKey,
   setUnsplashKey,
   unsplashKeyStatus
-} from '@/app/settings/credentials/stock-photo-keys'
+} from '@/app/settings/credentials/media'
 import ProviderSettingsKeyField from '@/components/settings/provider/ProviderSettingsKeyField.vue'
 
 const { media, credentials } = useI18n()
