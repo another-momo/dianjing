@@ -8,13 +8,12 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 /**
  * Unit test shards, keyed by owning package or application area.
  *
- * Each group lists the owner's canonical test home from
- * `packages/docs/development/testing.md` (`packages/<owner>/tests`,
+ * Each group lists the owner's canonical test homes (`packages/<owner>/tests`,
  * `tests/app`, `tests/integration`) together with the `tests/engine/**`
  * directories it still owns, so a file is discovered from either place and a
  * move needs no shard change. A path that does not exist yet contributes no
- * files. `render` is Core-owned but
- * sharded separately because canvas suites parse large fixtures.
+ * files. `render` is Core-owned but sharded separately because canvas suites
+ * parse large fixtures.
  *
  * fork P19（2026-09-18 重锚 PR715 结构）：分组保持 fork 七组（app/dom/editor/
  * fig/render/scene/vue）——上游 cli/mcp 组对应包在 fork 不存在；acp/tauri/

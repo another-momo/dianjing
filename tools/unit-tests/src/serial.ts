@@ -6,8 +6,8 @@ import { spawn } from 'node:child_process'
  * Batches tests by first-level subdirectory under tests/engine/ (root-level
  * scattered files form their own batch). Runs `bun test <files>` per batch,
  * stops on first failure (same exit code), and prints pass/fail summaries
- * per batch. Reuses tools/unit-tests/src/list.ts for heavy-only filtering
- * (when --heavy-only is passed).
+ * per batch. Heavy-only filtering (--heavy-only) shares isHeavyUnitTest
+ * from shards.ts — single source, no local mirror.
  *
  * Usage: bun tools/unit-tests/src/serial.ts [--heavy-only] [batch ...]
  *   batch — run only the named batches (tests/engine 一级目录名, `_root`
@@ -17,6 +17,8 @@ import { spawn } from 'node:child_process'
  */
 import { readdir, readFile } from 'node:fs/promises'
 import { resolve, join, relative } from 'node:path'
+
+import { isHeavyUnitTest } from './shards'
 
 const ROOT = resolve(import.meta.dirname, '../../..')
 const TESTS_ROOT = resolve(ROOT, 'tests/engine')
@@ -57,22 +59,8 @@ async function collectTestFiles(absDir: string, root: string, out: string[]): Pr
 }
 
 function heavyFilter(files: string[]): string[] {
-  // Mirror shards.HEAVY_UNIT_TEST_PATTERNS (avoid pulling the whole module)
-  const HEAVY = [
-    'tests/engine/clipboard/fixtures/',
-    'tests/engine/io/fig/heavy/',
-    'tests/engine/io/fig/roundtrip/exhaustive.test.ts',
-    'tests/engine/io/fig/roundtrip/glyph-blob.test.ts',
-    'tests/engine/io/fig/roundtrip/variables.test.ts',
-    'tests/engine/io/fig/export/text.test.ts',
-    'tests/engine/io/fig/export/worker.test.ts',
-    'tests/engine/io/fig/import/group-reclassify.test.ts',
-    'tests/engine/layout/auto-layout/text/measurement.test.ts',
-    'tests/engine/render/canvas/cache.test.ts'
-  ]
   if (!heavyOnly) return files
-  const norm = (s: string) => s.split('\\').join('/')
-  return files.filter((f) => HEAVY.some((p) => norm(f).startsWith(p) || norm(f) === p))
+  return files.filter(isHeavyUnitTest)
 }
 
 async function runBatch(name: string, files: string[], progress: string): Promise<number> {
