@@ -1685,10 +1685,46 @@
       "reason": "PR713 settings-dirty 改写拒收——保留 fork 凭据服务流面板（与 use.ts all:ours 配套）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P284",
+      "file": ".storybook/main.ts",
+      "reason": "brand-tools 基建拒收——摘除 ensureBrandAssets 预设调用（同 vite.config.ts 裁定）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P285",
+      "file": "tools/lint/tests/helpers/lint.ts",
+      "reason": "package-artifacts 包拒收——resolveWorkspaceRoot 改本地实现（bun.lock 上溯）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P286",
+      "file": "tools/lint/tests/plugin.test.ts",
+      "reason": "package-artifacts 包拒收——resolveWorkspaceRoot 改从本地 helpers 引入（同 P285）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P287",
+      "file": "tools/lint/tests/vue-module.test.ts",
+      "reason": "package-artifacts 包拒收——resolveWorkspaceRoot 改从本地 helpers 引入（同 P285）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P288",
+      "file": "tests/engine/render/canvas/tiles/gold-preview.test.ts",
+      "reason": "cli 包拒收——initCanvasKit 改从 @open-pencil/core/io 引入（同 P277-P282 类）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
     }
   ],
   "deletedPaths": [
     ".coderabbit.yaml",
+    "commitlint.config.ts",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
     "desktop",
@@ -1719,6 +1755,9 @@
     "tests/engine/acp",
     "tests/engine/collab",
     "tests/engine/app/demo.test.ts",
+    "tests/engine/app/demo/",
+    "tests/engine/app/settings/mcp-tool-access.test.ts",
+    "tests/engine/app/settings/model-schema.test.ts",
     "tests/engine/app/external-link.test.ts",
     "tests/e2e/chat/panel.spec.ts",
     "tests/e2e/clipboard/tauri-plugin-routing.spec.ts",

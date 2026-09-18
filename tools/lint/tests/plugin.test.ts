@@ -6,9 +6,7 @@ import { join } from 'node:path'
 import lintPlugin from '#lint/plugin.ts'
 import { normalizedFilename } from '#lint/support/context.ts'
 
-import { resolveWorkspaceRoot } from '@open-pencil/package-artifacts'
-
-import { lint, ruleDiagnostics } from './helpers/lint.ts'
+import { lint, resolveWorkspaceRoot, ruleDiagnostics } from './helpers/lint.ts'
 
 const temporaryDirectories: string[] = []
 

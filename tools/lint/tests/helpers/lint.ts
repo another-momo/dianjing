@@ -1,10 +1,19 @@
+import { existsSync } from 'node:fs'
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import * as v from 'valibot'
 
-import { resolveWorkspaceRoot } from '@open-pencil/package-artifacts'
+export async function resolveWorkspaceRoot(from: string): Promise<string> {
+  let dir = from
+  for (;;) {
+    if (existsSync(join(dir, 'bun.lock'))) return dir
+    const parent = dirname(dir)
+    if (parent === dir) throw new Error(`workspace root not found from ${from}`)
+    dir = parent
+  }
+}
 
 const diagnosticSchema = v.object({
   code: v.optional(v.string()),

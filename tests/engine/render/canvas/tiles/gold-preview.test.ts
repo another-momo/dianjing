@@ -1,5 +1,6 @@
 import { beforeAll, expect, setDefaultTimeout, test } from 'bun:test'
 
+import { initCanvasKit } from '@open-pencil/core/io'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
 import { SkiaRenderer } from '#core/canvas'
