@@ -24,8 +24,8 @@
  *  端点 POST /api/pi/active-design：401 未鉴权 / 405 非 POST / 400 坏体 /
  *     502 bridge_unavailable（无桥环境显式失败，红线 #8 不静默）
  *  路由 GET /api/pi/studio/manifest 形状 + 脱敏（无正文/无绝对路径）+ 405
- *  T87：manifest 透传 capabilities/skills 字段（OFF 态）；capabilities 端点
- *   GET 缺省 OFF / PUT ON-OFF 往返 / 负向 400 / 未鉴权 401
+ *  T87：manifest 透传 capabilities/skills 字段（缺省态）；capabilities 端点
+ *   GET 缺省 DEFAULTS / PUT ON-OFF 往返 / 负向 400 / 未鉴权 401
  *
  * T45（S4 W1 / T-A3）改源：种子 config.yaml → studio 文件注册表（workflows/
  * + profiles/ 复制进 tempRoot）；端点更名 /api/pi/studio/manifest，契约改为
@@ -319,18 +319,19 @@ try {
   )
 
   // ── T87：capabilities 路由
-  // 缺省 OFF（首次请求 capabilities.json 不存在）
+  // 缺省 DEFAULTS（首次请求 capabilities.json 不存在；2026-09-18 翻转 readonly+true）
   const capRes0 = await fetch(`${BASE}/api/pi/capabilities`, { headers: authHeaders(token) })
   const cap0 = await capRes0.json()
   check(
-    'T87 路由 capabilities：缺省 OFF（capabilities.json 不存在 → 降级 OFF）',
-    capRes0.ok && cap0.agentSkills === false,
+    'T87 路由 capabilities：缺省 DEFAULTS（capabilities.json 不存在 → 兜底 readonly+true）',
+    capRes0.ok && cap0.builtinTools === 'readonly' && cap0.agentSkills === true,
     JSON.stringify(cap0)
   )
-  // manifest.skills 同步透传（OFF 时 = []）
+  // manifest.skills 同步透传（缺省 ON 但 fixture 目录无 skill → []）
   check(
-    'T87 路由 manifest：capabilities.agentSkills=false + skills=[] 透传',
-    manifest.capabilities?.agentSkills === false &&
+    'T87 路由 manifest：capabilities 缺省 readonly+true + skills=[] 透传',
+    manifest.capabilities?.builtinTools === 'readonly' &&
+      manifest.capabilities?.agentSkills === true &&
       Array.isArray(manifest.skills) &&
       manifest.skills.length === 0,
     JSON.stringify({ capabilities: manifest.capabilities, skills: manifest.skills })
