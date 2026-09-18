@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, test } from 'bun:test'
 
 import { diagnostics, recordChatCompleted } from '@/app/diagnostics'
 import { recordModelStepCompleted, recordToolCompleted } from '@/app/diagnostics/events/ai'
-import { useDiagnosticsSettings } from '@/app/diagnostics/settings'
 
 describe('diagnostics recorder', () => {
   beforeEach(async () => {
@@ -51,21 +50,6 @@ describe('diagnostics recorder', () => {
     expect(output).toContain('"cacheReadTokens": null')
     expect(output).not.toContain('private tool')
     expect(output).not.toContain('messages')
-  })
-
-  test('disabling diagnostics also disables tool telemetry', async () => {
-    const { diagnosticsEnabled } = useDiagnosticsSettings()
-    const previous = diagnosticsEnabled.value
-    try {
-      diagnosticsEnabled.value = false
-      recordToolCompleted(
-        { tool: 'create_node', durationMs: 5, mutates: true, failed: false },
-        { sessionId: 'disabled', runId: 'disabled-run' }
-      )
-      expect(await diagnostics.list()).toEqual([])
-    } finally {
-      diagnosticsEnabled.value = previous
-    }
   })
 
   test('clears recorded events', async () => {

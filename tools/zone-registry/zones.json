@@ -1727,6 +1727,13 @@
       "reason": "noMixedCaseAcronymIdentifiers ignoredImports 增列 '@valibot/to-json-schema'——第三方包导出名豁免（同 culori/reka-ui 类）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P290",
+      "file": "tests/engine/app/diagnostics/recorder.test.ts",
+      "reason": "PR713 诊断设置 composable（useDiagnosticsSettings）随设置重写拒收——摘除其用例，保留 AI 元数据用例（recordToolCompleted/recordModelStepCompleted 我方在册）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
     }
   ],
   "deletedPaths": [
