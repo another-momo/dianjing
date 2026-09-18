@@ -343,7 +343,14 @@ export function extractPathsFromElements(
 }
 
 export function extractPaths(svgBody: string): IconPathInfo[] {
-  const root = parseSVGFragment(svgBody)?.documentElement
+  // 剥 XML prolog/DOCTYPE：本函数把入参再包一层 <svg> 喂 XML 解析器，
+  // 文件头的 <?xml?> 声明与 <!DOCTYPE> 在内嵌位置被判非法 → 静默 0 路径
+  // （2026-09-18 定性：产品长图.svg 导入误报「支持 SVG」根因）。注释无害保留。
+  const body = svgBody
+    .trimStart()
+    .replace(/^<\?xml[\s\S]*?\?>\s*/i, '')
+    .replace(/^<!DOCTYPE[\s\S]*?>\s*/i, '')
+  const root = parseSVGFragment(body)?.documentElement
   return root ? collectDocumentPaths(root) : []
 }
 

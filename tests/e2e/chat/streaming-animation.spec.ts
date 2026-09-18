@@ -9,7 +9,7 @@ test('streaming lists and code lines fade in and respect reduced motion and sett
   await new CanvasHelper(page).waitForInit()
   const fixture = await page.evaluateHandle(async () => {
     const vuePath = '/node_modules/.vite/deps/vue.js'
-    const markdownPath = '/src/components/chat/ChatMarkdown.vue'
+    const markdownPath = '/src/components/assistant/ChatMarkdown.vue'
     const { createApp, h, ref, nextTick } = await import(vuePath)
     const { default: ChatMarkdown } = await import(markdownPath)
     const content = ref('A paragraph.\n\n- First item\n')

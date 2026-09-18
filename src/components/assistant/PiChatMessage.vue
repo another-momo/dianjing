@@ -273,8 +273,10 @@ function filePartFilename(part: FilePart): string {
 
           <!-- T93：reasoning part 折叠渲染（预研 §5.2 方案 A）。
             T96（owner 改）：默认折叠（不绑 :open）——流式中、结束后都靠用户手点；
-            标题走状态分叉：流式「思考中…」+ 呼吸点动画（纯 CSS keyframes，
-            零 JS 定时器）；结束「思考过程」。每条独立默认折叠，新消息不继承。 -->
+            标题走 part 级 state 分叉（2026-09-18 P0 修：原绑消息级 streaming，
+            整流恒 true 致推理结束后仍挂「思考中」）：流入期「思考中…」+ 呼吸点动画
+            （纯 CSS keyframes，零 JS 定时器）；reasoning-end 后「思考过程」。
+            每条独立默认折叠，新消息不继承。 -->
           <details
             v-else-if="isReasoningUIPart(part)"
             data-test-id="chat-reasoning"
@@ -284,7 +286,9 @@ function filePartFilename(part: FilePart): string {
               class="flex cursor-pointer items-center gap-1 text-[11px] text-muted select-none"
             >
               <icon-lucide-brain class="size-3" />
-              <span v-if="streaming" data-test-id="chat-reasoning-streaming-title">
+              <!-- part 级 state：reasoning-end 即翻「思考过程」，不等整条消息流结束
+                   （消息级 streaming 在正文续流/调工具期间恒 true，多 reasoning 块会齐挂「思考中」） -->
+              <span v-if="part.state === 'streaming'" data-test-id="chat-reasoning-streaming-title">
                 {{ confirmText.reasoningStreamingTitle }}
                 <span class="chat-reasoning-dots" aria-hidden="true">
                   <span />

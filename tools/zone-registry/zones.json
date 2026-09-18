@@ -1726,6 +1726,27 @@
       "reason": "PR713 凭据延迟链手术版吸收（2026-09-18，B 案）：取上游 media.ts（惰性 resolver 注入 core）四处手术——①PEXELS/UNSPLASH_CREDENTIAL import 改指 ./media-credentials（fork 既有常量叶子，persistence.ts 等消费方零 churn）；②删 refreshStatus 的 hasLegacyCredential 分支（migration.ts 不取：fork 无旧格式存量、迁移无对象，owner 已确认）；③删 resolveMediaCredential/setMediaKey/setRememberCredentials 三处 initializeCredentialMigration 调用；④文件尾补模块加载 void refreshMediaCredentials()——承接已删 stock-photo-keys.ts/chat-storage credentialsReady 的启动注入职责，上游的启动触发点在其 chat 面（fork 已裁），不补则 remembered key 启动即失联。credentialPersistenceRevision 保留",
       "disposition": "permanent",
       "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P294",
+      "file": "packages/core/src/icons/svg.ts",
+      "reason": "2026-09-18：extractPaths 入口剥 XML prolog/DOCTYPE——入参再包一层 <svg> 喂 xmldom 时，整文件导入的 <?xml?>/<!DOCTYPE> 在内嵌位置被判非法 → 静默 0 路径 → 添加图片误报「支持 SVG」（添加图片报错预研结案根因行级修）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P295",
+      "file": "tests/e2e/chat/streaming-animation.spec.ts",
+      "reason": "2026-09-18：动态 import 死路径 /src/components/chat/ChatMarkdown.vue 改指 /src/components/assistant/ChatMarkdown.vue（fork 的 chat/ 目录已裁进 deletedPaths；CI 无 e2e job 长期不可见——ReasoningBlock 孤儿条目同族残留）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P296",
+      "file": "tests/engine/icons/svg.test.ts",
+      "reason": "2026-09-18：extractPaths prolog 剥离回归钉三态（声明/DOCTYPE 剥后等价裸体、注释保留无害）——P294 配套",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-18"
     }
   ],
   "deletedPaths": [

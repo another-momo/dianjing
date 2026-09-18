@@ -92,4 +92,19 @@ describe('SVG XML parsing', () => {
     expect(extractPaths('<path d="M0 0"><g>')).toEqual([])
     expect(parseSVGViewBox('<svg viewBox="0 0 20 20">')).toBeNull()
   })
+
+  // 2026-09-18 回归钉：整文件导入（含 <?xml?>/<!DOCTYPE> 文件头）曾静默 0 路径
+  // ——extractPaths 入口剥 prolog（实证三态：声明/DOCTYPE 致命、注释无害）
+  test('strips XML prolog and DOCTYPE before parsing', () => {
+    const body = '<path d="M0 0L10 10Z"/>'
+    const expected = extractPaths(body)
+    expect(expected).toHaveLength(1)
+    expect(extractPaths(`<?xml version="1.0" encoding="UTF-8"?>\n${body}`)).toEqual(expected)
+    expect(
+      extractPaths(
+        `<?xml version="1.0"?>\n<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n${body}`
+      )
+    ).toEqual(expected)
+    expect(extractPaths(`<!-- 注释保留无害 -->\n${body}`)).toEqual(expected)
+  })
 })
