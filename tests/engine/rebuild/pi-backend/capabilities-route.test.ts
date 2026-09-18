@@ -4,7 +4,7 @@
  * T96：v2 形状（builtinTools 三档）+ PUT 三档校验 + 部分更新（缺省保留旧值）。
  *
  * 真 createPiBackendServer + mock pi-coding-agent（夹具同 chat-cancel-route）。
- * 覆盖：GET 缺省 OFF / PUT ON 落盘回读 / PUT 非布尔 400 / 方法白名单 /
+ * 覆盖：GET 缺省 DEFAULTS / PUT ON 落盘回读 / PUT 非布尔 400 / 方法白名单 /
  * 鉴权（无 token 401）。
  */
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test'
@@ -117,10 +117,10 @@ describe('GET/PUT /api/pi/capabilities（T87）', () => {
     await boot()
   })
 
-  test('GET 缺省 OFF', async () => {
+  test('GET 缺省 DEFAULTS（2026-09-18 翻转 readonly+true）', async () => {
     const r = await getCapabilities()
     expect(r.status).toBe(200)
-    expect(r.body).toEqual({ builtinTools: 'off', agentSkills: false })
+    expect(r.body).toEqual({ builtinTools: 'readonly', agentSkills: true })
   })
 
   test('PUT ON → 落盘 + 后续 GET 返 ON（同实例）', async () => {
@@ -157,7 +157,7 @@ describe('GET/PUT /api/pi/capabilities（T87）', () => {
     const put2 = await putCapabilities({ agentSkills: 1 })
     expect(put2.status).toBe(400)
     const get = await getCapabilities()
-    expect(get.body).toEqual({ builtinTools: 'off', agentSkills: false })
+    expect(get.body).toEqual({ builtinTools: 'readonly', agentSkills: true })
   })
 
   test('T96 PUT 非法 builtinTools → 400（不动落盘）', async () => {
@@ -166,7 +166,7 @@ describe('GET/PUT /api/pi/capabilities（T87）', () => {
     const put2 = await putCapabilities({ agentSkills: true, builtinTools: 1 })
     expect(put2.status).toBe(400)
     const get = await getCapabilities()
-    expect(get.body).toEqual({ builtinTools: 'off', agentSkills: false })
+    expect(get.body).toEqual({ builtinTools: 'readonly', agentSkills: true })
   })
 
   test('T96 PUT 只给 agentSkills → builtinTools 保留旧值（部分更新）', async () => {
@@ -182,7 +182,8 @@ describe('GET/PUT /api/pi/capabilities（T87）', () => {
   test('PUT OFF → 关闭后 skills=[]（listSkills 守门）', async () => {
     await putCapabilities({ agentSkills: false })
     const get = await getCapabilities()
-    expect(get.body).toEqual({ builtinTools: 'off', agentSkills: false })
+    // builtinTools 缺省保留旧值（缺省 'readonly'）；agentSkills 显式 false
+    expect(get.body).toEqual({ builtinTools: 'readonly', agentSkills: false })
   })
 
   test('POST/DELETE → 405（方法白名单）', async () => {
@@ -225,7 +226,7 @@ describe('GET/PUT /api/pi/capabilities（T87）', () => {
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { capabilities?: unknown; skills?: unknown }
-    expect(body.capabilities).toEqual({ builtinTools: 'off', agentSkills: false })
+    expect(body.capabilities).toEqual({ builtinTools: 'readonly', agentSkills: true })
     expect(body.skills).toEqual([])
   })
 })

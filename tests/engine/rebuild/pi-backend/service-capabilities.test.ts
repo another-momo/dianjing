@@ -84,23 +84,23 @@ describe('pi-backend service.ts capabilities seam（T87）', () => {
     capturedLoaderOptions.length = 0
   })
 
-  test('getCapabilities：缺省 OFF（capabilities.json 不存在 → 失败安全）', () => {
+  test('getCapabilities：缺省 DEFAULTS（capabilities.json 不存在 → 失败安全兜底）', () => {
     const svc = makeService(rootDir)
-    expect(svc.getCapabilities()).toEqual({ builtinTools: 'off', agentSkills: false })
+    expect(svc.getCapabilities()).toEqual({ builtinTools: 'readonly', agentSkills: true })
   })
 
   test('setCapabilities → getCapabilities 往返：与 capabilitiesStore 实例共享', () => {
     const svc = makeService(rootDir)
-    // T96：set 只给 agentSkills 时 builtinTools 保留旧值（缺省 'off'）
+    // T96：set 只给 agentSkills 时 builtinTools 保留旧值（缺省 'readonly'）
     expect(svc.setCapabilities({ agentSkills: true })).toEqual({
-      builtinTools: 'off',
+      builtinTools: 'readonly',
       agentSkills: true
     })
-    expect(svc.getCapabilities()).toEqual({ builtinTools: 'off', agentSkills: true })
+    expect(svc.getCapabilities()).toEqual({ builtinTools: 'readonly', agentSkills: true })
 
     // 落盘后可被新实例读出（验证持久化层一致）
     const svc2 = makeService(rootDir)
-    expect(svc2.getCapabilities()).toEqual({ builtinTools: 'off', agentSkills: true })
+    expect(svc2.getCapabilities()).toEqual({ builtinTools: 'readonly', agentSkills: true })
   })
 
   test('setCapabilities 非布尔 → 抛错', () => {
@@ -115,10 +115,11 @@ describe('pi-backend service.ts capabilities seam（T87）', () => {
     )
   })
 
-  test('getStudioManifest：含 capabilities + skills 字段（OFF 时 skills=[]）', () => {
+  test('getStudioManifest：缺省（agentSkills ON）时 skills 如实扫描；空目录 → skills=[]', () => {
     const svc = makeService(rootDir)
     const manifest = svc.getStudioManifest()
-    expect(manifest.capabilities).toEqual({ builtinTools: 'off', agentSkills: false })
+    // 2026-09-18 翻转：缺省 agentSkills=true——manifest.capabilities 随 DEFAULTS
+    expect(manifest.capabilities).toEqual({ builtinTools: 'readonly', agentSkills: true })
     expect(manifest.skills).toEqual([])
   })
 
@@ -159,13 +160,30 @@ description: x
       'utf8'
     )
     const svc = makeService(rootDir)
+    svc.setCapabilities({ agentSkills: false })
     expect(svc.getStudioManifest().skills).toEqual([])
   })
 
   // ── T96：三档位装配门控（createAgentSession 入参捕获） ─────────────────
 
-  test('T96 装配门控：builtinTools off（缺省）→ noTools:"builtin"，无 tools 键', async () => {
+  test('T96 装配门控：builtinTools 缺省（readonly 档）→ tools 只读四件 + 自定义工具', async () => {
     const svc = makeService(rootDir)
+    // 2026-09-18 翻转：缺省从 off 抬到 readonly——装配面从 noTools 变 tools 白名单
+    await svc.prompt('s-default', 'hi', () => undefined, {
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' }
+    })
+    const opts = capturedSessionOptions.at(-1)
+    expect(opts).toBeDefined()
+    const customNames = ((opts?.customTools ?? []) as Array<{ name: string }>).map(
+      (tool) => tool.name
+    )
+    expect(opts?.tools).toEqual(['read', 'grep', 'find', 'ls', ...customNames])
+    expect('noTools' in (opts ?? {})).toBe(false)
+  })
+
+  test('T96 装配门控：builtinTools off（显式关）→ noTools:"builtin"，无 tools 键', async () => {
+    const svc = makeService(rootDir)
+    svc.setCapabilities({ agentSkills: true, builtinTools: 'off' })
     await svc.prompt('s-off', 'hi', () => undefined, {
       model: { providerId: 'openrouter', modelId: 'openrouter/free' }
     })

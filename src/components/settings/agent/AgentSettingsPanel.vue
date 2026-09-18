@@ -20,7 +20,8 @@ const msgs = useForkAgentCapabilities()
 type LocalCapabilities = NonNullable<typeof piCapabilities.value>
 
 const localCapabilities = ref<LocalCapabilities>(
-  piCapabilities.value ?? { builtinTools: 'off', agentSkills: false }
+  // 瞬态初值与 capabilities.ts DEFAULTS 对齐（manifest 拉取到达前的首帧）
+  piCapabilities.value ?? { builtinTools: 'readonly', agentSkills: true }
 )
 const saving = ref(false)
 const errorText = ref<string | null>(null)

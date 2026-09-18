@@ -6,16 +6,17 @@
  * 命令」双限制（句中提及/名后贴中文/多 skill，见方法注释）。
  *
  * 存储：.dianjing/pi-agent/capabilities.json（tmp+rename 原子写；坏 JSON
- * 降级 OFF——同 image-gen/credentials 纪律但无敏感字段，0o600 仅对齐设置文件
+ * 降级 DEFAULTS——同 image-gen/credentials 纪律但无敏感字段，0o600 仅对齐设置文件
  * 既存卫生标准；绝无任何 key/secret 字段）。
  *
  * 双键语义（T96，owner 任务卡）：
  *  - builtinTools: 'off' | 'readonly' | 'full' ——session 装配门控：
  *    off → noTools:'builtin'；readonly → tools:[read/grep/find/ls]；
- *    full → 省略字段走 SDK 默认（read/bash/edit/write）。缺省 'off'
- *    （首次配置前不暴露新攻击面）。
+ *    full → 省略字段走 SDK 默认（read/bash/edit/write）。缺省 'readonly'
+ *    （2026-09-18 owner 拍板翻转——新装/坏文件兜底从 off 抬到 readonly；
+ *    存量 capabilities.json 有显式值不跟随，全员强翻需另做版本迁移）
  *  - agentSkills: boolean ——skill 加载开关（pi SDK 路径 noSkills），
- *    与 builtinTools 解耦。缺省 false。
+ *    与 builtinTools 解耦。缺省 true（2026-09-18 同批翻转）。
  *
  * v1 → v2 迁移：旧文件 {version:1, agentSkills} 读盘时按旧同闸语义映射
  * builtinTools = agentSkills ? 'full' : 'off'；写盘恒 version:2。
@@ -55,7 +56,9 @@ export type BuiltinToolsLevel = 'off' | 'readonly' | 'full'
 
 const BUILTIN_TOOLS_LEVELS: readonly BuiltinToolsLevel[] = ['off', 'readonly', 'full']
 
-const DEFAULTS: CapabilitiesFile = { version: 2, builtinTools: 'off', agentSkills: false }
+// 2026-09-18 owner 拍板翻转：builtinTools off→readonly、agentSkills false→true。
+// DEFAULTS 只兜新装/文件缺失/坏文件降级，存量显式值不跟随。
+const DEFAULTS: CapabilitiesFile = { version: 2, builtinTools: 'readonly', agentSkills: true }
 
 export type Capabilities = {
   /** 内建工具档位；service.ts 装配据此切换 noTools/tools */
@@ -74,7 +77,7 @@ export type Capabilities = {
 export type ManifestSkillEntry = Pick<Skill, 'name' | 'description'>
 
 export type CapabilitiesStore = {
-  /** 进程级内存缓存；缺省 OFF；返回纯值对象（解构给 service.ts / GET 端点共用） */
+  /** 进程级内存缓存；缺省 = DEFAULTS；返回纯值对象（解构给 service.ts / GET 端点共用） */
   get(): Capabilities
   /**
    * PUT 写入：agentSkills 非布尔 → 抛错；builtinTools 给了就必须是三档字面量
@@ -141,8 +144,8 @@ export function createCapabilitiesStore({
       }
       return { builtinTools: DEFAULTS.builtinTools, agentSkills: DEFAULTS.agentSkills }
     } catch {
-      // ENOENT / 坏 JSON → 缺省 OFF（capabilities 面 fail-safe，
-      // 缺配置/坏文件视为未授权，避免把半残状态带入 session）
+      // ENOENT / 坏 JSON → 缺省 DEFAULTS（capabilities 面 fail-safe，
+      // 缺配置/坏文件不落半残状态；兜底值已抬为 readonly+true——2026-09-18 拍板）
       return { builtinTools: DEFAULTS.builtinTools, agentSkills: DEFAULTS.agentSkills }
     }
   }
