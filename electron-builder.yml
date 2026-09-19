@@ -104,7 +104,8 @@ files:
   - '!**/vite'
   - '!**/node_modules'
 
-# 平台：本任务仅交付 Windows 安装包
+# 平台：Windows + macOS 双端（2026-09-19 owner 拍板同批，方案稿 docs/
+# 202609182200-release-and-mac-packaging-research.md §4.1）
 win:
   target:
     - target: nsis
@@ -120,6 +121,23 @@ win:
   # （16/32/48/256），由 dianjing-logo.svg 栅格化组装；build/icon.png
   # (512) 是同源主图（electron-builder 约定位，供未来 mac/linux 自动转换）
   icon: build/icon.ico
+
+# macOS：dmg 双架构分包（arm64 / x64 各一——universal 单包体积翻倍，后续性
+# 能/体积权衡再定）。无 Developer ID 证书：identity: null 走 ad-hoc 签名
+# （Apple Silicon 强制最低门槛），公网分发靠 Gatekeeper 放行流程（安装说明
+# 模板 = docs/installation-guide.md）。CI job  env 钉
+# CSC_IDENTITY_AUTO_DISCOVERY=false 防 macos runner 探测到无关证书触发
+# codesign 炸。icon 由 electron-builder 从 512 PNG 自动转 .icns。
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  icon: build/icon.png
+  category: public.app-category.graphics-design
 
 nsis:
   # perMachine false —— 安装到当前用户（无管理员权限要求；UAC 不弹；与

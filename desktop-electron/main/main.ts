@@ -121,6 +121,12 @@ let backendHandle: SidecarHandle | null = null
 // 「主进程端口」+ 回环 server 引用——抽成模块态供 runFullSmoke / 关窗回调复用
 let portFromState = 0
 let serverFromState: ReturnType<typeof createServer> | null = null
+// darwin 复活用：回环服务的 dist 解析基准（buildSidecars 平铺约定同款结果，由
+// startLoopbackWithSidecars 记录）；before-quit 只武装一次——复活 C 路径会重进
+// startLoopbackWithSidecars，闭包重复注册叠加监听器，且 __opSidecarQuitting
+// 全局闸会让后到注册永远跳过 → 新 sidecar 漏杀
+let distDirFromState: string | null = null
+let beforeQuitArmed = false
 
 async function waitForHealth(
   child: UtilityProcess,
@@ -780,6 +786,25 @@ function buildSidecars(distDir: string, loopbackOrigin: string): { bridge: Sidec
   return { bridge, backend, distDir: packedDistDir }
 }
 
+// app quit 两段式 kill——注册到 before-quit 防止默认强杀孤儿。读模块态而非
+// 闭包：darwin 复活 C 路径会再走 startLoopbackWithSidecars 换新 server/handle，
+// 闭包捕获旧引用 + __opSidecarQuitting 全局闸挡后到注册 = 新 sidecar 漏杀
+function armBeforeQuitKill(): void {
+  if (beforeQuitArmed) return
+  beforeQuitArmed = true
+  app.on('before-quit', async (event) => {
+    const globalScope = globalThis as { __opSidecarQuitting?: boolean }
+    if (globalScope.__opSidecarQuitting) return
+    globalScope.__opSidecarQuitting = true
+    event.preventDefault()
+    const server = serverFromState
+    if (server) await new Promise<void>((r) => server.close(() => r()))
+    if (backendHandle) await stopSidecar(backendHandle)
+    if (bridgeHandle) await stopSidecar(bridgeHandle)
+    app.exit(0)
+  })
+}
+
 async function startLoopbackWithSidecars(distDir: string): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
   // spike-electron-spike：先钉 loopback 端口（full-smoke 已用 DIANJING_
   // LOOPBACK_PORT 注入；默认 0 = 选个空闲端口），再编排 sidecar——桥 CORS
@@ -818,17 +843,10 @@ async function startLoopbackWithSidecars(distDir: string): Promise<{ server: Ret
   serverFromState = server
   console.error(`[electron-main] 回环服务就绪 http://127.0.0.1:${port}`)
 
-  // 4. app quit 两段式 kill——注册到 before-quit 防止默认强杀孤儿
-  app.on('before-quit', async (event) => {
-    const globalScope = globalThis as { __opSidecarQuitting?: boolean }
-    if (globalScope.__opSidecarQuitting) return
-    globalScope.__opSidecarQuitting = true
-    event.preventDefault()
-    if (server) await new Promise<void>((r) => server.close(() => r()))
-    await stopSidecar(backend)
-    await stopSidecar(bridge)
-    app.exit(0)
-  })
+  // 4. app quit 两段式 kill——武装一次（模块态读取；darwin 复活 C 路径重进
+  // 本函数时不叠加注册）；dist 解析基准入模块态供复活 A 路径复听
+  armBeforeQuitKill()
+  distDirFromState = resolvedDistDir
 
   return { server, port }
 }
@@ -989,11 +1007,14 @@ if (!readSmokeMode() && !readFullSmokeMode()) {
 }
 
 // P1.9.4 darwin 复活主窗口——dev 形态：直接 new BrowserWindow + loadURL；
-// 默认形态（sidecar 全家桶）：sidecar 句柄在 before-quit 之前持续存活，可
-// 重 listen 回环服务复用既有 bridge/backend；但实现复杂度（bridge CORS origin
-// 在 fork 时锁定，复用旧 loopback 端口不一定可用）超出本 spike 范围——P2
-// 「多窗口共享 sidecar」会顺手处理。当前只覆盖 dev 形态；默认形态下若
-// primaryWindow 被关且 primaryWindow 已 null，则 console.warn 让用户手动重启
+// 默认形态（sidecar 全家桶）A+C fallback（2026-09-19 owner 拍板，方案稿
+// docs/202609182200 §4.3）：
+//   A 首选——关窗只 server.close() 不杀 sidecar（before-quit 才杀），bridge/
+//     backend 进程仍在。复听同一 loopback 端口重建回环：bridge CORS origin
+//     在 fork 时锁定为旧 origin，换端口会让页面→bridge 跨源预检 401；同端口
+//     = origin 不变 = 既有 sidecar 原样直连（~100ms 无感复活）。
+//   C fallback——旧端口被占（listen 失败）或 sidecar 已死：收掉旧 sidecar 后
+//     全链重建（新端口 + 重 spawn，~3-5s）。
 function rebuildPrimaryWindow(): void {
   const devUrl = readElectronDevURL()
   if (devUrl) {
@@ -1007,7 +1028,53 @@ function rebuildPrimaryWindow(): void {
     void win.loadURL(devUrl)
     return
   }
-  console.warn('[electron-main] darwin activate：默认形态（sidecar 全家桶）的复活路径尚未实现，请手动重启 app')
+  void revivePackagedWindow().catch((error: unknown) => {
+    console.error(`[electron-main] darwin 复活失败：${error instanceof Error ? error.stack : String(error)}`)
+  })
+}
+
+async function revivePackagedWindow(): Promise<void> {
+  // A：同端口复听（sidecar 存活 + 有历史端口 + dist 基准已知才够条件）
+  if (portFromState > 0 && distDirFromState && bridgeHandle?.current && backendHandle?.current) {
+    try {
+      const { server, port } = await createLoopbackServer({
+        distDir: distDirFromState,
+        automationToken: bridgeToken,
+        backendPort,
+        piToken,
+        port: portFromState
+      })
+      serverFromState = server
+      console.error(`[electron-main] darwin 复活 A：复听旧 loopback 端口 ${port}，既有 sidecar 直连`)
+      await openPackagedWindow(`http://127.0.0.1:${port}`)
+      return
+    } catch (error) {
+      console.warn(`[electron-main] darwin 复活 A 失败转 C：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  // C：先收旧 sidecar（存活则端口占用会撞新 spawn 的同端口绑定），再全链重建
+  if (backendHandle) await stopSidecar(backendHandle)
+  if (bridgeHandle) await stopSidecar(bridgeHandle)
+  const { port } = await startLoopbackWithSidecars(join(__dirname, '..', '..', 'dist'))
+  console.error(`[electron-main] darwin 复活 C：sidecar 全链重建完成，loopback :${port}`)
+  await openPackagedWindow(`http://127.0.0.1:${port}`)
+}
+
+// 复活窗口创建——与 main() 默认形态同骨架，但 show 恒 true（activate 是显式
+// 用户意图）且 closed 回收的是当前 serverFromState（复活 C 路径可能换过 server）
+async function openPackagedWindow(loadUrl: string): Promise<void> {
+  const window = new BrowserWindow(baseWindowOptions({ show: true, webPreferences: { contextIsolation: true, sandbox: true } }))
+  restoreBounds(window, loadWindowState())
+  persistBoundsOnClose(window)
+  window.once('closed', () => {
+    serverFromState?.close()
+    serverFromState = null
+    if (primaryWindow === window) primaryWindow = null
+  })
+  primaryWindow = window
+  attachWindowSafety(window, loadUrl)
+  applySafeShow(window)
+  await window.loadURL(loadUrl)
 }
 
 // 全局兜底：Electron 对 main 进程的 uncaughtException 默认弹系统错误对话框

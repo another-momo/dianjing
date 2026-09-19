@@ -7,7 +7,7 @@
  * 升级 npm 时跑本脚本刷新。.gitignore 已排除 desktop-electron/native-
  * externals/。
  */
-import { existsSync, mkdirSync, cpSync, rmSync, readlinkSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, cpSync, copyFileSync, rmSync, readlinkSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -26,9 +26,21 @@ const ENTRIES: readonly ExternalsEntry[] = [
   // 形式存的真实包名（含 + 锁标记），不能直接 join 拼
   { from: join(bunNodeModules, '@open-pencil', 'yoga-layout'), to: 'yoga-layout' },
   { from: join(bunNodeModules, '@silvia-odwyer', 'photon-node'), to: '@silvia-odwyer/photon-node' },
-  { from: join(bunNodeModules, '@mariozechner', 'clipboard'), to: '@mariozechner/clipboard' },
-  { from: join(bunNodeModules, '@mariozechner', 'clipboard-win32-x64-msvc'), to: '@mariozechner/clipboard-win32-x64-msvc' }
+  { from: join(bunNodeModules, '@mariozechner', 'clipboard'), to: '@mariozechner/clipboard' }
 ]
+
+// clipboard 原生 .node 按打包平台选变体——napi-rs 平台包是 os/cpu 过滤的
+// optional 依赖，bun 只装当前平台（macos runner 上 win32 变体不存在，硬写
+// 会让 mac 打包链炸在 staging）。且 staged 布局是平铺目录不是 node_modules
+// 树：主包 index.js 的裸 specifier 回退 require('@mariozechner/clipboard-
+// <platform>') 从主包目录出发解不到兄弟目录（win 打包态 MODULE_NOT_FOUND
+// 实证，napi 静默降级至今未被察觉）；napi-rs loader 永远先试同目录本地文
+// 件——把 .node 摆进主包目录让「本地优先」分支命中，win/mac 同法。
+// darwin 用 universal 变体：一次 staging 供 arm64 + x64 双架构 dmg 共用。
+const CLIPBOARD_VARIANTS: Record<string, { pkg: string; file: string }> = {
+  win32: { pkg: 'clipboard-win32-x64-msvc', file: 'clipboard.win32-x64-msvc.node' },
+  darwin: { pkg: 'clipboard-darwin-universal', file: 'clipboard.darwin-universal.node' }
+}
 
 const stagingDir = join(projectRoot, 'desktop-electron', 'native-externals')
 
@@ -52,6 +64,20 @@ function stage(): void {
     mkdirSync(dirname(target), { recursive: true })
     cpSync(realSource, target, { recursive: true, dereference: true })
     console.log(`[stage] ${entry.from} -> ${target}`)
+  }
+
+  // clipboard 平台 .node → 主包目录本地优先加载位（见 CLIPBOARD_VARIANTS 注释）
+  const variant = CLIPBOARD_VARIANTS[process.platform]
+  if (!variant) {
+    console.warn(`[stage] ${process.platform} 无 clipboard 变体登记——sidecar 内 clipboard 走 pi SDK 的 null 降级`)
+  } else {
+    const variantSource = join(bunNodeModules, '@mariozechner', variant.pkg)
+    if (!existsSync(variantSource)) {
+      throw new Error(`clipboard ${process.platform} 变体缺失：${variantSource}（bun install 未装本平台 optional 包？）`)
+    }
+    const realVariant = resolveBunLink(variantSource)
+    copyFileSync(join(realVariant, variant.file), join(stagingDir, '@mariozechner', 'clipboard', variant.file))
+    console.log(`[stage] clipboard 变体 ${variant.file} -> @mariozechner/clipboard/ 主包目录`)
   }
   console.log(`[stage] 完成：${stagingDir}`)
 }

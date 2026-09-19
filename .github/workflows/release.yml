@@ -57,3 +57,32 @@ jobs:
           # 无产物 run（2026-09-15 OpenPencil→Dianjing 漂移实证）
           if-no-files-found: error
           retention-days: 30
+
+  build-macos:
+    name: macOS DMG (arm64 + x64)
+    timeout-minutes: 45
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-bun
+
+      # package:mac 与 package:win 同链（脚本内烤死 npmmirror 镜像 env，见
+      # win 段注释）。CSC_IDENTITY_AUTO_DISCOVERY=false 防 macos runner 探测
+      # 到无关本地证书触发 codesign 失败——ad-hoc 签名由 electron-builder.yml
+      # mac.identity: null 控制
+      - name: Build DMG (ad-hoc signed)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: bun run package:mac
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Dianjing-Mac-${{ github.ref_name }}
+          path: |
+            release/Dianjing-*.dmg
+            release/Dianjing-*.dmg.blockmap
+          if-no-files-found: error
+          retention-days: 30

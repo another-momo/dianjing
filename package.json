@@ -69,6 +69,7 @@
     "stage:native-externals": "bun desktop-electron/tools/stage-native-externals.ts",
     "package:dir": "bun run build:packages && vite build && bun run spike:sidecar:build && bun run spike:electron:build && bun run stage:native-externals && ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ bunx electron-builder --dir --publish never",
     "package:win": "bun run notices:generate && bun run build:packages && vite build && bun run spike:sidecar:build && bun run spike:electron:build && bun run stage:native-externals && ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ bunx electron-builder --win nsis --publish never",
+    "package:mac": "bun run notices:generate && bun run build:packages && vite build && bun run spike:sidecar:build && bun run spike:electron:build && bun run stage:native-externals && ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ bunx electron-builder --mac dmg --publish never",
     "notices:generate": "bun tools/release/src/third-party-notices.ts"
   },
   "dependencies": {
