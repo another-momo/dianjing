@@ -5,7 +5,8 @@
  * （免 ExtensionAPI 桩件与类型断言）。fixture = 纯字符串路径运算（无真实 IO），
  * homeDir 注入 root（好测 ~ 展开命中凭据的情形）。
  *
- * 覆盖 17 用例：read 4 件 + 5 关键放行 + edit/write + grep 6 形态 + ls/find/bash/custom + 非 string path。
+ * 覆盖 17 用例：read 4 件 + 5 关键放行 + edit/write + grep 6 形态 + ls/find/bash/custom + 非 string path；
+ * 2026-09-18 P0-3 追加读侧敏感名单扩面用例（.ssh/.aws/.env/.pem 命中与不命中、写侧面不动）。
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -42,6 +43,10 @@ const WRITE_DENY_REASON =
 const WRITE_FACET_DENY_REASON =
   'Access denied: this path is in the protected pi agent configuration facet and cannot be modified by the agent. ' +
   'The project trust surface is closed; configuration updates go through the Settings panel or developer tooling.'
+
+const SENSITIVE_READ_DENY_REASON =
+  'Access denied: this path is a sensitive system or credential file (SSH/AWS config, .env, PEM key material) and is protected from agent reads and searches. ' +
+  'Do not read, search, or infer its contents — if the file needs inspection or changes, ask the user to handle it directly.'
 
 function makeHandler() {
   return createKeyGuardHandler({ rootDir: ROOT, cwd: WORKSPACE, homeDir: ROOT })
@@ -165,6 +170,116 @@ describe('createKeyGuardHandler — grep 搜索根守卫', () => {
     expect(
       handler({ toolName: 'grep', input: { pattern: 'foo', path: WORKSPACE_AGENTS } })
     ).toBeUndefined()
+  })
+})
+
+describe('createKeyGuardHandler — 读侧敏感名单扩面（2026-09-18 broker P0-3）', () => {
+  const SSH_DIR = resolve(ROOT, '.ssh')
+  const AWS_DIR = resolve(ROOT, '.aws')
+
+  test('read ~/.ssh/id_rsa（~ 展开命中，homeDir=root）→ block（SENSITIVE reason）', () => {
+    const handler = makeHandler()
+    expect(handler({ toolName: 'read', input: { path: '~/.ssh/id_rsa' } })).toEqual({
+      block: true,
+      reason: SENSITIVE_READ_DENY_REASON
+    })
+  })
+
+  test('read .ssh 目录本体 / .aws/credentials → block（目录本体及后代）', () => {
+    const handler = makeHandler()
+    for (const target of [SSH_DIR, resolve(AWS_DIR, 'credentials')]) {
+      expect(handler({ toolName: 'read', input: { path: target } })).toEqual({
+        block: true,
+        reason: SENSITIVE_READ_DENY_REASON
+      })
+    }
+  })
+
+  test('read workspace 内 .env → block（basename 恰 .env 任意路径过挡——有意过挡写实断言）', () => {
+    const handler = makeHandler()
+    expect(handler({ toolName: 'read', input: { path: resolve(WORKSPACE, '.env') } })).toEqual({
+      block: true,
+      reason: SENSITIVE_READ_DENY_REASON
+    })
+  })
+
+  test('read 任意深度 .env.production → block（.env. 前缀）', () => {
+    const handler = makeHandler()
+    const target = resolve(WORKSPACE, 'config', '.env.production')
+    expect(handler({ toolName: 'read', input: { path: target } })).toEqual({
+      block: true,
+      reason: SENSITIVE_READ_DENY_REASON
+    })
+  })
+
+  test('read workspace/cert.pem 与盘外 /etc/ssl/server.pem → block（.pem 扩展名任意路径）', () => {
+    const handler = makeHandler()
+    for (const target of [resolve(WORKSPACE, 'cert.pem'), '/etc/ssl/server.pem']) {
+      expect(handler({ toolName: 'read', input: { path: target } })).toEqual({
+        block: true,
+        reason: SENSITIVE_READ_DENY_REASON
+      })
+    }
+  })
+
+  test('read workspace/foo.env → 放行（basename 非恰 .env 亦非 .env. 前缀）', () => {
+    const handler = makeHandler()
+    expect(
+      handler({ toolName: 'read', input: { path: resolve(WORKSPACE, 'foo.env') } })
+    ).toBeUndefined()
+  })
+
+  test('read ~/.sshconfig → 放行（不在 .ssh/ 目录下，basename 非名单模式）', () => {
+    const handler = makeHandler()
+    expect(handler({ toolName: 'read', input: { path: '~/.sshconfig' } })).toBeUndefined()
+  })
+
+  test('read workspace/note.pem.md → 放行（扩展名非恰 .pem）', () => {
+    const handler = makeHandler()
+    expect(
+      handler({ toolName: 'read', input: { path: resolve(WORKSPACE, 'note.pem.md') } })
+    ).toBeUndefined()
+  })
+
+  test('edit ~/.ssh/config 与 write workspace/.env → 放行（写侧面不动，名单读侧专属）', () => {
+    const handler = makeHandler()
+    expect(handler({ toolName: 'edit', input: { path: '~/.ssh/config' } })).toBeUndefined()
+    expect(
+      handler({ toolName: 'write', input: { path: resolve(WORKSPACE, '.env') } })
+    ).toBeUndefined()
+  })
+
+  test('grep path=~/.ssh → block（搜根在敏感目录内）', () => {
+    const handler = makeHandler()
+    expect(handler({ toolName: 'grep', input: { pattern: 'x', path: '~/.ssh' } })).toEqual({
+      block: true,
+      reason: SENSITIVE_READ_DENY_REASON
+    })
+  })
+
+  test('grep path=homeDir（敏感目录祖先，搜索会捞出 .ssh/.aws 内容）→ block', () => {
+    // homeDir 独立于 rootDir——避开凭据四件祖先命中（凭据 reason 优先），
+    // 纯钉敏感名单祖先方向
+    const home = resolve(ROOT, 'home')
+    const handler = createKeyGuardHandler({ rootDir: ROOT, cwd: WORKSPACE, homeDir: home })
+    expect(handler({ toolName: 'grep', input: { pattern: 'x', path: home } })).toEqual({
+      block: true,
+      reason: SENSITIVE_READ_DENY_REASON
+    })
+  })
+
+  test('grep path=workspace/.env → block（搜根本身命中名单模式）', () => {
+    const handler = makeHandler()
+    const target = resolve(WORKSPACE, '.env')
+    expect(handler({ toolName: 'grep', input: { pattern: 'x', path: target } })).toEqual({
+      block: true,
+      reason: SENSITIVE_READ_DENY_REASON
+    })
+  })
+
+  test('grep path=workspace（无敏感目录后代）→ 放行', () => {
+    const handler = makeHandler()
+    expect(handler({ toolName: 'grep', input: { pattern: 'x', path: WORKSPACE } })).toBeUndefined()
   })
 })
 

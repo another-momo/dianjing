@@ -28,7 +28,12 @@ export const FILE_PREFIX_GROUP_ALLOWLIST = new Set([
   // T91f：tests/e2e/fonts 的 3 个 cjk- 前缀文件中 2 个是上游 follow-pure 布局
   // （fork 只新增 labels-fallback 一个），收拢为 cjk/ 子目录会对上游文件制造
   // 永久性合并摩擦——用规则自带豁免而非重构上游目录。
-  'tests/e2e/fonts::cjk'
+  'tests/e2e/fonts::cjk',
+  // 2026-09-19 broker P0：pi-backend 的 path- 三件（normalize / decision /
+  // observe）是同域判定栈兄弟档——收拢子目录会给 key-guard / load-image /
+  // export-image-to-file / assembly 等消费方制造 import churn，用规则自带
+  // 豁免（与楼上 cjk 同口径）。
+  'src/app/ai/pi-backend::path'
 ])
 
 type ImportRef = {

@@ -33,6 +33,7 @@ import type { ImageGenSettingsStore } from '../image-gen/settings'
 import { createKeyGuardExtension } from '../key-guard'
 import { createLoadImageTool } from '../load-image'
 import { createLoadReferenceTool } from '../load-reference'
+import { createPathObserveExtension } from '../path-observe'
 import {
   resolveBuiltinSkillsDir,
   resolveImageGenOutputDir,
@@ -243,6 +244,9 @@ export async function assembleSession(
   // image-gen.json / key-env / pi-backend-token）的读/写/搜——详见
   // key-guard.ts 头注与仓外预研稿 docs/202609151649-pi-agent-key-file-guard-research.md
   extensionFactories.push(createKeyGuardExtension({ rootDir, cwd: workspaceDir }))
+  // 2026-09-19 broker P0-2 shadow 观测：只记录不拦截（broker-shadow.jsonl 落
+  // rootDir），注册序须在 key-guard 之后——emitToolCall 遇 block 短路
+  extensionFactories.push(createPathObserveExtension({ rootDir, cwd: workspaceDir }))
   // 冒烟探针（免 key 装配验证）：登记在装配之后，event.systemPrompt 已是
   // 链式最终值；仅 PI_PROMPT_PROBE_DIR 显式设置时生效
   const probeDir = process.env.PI_PROMPT_PROBE_DIR

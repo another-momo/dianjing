@@ -44,6 +44,17 @@
  *    skills/base.md/workflows = 持久注入面，必须与目录启用同批 deny
  *    （无空窗）。读侧不动（.agents 内无凭据，凭据四件留在 rootDir 一级）。
  *  - workspace/image-gen-output/** 不 deny（用户数据面，agent 可读写无注入风险）。
+ *
+ * 读侧敏感名单扩面（2026-09-19 broker P0-3，设计稿
+ * docs/202609181745-agent-permission-broker-design.md §4.1/§10-P0-3——读族
+ * 界外静默 allow 的安全配套）：凭据四件之外，read/grep 路径再 deny
+ * ①homeDir 下 .ssh/** 与 .aws/**（目录本体及后代；grep 搜根含祖先方向——
+ * 搜索会捞出敏感内容，同 isHit 祖先口径）；②basename 恰为 .env 或以
+ * .env. 开头的任意路径（fail-safe 过挡，workspace 内同名文件亦拒）；
+ * ③.pem 扩展名的任意路径。判定在 normalizePathDual compare 串上做
+ * （全小写/正斜杠形态）。写侧面不动（edit/write 不经本名单——界外写
+ * deny 属 broker 判定面，非本 guard 口径）。reason 与凭据四件区分
+ * （SENSITIVE_READ_DENY_REASON：名单文件不归产品管，引导用户自行处理）。
  */
 
 import { homedir } from 'node:os'
@@ -140,6 +151,32 @@ function isWriteHit(normalized: string, writeProtectedNormalized: ReadonlySet<st
   return false
 }
 
+/**
+ * 读侧敏感目录命中（2026-09-19 P0-3）：compare 是 homeDir/.ssh 或 homeDir/.aws
+ * 本体/后代；includeAncestors（grep 搜根语义）追加反向——敏感目录是 compare
+ * 后代时搜索会捞出敏感内容（同 isHit 祖先口径）。
+ */
+function hitsSensitiveDir(
+  compare: string,
+  sensitiveDirCompare: ReadonlySet<string>,
+  includeAncestors: boolean
+): boolean {
+  for (const dir of sensitiveDirCompare) {
+    if (compare === dir || compare.startsWith(dir + '/')) return true
+    if (includeAncestors && dir.startsWith(compare + '/')) return true
+  }
+  return false
+}
+
+/**
+ * 读侧敏感文件名（2026-09-19 P0-3）：basename 恰为 .env 或以 .env. 开头、
+ * 或 .pem 扩展名——任意路径（fail-safe 过挡，workspace 内同名文件亦拒）。
+ */
+function hitsSensitiveName(compare: string): boolean {
+  const base = compare.slice(compare.lastIndexOf('/') + 1)
+  return base === '.env' || base.startsWith('.env.') || compare.endsWith('.pem')
+}
+
 const READ_DENY_REASON =
   'Access denied: this path stores API credentials/tokens and is protected from agent access. ' +
   'Do not read, search, or infer credential files — if credentials need inspection or changes, direct the user to the Settings panel.'
@@ -152,6 +189,15 @@ const WRITE_DENY_REASON =
 const WRITE_PROTECTED_FACET_REASON =
   'Access denied: this path is in the protected pi agent configuration facet and cannot be modified by the agent. ' +
   'The project trust surface is closed; configuration updates go through the Settings panel or developer tooling.'
+
+/**
+ * 读侧敏感名单 deny 文案（2026-09-19 P0-3）——与凭据四件 READ_DENY_REASON
+ * 区分：名单面 = 系统/凭据类敏感文件（~/.ssh、~/.aws、.env、.pem），不归
+ * 产品 Settings 面板管，引导用户自行处理。
+ */
+const SENSITIVE_READ_DENY_REASON =
+  'Access denied: this path is a sensitive system or credential file (SSH/AWS config, .env, PEM key material) and is protected from agent reads and searches. ' +
+  'Do not read, search, or infer its contents — if the file needs inspection or changes, ask the user to handle it directly.'
 
 /**
  * 凭据守卫 handler——闭包内一次性算归一化集合（rootDir 不变，无重算必要）。
@@ -172,6 +218,12 @@ export function createKeyGuardHandler(opts: {
   const writeProtectedNormalized = new Set(
     protectedWriteRoots(opts.rootDir).map((p) => normalizePath(p, opts.cwd, homeDir))
   )
+  // 2026-09-19 P0-3 读侧敏感目录（homeDir 下 .ssh / .aws）——预归一化一次
+  const sensitiveDirCompare = new Set(
+    [joinPath(homeDir, '.ssh'), joinPath(homeDir, '.aws')].map((p) =>
+      normalizePath(p, opts.cwd, homeDir)
+    )
+  )
 
   return (event) => {
     const { toolName, input } = event
@@ -189,9 +241,19 @@ export function createKeyGuardHandler(opts: {
       if (toolName !== 'read' && isWriteHit(normalized, writeProtectedNormalized)) {
         return { block: true, reason: WRITE_PROTECTED_FACET_REASON }
       }
-      if (!isHit(normalized, protectedNormalized)) return undefined
-      const reason = toolName === 'read' ? READ_DENY_REASON : WRITE_DENY_REASON
-      return { block: true, reason }
+      if (isHit(normalized, protectedNormalized)) {
+        const reason = toolName === 'read' ? READ_DENY_REASON : WRITE_DENY_REASON
+        return { block: true, reason }
+      }
+      // 敏感名单 = 读侧专属（2026-09-19 P0-3）——edit/write 不经此面（写侧
+      // 面本就在上方两根 + 凭据；界外写 deny 属 broker 判定面）
+      if (
+        toolName === 'read' &&
+        (hitsSensitiveDir(normalized, sensitiveDirCompare, false) || hitsSensitiveName(normalized))
+      ) {
+        return { block: true, reason: SENSITIVE_READ_DENY_REASON }
+      }
+      return undefined
     }
     if (toolName === 'grep') {
       // grep 的 path 可选（缺省搜 cwd）——input.path 非 string 即归 cwd
@@ -200,8 +262,14 @@ export function createKeyGuardHandler(opts: {
         typeof path === 'string'
           ? normalizePath(path, opts.cwd, homeDir)
           : normalizePath(opts.cwd, opts.cwd, homeDir)
-      if (!isHit(effRoot, protectedNormalized)) return undefined
-      return { block: true, reason: READ_DENY_REASON }
+      if (isHit(effRoot, protectedNormalized)) {
+        return { block: true, reason: READ_DENY_REASON }
+      }
+      // 敏感名单搜根：自身在名单内、或敏感目录是搜根后代（搜索会捞出敏感内容）
+      if (hitsSensitiveDir(effRoot, sensitiveDirCompare, true) || hitsSensitiveName(effRoot)) {
+        return { block: true, reason: SENSITIVE_READ_DENY_REASON }
+      }
+      return undefined
     }
     // 其他工具（find / ls / bash / custom）→ undefined（不防面详见头注）
     return undefined

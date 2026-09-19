@@ -4,8 +4,9 @@
  *
  * 形态 = customTools 包装层（不新做 core 工具）：
  *   桥调 core 既有 export_image（vector/export.ts：bounds 计算/scale/maxEdge/
- *   多格式/节点查找全复用）拿 base64 → decodeBase64 → 路径三态裁决（写侧，
- *   与 load_image 同口径 decideWorkspacePath）→ fs.writeFile → 返回 file_path。
+ *   多格式/节点查找全复用）拿 base64 → decodeBase64 → 路径判定（写侧，
+ *   与 load_image 同判定服务 decidePath——broker P0-1 收编在
+ *   ./path-decision.ts，本工具调 write facet）→ fs.writeFile → 返回 file_path。
  *
  * 死代码警告（方案 §4.1）：core export_image schema 的 `path` 字段与
  * OPENPENCIL_MCP_ROOT 是从未实现的死代码——不复用不引用，本工具独立设计
@@ -29,7 +30,8 @@ import { Type } from 'typebox'
 import { decodeBase64 } from '@open-pencil/core/bytes'
 
 import { createBridgeCaller } from './image-gen/bridge-call'
-import { decideWorkspacePath, type LoadImageToolDeps } from './load-image'
+import { type LoadImageToolDeps } from './load-image'
+import { decidePath } from './path-decision'
 import { resolveImageGenDatedDir } from './paths'
 import { toToolResult } from './tool-result'
 
@@ -121,10 +123,11 @@ export function createExportImageToFileTool(deps: ExportImageToFileToolDeps) {
       const height = typeof exported.height === 'number' ? exported.height : 0
       const mimeType = typeof exported.mimeType === 'string' ? exported.mimeType : `image/${ext}`
 
-      // 2. 落点解析：显式 output_path 走三态裁决（写侧）；省略默认留存日期桶
+      // 2. 落点解析：显式 output_path 走判定服务（write facet）；省略默认留存日期桶
       let filePath: string
       if (params.output_path) {
-        const decision = decideWorkspacePath(params.output_path, {
+        const decision = decidePath(params.output_path, {
+          facet: 'write',
           rootDir: deps.rootDir,
           cwd: deps.cwd,
           homeDir: deps.homeDir

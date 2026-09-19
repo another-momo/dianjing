@@ -11,17 +11,16 @@
  *   4. base64 桥调 core place_image_from_bytes（真解码闸/像素上限/矢量化/定位
  *      全在桥端点）
  *
- * 归一化与 deny 名单复用 key-guard 机制（normalizePathDual/isWriteHit 同
- * 算法；2026-09-18 CI 修红起归一化单一真源在 ./path-normalize.ts，两侧
- * 不再各自重述）。路径裁决与 export_image_to_file 共享（同文件导出
- * decideWorkspacePath，写侧口径一致）。
+ * 归一化与 deny 名单复用 key-guard 机制（2026-09-18 CI 修红起归一化单一
+ * 真源在 ./path-normalize.ts，两侧不再各自重述）。路径裁决 2026-09-19
+ * broker P0-1 起收编在 ./path-decision.ts（decidePath 判定服务，本工具调
+ * read facet，export_image_to_file 调 write facet——现行两态同语义）。
  *
  * key 卫生：桥 payload 只含文件名/字节 base64/MIME/节点 id，无路径之外的
  * 本地信息；文件绝对路径不进桥 payload（画布侧只需文件名做节点命名）。
  */
 
 import { readFileSync, statSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { basename } from 'node:path'
 
 import { defineTool, type AgentToolResult } from '@earendil-works/pi-coding-agent'
@@ -34,9 +33,7 @@ import {
   type BridgeCaller,
   type BridgeCallTarget
 } from './image-gen/bridge-call'
-import { protectedWriteRoots } from './key-guard'
-import { normalizePathDual } from './path-normalize'
-import { resolveWorkspaceDir } from './paths'
+import { decidePath } from './path-decision'
 import { toToolResult } from './tool-result'
 
 /** 字节上限（防 base64 传输放大；像素维度上限在桥端点，64MP） */
@@ -47,63 +44,6 @@ const LOAD_IMAGE_DESCRIPTION = `Load a local image file and place it on the canv
 The file must be inside the workspace directory; paths outside it (and the protected agent configuration areas) are denied. Set \`replace_id\` to fill an existing node (raster only); omit it to create a new node (auto-placed right of page content unless \`x\`/\`y\` are given). Returns the canvas node id, logical size, and image hash.
 
 返回的节点即工作产物——后续编辑/引用直接操作画布节点，不要再对同一文件反复调用本工具。`
-
-// ── 路径三态裁决（共享归一化算法 + deny 名单；§6） ──
-
-export interface PathDecisionOptions {
-  rootDir: string
-  /** 相对路径解析基点（缺省 = workspace 目录，与 session cwd 同点） */
-  cwd?: string
-  homeDir?: string
-}
-
-export type PathDecision =
-  | { ok: true; /** 绝对路径（大小写保留，供真实 IO） */ absolutePath: string }
-  | { ok: false; error: string; reason: 'denied' }
-
-/** key-guard isWriteHit 同算法：normalized 本身是受保护目录或其后代 */
-function hitsProtectedRoot(compare: string, protectedCompare: ReadonlySet<string>): boolean {
-  for (const target of protectedCompare) {
-    if (compare === target) return true
-    if (compare.startsWith(target + '/')) return true
-  }
-  return false
-}
-
-/**
- * 路径三态裁决（broker 落地前：无 ask，出界即 deny）：
- *   allow = workspace 子树；deny = protectedWriteRoots 命中（facet 防自植）；
- *   其余一律 deny（出界）。
- */
-export function decideWorkspacePath(input: string, opts: PathDecisionOptions): PathDecision {
-  const cwd = opts.cwd ?? resolveWorkspaceDir(opts.rootDir)
-  const homeDir = opts.homeDir ?? homedir()
-  const { compare, absolute } = normalizePathDual(input, cwd, homeDir)
-  const protectedCompare = new Set(
-    protectedWriteRoots(opts.rootDir).map((p) => normalizePathDual(p, cwd, homeDir).compare)
-  )
-  if (hitsProtectedRoot(compare, protectedCompare)) {
-    return {
-      ok: false,
-      reason: 'denied',
-      error:
-        'Access denied: this path is in the protected agent configuration area and is not accessible to agent tools.'
-    }
-  }
-  const workspaceCompare = normalizePathDual(
-    resolveWorkspaceDir(opts.rootDir),
-    cwd,
-    homeDir
-  ).compare
-  if (compare === workspaceCompare || compare.startsWith(workspaceCompare + '/')) {
-    return { ok: true, absolutePath: absolute }
-  }
-  return {
-    ok: false,
-    reason: 'denied',
-    error: `Path outside workspace: ${absolute}. Move the file into the workspace directory and retry.`
-  }
-}
 
 // ── 格式嗅探（magic bytes + 扩展名双证） ──
 
@@ -243,8 +183,9 @@ export function createLoadImageTool(deps: LoadImageToolDeps) {
       y: Type.Optional(Type.Number({ description: 'Y position for new nodes (omit = auto-place)' }))
     }),
     async execute(_toolCallId, params): Promise<AgentToolResult<Record<string, unknown>>> {
-      // 1. 路径三态裁决
-      const decision = decideWorkspacePath(params.file_path, {
+      // 1. 路径判定（decidePath read facet——broker P0-1 收编后单一判定服务）
+      const decision = decidePath(params.file_path, {
+        facet: 'read',
         rootDir: deps.rootDir,
         cwd: deps.cwd,
         homeDir: deps.homeDir
