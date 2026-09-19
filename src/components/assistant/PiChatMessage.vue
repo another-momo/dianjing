@@ -26,6 +26,14 @@ import ChatAwaitingIntentCard from './ChatAwaitingIntentCard.vue'
 import ChatMarkdown from './ChatMarkdown.vue'
 import ChatNewIntentCard from './ChatNewIntentCard.vue'
 import ChatSetActiveDesignCard from './ChatSetActiveDesignCard.vue'
+import {
+  AUTHZ_REQUEST_PART_TYPE,
+  authzToolCallId,
+  getAuthzResolved,
+  parseAuthzRequestData,
+  type AuthzDecisionView
+} from './pending-decision'
+import PendingDecisionCard from './PendingDecisionCard.vue'
 import { displayToolOutput } from './tool-output'
 import { classifyToolState } from './tool-state'
 
@@ -96,6 +104,50 @@ function askFormId(part: ToolPart): string | null {
 function isAskFormAnswered(part: ToolPart): boolean {
   const id = askFormId(part)
   return id !== null && (answeredFormIds?.has(id) ?? false)
+}
+
+/** 2026-09-18 broker P1：ask 未决（流式中 + 工具 input-* 挂起态 + 未答）由输入区
+ *  pinned 卡承接——本组件内联渲染抑制，避免同一表单双份交互面；已决/历史表单
+ *  （output-available / output-error / answered）不受影响，照常内联渲染归档 */
+function isAskPinned(part: ToolPart): boolean {
+  if (!streaming) return false
+  if (part.state !== 'input-streaming' && part.state !== 'input-available') return false
+  return !isAskFormAnswered(part)
+}
+
+// ── 2026-09-18 broker P1：authz 授权请求 data part（已决/失效归档渲染） ────────
+
+function isAuthzRequestPart(part: UIMessagePart<UIDataTypes, UITools>): boolean {
+  return part.type === AUTHZ_REQUEST_PART_TYPE && 'data' in part
+}
+
+/** 内联归档视图派生：已决（会话 resolved map 全量细节）→ 流式中未决由 pinned
+ *  dock 承接（返回 null 不内联渲染）→ 未决但轮次已结束 = expired 弱化归档 */
+function authzInlineDecision(part: UIMessagePart<UIDataTypes, UITools>): AuthzDecisionView | null {
+  const request = parseAuthzRequestData('data' in part ? part.data : null)
+  if (!request) return null
+  const record = getAuthzResolved(request.formId)
+  if (record) return { kind: 'authz', request, mode: 'resolved', record }
+  if (streaming) return null
+  return {
+    kind: 'authz',
+    request,
+    mode: 'expired',
+    expiredHint: deriveAuthzOutcome(request.formId)
+  }
+}
+
+/** 重载降级推导：formId（'authz-'+toolCallId）反查同消息 bash 工具 part 终态——
+ *  output-available = 已放行执行；output-error = 被拒绝/轮次中断（细节不可考） */
+function deriveAuthzOutcome(formId: string): 'executed' | 'blocked' | null {
+  const toolCallId = authzToolCallId(formId)
+  if (!toolCallId) return null
+  for (const part of message.parts) {
+    if (!isToolUIPart(part) || part.toolCallId !== toolCallId) continue
+    if (part.state === 'output-available') return 'executed'
+    if (part.state === 'output-error') return 'blocked'
+  }
+  return null
 }
 
 /** T61：宿主发起的新建意图确认卡 data part 判定 + 载荷防御性归一 */
@@ -174,9 +226,13 @@ function filePartFilename(part: FilePart): string {
           <!-- T56→2026-09-15：ask_user_question → 聊天内表单卡片（先于通用折叠工具卡）
                摘除 :disabled="streaming"——挂起期卡片必须可交互（聊天处于 streaming
                是 ask_user_question 工具执行中，是设计预期而非锁定态）；常规锁定
-               由 answered/resolved/submittedKind 兜住 -->
+               由 answered/resolved/submittedKind 兜住。
+               2026-09-18 broker P1：未决（isAskPinned）由输入区 pinned 卡承接，
+               内联抑制；已决/历史表单照常内联（已决归档面） -->
           <AskUserQuestionCard
-            v-if="isToolUIPart(part) && getToolName(part) === 'ask_user_question'"
+            v-if="
+              isToolUIPart(part) && getToolName(part) === 'ask_user_question' && !isAskPinned(part)
+            "
             :part="part"
             :part-state="part.state"
             :answered="isAskFormAnswered(part)"
@@ -229,6 +285,13 @@ function filePartFilename(part: FilePart): string {
                 profileId: parseSetupAwaitingIntent(part.output)!.profileId
               })
             "
+          />
+          <!-- 2026-09-18 broker P1：authz 授权请求 data part——未决且流式中由
+               输入区 pinned 卡承接（authzInlineDecision 返 null 不渲染）；已决/失效
+               落消息流内卡（历史回看 + 审计轨迹，§6 已决归档合一） -->
+          <PendingDecisionCard
+            v-else-if="isAuthzRequestPart(part) && authzInlineDecision(part)"
+            :decision="authzInlineDecision(part)!"
           />
           <!-- T65（决策 D3）：上下文切换回执 → 对话流分割线（非气泡） -->
           <div

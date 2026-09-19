@@ -28,7 +28,7 @@ import { copyChatLog } from '@/app/ai/fork/debug'
 import { isAbortShapedError, markIntentionalStop } from '@/app/ai/fork/transports'
 import { useAIChat } from '@/app/ai/fork/use'
 import { piDesignAssignment, piDesignAssignmentReady } from '@/app/ai/pi-backend/assignment'
-import { piCatalog, postAskAnswer, refreshPiCatalog } from '@/app/ai/pi-backend/client'
+import { piCatalog, refreshPiCatalog } from '@/app/ai/pi-backend/client'
 import {
   getPiCurrentSessionId,
   hasPiDocId,
@@ -73,6 +73,12 @@ import {
 } from './active-design'
 import ChatBriefDialog from './ChatBriefDialog.vue'
 import ChatContextBar from './ChatContextBar.vue'
+import {
+  collectPinnedDecisions,
+  postDecisionAnswer,
+  type PendingDecisionView
+} from './pending-decision'
+import PendingDecisionCard from './PendingDecisionCard.vue'
 import PiChatInput from './PiChatInput.vue'
 import PiChatMessage from './PiChatMessage.vue'
 import PiProviderGateCard from './PiProviderGateCard.vue'
@@ -216,6 +222,25 @@ const failureMessage = computed(() => {
   }
 })
 const status = computed(() => chat.value?.status ?? 'ready')
+
+// ── 2026-09-18 broker P1：pending 决断卡（ask/authz 双族）pinned 输入区上方 ──
+//
+// 未决面合一（§6）：阻断性用户决断 pinned 在输入区上方，不随消息流滚动。收集规则
+// 在 pending-decision.ts collectPinnedDecisions（末条 assistant 消息限定——pending
+// 只可能存在于在途 run）。挂起期间聊天处于 streaming，输入区照常锁定，与现状
+// ask pending 同构。已决/失效归档由消息流内卡承担（PiChatMessage），不在此渲染。
+const pinnedDecisions = computed<PendingDecisionView[]>(() => {
+  const s = status.value
+  if (s !== 'streaming' && s !== 'submitted') return []
+  const msgs = messages.value
+  const last = msgs[msgs.length - 1]
+  if (!last || last.role !== 'assistant') return []
+  return collectPinnedDecisions(last.parts, answeredFormIds.value)
+})
+
+function pinnedDecisionKey(view: PendingDecisionView): string {
+  return view.kind === 'ask' ? `ask-${view.part.toolCallId}` : view.request.formId
+}
 function isStreamingMessage(message: UIMessage, index: number): boolean {
   return (
     message.role === 'assistant' &&
@@ -478,11 +503,15 @@ function finalizeInterruptedToolParts(): void {
   }
 }
 
-// 2026-09-15：表单作答/跳过 → 直接 POST /api/pi/ask-answer（ask_user_question
-// 硬阻断新流——execute 挂起期间 agent 物理停摆，答案通过新端点 resolve 进
-// 同一工具结果；不再经聊天消息文本信封回流）。
+// 2026-09-15：表单作答/跳过 → 直接 POST 答案端点（ask_user_question 硬阻断新流——
+// execute 挂起期间 agent 物理停摆，答案通过端点 resolve 进同一工具结果；不再经聊天
+// 消息文本信封回流）。
 // 不接 streaming/submitted guard：本端点独立于聊天提交路径，挂起期间
 // ChatPanel 仍可交互作答（disabled 透传已被卡片摘除——见 PiChatMessage）。
+// 2026-09-18 broker P1：迁入统一端点 POST /api/pi/decision-answer（kind 判别路由，
+// ask 维持 answer/skip 语义封装进同一端点形态；冻结契约见 pending-decision.ts）。
+// 端点未落地/失败时返回 {ok:false}——卡片保留本地 submittedKind 早退锁，不重投，
+// 留 warn 供诊断（no-silent-catch 纪律；与旧 ask-answer 失败面语义一致）。
 /**
  * core AskQuestionAnswer.value 可空（输入中槽位）；卡片提交时已归一但类型
  * 不表——此处收窄到端点契约：透传 value / values[]（过滤非 string 项）/
@@ -527,23 +556,27 @@ function normalizeAnswers(submission: Extract<AskFormSubmission, { aborted: fals
 }
 
 async function handleFormSubmit(submission: AskFormSubmission) {
-  try {
-    if (submission.aborted) {
-      await postAskAnswer({ formId: submission.formId, skip: true })
-      return
-    }
-    const normalized = normalizeAnswers(submission)
-    await postAskAnswer({
+  let result: { ok: true } | { ok: false; message: string }
+  if (submission.aborted) {
+    result = await postDecisionAnswer({
+      kind: 'ask',
       formId: submission.formId,
+      decision: 'skip'
+    })
+  } else {
+    const normalized = normalizeAnswers(submission)
+    result = await postDecisionAnswer({
+      kind: 'ask',
+      formId: submission.formId,
+      decision: 'answer',
       answers: normalized.answers,
       ...(normalized.notes ? { notes: normalized.notes } : {})
     })
-  } catch (error) {
-    // 失败面：后端 pending 已失效（abort/重启）或网络错误——卡片保留本地
-    // submittedKind 早退锁，不重投；留 warn 供诊断（no-silent-catch 纪律）
-    console.warn(
-      '[ask] 表单作答提交失败：' + (error instanceof Error ? error.message : String(error))
-    )
+  }
+  if (!result.ok) {
+    // 失败面：后端 pending 已失效（abort/重启）、端点未落地或网络错误——
+    // 卡片保留本地 submittedKind 早退锁，不重投；留 warn 供诊断
+    console.warn('[ask] 表单作答提交失败：' + result.message)
   }
 }
 
@@ -1044,6 +1077,20 @@ function handleClearChat() {
          ready 才渲染输入框；loading / needs-setup / needs-credential 三态由派生
          门态 gateState 决定——loading 显示骨架占位，needs-* 显示引导卡。
          输入框不渲染 = 从根上消灭未配置发送的死路（spec b）。 -->
+    <!-- 2026-09-18 broker P1：pending 决断卡 pinned 挂点（输入区上方，不随消息流
+         滚动）——ask/authz 双族未决卡在此承接交互；已决/失效归档在消息流内 -->
+    <div
+      v-if="isGateReady && pinnedDecisions.length > 0"
+      data-test-id="pending-decision-dock"
+      class="shrink-0 space-y-2 border-t border-border px-2.5 pt-2.5"
+    >
+      <PendingDecisionCard
+        v-for="view in pinnedDecisions"
+        :key="pinnedDecisionKey(view)"
+        :decision="view"
+        @ask-submit="handleFormSubmit"
+      />
+    </div>
     <PiChatInput
       v-if="isGateReady"
       :key="chatInputRemountKey"
