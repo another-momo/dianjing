@@ -109,6 +109,8 @@ export function createPathObserveHandler(
       appendFileSync(logFile, JSON.stringify(record) + '\n')
     } catch {
       // 观测永不能打断工具执行——落盘失败等一切异常静默吞
+      // oxlint-disable-next-line open-pencil/no-silent-catch
+      return undefined
     }
     return undefined
   }
