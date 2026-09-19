@@ -17,8 +17,10 @@ import { join } from 'node:path'
 export type SessionIndex = Record<string, { file: string }>
 
 export function createSessionIndexIO(sessionsDir: string): {
-  readIndex(): SessionIndex
-  writeIndex(index: SessionIndex): void
+  // 属性式函数类型（非方法简写）——方法类型被消费方解构会触发
+  // type-aware unbound-method（CI 63581160d 实证）
+  readIndex: () => SessionIndex
+  writeIndex: (index: SessionIndex) => void
 } {
   const indexPath = join(sessionsDir, 'index.json')
 

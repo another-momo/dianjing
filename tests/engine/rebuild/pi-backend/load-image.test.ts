@@ -148,7 +148,9 @@ describe('路径判定（A线尾单件1：界内界外 allow + 名单硬拒）',
 
   test('盘外不存在路径 → 判定放行后 fs 层 File not found（非 denied）', async () => {
     const stub = bridgeStub()
-    const d = await details(makeTool(stub), { file_path: '/etc/hosts/logo.png' })
+    // 路径须在两平台皆不存在：/etc/hosts 在 Linux 是文件（子路径 ENOTDIR 而非
+    // ENOENT，CI 63581160d 实证）——用唯一名空目录，Windows 归一到当前盘根同效
+    const d = await details(makeTool(stub), { file_path: '/broker-tail-void-9f3e/logo.png' })
     expect(d.reason).toBeUndefined()
     expect(String(d.error)).toContain('File not found')
     expect(stub.calls).toHaveLength(0)
