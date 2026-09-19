@@ -7,11 +7,13 @@
  * commit（作者/提交者/时间戳逐字节复刻，sha 才一致）→ PATCH ref force=false。
  * 每步 sha 与本地对象比对，任何一步不符即抛错中止。
  *
- * 前置条件：HEAD = 要推的提交；其父提交已在远端；与远端是 FF 关系。
+ * 前置条件：HEAD = 要推的提交（普通或 merge）；其全部父提交已在远端；与远端是 FF 关系。
  * 用法：bun tools/git-rescue/src/data-api-push.ts（仓内任意 cwd 可跑）。
+ * 推送分支 = 当前 HEAD 所在分支；非默认分支（rebuild/mode-arch）须显式传参确认：
+ * `bun tools/git-rescue/src/data-api-push.ts <branch>`——防非集成分支 worktree 误推。
  * 实证：2026-09-09 .git 灭失重建；2026-09-15 两度 github.com:443 四连败兜底成功；
  * 同日三连败首用本仓版连撞三盲区（删除/重命名、脏树、detached HEAD 复用脚本
- * 须 commit 化），皆已修。
+ * 须 commit 化），皆已修；2026-09-19 修硬编码分支 + merge commit 双亲路径。
  */
 import { execSync } from 'node:child_process'
 import { writeFileSync, unlinkSync } from 'node:fs'
@@ -20,7 +22,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const REPO = 'another-momo/dianjing'
-const BRANCH = 'rebuild/mode-arch'
+const DEFAULT_BRANCH = 'rebuild/mode-arch'
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = execSync('git rev-parse --show-toplevel', { cwd: SCRIPT_DIR }).toString().trim()
 const PAYLOAD = join(tmpdir(), `data-api-push-payload-${process.pid}.json`)
@@ -53,16 +55,41 @@ function isoFrom(epochSec: string, tz: string): string {
   )
 }
 
+// 推送分支 = HEAD 所在分支（不再硬编码）——非默认分支须 argv[2] 显式传同名
+// 分支名确认，防非集成分支 worktree 误推错分支；detached HEAD 直接拒绝
+let BRANCH: string
+try {
+  BRANCH = git('symbolic-ref --short HEAD').trim()
+} catch {
+  throw new Error('detached HEAD——先 checkout 到要推的分支再跑本脚本')
+}
+if (BRANCH !== DEFAULT_BRANCH && process.argv[2] !== BRANCH) {
+  throw new Error(
+    `当前分支 ${BRANCH} ≠ 默认 ${DEFAULT_BRANCH}——确认推送请显式传参：` +
+      `bun tools/git-rescue/src/data-api-push.ts ${BRANCH}`
+  )
+}
+
 const localTree = git('rev-parse "HEAD^{tree}"').trim()
 const localCommit = git('rev-parse HEAD').trim()
-const parent = git('rev-parse "HEAD^"').trim()
-const parentTree = git(`rev-parse "${parent}^{tree}"`).trim()
-const files = git('diff-tree --no-commit-id --no-renames --name-status -r HEAD')
+// 双亲路径：rev-list --parents 首词是 HEAD 自身，其余按 cat-file parent 行序给出全部
+// 父提交——merge commit 的 commit sha 复刻要求 parents 数组顺序与本地逐字节一致
+const parents = git('rev-list --parents -n 1 HEAD').trim().split(' ').slice(1)
+if (parents.length === 0) throw new Error('HEAD 是根提交（无父），本脚本不支持')
+const parentTree = git(`rev-parse "${parents[0]}^{tree}"`).trim()
+// merge commit 单参 diff-tree 恒空输出（建树必 422）——改显式双树 diff（对第一父，
+// 与 base_tree 基座同视角）；普通提交保持单参形态
+const files = git(
+  parents.length > 1
+    ? `diff-tree --no-renames --name-status -r ${parents[0]} HEAD`
+    : 'diff-tree --no-commit-id --no-renames --name-status -r HEAD'
+)
   .trim()
   .split('\n')
   .filter(Boolean)
 console.log(
-  `本地对象：commit=${localCommit.slice(0, 9)} tree=${localTree.slice(0, 9)} parent=${parent.slice(0, 9)} 文件 ${files.length} 件`
+  `本地对象：commit=${localCommit.slice(0, 9)} tree=${localTree.slice(0, 9)} ` +
+    `parents=${parents.map((p) => p.slice(0, 9)).join(',')} branch=${BRANCH} 文件 ${files.length} 件`
 )
 
 // 1) 逐文件 blob——A/M 按 sha 取对象库内容（工作树脏时盘读与 HEAD 分叉、
@@ -106,7 +133,7 @@ const message = raw.slice(raw.indexOf('\n\n') + 2)
 const commit = ghAPI('POST', `repos/${REPO}/git/commits`, {
   message,
   tree: localTree,
-  parents: [parent],
+  parents,
   author: { name: author[1], email: author[2], date: isoFrom(author[3], author[4]) },
   committer: {
     name: committer[1],
