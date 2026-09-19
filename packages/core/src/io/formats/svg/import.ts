@@ -56,13 +56,11 @@ function createTextChild(graph: SceneGraph, frameId: string, text: VectorizedTex
     ? [{ type: 'SOLID', color: parseColor(text.fill), opacity: 1, visible: true }]
     : []
   // SVG text-anchor 的 x 是锚点（middle=中心、end=右缘），而 WIDTH_AND_HEIGHT
-  // 自适应盒以左缘为 x——按经验宽度把锚点换算回左缘（与 contentBounds 同口径）
-  const anchorOffset =
-    text.textAnchor === 'middle'
-      ? estimateVectorizedTextWidth(text) / 2
-      : text.textAnchor === 'end'
-        ? estimateVectorizedTextWidth(text)
-        : 0
+  // 自适应盒以左缘为 x——按经验宽度把锚点换算回左缘（与 contentBounds 同口径）。
+  // lint/format 双约束（no-nested-ternary 要括号、oxfmt 剥括号）——用 if 链
+  let anchorOffset = 0
+  if (text.textAnchor === 'middle') anchorOffset = estimateVectorizedTextWidth(text) / 2
+  else if (text.textAnchor === 'end') anchorOffset = estimateVectorizedTextWidth(text)
   const props: Record<string, unknown> = {
     name: text.content.length > 40 ? `${text.content.slice(0, 40)}…` : text.content,
     x: text.x - anchorOffset,
@@ -79,7 +77,7 @@ function createTextChild(graph: SceneGraph, frameId: string, text: VectorizedTex
 }
 
 /** data: URI → 字节；外链/相对引用无法离线解析返回 null（跳过该元素，不阻塞整图导入） */
-function decodeImageDataUri(href: string): Uint8Array | null {
+function decodeImageDataURI(href: string): Uint8Array | null {
   const match = /^data:image\/(?:png|jpeg|webp|gif|bmp);base64,([\s\S]+)$/.exec(href.trim())
   if (!match || !match[1]) return null
   try {
@@ -91,7 +89,7 @@ function decodeImageDataUri(href: string): Uint8Array | null {
 
 /** <image> → storeImage + IMAGE fill 矩形（与手工添加图片同节点形态） */
 function createImageChild(graph: SceneGraph, frameId: string, image: VectorizedImage): void {
-  const bytes = decodeImageDataUri(image.href)
+  const bytes = decodeImageDataURI(image.href)
   if (!bytes) {
     console.warn('Skipping unsupported SVG <image> href (only embedded data: URIs import)')
     return

@@ -155,12 +155,10 @@ export function estimateVectorizedTextWidth(text: { content: string; fontSize: n
 function estimateTextBounds(text: VectorizedText): Rect {
   const width = estimateVectorizedTextWidth(text)
   const height = text.fontSize * (1 + (1 - TEXT_ASCENT_RATIO) * 2)
-  const x =
-    text.textAnchor === 'middle'
-      ? text.x - width / 2
-      : text.textAnchor === 'end'
-        ? text.x - width
-        : text.x
+  // lint/format 双约束（no-nested-ternary 要括号、oxfmt 剥括号）——锚点偏移用 if 链
+  let x = text.x
+  if (text.textAnchor === 'middle') x = text.x - width / 2
+  else if (text.textAnchor === 'end') x = text.x - width
   return { x, y: text.y - text.fontSize * TEXT_ASCENT_RATIO, width, height }
 }
 

@@ -232,6 +232,12 @@ function inheritedTextAttribute(
   return null
 }
 
+function normalizeTextAnchor(anchor: string | null): 'start' | 'middle' | 'end' | null {
+  if (anchor === 'middle' || anchor === 'end') return anchor
+  if (anchor === 'start') return 'start'
+  return null
+}
+
 function collectTextElement(
   element: Element,
   presentation: PresentationAttributes,
@@ -241,16 +247,12 @@ function collectTextElement(
   const content = (element.textContent ?? '').replace(/\s+/g, ' ').trim()
   if (!content) return
   const fontSizeRaw = inheritedTextAttribute(element, 'font-size')
-  const fontSize = fontSizeRaw ? Number.parseFloat(fontSizeRaw) : NaN
+  const fontSize = fontSizeRaw ? Number.parseFloat(fontSizeRaw) : Number.NaN
   const fontWeightRaw = inheritedTextAttribute(element, 'font-weight')
-  const fontWeight =
-    fontWeightRaw === 'bold'
-      ? 700
-      : fontWeightRaw === 'normal'
-        ? 400
-        : fontWeightRaw
-          ? Number.parseInt(fontWeightRaw, 10)
-          : NaN
+  let fontWeight = Number.NaN
+  if (fontWeightRaw === 'bold') fontWeight = 700
+  else if (fontWeightRaw === 'normal') fontWeight = 400
+  else if (fontWeightRaw) fontWeight = Number.parseInt(fontWeightRaw, 10)
   const anchor = inheritedTextAttribute(element, 'text-anchor')
   rich.texts.push({
     x: num(element, 'x'),
@@ -260,8 +262,7 @@ function collectTextElement(
     fontSize: Number.isFinite(fontSize) && fontSize > 0 ? fontSize : null,
     fontWeight: Number.isFinite(fontWeight) ? fontWeight : null,
     fill: normalizeSVGPaint(presentation.fill),
-    textAnchor:
-      anchor === 'middle' || anchor === 'end' ? anchor : anchor === 'start' ? 'start' : null,
+    textAnchor: normalizeTextAnchor(anchor),
     transform
   })
 }

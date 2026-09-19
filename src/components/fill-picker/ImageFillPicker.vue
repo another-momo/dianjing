@@ -11,7 +11,7 @@ import { toast } from '@/app/shell/ui'
 import AppButton from '@/components/ui/button/AppButton.vue'
 import AppSelect from '@/components/ui/select/AppSelect.vue'
 
-import { rasterizeSvgToPng } from './rasterize-svg'
+import { rasterizeSVGToPNG } from './rasterize-svg'
 
 const IMAGE_SCALE_MODES: { value: ImageScaleMode; label: string }[] = [
   { value: 'FILL', label: 'Fill' },
@@ -52,7 +52,7 @@ onFileChange(async (files) => {
   if (!file) return
   // IMAGE fill 只能消费光栅字节——SVG 先经浏览器栅格化成 PNG（矢量导入走「添加图片」）
   const bytes = isSVGImageFile(file)
-    ? await rasterizeSvgToPng(file)
+    ? await rasterizeSVGToPNG(file)
     : new Uint8Array(await file.arrayBuffer())
   if (!bytes) {
     toast.error(toolbarText.value.addImageFailedCorrupt)
