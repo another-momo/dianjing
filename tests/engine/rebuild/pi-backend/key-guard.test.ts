@@ -12,11 +12,10 @@
 import { describe, expect, test } from 'bun:test'
 import { join, resolve } from 'node:path'
 
-import {
-  createKeyGuardHandler,
-  protectedCredentialFiles,
-  protectedWriteRoots
-} from '@/app/ai/pi-backend/key-guard'
+import { createKeyGuardHandler } from '@/app/ai/pi-backend/key-guard'
+// A线尾单件1：名单源收编 path-decision.ts（单一真源）——导出钉扎改从该档 import；
+// 下方 handler 行为用例全部不动 = key-guard 读侧等价回归
+import { protectedCredentialFiles, protectedWriteRoots } from '@/app/ai/pi-backend/path-decision'
 
 // fixture 用 resolve 把假根钉成真绝对路径——resolve 在 Win/mac/linux 都带系统正确
 // 前缀（Windows 加盘符，POSIX 保留 /），与 handler 内 isAbsolute→resolve 路径

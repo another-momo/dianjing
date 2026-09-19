@@ -5,7 +5,8 @@
  * 通过 → 注册 pending 到 PendingDecisionStore（2026-09-19 自 AskPendingStore
  * 抽象迁移，../pending-decision.ts；formId = 'ask-'+toolCallId 双侧派生）→
  * 返回挂起 promise；agent loop await 期间物理停摆。
- * 用户经新端点 POST /api/pi/ask-answer {formId, answers|skip} → resolve，
+ * 用户经统一决断端点 POST /api/pi/decision-answer {kind:'ask', formId,
+ * decision, answers?} → resolve（2026-09-19 起；旧 ask-answer 端点已删），
  * 答案作为本工具结果在同一 turn 返回（content 含「The user answered the
  * form (formId=…).」+ 信封 JSON 原文，保持模型视野形状稳定；details 含
  * {formId, status:'answered', questions, answers}）。skip 则返 'skipped'。

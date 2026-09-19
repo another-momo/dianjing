@@ -11,7 +11,7 @@
  * 兜底（指派 provider/model 不在目录也走 needs-setup）。
  *
  * 独立 handler 文件——server.ts 主体已被 max-lines 卡在 600 行上界
- * （问答案 handler 同款先例 ask/answer-route.ts）。路由分发仍由 server.ts 装配。
+ * （决断端点 handler 同款先例 decision-answer-route.ts）。路由分发仍由 server.ts 装配。
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'

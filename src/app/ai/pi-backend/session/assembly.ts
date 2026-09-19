@@ -193,8 +193,9 @@ export async function assembleSession(
       }
     }),
     // 2026-09-15：ask_user_question 挂起期本地工具（不经桥——表单卡片由前端
-    // 读 tool part 渲染）→ register store → 挂起到 /api/pi/ask-answer 端点
-    // resolve；answer/skip 作为本工具结果在同一 turn 返回（2026-09-19 起
+    // 读 tool part 渲染）→ register store → 挂起到统一决断端点
+    // /api/pi/decision-answer resolve（kind:'ask'，旧 ask-answer 已删）；
+    // answer/skip 作为本工具结果在同一 turn 返回（2026-09-19 起
     // store = PendingDecisionStore，ask 族行为零变化）。
     // onPendingRegistered 通知 host 记录 formId→当时槽位（active-design-host
     // observeToolExecution 不再触发，新流走工具结果 details.status='answered'

@@ -5,7 +5,8 @@
  * 职责：
  *  - tab 级 session 池：sessionId → AgentSession，提示按 session 串行
  *  - SessionManager JSONL 持久化（.dianjing/pi-sessions/，gitignored）
- *    + index.json（sessionId → 文件路径）支持 dev server 重启后恢复
+ *    + index.json（sessionId → 文件路径，IO 拆 ./session/index-io.ts）
+ *    支持 dev server 重启后恢复
  *  - AgentSessionEvent → UIMessageChunk（mapping.ts）经 emit 直推 SSE
  *  - T20：customTools 注册（tools.ts，hello-tool create_shape 经 7600 桥执行），
  *    noTools: 'builtin' 禁内建保留自定义
@@ -39,8 +40,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, statSync } from 'node:fs'
 
 import { type AgentSession } from '@earendil-works/pi-coding-agent'
 import type { UIMessage, UIMessageChunk } from 'ai'
@@ -74,14 +74,11 @@ import {
   resolveSessionsDir,
   resolveStudioDirs
 } from './paths'
-import {
-  type AskAnswerPayload,
-  createPendingDecisionStore,
-  type DecisionAnswerInput
-} from './pending-decision'
+import { createPendingDecisionStore, type DecisionAnswerInput } from './pending-decision'
 import type { ModelSpec, ProviderAdmin } from './provider-admin'
 import { assembleSession, sameModelSpec } from './session/assembly'
 import { runSessionGc } from './session/gc'
+import { createSessionIndexIO } from './session/index-io'
 import type { PiSessionSummary } from './session/summary'
 import { normalizeSkillCommandText } from './skill-command'
 import { getStudioRegistry } from './studio'
@@ -149,9 +146,6 @@ export type PiChatService = {
    * 2026-09-15：abort 同时 reject 该 session 的所有 pending（挂起 promise 解锁；
    * 2026-09-19 起双族 ask/authz 共享 PendingDecisionStore，对 authz 等效 deny） */
   abort(sessionId: string): Promise<void>
-  /** 2026-09-15：POST /api/pi/ask-answer 端点真源——resolve pending form
-   * (formId 寻址)；'ok' 已答，'not_found' 表中无该 formId（已答/已 abort/未注册） */
-  askAnswer(formId: string, payload: AskAnswerPayload): 'ok' | 'not_found'
   /** 2026-09-19 broker P1 件1：POST /api/pi/decision-answer 端点真源——kind 判别
    * 路由到 PendingDecisionStore（错族寻址视同 'not_found'） */
   decisionAnswer(input: DecisionAnswerInput): 'ok' | 'not_found'
@@ -178,8 +172,6 @@ type SessionEntry = {
   authzSink: AuthzNoticeSink
 }
 
-type SessionIndex = Record<string, { file: string }>
-
 export function createPiChatService({
   rootDir,
   admin,
@@ -194,7 +186,8 @@ export function createPiChatService({
 }): PiChatService {
   const agentDir = resolveAgentDir(rootDir)
   const sessionsDir = resolveSessionsDir(rootDir)
-  const indexPath = join(sessionsDir, 'index.json')
+  // A线尾单件4：index.json IO 拆 ./session/index-io.ts（max-lines 回压，行为零变化）
+  const { readIndex, writeIndex } = createSessionIndexIO(sessionsDir)
   // T28（决策单 #2）：GC 归档目录（不建索引；读取面经 index 解析，天然不扫）
   const archiveDir = resolveArchiveDir(rootDir)
   const maxSessions = readMaxSessions()
@@ -243,30 +236,6 @@ export function createPiChatService({
   const decisionStore = createPendingDecisionStore()
 
   const sessions = new Map<string, SessionEntry>()
-
-  function readIndex(): SessionIndex {
-    try {
-      return JSON.parse(readFileSync(indexPath, 'utf8')) as SessionIndex
-    } catch (error) {
-      // T27：ENOENT（首跑尚无索引）属正常静默；文件在但读/解析失败必须出声
-      // （只报路径与错误类型，不打印文件内容）
-      if (existsSync(indexPath)) {
-        console.warn(
-          `[pi-backend] session index 读取失败，按空索引处理（${indexPath}）：` +
-            (error instanceof Error ? error.message : String(error))
-        )
-      }
-      return {}
-    }
-  }
-
-  function writeIndex(index: SessionIndex): void {
-    mkdirSync(sessionsDir, { recursive: true })
-    // T27：tmp + 同目录 rename 原子替换，防进程崩溃把 index.json 截成半个 JSON
-    const tmpPath = `${indexPath}.tmp`
-    writeFileSync(tmpPath, JSON.stringify(index, null, 2))
-    renameSync(tmpPath, indexPath)
-  }
 
   // T28（决策单 #2）：GC 触发封装——两个触发点：①铸新会话后（createSession，
   // 存量清理）；②runPrompt 收尾（新会话 JSONL 此时必然已落盘——createSession
@@ -611,7 +580,6 @@ export function createPiChatService({
     setActiveDesign,
     confirmNewIntent,
     abort,
-    askAnswer: (formId, payload) => decisionStore.resolveAsk(formId, payload),
     decisionAnswer: (input) =>
       input.kind === 'ask'
         ? decisionStore.resolveAsk(input.formId, input.payload)

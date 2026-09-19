@@ -3,9 +3,11 @@
  * §3/§6）：load_image 后端工具单测。
  *
  * 覆盖（验收映射 = 方案 §3.3/§3.4 校验表）：
- *  - 路径三态裁决矩阵：workspace 子树 allow（含相对路径按 workspace cwd 解析）/
- *    workspace/.agents/** 与 workspace/.pi/** deny（facet）/ 出界 deny
- *    （rootDir 一级、盘外绝对路径）——broker 落地前无 ask
+ *  - 路径判定（2026-09-19 A线尾单件1 翻正）：workspace 子树 allow（含相对
+ *    路径按 workspace cwd 解析）/ 界外静默 allow（rootDir 一级真实文件过桥；
+ *    盘外不存在路径落到 fs 层 File not found 而非 denied）/ workspace/.agents、
+ *    .pi 读侧放行（写侧三根不拦读）/ 敏感名单硬拒（凭据四件、~/.ssh/**、
+ *    workspace 内 .env 过挡、*.pem）
  *  - fs 三态：文件不存在 / 是目录 / 字节上限 50MB
  *  - 格式嗅探矩阵：png/jpeg/webp/gif/bmp/svg magic+扩展名双证通过；
  *    AVIF/HEIC 明确「暂不支持」；伪造魔数（.png 扩展名 + JPEG magic）拒；
@@ -100,7 +102,7 @@ interface LoadImageDetails {
   imageHash?: string | null
 }
 
-describe('路径三态裁决', () => {
+describe('路径判定（A线尾单件1：界内界外 allow + 名单硬拒）', () => {
   test('workspace 子树绝对路径 → allow（桥被调用）', async () => {
     const file = writeFixture('logo.png', PNG_BYTES)
     const stub = bridgeStub()
@@ -118,37 +120,72 @@ describe('路径三态裁决', () => {
     expect(stub.calls).toHaveLength(1)
   })
 
-  test('workspace/.agents/** → deny（facet；文件即使存在也不读）', async () => {
-    writeFixture('.agents/skills/x/logo.png', PNG_BYTES)
+  test('workspace/.agents/** → allow（读侧翻正：写侧三根不拦读，文件照读过桥）', async () => {
+    const file = writeFixture('.agents/skills/x/logo.png', PNG_BYTES)
     const stub = bridgeStub()
-    const d = await details(makeTool(stub), { file_path: ws('.agents/skills/x/logo.png') })
-    expect(d.reason).toBe('denied')
-    expect(String(d.error)).toContain('protected')
-    expect(stub.calls).toHaveLength(0)
+    const d = await details(makeTool(stub), { file_path: file })
+    expect(d.error).toBeUndefined()
+    expect(stub.calls).toHaveLength(1)
   })
 
-  test('workspace/.pi/** → deny（facet）', async () => {
-    writeFixture('.pi/settings.json.png', PNG_BYTES)
+  test('workspace/.pi/** → allow（读侧不拦）', async () => {
+    const file = writeFixture('.pi/settings.json.png', PNG_BYTES)
     const stub = bridgeStub()
-    const d = await details(makeTool(stub), { file_path: ws('.pi/settings.json.png') })
-    expect(d.reason).toBe('denied')
-    expect(stub.calls).toHaveLength(0)
+    const d = await details(makeTool(stub), { file_path: file })
+    expect(d.error).toBeUndefined()
+    expect(stub.calls).toHaveLength(1)
   })
 
-  test('出界（rootDir 一级）→ deny + reason', async () => {
+  test('界外（rootDir 一级）真实 PNG → allow（界外静默放行，桥被调用）', async () => {
     const outside = join(rootDir, 'secret.png')
     writeFileSync(outside, PNG_BYTES)
     const stub = bridgeStub()
     const d = await details(makeTool(stub), { file_path: outside })
-    expect(d.reason).toBe('denied')
-    expect(String(d.error)).toContain('outside workspace')
+    expect(d.error).toBeUndefined()
+    expect(d.id).toBe('1:2')
+    expect(stub.calls).toHaveLength(1)
+  })
+
+  test('盘外不存在路径 → 判定放行后 fs 层 File not found（非 denied）', async () => {
+    const stub = bridgeStub()
+    const d = await details(makeTool(stub), { file_path: '/etc/hosts/logo.png' })
+    expect(d.reason).toBeUndefined()
+    expect(String(d.error)).toContain('File not found')
     expect(stub.calls).toHaveLength(0)
   })
 
-  test('盘外绝对路径（/etc/...）→ deny', async () => {
+  test('凭据四件（key-env / pi-backend-token / pi-agent/auth.json / image-gen.json）→ deny（文件即使不存在也先拒）', async () => {
     const stub = bridgeStub()
-    const d = await details(makeTool(stub), { file_path: '/etc/hosts/logo.png' })
-    expect(d.reason).toBe('denied')
+    for (const target of [
+      join(rootDir, 'key-env'),
+      join(rootDir, 'pi-backend-token'),
+      join(rootDir, 'pi-agent', 'auth.json'),
+      join(rootDir, 'pi-agent', 'image-gen.json')
+    ]) {
+      const d = await details(makeTool(stub), { file_path: target })
+      expect(d.reason).toBe('denied')
+      expect(String(d.error)).toContain('credentials/tokens')
+    }
+    expect(stub.calls).toHaveLength(0)
+  })
+
+  test('~/.ssh/** 与 ~/.aws/**（homeDir 注入假根）→ deny（sensitive 文案）', async () => {
+    const stub = bridgeStub()
+    for (const target of ['~/.ssh/id_rsa.png', '~/.aws/credentials.png']) {
+      const d = await details(makeTool(stub), { file_path: target })
+      expect(d.reason).toBe('denied')
+      expect(String(d.error)).toContain('sensitive system or credential file')
+    }
+    expect(stub.calls).toHaveLength(0)
+  })
+
+  test('workspace 内 .env 与任意 *.pem → deny（fail-safe 过挡现状保留）', async () => {
+    const stub = bridgeStub()
+    for (const target of [ws('.env'), ws('cert.pem')]) {
+      const d = await details(makeTool(stub), { file_path: target })
+      expect(d.reason).toBe('denied')
+      expect(String(d.error)).toContain('sensitive system or credential file')
+    }
     expect(stub.calls).toHaveLength(0)
   })
 })

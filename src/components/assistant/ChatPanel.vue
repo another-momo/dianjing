@@ -516,7 +516,8 @@ function finalizeInterruptedToolParts(): void {
  * core AskQuestionAnswer.value 可空（输入中槽位）；卡片提交时已归一但类型
  * 不表——此处收窄到端点契约：透传 value / values[]（过滤非 string 项）/
  * freeText / notes；全局备注挂顶层 notes（非空白才挂）。
- * 端点 AskAnswerSubmission 类型同步扩展为含 values/notes（client.ts 波2 修订）。
+ * 端点 wire 形态（含 values/notes）契约单源 = pending-decision.ts
+ * DecisionAnswerPayload（旧 client.ts AskAnswerSubmission 已随端点删除）。
  */
 function normalizeAnswers(submission: Extract<AskFormSubmission, { aborted: false }>): {
   answers: Record<string, { value?: string; values?: string[]; freeText?: string; notes?: string }>

@@ -87,6 +87,35 @@ describe('六工具映射与 facet', () => {
     }
   })
 
+  test('read 出界 → read facet / allow / outside=true（A线尾单：界外静默放行的新流量信号）', () => {
+    const handler = makeHandler()
+    const outsidePath = join(rootDir, 'ref.png').replaceAll('\\', '/')
+    handler({ toolName: 'read', input: { path: outsidePath } })
+    handler({ toolName: 'load_image', input: { file_path: outsidePath } })
+    expect(readLog()).toEqual([
+      expect.objectContaining({
+        toolName: 'read',
+        facet: 'read',
+        decision: 'allow',
+        outside: true,
+        path: outsidePath
+      }),
+      expect.objectContaining({
+        toolName: 'load_image',
+        facet: 'read',
+        decision: 'allow',
+        outside: true,
+        path: outsidePath
+      })
+    ])
+  })
+
+  test('read 敏感名单命中（~/.ssh/**）→ deny / outside=false（名单命中不算界外流量，P0-2 口径不变）', () => {
+    const handler = makeHandler()
+    handler({ toolName: 'read', input: { path: '~/.ssh/id_rsa' } })
+    expect(readLog()).toEqual([expect.objectContaining({ decision: 'deny', outside: false })])
+  })
+
   test('grep 带 path → read facet；load_image file_path → read facet', () => {
     const handler = makeHandler()
     handler({ toolName: 'grep', input: { pattern: 'x', path: ws('src') } })
@@ -187,6 +216,7 @@ describe('异常静默吞与 JSONL 行格式', () => {
       expect(line.ts).toBe(new Date(line.ts).toISOString())
     }
     expect(lines[0]?.decision).toBe('allow')
-    expect(lines[1]).toEqual(expect.objectContaining({ decision: 'deny', outside: true }))
+    // A线尾单：read 界外翻 allow——第二行（rootDir 一级）allow + outside=true
+    expect(lines[1]).toEqual(expect.objectContaining({ decision: 'allow', outside: true }))
   })
 })

@@ -51,7 +51,6 @@
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 
-import { handleAskAnswerRequest } from './ask/answer-route'
 import { isAuthorized } from './auth'
 import { PI_BACKEND_DEFAULT_PORT } from './config'
 import { handleDecisionAnswerRequest } from './decision-answer-route'
@@ -542,13 +541,9 @@ export function createPiBackendServer({
       void handleIntentConfirmRequest(service, req, res)
       return
     }
-    // 2026-09-15：表单作答/跳过端点（ask_user_question 硬阻断新流；须在
-    // /api/pi/ 管理面前缀之前匹配）
-    if (url.pathname === '/api/pi/ask-answer') {
-      void handleAskAnswerRequest(service, req, res)
-      return
-    }
-    // 2026-09-19 broker P1 件1：ask/authz 统一决断端点（旧 ask-answer 保留到前端另一线收口后的尾单）
+    // 2026-09-19 broker P1 件1：ask/authz 统一决断端点（须在 /api/pi/ 管理面
+    // 前缀之前匹配）。A线尾单件3：旧 /api/pi/ask-answer 已随前端全量迁移删除
+    // （命中 /api/pi/ 管理面前缀兜 404）
     if (url.pathname === '/api/pi/decision-answer') {
       void handleDecisionAnswerRequest(service, req, res)
       return

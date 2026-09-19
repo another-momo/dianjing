@@ -3,18 +3,18 @@
  * §3/§6）：load_image——读本地图片文件并放上画布。
  *
  * 流程（§3.1）：
- *   1. 路径三态裁决（broker 未落地前无 ask）：workspace 子树 allow；
- *      deny 名单（key-guard protectedWriteRoots：pi-agent/**、workspace/.pi/**、
- *      workspace/.agents/**）deny；其余路径一律 deny
+ *   1. 路径判定（decidePath read facet，2026-09-19 A线尾单件1 翻正）：
+ *      敏感名单（凭据四件 + ~/.ssh/** + ~/.aws/** + .env/.env.* + *.pem）
+ *      命中 deny；名单外全 allow——界内界外皆可读（界外静默 allow，
+ *      设计稿 §4.1/§4.3 拍板 1）
  *   2. fs 读文件（不存在/是目录/不可读各自明确错误文案）
  *   3. 格式嗅探（magic bytes + 扩展名双证）+ 字节上限（50MB，防 base64 传输放大）
  *   4. base64 桥调 core place_image_from_bytes（真解码闸/像素上限/矢量化/定位
  *      全在桥端点）
  *
- * 归一化与 deny 名单复用 key-guard 机制（2026-09-18 CI 修红起归一化单一
- * 真源在 ./path-normalize.ts，两侧不再各自重述）。路径裁决 2026-09-19
- * broker P0-1 起收编在 ./path-decision.ts（decidePath 判定服务，本工具调
- * read facet，export_image_to_file 调 write facet——现行两态同语义）。
+ * 归一化与名单复用 key-guard 机制（2026-09-18 CI 修红起归一化单一
+ * 真源在 ./path-normalize.ts，两侧不再各自重述；2026-09-19 A线尾单起
+ * 名单单源收编 ./path-decision.ts，key-guard 读侧共享同一判定原语）。
  *
  * key 卫生：桥 payload 只含文件名/字节 base64/MIME/节点 id，无路径之外的
  * 本地信息；文件绝对路径不进桥 payload（画布侧只需文件名做节点命名）。
@@ -41,7 +41,7 @@ export const LOAD_IMAGE_MAX_BYTES = 50 * 1024 * 1024
 
 const LOAD_IMAGE_DESCRIPTION = `Load a local image file and place it on the canvas. Supported: PNG/JPEG/WEBP/GIF/BMP (raster), SVG (vectorized into shape nodes). AVIF is not supported — convert to PNG/JPEG/WEBP first.
 
-The file must be inside the workspace directory; paths outside it (and the protected agent configuration areas) are denied. Set \`replace_id\` to fill an existing node (raster only); omit it to create a new node (auto-placed right of page content unless \`x\`/\`y\` are given). Returns the canvas node id, logical size, and image hash.
+The file may live anywhere on disk — inside or outside the workspace; only credential/sensitive paths (API credentials, SSH/AWS config, .env files, PEM key material) are hard-blocked. Set \`replace_id\` to fill an existing node (raster only); omit it to create a new node (auto-placed right of page content unless \`x\`/\`y\` are given). Returns the canvas node id, logical size, and image hash.
 
 返回的节点即工作产物——后续编辑/引用直接操作画布节点，不要再对同一文件反复调用本工具。`
 
@@ -169,7 +169,8 @@ export function createLoadImageTool(deps: LoadImageToolDeps) {
     description: LOAD_IMAGE_DESCRIPTION,
     parameters: Type.Object({
       file_path: Type.String({
-        description: 'Absolute path to the local image file; must be inside the workspace directory'
+        description:
+          'Absolute path to the local image file; inside or outside the workspace (credential/sensitive paths are blocked)'
       }),
       replace_id: Type.Optional(
         Type.String({ description: 'Existing node ID to fill (omit = create new node)' })

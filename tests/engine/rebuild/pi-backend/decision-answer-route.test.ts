@@ -3,15 +3,18 @@
  * 2026-09-19 broker P1 件1：POST /api/pi/decision-answer 路由 HTTP 往返钉扎
  * （ask/authz 统一决断端点，kind 判别分流；并行线冻结契约 body 字段名禁改）。
  *
- * 真 createPiBackendServer + mock pi-coding-agent（夹具同 ask/answer-route.test.ts）。
+ * 真 createPiBackendServer + mock pi-coding-agent（夹具同 chat-cancel-route.test.ts）。
  * 覆盖：
  *  - kind：缺失/非法值 → 400
  *  - formId：缺失/空串/非 string → 400
- *  - ask 族：decision 'answer' + answers（per-entry 校验复用）→ 404（无 pending）；
+ *  - ask 族：decision 'answer' + answers（per-entry 校验）→ 404（无 pending）；
  *    'answer' 缺 answers → 400；'skip'（含 note）→ 404；decision 非法 → 400
  *  - authz 族：'allow-once' → 404；'allow-rule' 缺 ruleText → 400、带 ruleText
  *    → 404；'deny' + note → 404；decision 非法 → 400
  *  - 405：GET；401：无 token；400：坏 JSON
+ *  - A线尾单件3：旧 /api/pi/ask-answer 端点已删 → 404；ask 族 per-entry 校验
+ *    矩阵（values/notes 形态）自 ask/answer-route.test.ts 迁移（统一端点
+ *    kind:'ask' 重写——parser 单源已随件3搬入 decision-answer-route.ts）
  * resolve 真值（ok 路径）挂在 pending-decision.test.ts 单元层（store 无 HTTP 面）。
  */
 
@@ -222,5 +225,127 @@ describe('POST /api/pi/decision-answer（2026-09-19 统一决断端点）', () =
       body: '{not-json'
     })
     expect(res.status).toBe(400)
+  })
+})
+
+/**
+ * 2026-09-19 A线尾单件3：旧 /api/pi/ask-answer 端点删除钉扎 + ask 族 per-entry
+ * 校验矩阵迁移（原 ask/answer-route.test.ts 波2 组，统一端点 kind:'ask' 重写）。
+ * 无 store 项时合法形态一律 404（端到端只测路由形态；resolve 真值在
+ * pending-decision.test.ts / ask/user-question-tool.test.ts）。
+ */
+describe('A线尾单件3：旧端点删除与 ask 族校验矩阵迁移', () => {
+  beforeEach(async () => {
+    if (!server) await boot()
+  })
+
+  test('旧 /api/pi/ask-answer 端点已删除 → 404（带合法 token，穿过鉴权后无路由）', async () => {
+    const res = await fetch(`${baseURL}/api/pi/ask-answer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ formId: 'ask-none', answers: { q1: { value: 'a' } } })
+    })
+    expect(res.status).toBe(404)
+  })
+
+  test('values 形态（非空 string 数组）→ 404（无 pending，路由形态已过）', async () => {
+    const res = await post({
+      kind: 'ask',
+      formId: 'ask-none',
+      decision: 'answer',
+      answers: { q1: { values: ['a', 'b'] } }
+    })
+    expect(res.status).toBe(404)
+  })
+
+  test('values 空数组 + 无 value → 400（无合法 value/values）', async () => {
+    const res = await post({
+      kind: 'ask',
+      formId: 'ask-x',
+      decision: 'answer',
+      answers: { q1: { values: [] } }
+    })
+    expect(res.status).toBe(400)
+  })
+
+  test('value 与 values 同时给 → 404（路由允许；两者形态合法）', async () => {
+    const res = await post({
+      kind: 'ask',
+      formId: 'ask-none',
+      decision: 'answer',
+      answers: { q1: { value: 'a', values: ['a', 'b'] } }
+    })
+    expect(res.status).toBe(404)
+  })
+
+  test('values 含空白项 → 路由过滤后形态合法 → 404', async () => {
+    const res = await post({
+      kind: 'ask',
+      formId: 'ask-none',
+      decision: 'answer',
+      answers: { q1: { values: ['a', '   ', 'b'] } }
+    })
+    expect(res.status).toBe(404)
+  })
+
+  test('values 含非 string 项 → 400', async () => {
+    const res = await post({
+      kind: 'ask',
+      formId: 'ask-x',
+      decision: 'answer',
+      answers: { q1: { values: ['a', 2] } }
+    })
+    expect(res.status).toBe(400)
+  })
+
+  test('answers[qid] 非对象 → 400', async () => {
+    const res = await post({
+      kind: 'ask',
+      formId: 'ask-x',
+      decision: 'answer',
+      answers: { q1: 'just-a-string' }
+    })
+    expect(res.status).toBe(400)
+  })
+
+  test('answers[qid].value 非 string 且无其他字段 → 400（无合法作答字段）', async () => {
+    const res = await post({
+      kind: 'ask',
+      formId: 'ask-x',
+      decision: 'answer',
+      answers: { q1: { value: 123 } }
+    })
+    expect(res.status).toBe(400)
+  })
+
+  test('per-entry notes 字段 → 404（路由形态合法）', async () => {
+    const res = await post({
+      kind: 'ask',
+      formId: 'ask-none',
+      decision: 'answer',
+      answers: { q1: { value: 'a', notes: '倾向 A' } }
+    })
+    expect(res.status).toBe(404)
+  })
+
+  test('notes 独存（无 value/values）→ 404（与 core normalizeQuestionAnswer 同律）', async () => {
+    const res = await post({
+      kind: 'ask',
+      formId: 'ask-none',
+      decision: 'answer',
+      answers: { q1: { notes: '这题只想留备注' } }
+    })
+    expect(res.status).toBe(404)
+  })
+
+  test('answer + 顶层 note 透传 → 404（note 映射 payload.notes，契约接受之列）', async () => {
+    const res = await post({
+      kind: 'ask',
+      formId: 'ask-none',
+      decision: 'answer',
+      answers: { q1: { value: 'a' } },
+      note: '整体方向偏极简'
+    })
+    expect(res.status).toBe(404)
   })
 })

@@ -57,7 +57,12 @@ interface ShadowRecord {
   toolName: string
   facet: PathFacet
   decision: 'allow' | 'deny'
-  /** 非 workspace 子树且非 deny 名单命中（= decidePath denyCause 'outside'） */
+  /**
+   * 界外流量标记（口径 2026-09-19 A线尾单随 read facet 翻正更新）：
+   * allow 侧 = decidePath ok.outside（read facet 界外静默放行的新流量信号）；
+   * deny 侧 = denyCause 'outside'（界外写）——名单命中 deny 仍记 false
+   * （与 P0-2 原口径一致：观测价值在名单外的界外流量）。
+   */
   outside: boolean
   /** 归一化绝对路径（大小写保留形态） */
   path: string
@@ -103,7 +108,7 @@ export function createPathObserveHandler(
         toolName: event.toolName,
         facet: spec.facet,
         decision: verdict.ok ? 'allow' : 'deny',
-        outside: !verdict.ok && verdict.denyCause === 'outside',
+        outside: verdict.ok ? verdict.outside : verdict.denyCause === 'outside',
         path: verdict.absolutePath
       }
       appendFileSync(logFile, JSON.stringify(record) + '\n')
