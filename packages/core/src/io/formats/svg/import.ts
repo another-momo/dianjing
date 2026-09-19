@@ -79,7 +79,7 @@ function createTextChild(graph: SceneGraph, frameId: string, text: VectorizedTex
 /** data: URI → 字节；外链/相对引用无法离线解析返回 null（跳过该元素，不阻塞整图导入） */
 function decodeImageDataURI(href: string): Uint8Array | null {
   const match = /^data:image\/(?:png|jpeg|webp|gif|bmp);base64,([\s\S]+)$/.exec(href.trim())
-  if (!match || !match[1]) return null
+  if (!match?.[1]) return null
   try {
     return decodeBase64(match[1])
   } catch {

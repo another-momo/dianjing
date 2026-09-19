@@ -22,7 +22,9 @@ export function resolveAddImageFeedback(
 ): { variant: 'error' | 'warning'; key: AddImageFeedbackKey } | null {
   if (result.failures.length === 0) return null
   const variant = result.placed > 0 ? 'warning' : 'error'
-  const reason = result.failures[0]?.reason
+  // 放宽为 string：运行时字节可能越出声明联合（末位 fallback 键防的就是越型数据），
+  // 收窄到字面量联合会让最后一个 if 退化成字面量对字面量比较（no-unnecessary-condition 红）
+  const reason: string | undefined = result.failures[0]?.reason
   if (reason === 'empty') return { variant, key: 'addImageFailedEmpty' }
   if (reason === 'unsupported') return { variant, key: 'addImageFailedUnsupported' }
   if (reason === 'engine-not-ready') return { variant, key: 'addImageFailedEngineNotReady' }
