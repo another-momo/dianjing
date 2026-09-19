@@ -2,8 +2,9 @@
  * T56（Phase 3 W2/T-B5）→ 2026-09-15 改造：AI 可见 ask_user_question 的后端工具工厂。
  *
  * 语义（决策单 §4 Phase 1：软终止→硬阻断）：AI 调工具发表单 → execute 校验
- * 通过 → 注册 pending 到 AskPendingStore（formId = 'ask-'+toolCallId 双侧
- * 派生）→ 返回挂起 promise；agent loop await 期间物理停摆。
+ * 通过 → 注册 pending 到 PendingDecisionStore（2026-09-19 自 AskPendingStore
+ * 抽象迁移，../pending-decision.ts；formId = 'ask-'+toolCallId 双侧派生）→
+ * 返回挂起 promise；agent loop await 期间物理停摆。
  * 用户经新端点 POST /api/pi/ask-answer {formId, answers|skip} → resolve，
  * 答案作为本工具结果在同一 turn 返回（content 含「The user answered the
  * form (formId=…).」+ 信封 JSON 原文，保持模型视野形状稳定；details 含
@@ -28,8 +29,8 @@ import {
 import { normalizeAskParams } from '@open-pencil/core/tools/fork/marketing/normalize-params'
 import { checkReservedLabels } from '@open-pencil/core/tools/fork/marketing/validate-questionnaire'
 
+import type { PendingDecisionStore } from '../pending-decision'
 import { toToolResult } from '../tool-result'
-import type { AskPendingStore } from './pending'
 
 const ASK_USER_QUESTION_DESCRIPTION =
   'Present an in-chat form with questions for the user. The frontend renders a form card (single_select option cards, multi_select checkbox groups, image_select canvas-node thumbnails, text inputs); every single_select/multi_select/image_select question additionally offers an "Other" option that reveals a free-text input. This tool BLOCKS until the user answers or skips (or the run is aborted) — the answer arrives as THIS tool\'s result, do not assume a follow-up user message and do not call further tools before the result returns. Result content includes the answer envelope JSON where each question id maps to {"value":"<optionId or text>"} for a normal answer, {"values":["<optionId>",...]} for a multi_select answer, or {"value":"__freeText","freeText":"<the user\'s own words>"} when the user picked "Other" (for multi_select, "__freeText" appears inside "values" with "freeText" alongside) — treat that freeText as a first-class answer for that question. Per-question notes arrive as "notes" on that entry, and an optional top-level "notes" string carries the user\'s global remark. Result details also expose {formId, status, questions, answers}. If the user skipped, status is "skipped" and there are no answers — proceed with your best judgment and do not re-ask the same questions unless necessary. Rules: 1-8 questions; ids unique and non-empty; labels non-empty; single_select and multi_select need options (2-12 items, each {id,label,hint?}; single_select options may additionally carry preview) and must not carry imageOptions; image_select needs imageOptions (1-12 items, each {nodeId,label?} referencing canvas nodes) and must not carry options; text carries neither; required defaults to true — set false for optional questions; notes defaults to false — set true on a question to collect an optional per-question note. Batch everything you need to ask into ONE call.' +
@@ -58,8 +59,8 @@ export type AskAnswerDetails =
     }
 
 export interface AskUserQuestionToolDeps {
-  /** pending-form 注册表（service.ts 单例注入；测试可注入假件） */
-  store: AskPendingStore
+  /** pending-decision 注册表（service.ts 单例注入；测试可注入假件） */
+  store: PendingDecisionStore
   /** 当前 session id（service.ts 装配闭包注入；同 session 重复 register → alreadyPending 错误结果） */
   sessionId: string
   /** formId 注册后回调（宿主 recordAskForm——active-design-host.ts） */
@@ -127,7 +128,7 @@ export function createAskUserQuestionTool(deps: AskUserQuestionToolDeps) {
       }
 
       const formId = makeId(toolCallId)
-      const { promise, alreadyPending } = deps.store.register(deps.sessionId, formId, signal)
+      const { promise, alreadyPending } = deps.store.registerAsk(deps.sessionId, formId, signal)
       if (alreadyPending) {
         // 同 session 上一表单未答 → 硬错误结果（execute 不挂起）；模型应停手
         return toToolResult({

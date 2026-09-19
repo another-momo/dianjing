@@ -54,6 +54,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { handleAskAnswerRequest } from './ask/answer-route'
 import { isAuthorized } from './auth'
 import { PI_BACKEND_DEFAULT_PORT } from './config'
+import { handleDecisionAnswerRequest } from './decision-answer-route'
 import { handleDesignAssignmentRequest } from './design-assignment-route'
 import {
   PayloadTooLargeError,
@@ -193,8 +194,6 @@ async function handlePiChatCancelRequest(
  * T60：POST /api/pi/active-design {nodeId}——②面板点选 / ③AI 声明+同意共用
  * 的移槽端点（非聊天消息）。成功 200 身份三元组；四条件驳回 422；桥不可达 502。
  */
-// T60：POST /api/pi/active-design {nodeId}——②面板点选 / ③AI 声明+同意共用
-// 的移槽端点（非聊天消息）。成功 200 身份三元组；四条件驳回 422；桥不可达 502。
 async function handleIntentConfirmRequest(
   service: ReturnType<typeof createPiChatService>,
   req: IncomingMessage,
@@ -282,8 +281,6 @@ async function handleActiveDesignRequest(
     message: result.message
   })
 }
-
-/** 2026-09-15：POST /api/pi/ask-answer 实现见 ./ask-answer-route.ts */
 
 /** T87：GET/PUT /api/pi/capabilities——capabilities 读写（T96 三档字面量）。超限 413。 */
 async function handleCapabilitiesRequest(
@@ -549,6 +546,11 @@ export function createPiBackendServer({
     // /api/pi/ 管理面前缀之前匹配）
     if (url.pathname === '/api/pi/ask-answer') {
       void handleAskAnswerRequest(service, req, res)
+      return
+    }
+    // 2026-09-19 broker P1 件1：ask/authz 统一决断端点（旧 ask-answer 保留到前端另一线收口后的尾单）
+    if (url.pathname === '/api/pi/decision-answer') {
+      void handleDecisionAnswerRequest(service, req, res)
       return
     }
     // T87：capabilities 单开关读写端点（须在 /api/pi/ 管理面前缀之前匹配）

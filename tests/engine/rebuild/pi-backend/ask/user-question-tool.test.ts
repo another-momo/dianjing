@@ -16,8 +16,11 @@
 
 import { describe, expect, test } from 'bun:test'
 
-import { createAskPendingStore, type AskPendingStore } from '@/app/ai/pi-backend/ask/pending'
 import { createAskUserQuestionTool } from '@/app/ai/pi-backend/ask/user-question'
+import {
+  createPendingDecisionStore,
+  type PendingDecisionStore
+} from '@/app/ai/pi-backend/pending-decision'
 
 function singleSelect(id: string) {
   return {
@@ -37,7 +40,7 @@ function textQ(id: string) {
 
 describe('createAskUserQuestionTool（execute 挂起 → 端点 resolve 路径）', () => {
   test('合法定义 → register 挂起；resolve(answers) → content+details 双带', async () => {
-    const store = createAskPendingStore()
+    const store = createPendingDecisionStore()
     const tool = createAskUserQuestionTool({
       store,
       sessionId: 's1'
@@ -50,7 +53,7 @@ describe('createAskUserQuestionTool（execute 挂起 → 端点 resolve 路径�
     expect(store.hasPendingForSession('s1')).toBe(true)
 
     // resolve
-    const ok = store.resolveByFormId('ask-call-1', {
+    const ok = store.resolveAsk('ask-call-1', {
       answers: { q1: { value: 'a' }, q2: { value: 'hello' } }
     })
     expect(ok).toBe('ok')
@@ -74,10 +77,10 @@ describe('createAskUserQuestionTool（execute 挂起 → 端点 resolve 路径�
   })
 
   test('resolve(skip:true) → status=skipped + 「Proceed with your best judgment…」', async () => {
-    const store = createAskPendingStore()
+    const store = createPendingDecisionStore()
     const tool = createAskUserQuestionTool({ store, sessionId: 's1' })
     const resultPromise = tool.execute('call-2', { questions: [singleSelect('q1')] }, undefined)
-    expect(store.resolveByFormId('ask-call-2', { skip: true })).toBe('ok')
+    expect(store.resolveAsk('ask-call-2', { skip: true })).toBe('ok')
     const result = await resultPromise
     const text = result.content[0].type === 'text' ? result.content[0].text : ''
     expect(text).toContain('The user skipped the form (formId=ask-call-2).')
@@ -89,7 +92,7 @@ describe('createAskUserQuestionTool（execute 挂起 → 端点 resolve 路径�
   })
 
   test('校验失败 → {error, message}，不挂起（不注册 store）', async () => {
-    const store = createAskPendingStore()
+    const store = createPendingDecisionStore()
     const tool = createAskUserQuestionTool({ store, sessionId: 's1' })
     const result = await tool.execute('call-3', { questions: [] }, undefined)
     const details = result.details as { error?: string; formId?: string }
@@ -99,7 +102,7 @@ describe('createAskUserQuestionTool（execute 挂起 → 端点 resolve 路径�
   })
 
   test('同 session 第二表单 → {error:ask_pending}，不挂起（execute 不阻塞）', async () => {
-    const store = createAskPendingStore()
+    const store = createPendingDecisionStore()
     const tool = createAskUserQuestionTool({ store, sessionId: 's1' })
     const first = tool.execute('call-a', { questions: [singleSelect('q1')] }, undefined)
     // 第二表单同 session（first 未 resolve）
@@ -108,36 +111,36 @@ describe('createAskUserQuestionTool（execute 挂起 → 端点 resolve 路径�
     expect(details.error).toBe('ask_pending')
     expect(typeof details.message).toBe('string')
     // 第一个仍挂起；解析收尾避免 unhandled
-    store.resolveByFormId('ask-call-a', { skip: true })
+    store.resolveAsk('ask-call-a', { skip: true })
     await first
   })
 
   test('formId 默认派生 = "ask-" + toolCallId（双侧确定性，无 makeId 注入）', async () => {
-    const store: AskPendingStore = createAskPendingStore()
+    const store: PendingDecisionStore = createPendingDecisionStore()
     const tool = createAskUserQuestionTool({ store, sessionId: 's1' })
     const p = tool.execute('xyz-abc', { questions: [singleSelect('q1')] }, undefined)
-    expect(store.resolveByFormId('ask-xyz-abc', { skip: true })).toBe('ok')
+    expect(store.resolveAsk('ask-xyz-abc', { skip: true })).toBe('ok')
     const result = await p
     const details = result.details as { formId: string }
     expect(details.formId).toBe('ask-xyz-abc')
   })
 
   test('makeId 注入 → 派生自定义', async () => {
-    const store = createAskPendingStore()
+    const store = createPendingDecisionStore()
     const tool = createAskUserQuestionTool({
       store,
       sessionId: 's1',
       makeId: (toolCallId) => `custom-${toolCallId}`
     })
     const p = tool.execute('tc-1', { questions: [singleSelect('q1')] }, undefined)
-    expect(store.resolveByFormId('custom-tc-1', { skip: true })).toBe('ok')
+    expect(store.resolveAsk('custom-tc-1', { skip: true })).toBe('ok')
     const result = await p
     const details = result.details as { formId: string }
     expect(details.formId).toBe('custom-tc-1')
   })
 
   test('onPendingRegistered 在 register 成功后立即触发（异步 resolve 前）', async () => {
-    const store = createAskPendingStore()
+    const store = createPendingDecisionStore()
     let observed: string | null = null
     const tool = createAskUserQuestionTool({
       store,
@@ -148,12 +151,12 @@ describe('createAskUserQuestionTool（execute 挂起 → 端点 resolve 路径�
     })
     const p = tool.execute('call-x', { questions: [singleSelect('q1')] }, undefined)
     expect(observed).toBe('ask-call-x')
-    store.resolveByFormId('ask-call-x', { skip: true })
+    store.resolveAsk('ask-call-x', { skip: true })
     await p
   })
 
   test('alreadyPending 触发时 onPendingRegistered 不调用', async () => {
-    const store = createAskPendingStore()
+    const store = createPendingDecisionStore()
     let calls = 0
     const tool = createAskUserQuestionTool({
       store,
@@ -166,12 +169,12 @@ describe('createAskUserQuestionTool（execute 挂起 → 端点 resolve 路径�
     expect(calls).toBe(1)
     await tool.execute('b', { questions: [singleSelect('q2')] }, undefined)
     expect(calls).toBe(1)
-    store.resolveByFormId('ask-a', { skip: true })
+    store.resolveAsk('ask-a', { skip: true })
     await first
   })
 
   test('signal 已 abort → register 立即 reject，execute 抛 Error（沿工具失败路径传播）', async () => {
-    const store = createAskPendingStore()
+    const store = createPendingDecisionStore()
     const tool = createAskUserQuestionTool({ store, sessionId: 's1' })
     const ac = new AbortController()
     ac.abort()

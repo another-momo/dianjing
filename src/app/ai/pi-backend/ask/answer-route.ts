@@ -10,6 +10,9 @@
  *
  * 独立 handler 文件——server.ts 主体已被 max-lines 卡在 600 行上界，本文件专责
  * ask-answer 端点的所有逻辑（路由分发仍由 server.ts 装配）。
+ * 2026-09-19 broker P1 件1：collectSkipPayload / parseAnswersEntries /
+ * respondNotFoundOrOk 导出复用给统一决断端点（../decision-answer-route.ts）——
+ * ask 族校验与响应形态单一真源，禁复制粘贴（jscpd 纪律）。
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -47,23 +50,23 @@ export async function handleAskAnswerRequest(
     return
   }
   if (hasSkip) {
-    respondAskNotFoundOrOk(service.askAnswer(body.formId, collectSkipPayload(body)), res)
+    respondNotFoundOrOk(service.askAnswer(body.formId, collectSkipPayload(body)), res)
     return
   }
   const parsed = parseAnswersEntries(body.answers, res)
   if (parsed === null) return
   const payload: { answers: typeof parsed; notes?: string } = { answers: parsed }
   if (typeof body.notes === 'string' && body.notes !== '') payload.notes = body.notes
-  respondAskNotFoundOrOk(service.askAnswer(body.formId, payload), res)
+  respondNotFoundOrOk(service.askAnswer(body.formId, payload), res)
 }
 
-function collectSkipPayload(body: { notes?: unknown }): { skip: true; notes?: string } {
+export function collectSkipPayload(body: { notes?: unknown }): { skip: true; notes?: string } {
   return typeof body.notes === 'string' && body.notes !== ''
     ? { skip: true, notes: body.notes }
     : { skip: true }
 }
 
-function parseAnswersEntries(
+export function parseAnswersEntries(
   raw: unknown,
   res: ServerResponse
 ): null | Record<string, { value?: string; values?: string[]; freeText?: string; notes?: string }> {
@@ -147,7 +150,7 @@ function parseOneAnswerEntry(
   return entry
 }
 
-function respondAskNotFoundOrOk(result: 'ok' | 'not_found', res: ServerResponse): void {
+export function respondNotFoundOrOk(result: 'ok' | 'not_found', res: ServerResponse): void {
   if (result === 'not_found') {
     sendJSON(res, 404, {
       error: 'no_pending_form',

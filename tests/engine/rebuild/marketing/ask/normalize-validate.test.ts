@@ -26,8 +26,8 @@ import {
   isValidMultiAnswer
 } from '@open-pencil/core/tools/fork/marketing/validate-questionnaire'
 
-import { createAskPendingStore } from '@/app/ai/pi-backend/ask/pending'
 import { createAskUserQuestionTool } from '@/app/ai/pi-backend/ask/user-question'
+import { createPendingDecisionStore } from '@/app/ai/pi-backend/pending-decision'
 
 describe('normalizeAskParams：行尾规范化（再叠加空白 collapse）', () => {
   test('questions[].label、options[].label、options[].hint 内 \\r\\n → \\n 后再压空白', () => {
@@ -392,7 +392,7 @@ describe('isValidMultiAnswer', () => {
 
 describe('createAskUserQuestionTool：归一后校验失败仍早返（不挂起）', () => {
   function makeTool() {
-    const store = createAskPendingStore()
+    const store = createPendingDecisionStore()
     const tool = createAskUserQuestionTool({
       makeId: () => 'form-test-000000',
       store,
@@ -432,7 +432,7 @@ describe('createAskUserQuestionTool：归一后校验失败仍早返（不挂起
     await new Promise<void>((resolve) => {
       setTimeout(() => resolve(), 5)
     })
-    expect(store.resolveByFormId('form-test-000000', { skip: true })).toBe('ok')
+    expect(store.resolveAsk('form-test-000000', { skip: true })).toBe('ok')
     const result = await pending
     const details = result.details as { status?: string; formId?: string }
     expect(details.status).toBe('skipped')
@@ -454,7 +454,7 @@ describe('createAskUserQuestionTool：归一后校验失败仍早返（不挂起
     await new Promise<void>((resolve) => {
       setTimeout(() => resolve(), 5)
     })
-    expect(store.resolveByFormId('form-test-000000', { skip: true })).toBe('ok')
+    expect(store.resolveAsk('form-test-000000', { skip: true })).toBe('ok')
     const result = await pending
     const details = result.details as { status?: string }
     expect(details.status).toBe('skipped')
@@ -465,7 +465,7 @@ describe('ASK_USER_QUESTION_DESCRIPTION：波2 #14 prompt 指引段', () => {
   test('工具描述尾部追加「何时该问 / 至多 2 轮 / 不该问什么」指引', () => {
     const tool = createAskUserQuestionTool({
       makeId: () => 'form-test-000000',
-      store: createAskPendingStore(),
+      store: createPendingDecisionStore(),
       sessionId: 'test-session'
     })
     const desc = tool.description

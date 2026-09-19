@@ -22,9 +22,13 @@ import {
 } from '@earendil-works/pi-coding-agent'
 
 import { createActiveDesignHost, type ActiveDesignBridgeIO } from '../active-design-host'
-import { type AskPendingStore } from '../ask/pending'
 import { createAskPendingGuardExtension } from '../ask/pending-guard'
 import { createAskUserQuestionTool } from '../ask/user-question'
+import {
+  createAuthzGuardExtension,
+  createAuthzNoticeSink,
+  type AuthzNoticeSink
+} from '../authz-guard'
 import type { CapabilitiesStore } from '../capabilities'
 import { createExportImageToFileTool } from '../export-image-to-file'
 import type { ImageGenCredentialStore } from '../image-gen/credentials'
@@ -40,6 +44,7 @@ import {
   resolveSkillsDir,
   resolveWorkspaceDir
 } from '../paths'
+import type { PendingDecisionStore } from '../pending-decision'
 import type { ModelSpec, ProviderAdmin } from '../provider-admin'
 import { buildSetupCatalog, type SetupDesignContext } from '../setup-catalog'
 import { getStudioRegistry } from '../studio'
@@ -74,8 +79,8 @@ export type AssembleSessionContext = {
   admin: ProviderAdmin
   /** 工具 capabilities 单例（agentSkills / builtinTools 三档门控） */
   capabilitiesStore: CapabilitiesStore
-  /** ask_user_question 挂起期 pending-form 注册表单例 */
-  askPendingStore: AskPendingStore
+  /** ask/authz 双族 pending-decision 注册表单例（2026-09-19 自 askPendingStore 抽象迁移） */
+  decisionStore: PendingDecisionStore
   /** T60：active_design 桥探针/写槽 IO（无状态单例，session 间共享） */
   activeDesignBridge: ActiveDesignBridgeIO
   /** T54：图片生成凭据（HTTP 生成走外部凭证） */
@@ -101,6 +106,8 @@ export type AssembledSession = {
   target: { documentId?: string; windowId?: string }
   /** SessionManager 实例——service.ts 落盘索引时取 getSessionFile() */
   sessionManager: SessionManager
+  /** 2026-09-19 broker P1 件2：authz data part 直推缝（service.runPrompt 接线 emit） */
+  authzSink: AuthzNoticeSink
 }
 
 export async function assembleSession(
@@ -115,7 +122,7 @@ export async function assembleSession(
     builtinStudioDir,
     admin,
     capabilitiesStore,
-    askPendingStore,
+    decisionStore,
     activeDesignBridge,
     imageGenCredentials,
     imageGenSettings,
@@ -187,12 +194,13 @@ export async function assembleSession(
     }),
     // 2026-09-15：ask_user_question 挂起期本地工具（不经桥——表单卡片由前端
     // 读 tool part 渲染）→ register store → 挂起到 /api/pi/ask-answer 端点
-    // resolve；answer/skip 作为本工具结果在同一 turn 返回。
+    // resolve；answer/skip 作为本工具结果在同一 turn 返回（2026-09-19 起
+    // store = PendingDecisionStore，ask 族行为零变化）。
     // onPendingRegistered 通知 host 记录 formId→当时槽位（active-design-host
     // observeToolExecution 不再触发，新流走工具结果 details.status='answered'
     // 移槽——见 host recordAskForm）。
     createAskUserQuestionTool({
-      store: askPendingStore,
+      store: decisionStore,
       sessionId,
       onPendingRegistered: (formId) => host.recordAskForm(formId)
     }),
@@ -238,8 +246,9 @@ export async function assembleSession(
   // 2026-09-15：ask_user_question 挂起期 tool_call guard——pending 期间拦截
   // 非 ask 工具调用，强制模型停手等本工具结果返回（避免模型在前端作答
   // 到达前继续推工具调用，破坏挂起语义）；pending 时 ask_user_question
-  // 自身不 block（其 execute 内部 alreadyPending 错误结果更具体）
-  extensionFactories.push(createAskPendingGuardExtension(askPendingStore, sessionId))
+  // 自身不 block（其 execute 内部 alreadyPending 错误结果更具体）。
+  // 2026-09-19 锁面扩面：authz pending 双族共享本锁（reason 按族区分）
+  extensionFactories.push(createAskPendingGuardExtension(decisionStore, sessionId))
   // 2026-09-16 key 守卫 A 案：tool_call 拦内建文件工具对凭据四件（auth.json /
   // image-gen.json / key-env / pi-backend-token）的读/写/搜——详见
   // key-guard.ts 头注与仓外预研稿 docs/202609151649-pi-agent-key-file-guard-research.md
@@ -247,6 +256,21 @@ export async function assembleSession(
   // 2026-09-19 broker P0-2 shadow 观测：只记录不拦截（broker-shadow.jsonl 落
   // rootDir），注册序须在 key-guard 之后——emitToolCall 遇 block 短路
   extensionFactories.push(createPathObserveExtension({ rootDir, cwd: workspaceDir }))
+  // 2026-09-19 broker P1 件3：bash 授权门（authz-guard）——session 规则命中静默
+  // 放行，未命中挂 pending-decision 等前端授权卡决断（data-authz-request 经
+  // authzSink 直推 SSE，service.runPrompt 接线）。注册序在 key-guard、
+  // path-observe 之后：emitToolCall 遇 block 短路——被 key-guard 拦下的调用
+  // 不进授权卡面；path-observe 不观测 bash、authz-guard 只理 bash，观察面不重叠
+  const authzSink = createAuthzNoticeSink()
+  extensionFactories.push(
+    createAuthzGuardExtension({
+      rootDir,
+      cwd: workspaceDir,
+      store: decisionStore,
+      sessionId,
+      sink: authzSink
+    })
+  )
   // 冒烟探针（免 key 装配验证）：登记在装配之后，event.systemPrompt 已是
   // 链式最终值；仅 PI_PROMPT_PROBE_DIR 显式设置时生效
   const probeDir = process.env.PI_PROMPT_PROBE_DIR
@@ -360,5 +384,5 @@ export async function assembleSession(
   if (modelSpec.thinkingLevel) sessionOpts.thinkingLevel = modelSpec.thinkingLevel
   const { session } = await createAgentSession(sessionOpts)
 
-  return { session, host, budget, target, sessionManager }
+  return { session, host, budget, target, sessionManager, authzSink }
 }

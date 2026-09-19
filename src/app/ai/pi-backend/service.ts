@@ -59,7 +59,7 @@ import {
   type createActiveDesignHost,
   type SetActiveDesignResult
 } from './active-design-host'
-import { type AskAnswerPayload, createAskPendingStore } from './ask/pending'
+import type { AuthzNoticeSink } from './authz-guard'
 import { type Capabilities, createCapabilitiesStore } from './capabilities'
 import { type PiModelSpec, createDesignAssignmentStore } from './design-assignment'
 import { readPiHistoryFile } from './history'
@@ -74,6 +74,11 @@ import {
   resolveSessionsDir,
   resolveStudioDirs
 } from './paths'
+import {
+  type AskAnswerPayload,
+  createPendingDecisionStore,
+  type DecisionAnswerInput
+} from './pending-decision'
 import type { ModelSpec, ProviderAdmin } from './provider-admin'
 import { assembleSession, sameModelSpec } from './session/assembly'
 import { runSessionGc } from './session/gc'
@@ -141,11 +146,15 @@ export type PiChatService = {
     windowId?: string
   ): Promise<ConfirmNewIntentResult>
   /** T27：取消该 session 进行中的 run（SSE 断连锁停后端烧 token）；无活跃 run 时 no-op
-   * 2026-09-15：abort 同时 reject 该 session 的所有 pending ask 表单（挂起 promise 解锁） */
+   * 2026-09-15：abort 同时 reject 该 session 的所有 pending（挂起 promise 解锁；
+   * 2026-09-19 起双族 ask/authz 共享 PendingDecisionStore，对 authz 等效 deny） */
   abort(sessionId: string): Promise<void>
   /** 2026-09-15：POST /api/pi/ask-answer 端点真源——resolve pending form
    * (formId 寻址)；'ok' 已答，'not_found' 表中无该 formId（已答/已 abort/未注册） */
   askAnswer(formId: string, payload: AskAnswerPayload): 'ok' | 'not_found'
+  /** 2026-09-19 broker P1 件1：POST /api/pi/decision-answer 端点真源——kind 判别
+   * 路由到 PendingDecisionStore（错族寻址视同 'not_found'） */
+  decisionAnswer(input: DecisionAnswerInput): 'ok' | 'not_found'
 }
 
 type SessionEntry = {
@@ -165,6 +174,8 @@ type SessionEntry = {
   /** 2026-09-16（owner 拍板②）：创建时烘焙的 model spec——prompt 时与请求
    *  spec 比对，不一致驱逐重建（切换对下一个 prompt 生效） */
   spec: ModelSpec
+  /** 2026-09-19 broker P1 件2：authz data part 直推缝（run 活动期接线 emit、收尾拆线） */
+  authzSink: AuthzNoticeSink
 }
 
 type SessionIndex = Record<string, { file: string }>
@@ -228,8 +239,8 @@ export function createPiChatService({
   // 2026-09-16：design 模型指派后端化——单实例（与 capabilities store 同缝，
   // 共享 agentDir；落盘 <状态根>/pi-agent/design-assignment.json）；GET/PUT 路由共用此实例
   const designAssignmentStore = createDesignAssignmentStore({ agentDir })
-  // 2026-09-15：ask_user_question 挂起期 pending-form 注册表单例（跨 session 共享）
-  const askPendingStore = createAskPendingStore()
+  // 2026-09-19 broker P1 件1：ask/authz 双族 pending-decision 注册表单例（跨 session 共享）
+  const decisionStore = createPendingDecisionStore()
 
   const sessions = new Map<string, SessionEntry>()
 
@@ -261,8 +272,8 @@ export function createPiChatService({
   // 存量清理）；②runPrompt 收尾（新会话 JSONL 此时必然已落盘——createSession
   // 时点 pi 尚未写盘，阈值计数要含新文件必须等这里）。失败不阻断主流程。
   // 2026-09-15：GC 前后比对 index，被归档的 sessionId 一并 reject 其
-  // pending ask 表单（会话文件已归档 = session 不可恢复，挂着
-  // 的 promise 必须解锁；不 reject 会内存泄漏到下次重启）
+  // pending（2026-09-19 起双族 ask/authz；会话文件已归档 = session 不可
+  // 恢复，挂着的 promise 必须解锁；不 reject 会内存泄漏到下次重启）
   function collectGarbage(): void {
     try {
       const before = readIndex()
@@ -275,14 +286,14 @@ export function createPiChatService({
         writeIndex
       })
       // GC 后 index 与 before 对比：消失的 sessionId 即被归档者——reject 其
-      // pending ask 表单解锁挂起 promise（不 reject 会内存泄漏到下次重启）；
+      // pending（双族）解锁挂起 promise（不 reject 会内存泄漏到下次重启）；
       // 内存 sessions Map 维持原状（会话驱逐是规格外行为，不动）
       if (result.archived.length > 0) {
         const archivedNames = new Set(result.archived)
         for (const [sessionId, entry] of Object.entries(before)) {
           const name = entry.file.split(/[\\/]/).pop() ?? ''
           if (!archivedNames.has(name)) continue
-          askPendingStore.rejectForSession(sessionId, new Error('session_archived'))
+          decisionStore.rejectForSession(sessionId, new Error('session_archived'))
         }
       }
     } catch (error) {
@@ -294,7 +305,7 @@ export function createPiChatService({
   }
 
   async function createSession(sessionId: string, modelSpec: ModelSpec): Promise<SessionEntry> {
-    const { session, host, budget, target, sessionManager } = await assembleSession(
+    const { session, host, budget, target, sessionManager, authzSink } = await assembleSession(
       {
         rootDir,
         agentDir,
@@ -302,7 +313,7 @@ export function createPiChatService({
         builtinStudioDir,
         admin,
         capabilitiesStore,
-        askPendingStore,
+        decisionStore,
         activeDesignBridge,
         imageGenCredentials,
         imageGenSettings,
@@ -329,7 +340,8 @@ export function createPiChatService({
       target,
       host,
       running: false,
-      spec: modelSpec
+      spec: modelSpec,
+      authzSink
     }
     sessions.set(sessionId, entry)
     return entry
@@ -402,6 +414,8 @@ export function createPiChatService({
     const debug = process.env.PI_BACKEND_DEBUG === '1'
     entry.budget.current = 0
     entry.running = true
+    // 2026-09-19 broker P1 件2：authz 直推缝接线——guard 通知经本 run 的 emit 直推 SSE
+    entry.authzSink.emit = emit
     const unsubscribe = entry.session.subscribe((event) => {
       if (event.type === 'turn_start') entry.budget.current++
       // T60 事件④：ask_user_question awaiting 信封 → 记录 formId→当时槽位
@@ -435,6 +449,7 @@ export function createPiChatService({
       emit({ type: 'finish', finishReason: 'error' })
     } finally {
       entry.running = false
+      entry.authzSink.emit = null
       unsubscribe()
       // T60 定谳 5：一次性旗标 run 结束强制复位（信封永不跨回合滞留）
       entry.host.finalizeTurn()
@@ -556,10 +571,11 @@ export function createPiChatService({
     // provider（image-gen/provider.ts）用独立 AbortSignal.timeout。工具层 signal 透传留后续。
     // 2026-09-15：reject 该 session 的所有 pending ask 表单（ask_user_question
     // 挂起 promise 解锁，execute signal abort 自动 reject 等价路径——双保险）；
+    // 2026-09-19：reject 覆盖 authz pending（等效 deny，authz-guard catch 转 block）；
     // entry 不存在时也要清（断连导致 server.ts 早于 createSession 收到 abort）
-    const rejected = askPendingStore.rejectForSession(sessionId, new Error('aborted'))
+    const rejected = decisionStore.rejectForSession(sessionId, new Error('aborted'))
     if (rejected > 0) {
-      console.debug(`[pi-backend] abort(${sessionId}) rejected ${rejected} pending ask form(s)`)
+      console.debug(`[pi-backend] abort(${sessionId}) rejected ${rejected} pending decision(s)`)
     }
     if (!entry) return
     const hitRunningRun = entry.running
@@ -595,6 +611,10 @@ export function createPiChatService({
     setActiveDesign,
     confirmNewIntent,
     abort,
-    askAnswer: (formId, payload) => askPendingStore.resolveByFormId(formId, payload)
+    askAnswer: (formId, payload) => decisionStore.resolveAsk(formId, payload),
+    decisionAnswer: (input) =>
+      input.kind === 'ask'
+        ? decisionStore.resolveAsk(input.formId, input.payload)
+        : decisionStore.resolveAuthz(input.formId, input.payload)
   }
 }
