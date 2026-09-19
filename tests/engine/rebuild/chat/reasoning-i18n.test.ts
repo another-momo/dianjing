@@ -12,9 +12,9 @@
  * 不覆盖：PiChatMessage.vue 的 markup/动画——组件需要 vue runtime + reka-ui +
  * happy-dom 才能 mount，仓库当前测试栈（bun:test）无 DOM 基础设施，引入
  * @vue/test-utils/happy-dom 会改动全局测试配置（违反「不动基础设施」纪律）。
- * PiChatMessage 已 review：:open 不绑（HTML 默认 false → 折叠）、summary 内
- * 走 v-if/v-else 状态分叉、<span class="chat-reasoning-dots"> 三圆点 + 纯 CSS
- * @keyframes 动画（prefers-reduced-motion 静默）。
+ * 2026-09-19 P2-a（路线 B）：reasoning 渲染改由 ReasoningBlock 组件承接
+ * （reka Collapsible + ChatMarkdown surface=reasoning + 三态偏好接线），
+ * 原内联 details/三圆点形态退役；标题文案键不变，本钉扎继续有效。
  */
 
 import { describe, expect, test } from 'bun:test'

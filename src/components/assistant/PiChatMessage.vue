@@ -11,6 +11,7 @@ import type { AskFormSubmission } from '@open-pencil/core/tools/fork/marketing/a
 import { useI18n, vTestId } from '@open-pencil/vue'
 
 import { useForkConfirm } from '@/app/i18n/fork'
+import { appPreferences } from '@/app/settings/preferences/store'
 import IconButton from '@/components/ui/button/IconButton.vue'
 
 import {
@@ -34,6 +35,7 @@ import {
   type AuthzDecisionView
 } from './pending-decision'
 import PendingDecisionCard from './PendingDecisionCard.vue'
+import ReasoningBlock from './ReasoningBlock.vue'
 import { displayToolOutput } from './tool-output'
 import { classifyToolState } from './tool-state'
 
@@ -67,6 +69,10 @@ const emit = defineEmits<{
 const { ai } = useI18n()
 const confirmText = useForkConfirm()
 const markdownMode = computed(() => (streaming ? 'streaming' : 'static'))
+// P2-a（2026-09-19，路线 B 吸收）：reasoning 展示三态用户偏好——默认 collapsed
+// 不动（T96 owner 拍板兼容），opt-in「思考中自动展开/恒展开」；基建休眠在
+// preferences/store（类型+默认值+持久化迁移），本组件为首个消费点
+const reasoningDisplay = computed(() => appPreferences.value.chat.reasoningDisplay)
 
 // D9（2026-09-18 chat-p1）：复制响应按钮——移植上游 d7971ff03 ChatMessage.vue：
 // 首个非空 text part 气泡右下角挂复制钮，复制整条 assistant 文本（全 text part
@@ -356,42 +362,21 @@ function filePartFilename(part: FilePart): string {
             </CollapsibleRoot>
           </div>
 
-          <!-- T93：reasoning part 折叠渲染（预研 §5.2 方案 A）。
-            T96（owner 改）：默认折叠（不绑 :open）——流式中、结束后都靠用户手点；
-            标题走 part 级 state 分叉（2026-09-18 P0 修：原绑消息级 streaming，
-            整流恒 true 致推理结束后仍挂「思考中」）：流入期「思考中…」+ 呼吸点动画
-            （纯 CSS keyframes，零 JS 定时器）；reasoning-end 后「思考过程」。
-            每条独立默认折叠，新消息不继承。 -->
-          <details
+          <!-- T93：reasoning part 折叠渲染。2026-09-19 P2-a 路线 B：内联 details
+            形态退役，ReasoningBlock 组件转正（孤儿死引用修复 + 三态偏好接线）——
+            part 级 state 分叉（9fd8fde28 P0 修语义保留）：流入期「思考中」+ 转轮、
+            reasoning-end 后「思考过程」；内容走 ChatMarkdown surface=reasoning；
+            display 偏好默认 collapsed（T96 兼容），while-thinking 结束 1s 自动收起、
+            用户手动翻折后不再自动。触发器挂 data-slot="chat-reasoning-trigger"
+            （useScrollFollowing 点击暂停跟随契约不变）。 -->
+          <ReasoningBlock
             v-else-if="isReasoningUIPart(part)"
-            data-test-id="chat-reasoning"
-            class="rounded-lg border border-border bg-canvas px-2 py-1"
-          >
-            <summary
-              data-slot="chat-reasoning-trigger"
-              class="flex cursor-pointer items-center gap-1 text-[11px] text-muted select-none"
-            >
-              <icon-lucide-brain class="size-3" />
-              <!-- part 级 state：reasoning-end 即翻「思考过程」，不等整条消息流结束
-                   （消息级 streaming 在正文续流/调工具期间恒 true，多 reasoning 块会齐挂「思考中」） -->
-              <span v-if="part.state === 'streaming'" data-test-id="chat-reasoning-streaming-title">
-                {{ confirmText.reasoningStreamingTitle }}
-                <span class="chat-reasoning-dots" aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                </span>
-              </span>
-              <span v-else data-test-id="chat-reasoning-title">
-                {{ confirmText.reasoningTitle }}
-              </span>
-            </summary>
-            <div
-              class="mt-1 border-l-2 border-muted pl-2 text-[11px] whitespace-pre-wrap text-muted"
-            >
-              {{ part.text }}
-            </div>
-          </details>
+            :display="reasoningDisplay"
+            :text="part.text"
+            :streaming="part.state === 'streaming'"
+            :thinking-label="confirmText.reasoningStreamingTitle"
+            :reasoning-label="confirmText.reasoningTitle"
+          />
 
           <!-- Text -->
           <div
@@ -467,43 +452,3 @@ function filePartFilename(part: FilePart): string {
     </div>
   </div>
 </template>
-
-<!-- T96：reasoning 流式三圆点——纯 CSS @keyframes（避免 JS 定时器/repaint 开销），
-  三个圆点交错透明度，1.4s 周期模拟省略号动画，prefers-reduced-motion 静默 -->
-<style scoped>
-@keyframes chat-reasoning-pulse {
-  0%,
-  80%,
-  100% {
-    opacity: 0.25;
-  }
-  40% {
-    opacity: 1;
-  }
-}
-.chat-reasoning-dots {
-  display: inline-flex;
-  gap: 0.18em;
-  margin-left: 0.2em;
-  vertical-align: middle;
-}
-.chat-reasoning-dots > span {
-  width: 0.32em;
-  height: 0.32em;
-  border-radius: 9999px;
-  background-color: currentColor;
-  animation: chat-reasoning-pulse 1.4s ease-in-out infinite;
-}
-.chat-reasoning-dots > span:nth-child(2) {
-  animation-delay: 0.2s;
-}
-.chat-reasoning-dots > span:nth-child(3) {
-  animation-delay: 0.4s;
-}
-@media (prefers-reduced-motion: reduce) {
-  .chat-reasoning-dots > span {
-    animation: none;
-    opacity: 0.6;
-  }
-}
-</style>

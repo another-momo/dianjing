@@ -10,6 +10,7 @@ import { appCredentialServices, browserCredentialsRemembered } from '@/app/setti
 import { useCredentialSettings } from '@/app/settings/credentials/preferences/use'
 import { settingsDialogOpen, settingsDialogSection } from '@/app/settings/dialog'
 import AgentSettingsPanel from '@/components/settings/agent/AgentSettingsPanel.vue'
+import ChatSettingsSection from '@/components/settings/chat/ChatSettingsSection.vue'
 import FontsSettingsPanel from '@/components/settings/fonts/FontsSettingsPanel.vue'
 import GeneralSettingsPanel from '@/components/settings/general/GeneralSettingsPanel.vue'
 import MediaSettingsPanel from '@/components/settings/media/MediaSettingsPanel.vue'
@@ -103,6 +104,10 @@ const credentialBackendLabel = computed(() => {
           <section class="flex flex-col gap-4" data-test-id="settings-ai-panel">
             <!-- T91k：去 h-full——本区与 Agent 能力同流，由外层对话框容器统一滚动 -->
             <PiModelsPanel />
+            <!-- P2-a（2026-09-19，路线 B）：聊天展示偏好节（reasoningDisplay 三态），
+                 语义位置对齐上游 ChatSettingsSection（ai 段紧随 ModelsPanel） -->
+            <div class="border-t border-border" />
+            <ChatSettingsSection />
             <!-- T96：ModelsPanel 与下一节之间的视觉分隔（预研 §5.3） -->
             <div class="border-t border-border" />
             <!-- ai-panel-ux-consolidation：图像生成凭证由 media 段迁入 ai 段

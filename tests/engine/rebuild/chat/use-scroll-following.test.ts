@@ -58,7 +58,14 @@ class FakeResizeObserver {
     FakeResizeObserver.instances.push(this)
   }
 
-  observe(el: FakeElement): void {
+  observe(el: FakeElement | null | undefined): void {
+    // 原生语义：observe(null/undefined) 抛 TypeError（P2-a null 盲区修的回归护栏——
+    // 桩不拒绝 null 则 hook 过滤漏洞在本测试栈不可见）
+    if (el == null) {
+      throw new TypeError(
+        "Failed to execute 'observe' on 'ResizeObserver': parameter 1 is not of type 'Element'"
+      )
+    }
     if (this.observed.includes(el)) return
     this.observed.push(el)
     // 真实 ResizeObserver 在 observe 时立即回发一次——保持同款语义
@@ -284,5 +291,25 @@ describe('D3 useScrollFollowing 智能滚动跟随', () => {
     await mount(rigInner)
     rigInner.viewportEl.fire('pointerdown', { target: new FakeElement() })
     expect(rigInner.following.value).toBe(true)
+  })
+
+  test('null 盲区回归：模板 ref 卸载后置 null（非 undefined）——过滤须双挡，observe(null) 不崩 watcher', async () => {
+    const rig = createRig()
+    await mount(rig)
+    // Vue 模板 ref 卸载语义：元素卸载后 ref 置 null（Clear 清空会话实证路径）——
+    // 修复前 `el !== undefined` 过滤放过 null，observe(null) 抛 TypeError 崩 watcher
+    // oxlint-disable-next-line open-pencil/no-broad-double-cast -- 刻意注入 Vue 模板 ref 的卸载态 null（ref 声明类型不含 null，双转即本用例的测试对象）
+    rig.content.value = null as unknown as HTMLElement
+    await nextTick()
+    flushFrames()
+    expect(rig.following.value).toBe(true)
+
+    const rigViewportNull = createRig()
+    await mount(rigViewportNull)
+    // oxlint-disable-next-line open-pencil/no-broad-double-cast -- 同上：viewport 侧卸载态 null 注入
+    rigViewportNull.viewport.value = null as unknown as HTMLElement
+    await nextTick()
+    flushFrames()
+    expect(rigViewportNull.following.value).toBe(true)
   })
 })

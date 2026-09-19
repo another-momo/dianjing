@@ -4,7 +4,8 @@ import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui
 import { computed, ref, watch } from 'vue'
 
 import type { ReasoningDisplay } from '@/app/settings/preferences/store'
-import ChatMarkdown from '@/components/chat/ChatMarkdown.vue'
+
+import ChatMarkdown from './ChatMarkdown.vue'
 
 const {
   display = 'collapsed',

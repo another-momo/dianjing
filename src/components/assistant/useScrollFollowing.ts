@@ -38,8 +38,8 @@ const EXPLICIT_SCROLL_KEYS = new Set([
   'End',
   'Space'
 ])
-/** reasoning 折叠触发器选择器（上游同款契约；我方触发器是 PiChatMessage 内联
- *  details 的 summary，挂同款 data-slot） */
+/** reasoning 折叠触发器选择器（上游同款契约；我方触发器是 ReasoningBlock 的
+ *  CollapsibleTrigger，挂同款 data-slot） */
 const REASONING_TRIGGER_SELECTOR = '[data-slot="chat-reasoning-trigger"]'
 
 /** 调用期解析 rAF——模块求值期捕获会让测试桩失效（bun 无 rAF 全局） */
@@ -177,9 +177,10 @@ export function useScrollFollowing(
         scheduleFollow()
         syncArrived()
       })
-      const observed = [viewport.value, content.value].filter(
-        (el): el is HTMLElement => el !== undefined
-      )
+      // null 盲区修（2026-09-19 P2-a 同族残留）：Vue 模板 ref 卸载后置 null 而非
+      // undefined（Clear 清空会话实证）——原 `el !== undefined` 放过 null，
+      // observe(null) 抛 TypeError 崩 watcher；`!= null` 双挡 null/undefined
+      const observed = [viewport.value, content.value].filter((el): el is HTMLElement => el != null)
       for (const el of observed) resizeObserver.observe(el)
       onCleanup(() => {
         for (const el of observed) resizeObserver?.unobserve(el)

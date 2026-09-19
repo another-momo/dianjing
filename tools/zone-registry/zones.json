@@ -27,6 +27,7 @@
   ],
   "ownedFiles": [
     "src/app/shell/electron.ts",
+    "src/components/settings/chat/ChatSettingsSection.vue",
     "src/components/settings/models/PiModelsPanel.vue",
     "src/components/settings/models/PiDesignModelCard.vue",
     "src/components/settings/agent/AgentSettingsPanel.vue",
@@ -408,7 +409,7 @@
     {
       "id": "P44",
       "file": "src/components/settings/SettingsDialog.vue",
-      "reason": "壳层随上游 AppTabs 族回迁（2026-09-18 外观对齐批）；保留差异 = nav 板块集（fork 五板块 general/ai/media/fonts/storage，无 usage/diagnostics/mcp——437b931cb owner 拍板永不吸收）+ ai 区三件同流（T96/T87/ai-panel-ux-consolidation）+ footer 左侧 remember 凭据控件（PR713 吸收接线，上游无）｜ 2026-09-18 内容代吸收：media 段整取 v0.15.0 MediaSettingsPanel 钻取式（StockPhotoKeysSection/VectorizeSettingsSection 随删进 deletedPaths），media/general/storage 面板内容层与 v0.15.0 字节对齐",
+      "reason": "壳层随上游 AppTabs 族回迁（2026-09-18 外观对齐批）；保留差异 = nav 板块集（fork 五板块 general/ai/media/fonts/storage，无 usage/diagnostics/mcp——437b931cb owner 拍板永不吸收）+ ai 区三件同流（T96/T87/ai-panel-ux-consolidation）+ footer 左侧 remember 凭据控件（PR713 吸收接线，上游无）｜ 2026-09-18 内容代吸收：media 段整取 v0.15.0 MediaSettingsPanel 钻取式（StockPhotoKeysSection/VectorizeSettingsSection 随删进 deletedPaths），media/general/storage 面板内容层与 v0.15.0 字节对齐 ｜ 2026-09-19 P2-a（路线 B）：ai 段挂 ChatSettingsSection（chat.reasoningDisplay 三态偏好设置项，语义位置对齐上游 ai 段紧随 ModelsPanel；新组件登记 ownedFiles）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-18"
     },
@@ -1914,7 +1915,6 @@
     "tools/authoring-reference",
     "tools/ci",
     "src/components/settings/credentials/CredentialSettingsSection.vue",
-    "src/components/settings/chat/ChatSettingsSection.vue",
     "tests/engine/app/ai/harness/transport.test.ts",
     "tests/engine/app/chat/history/continuation.test.ts",
     "tests/engine/app/chat/history/controller.test.ts",
