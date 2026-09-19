@@ -2,11 +2,16 @@
 import { useFileDialog, useObjectUrl } from '@vueuse/core'
 import { computed, shallowRef, watch } from 'vue'
 
+import { IMAGE_FILE_ACCEPT, isSVGImageFile } from '@open-pencil/core/bytes'
 import type { Fill, ImageScaleMode } from '@open-pencil/scene-graph'
 
 import { useEditorStore } from '@/app/editor/active-store'
+import { useForkToolbar } from '@/app/i18n/fork'
+import { toast } from '@/app/shell/ui'
 import AppButton from '@/components/ui/button/AppButton.vue'
 import AppSelect from '@/components/ui/select/AppSelect.vue'
+
+import { rasterizeSvgToPng } from './rasterize-svg'
 
 const IMAGE_SCALE_MODES: { value: ImageScaleMode; label: string }[] = [
   { value: 'FILL', label: 'Fill' },
@@ -19,6 +24,7 @@ const { fill } = defineProps<{ fill: Fill }>()
 const emit = defineEmits<{ update: [fill: Fill] }>()
 
 const store = useEditorStore()
+const toolbarText = useForkToolbar()
 
 const imageBlob = shallowRef<Blob | null>(null)
 const imagePreviewURL = useObjectUrl(imageBlob)
@@ -37,14 +43,21 @@ watch(
 )
 
 const { open: pickImage, onChange: onFileChange } = useFileDialog({
-  accept: 'image/png,image/jpeg,image/webp',
+  accept: IMAGE_FILE_ACCEPT,
   multiple: false
 })
 
 onFileChange(async (files) => {
   const file = files?.[0]
   if (!file) return
-  const bytes = new Uint8Array(await file.arrayBuffer())
+  // IMAGE fill 只能消费光栅字节——SVG 先经浏览器栅格化成 PNG（矢量导入走「添加图片」）
+  const bytes = isSVGImageFile(file)
+    ? await rasterizeSvgToPng(file)
+    : new Uint8Array(await file.arrayBuffer())
+  if (!bytes) {
+    toast.error(toolbarText.value.addImageFailedCorrupt)
+    return
+  }
   const hash = store.storeImage(bytes)
   emit('update', {
     ...fill,

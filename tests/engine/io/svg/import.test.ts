@@ -364,4 +364,82 @@ describe('import_svg', () => {
 
     expect(graph.getChildren(result.id)[0].fills[0].type).toBe('GRADIENT_LINEAR')
   })
+
+  // 2026-09-19 件 1：<text>/<image> 元素映射导入（曾静默丢弃）
+  test('maps text elements to editable TEXT nodes', async () => {
+    const result = (await importSVG.execute(figma, {
+      svg: `<svg width="200" height="100" viewBox="0 0 200 100">
+        <text x="10" y="30" font-size="20" font-family="Arial" fill="#ff0000">Hello</text>
+        <g transform="translate(0 40)"><text x="0" y="20" text-anchor="middle" font-weight="bold">World</text></g>
+      </svg>`
+    })) as { id: string }
+
+    const texts = graph.getChildren(result.id).filter((node) => node.type === 'TEXT')
+    expect(texts).toHaveLength(2)
+
+    const hello = expectDefined(texts[0])
+    expect(hello.text).toBe('Hello')
+    expect(hello.fontSize).toBe(20)
+    expect(hello.fontFamily).toBe('Arial')
+    expect(hello.textAutoResize).toBe('WIDTH_AND_HEIGHT')
+    expect(hello.fills[0]).toMatchObject({ type: 'SOLID' })
+    expect(hello.fills[0].color.r).toBeCloseTo(1, 1)
+    // 基线 y=30 → 顶边 ≈ 30 - 0.8em
+    expect(hello.x).toBeCloseTo(10)
+    expect(hello.y).toBeCloseTo(14)
+
+    const world = expectDefined(texts[1])
+    expect(world.text).toBe('World')
+    expect(world.textAlignHorizontal).toBe('CENTER')
+    expect(world.fontWeight).toBe(700)
+    // 组 transform 映射进节点坐标（translate(0 40) 后基线 y=60 → 顶边 ≈ 60 - 0.8*16）
+    expect(world.y).toBeCloseTo(60 - 16 * 0.8)
+  })
+
+  test('maps embedded data-URI images to IMAGE-fill rectangles', async () => {
+    const png =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+    const result = (await importSVG.execute(figma, {
+      svg: `<svg width="100" height="100" viewBox="0 0 100 100">
+        <rect width="10" height="10" fill="#ff0000"/>
+        <image x="20" y="30" width="40" height="50" href="data:image/png;base64,${png}"/>
+      </svg>`
+    })) as { id: string }
+
+    const image = expectDefined(
+      graph.getChildren(result.id).find((node) => node.type === 'RECTANGLE')
+    )
+    expect(image.x).toBeCloseTo(20)
+    expect(image.y).toBeCloseTo(30)
+    expect(image.width).toBeCloseTo(40)
+    expect(image.height).toBeCloseTo(50)
+    const fill = expectDefined(image.fills[0])
+    expect(fill.type).toBe('IMAGE')
+    expect(fill.imageHash).toBeTruthy()
+    expect(graph.images.get(expectDefined(fill.imageHash))?.length).toBeGreaterThan(0)
+  })
+
+  test('imports text-only SVG instead of reporting no supported elements', async () => {
+    const result = (await importSVG.execute(figma, {
+      svg: '<svg width="120" height="40"><text x="0" y="20">Solo</text></svg>'
+    })) as { id: string }
+
+    const children = graph.getChildren(result.id)
+    expect(children).toHaveLength(1)
+    expect(children[0].type).toBe('TEXT')
+    expect(children[0].text).toBe('Solo')
+  })
+
+  test('skips external image references without failing the import', async () => {
+    const result = (await importSVG.execute(figma, {
+      svg: `<svg width="50" height="50" viewBox="0 0 50 50">
+        <rect width="10" height="10"/>
+        <image x="0" y="0" width="10" height="10" href="https://example.com/remote.png"/>
+      </svg>`
+    })) as { id: string }
+
+    const children = graph.getChildren(result.id)
+    expect(children).toHaveLength(1)
+    expect(children[0].type).toBe('VECTOR')
+  })
 })

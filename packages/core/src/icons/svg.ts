@@ -14,6 +14,41 @@ import { parseSVGFragment } from '#core/io/formats/svg/document'
 
 import type { IconData, IconifyIconEntry, IconPathInfo, SVGClipPathRegion } from './types'
 
+/**
+ * 2026-09-19「添加图片配套」件 1：extractPaths 只管 path 类元素，<text>/<image>
+ * 矢量化为空被静默丢弃（实证样本 51 文本 + 2 内嵌 PNG 全丢）。extractRichContent
+ * 在同一遍 DOM walk 里额外收集文本/内嵌位图，由 io/formats/svg 导入侧落成
+ * TEXT / IMAGE-fill RECTANGLE 节点。
+ */
+export interface SVGTextElementInfo {
+  x: number
+  /** SVG 语义 = 基线 y（导入侧负责换算成节点顶边） */
+  y: number
+  content: string
+  fontFamily: string | null
+  fontSize: number | null
+  fontWeight: number | null
+  fill: string | null
+  textAnchor: 'start' | 'middle' | 'end' | null
+  transform: string | null
+}
+
+export interface SVGImageElementInfo {
+  x: number
+  y: number
+  width: number
+  height: number
+  /** 原始 href——仅 data: URI 可离线解码，外链由消费方跳过 */
+  href: string
+  transform: string | null
+}
+
+export interface SVGRichContent {
+  paths: IconPathInfo[]
+  texts: SVGTextElementInfo[]
+  images: SVGImageElementInfo[]
+}
+
 interface SVGElementInput {
   type: string
   props: Readonly<Record<string, unknown>>
@@ -176,6 +211,73 @@ function combinedTransform(parent: string | null, element: Element): string | nu
   return current ?? parent
 }
 
+/**
+ * 文本样式沿 DOM 祖先链向上取（就近优先）：字体属性在 SVG 里可继承，
+ * 而 collectPaths 的 presentation 继承不带字体字段——文本元素少见，
+ * 逐个向上走比给主 walk 加继承面更省。
+ */
+function inheritedTextAttribute(
+  element: Element,
+  name: 'font-family' | 'font-size' | 'font-weight' | 'text-anchor'
+): string | null {
+  let current: Element | null = element
+  while (current) {
+    const inline = inlineStyles(current).get(name)
+    if (inline) return inline
+    const attribute = current.getAttribute(name)
+    if (attribute) return attribute
+    const parent: Node | null = current.parentNode
+    current = parent && isElement(parent) ? parent : null
+  }
+  return null
+}
+
+function collectTextElement(
+  element: Element,
+  presentation: PresentationAttributes,
+  transform: string | null,
+  rich: SVGRichContent
+): void {
+  const content = (element.textContent ?? '').replace(/\s+/g, ' ').trim()
+  if (!content) return
+  const fontSizeRaw = inheritedTextAttribute(element, 'font-size')
+  const fontSize = fontSizeRaw ? Number.parseFloat(fontSizeRaw) : NaN
+  const fontWeightRaw = inheritedTextAttribute(element, 'font-weight')
+  const fontWeight =
+    fontWeightRaw === 'bold'
+      ? 700
+      : fontWeightRaw === 'normal'
+        ? 400
+        : fontWeightRaw
+          ? Number.parseInt(fontWeightRaw, 10)
+          : NaN
+  const anchor = inheritedTextAttribute(element, 'text-anchor')
+  rich.texts.push({
+    x: num(element, 'x'),
+    y: num(element, 'y'),
+    content,
+    fontFamily: inheritedTextAttribute(element, 'font-family'),
+    fontSize: Number.isFinite(fontSize) && fontSize > 0 ? fontSize : null,
+    fontWeight: Number.isFinite(fontWeight) ? fontWeight : null,
+    fill: normalizeSVGPaint(presentation.fill),
+    textAnchor:
+      anchor === 'middle' || anchor === 'end' ? anchor : anchor === 'start' ? 'start' : null,
+    transform
+  })
+}
+
+function collectImageElement(
+  element: Element,
+  transform: string | null,
+  rich: SVGRichContent
+): void {
+  const href = element.getAttribute('href') ?? element.getAttribute('xlink:href')
+  const width = num(element, 'width')
+  const height = num(element, 'height')
+  if (!href || width <= 0 || height <= 0) return
+  rich.images.push({ x: num(element, 'x'), y: num(element, 'y'), width, height, href, transform })
+}
+
 function normalizeSVGPaint(value: string | null): string | null {
   return value?.trim().toLowerCase() === 'none' ? null : value
 }
@@ -212,7 +314,8 @@ function collectUsePaths(
   result: IconPathInfo[],
   elementsById: ReadonlyMap<string, Element>,
   useStack: ReadonlySet<Element>,
-  clipPaths: SVGClipPathRegion[]
+  clipPaths: SVGClipPathRegion[],
+  rich?: SVGRichContent
 ): boolean {
   const tagName = element.localName || element.tagName
   if (tagName !== 'use') return false
@@ -231,7 +334,8 @@ function collectUsePaths(
       elementsById,
       new Set([...useStack, target]),
       true,
-      clipPaths
+      clipPaths,
+      rich
     )
   }
   return true
@@ -274,7 +378,8 @@ function collectPaths(
   elementsById: ReadonlyMap<string, Element>,
   useStack: ReadonlySet<Element> = new Set(),
   referenced = false,
-  inheritedClipPaths: SVGClipPathRegion[] = []
+  inheritedClipPaths: SVGClipPathRegion[] = [],
+  rich?: SVGRichContent
 ): void {
   const tagName = element.localName || element.tagName
   if (NON_RENDERED_CONTAINERS.has(tagName) && !referenced) return
@@ -283,9 +388,22 @@ function collectPaths(
   const transform = combinedTransform(parentTransform, element)
   const ownClipPath = collectClipPath(element.getAttribute('clip-path'), transform, elementsById)
   const clipPaths = ownClipPath ? [...inheritedClipPaths, ownClipPath] : inheritedClipPaths
-  if (collectUsePaths(element, presentation, transform, result, elementsById, useStack, clipPaths))
+  if (
+    collectUsePaths(
+      element,
+      presentation,
+      transform,
+      result,
+      elementsById,
+      useStack,
+      clipPaths,
+      rich
+    )
+  )
     return
   appendShapePath(tagName, element, presentation, transform, clipPaths, result)
+  if (rich && tagName === 'text') collectTextElement(element, presentation, transform, rich)
+  if (rich && tagName === 'image') collectImageElement(element, transform, rich)
 
   for (const child of Array.from(element.childNodes)) {
     if (isElement(child)) {
@@ -297,7 +415,8 @@ function collectPaths(
         elementsById,
         useStack,
         referenced,
-        clipPaths
+        clipPaths,
+        rich
       )
     }
   }
@@ -320,14 +439,14 @@ function appendSVGElement(svgDocument: XMLDocument, parent: Element, input: SVGE
   parent.appendChild(element)
 }
 
-function collectDocumentPaths(root: Element): IconPathInfo[] {
+function collectDocumentPaths(root: Element, rich?: SVGRichContent): IconPathInfo[] {
   const elementsById = new Map<string, Element>()
   for (const element of Array.from(root.getElementsByTagName('*'))) {
     const id = element.getAttribute('id')
     if (id) elementsById.set(id, element)
   }
   const result: IconPathInfo[] = []
-  collectPaths(root, DEFAULT_PRESENTATION, null, result, elementsById)
+  collectPaths(root, DEFAULT_PRESENTATION, null, result, elementsById, new Set(), false, [], rich)
   return result
 }
 
@@ -342,16 +461,27 @@ export function extractPathsFromElements(
   return collectDocumentPaths(root)
 }
 
-export function extractPaths(svgBody: string): IconPathInfo[] {
-  // 剥 XML prolog/DOCTYPE：本函数把入参再包一层 <svg> 喂 XML 解析器，
-  // 文件头的 <?xml?> 声明与 <!DOCTYPE> 在内嵌位置被判非法 → 静默 0 路径
-  // （2026-09-18 定性：产品长图.svg 导入误报「支持 SVG」根因）。注释无害保留。
-  const body = svgBody
+// 剥 XML prolog/DOCTYPE：本函数把入参再包一层 <svg> 喂 XML 解析器，
+// 文件头的 <?xml?> 声明与 <!DOCTYPE> 在内嵌位置被判非法 → 静默 0 路径
+// （2026-09-18 定性：产品长图.svg 导入误报「支持 SVG」根因）。注释无害保留。
+function stripXMLProlog(svgBody: string): string {
+  return svgBody
     .trimStart()
     .replace(/^<\?xml[\s\S]*?\?>\s*/i, '')
     .replace(/^<!DOCTYPE[\s\S]*?>\s*/i, '')
-  const root = parseSVGFragment(body)?.documentElement
+}
+
+export function extractPaths(svgBody: string): IconPathInfo[] {
+  const root = parseSVGFragment(stripXMLProlog(svgBody))?.documentElement
   return root ? collectDocumentPaths(root) : []
+}
+
+/** 与 extractPaths 同一路径解析，但同遍 walk 额外收集 <text>/<image>（导入侧用，图标管线仍走 extractPaths） */
+export function extractRichContent(svgBody: string): SVGRichContent {
+  const rich: SVGRichContent = { paths: [], texts: [], images: [] }
+  const root = parseSVGFragment(stripXMLProlog(svgBody))?.documentElement
+  if (root) rich.paths = collectDocumentPaths(root, rich)
+  return rich
 }
 
 export function buildIconData(
@@ -382,7 +512,8 @@ export function buildIconData(
   }
 }
 
-function transformStrokeScale(transform: string | null | undefined): number {
+/** Conservative uniform scale of an SVG transform string (min of axis scales); exported for text sizing in the import pipeline. */
+export function transformStrokeScale(transform: string | null | undefined): number {
   if (!transform || transform === 'none') return 1
 
   const points: Vector[] = []

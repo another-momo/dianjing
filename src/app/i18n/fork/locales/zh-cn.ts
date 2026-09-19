@@ -311,7 +311,11 @@ const zhCN = {
   },
   toolbar: {
     addImage: '添加图片',
-    addImageFailed: '无法添加所选图片——支持 PNG / JPEG / WebP / GIF / AVIF / SVG。'
+    addImageFailed: '无法添加所选图片——支持 PNG / JPEG / WebP / GIF / BMP / SVG。',
+    addImageFailedEmpty: '无法添加图片——文件是空的（0 字节）。',
+    addImageFailedUnsupported: '不支持的图片格式——支持 PNG / JPEG / WebP / GIF / BMP / SVG。',
+    addImageFailedCorrupt: '无法添加图片——文件损坏或无法解码。',
+    addImageFailedEngineNotReady: '图像引擎尚未就绪，请稍后重试。'
   }
 } satisfies ComponentsJSON
 

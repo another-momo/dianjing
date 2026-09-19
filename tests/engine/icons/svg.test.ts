@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 
-import { extractPaths, extractPathsFromElements, scalePathInfos } from '#core/icons/svg'
+import {
+  extractPaths,
+  extractPathsFromElements,
+  extractRichContent,
+  scalePathInfos
+} from '#core/icons/svg'
 import { parseSVGSize, parseSVGViewBox } from '#core/io/formats/svg/metadata'
 
 describe('SVG XML parsing', () => {
@@ -106,5 +111,66 @@ describe('SVG XML parsing', () => {
       )
     ).toEqual(expected)
     expect(extractPaths(`<!-- 注释保留无害 -->\n${body}`)).toEqual(expected)
+  })
+})
+
+// 2026-09-19 件 1：<text>/<image> 曾矢量化为空被静默丢弃（实证 51 文本 + 2 内嵌 PNG）
+describe('rich content extraction', () => {
+  test('collects text with inherited font styles and group transforms', () => {
+    const rich = extractRichContent(`
+      <g font-family="Arial" font-size="18" transform="translate(4 5)">
+        <text x="10" y="20" fill="#00ff00">Hello</text>
+      </g>
+      <text x="1" y="2" style="font-size: 24px; font-weight: bold" text-anchor="middle">World</text>
+    `)
+
+    expect(rich.paths).toHaveLength(0)
+    expect(rich.texts).toHaveLength(2)
+    expect(rich.texts[0]).toMatchObject({
+      x: 10,
+      y: 20,
+      content: 'Hello',
+      fontFamily: 'Arial',
+      fontSize: 18,
+      fill: '#00ff00',
+      transform: 'translate(4 5)'
+    })
+    expect(rich.texts[1]).toMatchObject({
+      x: 1,
+      y: 2,
+      content: 'World',
+      fontSize: 24,
+      fontWeight: 700,
+      textAnchor: 'middle'
+    })
+  })
+
+  test('collects embedded images and skips whitespace-only text', () => {
+    const rich = extractRichContent(`
+      <image x="5" y="6" width="20" height="10" href="data:image/png;base64,AAAA"/>
+      <image href="data:image/png;base64,BBBB"/>
+      <text>   </text>
+    `)
+
+    expect(rich.images).toHaveLength(1)
+    expect(rich.images[0]).toMatchObject({ x: 5, y: 6, width: 20, height: 10 })
+    expect(rich.images[0]?.href.startsWith('data:image/png;base64,')).toBe(true)
+    expect(rich.texts).toHaveLength(0)
+  })
+
+  test('keeps extractPaths icon pipeline blind to text and image elements', () => {
+    expect(
+      extractPaths(
+        '<text x="0" y="0">Hi</text><image href="data:image/png;base64,AAAA" width="1" height="1"/>'
+      )
+    ).toEqual([])
+  })
+
+  test('strips prolog for rich extraction too', () => {
+    const rich = extractRichContent(
+      `<?xml version="1.0" encoding="UTF-8"?>\n<text x="3" y="4">T</text>`
+    )
+    expect(rich.texts).toHaveLength(1)
+    expect(rich.texts[0]).toMatchObject({ x: 3, y: 4, content: 'T' })
   })
 })

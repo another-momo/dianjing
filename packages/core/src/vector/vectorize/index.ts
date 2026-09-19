@@ -8,4 +8,10 @@ export {
   type GetCanvasKit,
   type PreprocessForVectorizeResult
 } from './preprocess'
-export { svgToVectorPaths, type SVGVectorizeResult, type VectorizedPath } from './svg/to-vectors'
+export {
+  svgToVectorPaths,
+  type SVGVectorizeResult,
+  type VectorizedImage,
+  type VectorizedPath,
+  type VectorizedText
+} from './svg/to-vectors'

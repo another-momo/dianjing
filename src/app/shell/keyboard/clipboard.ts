@@ -3,12 +3,15 @@ import { useEventListener } from '@vueuse/core'
 import { extractImageFilesFromClipboard } from '@open-pencil/vue'
 
 import type { EditorStore } from '@/app/editor/active-store'
+import { notifyAddImageFeedback } from '@/app/editor/clipboard/image-feedback'
 import { getInMemoryClipboardHTML } from '@/app/editor/clipboard/memory'
 import { pasteClipboardHTML } from '@/app/editor/clipboard/paste'
 import { browserSystemClipboard } from '@/app/editor/clipboard/system/browser'
 import { tauriSystemClipboard } from '@/app/editor/clipboard/system/tauri'
 import type { SystemClipboard } from '@/app/editor/clipboard/system/types'
+import { useForkToolbar } from '@/app/i18n/fork'
 import { hasDocumentTextSelection, isEditing } from '@/app/shell/keyboard/focus'
+import { toast } from '@/app/shell/ui'
 import { isTauri } from '@/app/tauri/env'
 
 function cursorPosition(store: EditorStore) {
@@ -39,6 +42,8 @@ function selectionMatches(store: EditorStore, selectedIds: Set<string>): boolean
 }
 
 export function bindEditorClipboard(store: EditorStore) {
+  const toolbarText = useForkToolbar()
+
   useEventListener(window, 'copy', (e: ClipboardEvent) => {
     if (isEditing(e) || hasDocumentTextSelection()) return
     e.preventDefault()
@@ -73,7 +78,16 @@ export function bindEditorClipboard(store: EditorStore) {
     if (imageFiles.length) {
       const cx = cursorPos?.x ?? (-store.state.panX + window.innerWidth / 2) / store.state.zoom
       const cy = cursorPos?.y ?? (-store.state.panY + window.innerHeight / 2) / store.state.zoom
-      void store.placeImageFiles(imageFiles, cx, cy)
+      void store
+        .placeImageFiles(imageFiles, cx, cy)
+        .then((result) => {
+          notifyAddImageFeedback(result, toolbarText.value)
+          return undefined
+        })
+        .catch((error: unknown) => {
+          console.error('Failed to place pasted images', error)
+          toast.error(toolbarText.value.addImageFailed)
+        })
       return
     }
 

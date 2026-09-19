@@ -22,6 +22,7 @@
 import { useFileDialog } from '@vueuse/core'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
+import { RASTER_IMAGE_FILE_ACCEPT } from '@open-pencil/core/bytes'
 import type { BriefView } from '@open-pencil/core/tools/fork/marketing/brief-edit'
 import { useSelectionState } from '@open-pencil/vue'
 
@@ -177,7 +178,9 @@ async function onRemoveMaterial(entryId: string): Promise<void> {
 }
 
 const { open: pickImage, onChange: onFilesPicked } = useFileDialog({
-  accept: 'image/png,image/jpeg,image/webp',
+  // 素材消费 = 光栅字节（figma.createImage 入库）——收 GIF/BMP 与全入口光栅面一致；
+  // SVG 不入（素材管线无矢量化环节，canvaskit 解不了）
+  accept: RASTER_IMAGE_FILE_ACCEPT,
   multiple: false
 })
 onFilesPicked(async (files) => {

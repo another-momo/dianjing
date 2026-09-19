@@ -219,14 +219,33 @@ describe('SVG 新建路径（真实矢量化，无 canvaskit 依赖）', () => {
     expect(graph.getChildren(result.id).length).toBeGreaterThan(0)
   })
 
-  test('提取不到路径（纯 text 元素）→ 无法矢量化错误', async () => {
-    const { figma } = setup()
+  // 2026-09-19 件 1 后行为翻转：纯 text SVG 不再判「无法矢量化」——<text>
+  // 映射为可编辑 TEXT 节点（曾为静默丢弃实证样本）；完全无内容才报错
+  test('纯 text 元素 → TEXT 节点导入（不再误判无法矢量化）', async () => {
+    const { graph, figma } = setup()
     const textOnly = new TextEncoder().encode(
       '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><text x="0" y="12">hi</text></svg>'
     )
     const result = (await placeImageFromBytes(figma, {
       name: 'text.svg',
       image_data: encodeBase64(textOnly),
+      mime: 'image/svg+xml'
+    })) as { id?: string; error?: string }
+    expect(result.error).toBeUndefined()
+    const children = graph.getChildren(result.id ?? '')
+    expect(children).toHaveLength(1)
+    expect(children[0]?.type).toBe('TEXT')
+    expect(children[0]?.text).toBe('hi')
+  })
+
+  test('完全无内容的 SVG → 无法矢量化错误', async () => {
+    const { figma } = setup()
+    const empty = new TextEncoder().encode(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"></svg>'
+    )
+    const result = (await placeImageFromBytes(figma, {
+      name: 'empty.svg',
+      image_data: encodeBase64(empty),
       mime: 'image/svg+xml'
     })) as { error?: string }
     expect(result.error).toContain('vectorized')

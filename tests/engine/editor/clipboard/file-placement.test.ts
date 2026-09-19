@@ -61,4 +61,55 @@ describe('dropped file placement', () => {
     expect(frame.name).toBe('fallback')
     expect(frame.type).toBe('FRAME')
   })
+
+  // 2026-09-19 件 4：toast 分文案的机器可读原因——0 字节 / 不支持格式 /
+  // 引擎未就绪（测试环境无 canvaskit）/ 损坏无法解析
+  test('reports per-file failure reasons', async () => {
+    const editor = createEditor()
+    const result = await editor.placeFiles(
+      [
+        new File([], 'empty.png', { type: 'image/png' }),
+        new File(['plain text'], 'notes.txt', { type: 'text/plain' }),
+        new File(['fake-png'], 'broken.png', { type: 'image/png' }),
+        new File(['<svg><g>'], 'malformed.svg', { type: 'image/svg+xml' }),
+        svgFile()
+      ],
+      100,
+      100
+    )
+
+    expect(result.placed).toBe(1)
+    expect(result.failures.map((failure) => failure.reason)).toEqual([
+      'empty',
+      'unsupported',
+      'engine-not-ready',
+      'corrupted'
+    ])
+    expect(result.failures.map((failure) => failure.name)).toEqual([
+      'empty.png',
+      'notes.txt',
+      'broken.png',
+      'malformed.svg'
+    ])
+  })
+
+  test('paste path (placeImageFiles) now accepts SVG alongside raster', async () => {
+    const editor = createEditor()
+
+    const result = await editor.placeImageFiles([svgFile()], 50, 50)
+
+    expect(result.placed).toBe(1)
+    const frame = editor.graph.getChildren(editor.state.currentPageId)[0]
+    expect(frame.type).toBe('FRAME')
+  })
+
+  test('AVIF is no longer accepted (canvaskit has no decoder)', async () => {
+    const editor = createEditor()
+    const avif = new File(['fake-avif'], 'photo.avif', { type: 'image/avif' })
+
+    const result = await editor.placeFiles([avif], 50, 50)
+
+    expect(result.placed).toBe(0)
+    expect(result.failures).toEqual([{ name: 'photo.avif', reason: 'unsupported' }])
+  })
 })

@@ -348,5 +348,11 @@ export const fontsMessageDefaults = {
 export const toolbarMessageDefaults = {
   addImage: 'Add image',
   addImageFailed:
-    'Could not add the selected image — supported formats: PNG, JPEG, WebP, GIF, AVIF, SVG.'
+    'Could not add the selected image — supported formats: PNG, JPEG, WebP, GIF, BMP, SVG.',
+  addImageFailedEmpty: 'Could not add the image — the file is empty (0 bytes).',
+  addImageFailedUnsupported:
+    'Unsupported image format — supported formats: PNG, JPEG, WebP, GIF, BMP, SVG.',
+  addImageFailedCorrupt: 'Could not add the image — the file is corrupted or cannot be decoded.',
+  addImageFailedEngineNotReady:
+    'The image engine is still starting up — please try again in a moment.'
 } as const

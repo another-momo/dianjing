@@ -17,21 +17,28 @@ import type { FigmaAPI } from '#core/figma-api'
 export type ImageFillTarget = { fills: readonly Fill[] }
 
 /**
- * createImage + 赋单枚 IMAGE fill（FILL 缩放 / 白 color / 全不透明 /
- * visible）——stock_photo 与 place_image_from_bytes 三调用点同字面量。
- * 返回 image.hash 供调用方进结果。
+ * 单枚 IMAGE fill 字面量的唯一构造点（FILL 缩放 / 白 color / 全不透明 /
+ * visible）——graph 级（clipboard/assets.ts 光栅落矩形、SVG 导入 <image>
+ * 落矩形）与 proxy 级（applyImageFill）共用；IMAGE 渲染分支不读 color，
+ * 取值纯填空。
+ */
+export function createRasterImageFill(imageHash: string): Fill {
+  return {
+    type: 'IMAGE',
+    color: { r: 1, g: 1, b: 1, a: 1 },
+    imageHash,
+    imageScaleMode: 'FILL',
+    visible: true,
+    opacity: 1
+  }
+}
+
+/**
+ * createImage + 赋单枚 IMAGE fill——stock_photo 与 place_image_from_bytes
+ * 三调用点同字面量。返回 image.hash 供调用方进结果。
  */
 export function applyImageFill(figma: FigmaAPI, node: ImageFillTarget, bytes: Uint8Array): string {
   const image = figma.createImage(bytes)
-  node.fills = [
-    {
-      type: 'IMAGE',
-      color: { r: 1, g: 1, b: 1, a: 1 },
-      imageHash: image.hash,
-      imageScaleMode: 'FILL',
-      visible: true,
-      opacity: 1
-    }
-  ]
+  node.fills = [createRasterImageFill(image.hash)]
   return image.hash
 }

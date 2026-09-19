@@ -93,7 +93,11 @@
     "public/favicon.ico",
     "public/pwa-192.png",
     "public/pwa-512.png",
-    "public/pwa-maskable-512.png"
+    "public/pwa-maskable-512.png",
+    "src/app/editor/clipboard/image-feedback.ts",
+    "src/components/fill-picker/rasterize-svg.ts",
+    "tests/engine/app/toolbar-add-image.test.ts",
+    "tests/engine/bytes/image-mime.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -1756,6 +1760,104 @@
       "reason": "CI 修红 2026-09-18（run 35372599440，jscpd 阈值 0）：IMAGE fill 字面量三处克隆抽共享 helper（ownedRoots 新增 packages/core/src/tools/shared/image-fill.ts，place-image-from-bytes.ts 两处同换）——P226 之后本文件第二处 fork 偏离",
       "disposition": "permanent",
       "lastReviewed": "2026-09-18"
+    },
+    {
+      "id": "P298",
+      "file": "packages/core/src/bytes/index.ts",
+      "reason": "添加图片配套件 3/4（2026-09-19，「添加图片报错已定性」预研结案）：统一图片入口清单自 image-mime 再导出（RASTER_IMAGE_MIME_TYPES/IMAGE_FILE_ACCEPT/repairImageMime/isSupportedImageFile/isSVGImageFile/SVG_IMAGE_MIME_TYPE）——AVIF 摘出（canvaskit 0.41.1 无解码器假支持）、BMP 补入",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-19"
+    },
+    {
+      "id": "P299",
+      "file": "packages/core/src/editor/clipboard/assets.ts",
+      "reason": "添加图片配套件 4（2026-09-19）：prepareAsset 改 outcome 联合携带机器可读失败原因（empty/unsupported/corrupted/engine-not-ready——ck 空窗与真损坏分开），placeFiles 返回值 Promise<number>→Promise<PlaceFilesResult>（P223 number 口径的上位替代）；RASTER 白名单换引 bytes/image-mime 单一真源（AVIF 出 BMP 入）；placeImageFiles 收 SVG（粘贴入口不再静默丢）；createRasterNode IMAGE fill 字面量换引 tools/shared createRasterImageFill（jscpd 阈值 0）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-19"
+    },
+    {
+      "id": "P300",
+      "file": "packages/core/src/editor/index.ts",
+      "reason": "添加图片配套件 4（2026-09-19）：PlaceFilesResult/PlaceFileFailure/PlaceFileFailureReason 类型再导出（src 层 toast 分文案消费）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-19"
+    },
+    {
+      "id": "P301",
+      "file": "packages/core/src/icons/svg.ts",
+      "reason": "添加图片配套件 1（2026-09-19）：extractRichContent 同遍 DOM walk 增收集 <text>/<image>（字体属性沿祖先链就近取、textContent 归一化、image 仅收 width/height>0 且带 href）——extractPaths 行为不变（图标管线盲于 text/image）；prolog 剥离抽 stripXMLProlog 共享；transformStrokeScale 导出供导入侧文本字号缩放",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-19"
+    },
+    {
+      "id": "P302",
+      "file": "packages/core/src/io/formats/svg/import.ts",
+      "reason": "添加图片配套件 1（2026-09-19）：createSVGNodesFromImport 建向量子节点后追加 TEXT（保可编辑，字体/字号/颜色/锚点尽力映射，基线 y 按 0.8em 换算顶边，middle/end 锚点按经验宽度换算回左缘——review 补洞）与 IMAGE-fill RECTANGLE（仅 data: URI 内嵌位图，外链 console.warn 跳过不阻塞）——text-only SVG 不再误判「无可导入元素」",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-19"
+    },
+    {
+      "id": "P303",
+      "file": "packages/core/src/vector/vectorize/index.ts",
+      "reason": "添加图片配套件 1（2026-09-19）：VectorizedText/VectorizedImage 类型再导出",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-19"
+    },
+    {
+      "id": "P304",
+      "file": "packages/core/src/vector/vectorize/svg/to-vectors.ts",
+      "reason": "添加图片配套件 1（2026-09-19）：svgToVectorPaths 换 extractRichContent，SVGVectorizeResult 增 texts/images（视口映射：点走 mapSVGPointToViewport、字号走 transformStrokeScale×min(scale)、位图对角点映射取轴对齐盒）；contentBounds 并集含文本估算框（estimateVectorizedTextWidth 导出，与建节点锚点换算同口径）；paths/texts/images 全空才返 null",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-19"
+    },
+    {
+      "id": "P305",
+      "file": "packages/vue/src/canvas/drop/use.ts",
+      "reason": "添加图片配套件 3（2026-09-19）：本地 RASTER_IMAGE_TYPES/isSVGFile 副本删除换引 core/bytes 单一真源（消 jscpd 克隆对）；filterCanvasFiles/extractImageFilesFromClipboard 先 repairImageMime 再统一过滤——拖拽补 MIME 修复（Windows 拖出文件常无 MIME），粘贴收 SVG",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-19"
+    },
+    {
+      "id": "P306",
+      "file": "src/app/shell/keyboard/clipboard.ts",
+      "reason": "添加图片配套件 4（2026-09-19）：粘贴图片落画布接 notifyAddImageFeedback 分文案 toast + .catch 兜底（原静默 void）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-19"
+    },
+    {
+      "id": "P307",
+      "file": "src/components/fill-picker/ImageFillPicker.vue",
+      "reason": "添加图片配套件 3（2026-09-19）：accept 换 IMAGE_FILE_ACCEPT 统一清单（增收 GIF/BMP/SVG）；SVG 经 rasterize-svg.ts 浏览器栅格化成 PNG 再 storeImage（IMAGE fill 只能消费光栅字节），失败 toast addImageFailedCorrupt",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-19"
+    },
+    {
+      "id": "P308",
+      "file": "tests/engine/editor/clipboard/file-placement.test.ts",
+      "reason": "添加图片配套件 4 回归钉（2026-09-19）：逐文件失败原因四态（empty/unsupported/engine-not-ready/corrupted）、placeImageFiles 收 SVG、AVIF 拒收",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-19"
+    },
+    {
+      "id": "P309",
+      "file": "tests/engine/icons/svg.test.ts",
+      "reason": "添加图片配套件 1 回归钉（2026-09-19）：extractRichContent 文本继承样式/组 transform、内嵌位图收集、空白 text 跳过、prolog 剥离同效、extractPaths 对 text/image 保持盲",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-19"
+    },
+    {
+      "id": "P310",
+      "file": "tests/engine/io/svg/import.test.ts",
+      "reason": "添加图片配套件 1 回归钉（2026-09-19）：text→TEXT 节点（字号/字体/锚点/基线换算/transform 映射）、data URI image→IMAGE fill 矩形 + graph.images 入库、text-only SVG 可导入、外链 image 跳过不阻塞",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-19"
+    },
+    {
+      "id": "P311",
+      "file": "src/components/assistant/ChatBriefDialog.vue",
+      "reason": "添加图片配套件 3 补漏（2026-09-19 review 揪出）：Brief 素材上传 accept 换 RASTER_IMAGE_FILE_ACCEPT 单一真源（增收 GIF/BMP）——素材消费 = 光栅字节（figma.createImage 入库），SVG 不入（素材管线无矢量化环节）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-19"
     }
   ],
   "deletedPaths": [
