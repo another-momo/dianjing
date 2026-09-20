@@ -346,7 +346,7 @@ export async function assembleSession(
     noExtensions: true,
     additionalSkillPaths: [
       resolveSkillsDir(rootDir),
-      // 内置层：studio 内置资产下的 skills/（layer-splitting 等内置 skill）——与用户层同构；
+      // 内置层：studio 内置资产下的 skills/（内置 skill 落点，与用户层同构）；
       // builtinStudioDir 来自同闭包上方 resolveStudioDirs(rootDir, readStudioBuiltinDir())。
       ...(builtinStudioDir ? [resolveBuiltinSkillsDir(builtinStudioDir)] : [])
     ],

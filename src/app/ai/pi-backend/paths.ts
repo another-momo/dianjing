@@ -170,8 +170,9 @@ export function resolvePiBackendTokenPath(rootDir: string): string {
 }
 
 /** `<builtinStudioDir>/skills/` —— 与 resolveSkillsDir 同构：内置 studio
- *  资产下的 skills/ 子路径（layer-splitting 等内置 skill 落点）。入参即
- *  readStudioBuiltinDir() 的产物（env.ts:221）；与 resolveSkillsDir(rootDir)
+ *  资产下的 skills/ 子路径（内置 skill 落点；目录可空置或不存在——消费面
+ *  capabilities existsSync 守卫、SDK 对缺失路径仅记 diagnostic 不抛）。入参
+ *  即 readStudioBuiltinDir() 的产物（env.ts:221）；与 resolveSkillsDir(rootDir)
  *  构成 additionalSkillPaths 的双源。 */
 export function resolveBuiltinSkillsDir(builtinStudioDir: string): string {
   return join(builtinStudioDir, SKILLS_SUBDIR)
