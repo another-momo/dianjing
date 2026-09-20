@@ -24,6 +24,9 @@ export const RUNTIME_BRIDGE_URL_KEY = `${RUNTIME_GLOBAL_PREFIX}RUNTIME_BRIDGE_UR
 /** Electron main 注入到 index.html 的「运行在 Electron」标志 */
 export const RUNTIME_ELECTRON_KEY = `${RUNTIME_GLOBAL_PREFIX}ELECTRON__` as const
 
+/** Electron main 注入到 index.html 的平台字符串（'darwin' | 'win32' | 'linux'） */
+export const RUNTIME_PLATFORM_KEY = `${RUNTIME_GLOBAL_PREFIX}PLATFORM__` as const
+
 // ── local（vite define 烘焙 / build-time 全局）──
 
 /** vite define 烘焙的 dev 桥 token（dev 形态有效，build 形态为 null） */
@@ -46,6 +49,7 @@ export const RUNTIME_GLOBALS = {
   RUNTIME_AUTOMATION_TOKEN_KEY,
   RUNTIME_BRIDGE_URL_KEY,
   RUNTIME_ELECTRON_KEY,
+  RUNTIME_PLATFORM_KEY,
   LOCAL_AUTOMATION_TOKEN_KEY,
   LOCAL_AUTOMATION_URL_KEY,
   LOCAL_AUTOMATION_HTTP_URL_KEY,

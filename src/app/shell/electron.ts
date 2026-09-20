@@ -9,6 +9,9 @@
 // 切换都用它判定；future shell polish 也复用此单点（不在调用点撒 typeof 散弹）。
 
 declare const __DIANJING_ELECTRON__: boolean | undefined
+declare const __DIANJING_PLATFORM__: 'darwin' | 'win32' | 'linux' | undefined
+
+export type ElectronPlatform = 'darwin' | 'win32' | 'linux'
 
 export function isElectron(): boolean {
   // 仅当 main 进程注入时为 true——浏览器形态 + dev 形态均为 undefined（falsy）。
@@ -17,4 +20,16 @@ export function isElectron(): boolean {
     if (flag !== undefined) return flag
   }
   return false
+}
+
+// electron-desktop mac 三键避让（2026-09-20）：main 侧把 process.platform
+// 注入 window.__DIANJING_PLATFORM__；前端按平台给 editor-root 留左侧 padding
+// 避让 macOS traffic-light（Windows 走右侧 --window-controls-width，二者共存
+// 不冲突——padding 方向独立）。非 Electron 形态返 'other' 走默认布局（不留
+// 任何 padding）。getter 而非常量：便于测试 stub
+export function getElectronPlatform(): ElectronPlatform | 'other' {
+  if (typeof globalThis === 'undefined') return 'other'
+  const platform = (globalThis as { __DIANJING_PLATFORM__?: string }).__DIANJING_PLATFORM__
+  if (platform === 'darwin' || platform === 'win32' || platform === 'linux') return platform
+  return 'other'
 }

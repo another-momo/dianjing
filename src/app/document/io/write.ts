@@ -2,6 +2,8 @@ import type { EditorState } from '@open-pencil/core/editor'
 
 import { describeDiagnosticError, recordDocumentFailure } from '@/app/diagnostics'
 import type { StorageDocumentBinding } from '@/app/integrations/storage/types'
+import { isElectron } from '@/app/shell/electron'
+import { writeElectronFile } from '@/app/shell/electron-file-channel'
 import { persistStorageCanvasLocally } from '@/app/storage/sync/persist'
 import { isTauri } from '@/app/tauri/env'
 
@@ -58,6 +60,15 @@ export function createDocumentWriter({
       if (filePath && isTauri()) {
         const { writeFile: tauriWrite } = await import('@tauri-apps/plugin-fs')
         await tauriWrite(filePath, data)
+        return await finishWrite(version)
+      }
+      // electron-desktop P1 文件通道（2026-09-20）：Electron 形态下 filePath
+      // 由 saveFigFileAs 经 chooseElectronSavePath 拿到的绝对路径，写盘走
+      // /__dianjing/file-write 端点（同款 sandbox + contextIsolation 无
+      // contextBridge 限制），与 tauriWrite 语义对齐。isTauri() 优先——后续
+      // 若 Tauri + Electron 并存形态出现，tauri 直连更快
+      if (filePath && isElectron()) {
+        await writeElectronFile(filePath, data)
         return await finishWrite(version)
       }
       if (fileHandle) {

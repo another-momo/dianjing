@@ -11,6 +11,8 @@ import { renderNodesToImage } from '@open-pencil/core/io/formats/raster'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
 import type { ExportOptions } from '@/app/document/export/types'
+import { isElectron } from '@/app/shell/electron'
+import { chooseElectronSavePath, writeElectronFile } from '@/app/shell/electron-file-channel'
 import { isTauri } from '@/app/tauri/env'
 
 type ExportData = string | ArrayBuffer | Uint8Array
@@ -163,6 +165,18 @@ export async function saveExportedFile(
     const path = await chooseTauriExportPath(fileName, format, ext)
     if (!path) return
     await writeTauriExportFile(path, data)
+    return
+  }
+
+  // electron-desktop P1 文件通道（2026-09-20）：Electron 形态下走原生 Save
+  // dialog → writeElectronFile 写盘。ext 形如 ".png" / ".svg"，Electron dialog
+  // filter 接受不带 . 的扩展名——strip 一遍。语义与 isTauri 分支对齐
+  if (isElectron()) {
+    const path = await chooseElectronSavePath(fileName, [
+      { name: `${format} file`, extensions: [ext.startsWith('.') ? ext.slice(1) : ext] }
+    ])
+    if (!path) return
+    await writeElectronFile(path, data)
     return
   }
 

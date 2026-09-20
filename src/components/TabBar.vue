@@ -89,7 +89,13 @@ function onClose(e: MouseEvent, tabId: string) {
         </Tip>
       </div>
     </TabsList>
-    <IconButton :label="files.newTab" size="md" data-test-id="tabbar-new" @click="createNewTab">
+    <IconButton
+      :label="files.newTab"
+      size="md"
+      data-test-id="tabbar-new"
+      :class="baseStyles.newButton()"
+      @click="createNewTab"
+    >
       <icon-lucide-plus :class="baseStyles.newIcon()" />
     </IconButton>
   </TabsRoot>

@@ -3,6 +3,7 @@ import type { EditorCommandId } from '@open-pencil/vue'
 
 import { useEditorStore } from '@/app/editor/active-store'
 import { clearRecentFiles, forgetRecentFile, recentLocalFileAt } from '@/app/recent-files'
+import { isElectron } from '@/app/shell/electron'
 import { createSharedEditorMenuActions } from '@/app/shell/menu/editor-actions'
 import { openFileDialog, openFileFromPath } from '@/app/shell/menu/files'
 import { useNativeMenuEvents } from '@/app/shell/menu/native-events'
@@ -27,7 +28,13 @@ const COMMAND_MENU_IDS = new Set<EditorCommandId>(
 )
 
 export function useEditorMenu() {
-  if (!isTauri()) return
+  // electron-desktop P1 早返放开（2026-09-20）：Electron 形态下也注册 actions
+  // + watchRecentFilesMenu（推 /__dianjing/recent-files）+ useNativeMenuEvents
+  // （tauri listen 在 Electron 下永不触发——hook 挂的是空 listener，无害）。
+  // 菜单点击由渲染层既有快捷键 + 命令面板承担（无 IPC 回传通道，搭主菜单是
+  // 单向死代码——见 recent-files.ts 注释）。watcher 把最近文件喂 main 让
+  // app.addRecentDocument 维护 OS 级 dock/jump-list
+  if (!isTauri() && !isElectron()) return
 
   watchRecentFilesMenu()
 

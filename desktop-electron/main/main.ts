@@ -45,12 +45,12 @@
  */
 
 import { randomBytes } from 'node:crypto'
-import { createReadStream, readFileSync, statSync } from 'node:fs'
+import { createReadStream, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from 'node:http'
 import { spawn } from 'node:child_process'
 import { dirname, extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { app, BrowserWindow, shell, utilityProcess, type UtilityProcess } from 'electron'
+import { app, BrowserWindow, dialog, shell, utilityProcess, type UtilityProcess } from 'electron'
 import { USER_DATA_DIR_NAME } from '@/app/orchestration/brand'
 import {
   readDisableSingleInstanceLock,
@@ -67,7 +67,8 @@ import { waitForHealthPolling } from '@/app/orchestration/health'
 import {
   RUNTIME_AUTOMATION_TOKEN_KEY,
   RUNTIME_BRIDGE_URL_KEY,
-  RUNTIME_ELECTRON_KEY
+  RUNTIME_ELECTRON_KEY,
+  RUNTIME_PLATFORM_KEY
 } from '@/app/orchestration/runtime-globals'
 import { MAX_AUTO_RESTARTS, nextRestartDelay } from '@/app/orchestration/restart'
 import { generateToken } from '@/app/orchestration/token'
@@ -392,6 +393,28 @@ export function createLoopbackServer(options: LoopbackServerOptions): Promise<{ 
     if (urlPath === '/__dianjing/titlebar-theme' && req.method === 'POST') {
       return handleTitleBarTheme(req, res)
     }
+    // electron-desktop P1 原生文件通道（2026-09-20）：渲染层 sandbox +
+    // contextIsolation 模式下无 preload contextBridge，所有 tauri invoke 的桌
+    // 面能力（dialog.showSaveDialog/openDialog、writeFile）只能经此 HTTP 端点
+    // 中转。/file-dialog/save 与 /file-dialog/open 直接走 Electron dialog API；
+    // /file-write 接 base64 字节（HTTP body 必须是 JSON，不能裸传 Uint8Array）；
+    // /recent-files 喂 app.addRecentDocument 让 OS 级最近文档可用。沿用
+    // /__dianjing/* 命名空间，避免与产品路由混。
+    if (urlPath === '/__dianjing/file-dialog/save' && req.method === 'POST') {
+      return handleFileDialogSave(req, res, token)
+    }
+    if (urlPath === '/__dianjing/file-dialog/open' && req.method === 'POST') {
+      return handleFileDialogOpen(req, res, token)
+    }
+    if (urlPath === '/__dianjing/file-write' && req.method === 'POST') {
+      return handleFileWrite(req, res, token)
+    }
+    if (urlPath === '/__dianjing/file-read' && req.method === 'POST') {
+      return handleFileRead(req, res, token)
+    }
+    if (urlPath === '/__dianjing/recent-files' && req.method === 'POST') {
+      return handleRecentFiles(req, res, token)
+    }
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405).end(); return }
     const filePath = normalize(join(distDir, urlPath))
     const relative = filePath.slice(distDir.length)
@@ -409,7 +432,7 @@ export function createLoopbackServer(options: LoopbackServerOptions): Promise<{ 
       // 部通栏右侧预留 titleBarOverlay 宽度；A2：标题栏主题切换——前端把当前主
       // 题色 POST 到 /__dianjing/titlebar-theme，main 调 setTitleBarOverlay。
       // 浏览器形态（含 dev url 路径）不注入——这些功能只在 Electron 壳里生效。
-      const script = `<script>window.${RUNTIME_AUTOMATION_TOKEN_KEY}=${JSON.stringify(token)};window.${RUNTIME_BRIDGE_URL_KEY}=${JSON.stringify(`ws://127.0.0.1:${bridgePort}`)};window.${RUNTIME_ELECTRON_KEY}=true</script>`
+      const script = `<script>window.${RUNTIME_AUTOMATION_TOKEN_KEY}=${JSON.stringify(token)};window.${RUNTIME_BRIDGE_URL_KEY}=${JSON.stringify(`ws://127.0.0.1:${bridgePort}`)};window.${RUNTIME_ELECTRON_KEY}=true;window.${RUNTIME_PLATFORM_KEY}=${JSON.stringify(process.platform)}</script>`
       res.writeHead(200, { 'content-type': MIME_TYPES['.html'] }); res.end(html.replace('<head>', `<head>${script}`)); return
     }
     sendFile(res, candidate)
@@ -507,6 +530,269 @@ function handleTitleBarTheme(req: IncomingMessage, res: ServerResponse): void {
     process.stderr.write(`[electron-main] titlebar-theme 请求体读失败：${error.message}\n`)
     if (!res.headersSent) res.writeHead(400).end()
   })
+}
+
+// electron-desktop P1 文件通道 handler 集（2026-09-20）。统一规范：
+//  - 请求体 JSON 解析失败返 400 invalid_json
+//  - 字段类型不对返 400 invalid_field
+//  - 业务调用（dialog/writeFile）异常返 500 + 原 message
+//  - 用户在 dialog 点 Cancel 不算错——save 返 { path: null }、open 返 { paths: [] }
+//  base64 输入长度上限 ~64MB（解码后 ~48MB），够 Figma 文件常规尺寸；
+//  超大文件由前端改流式方案，本期不接。
+const MAX_FILE_BYTES = 64 * 1024 * 1024
+
+// electron-desktop P1 文件家族鉴权（2026-09-20）：文件读写 + 打开/保存 dialog
+// + 最近文件 共 5 个端点统一要求 authorization: Bearer <token>——token 与
+// 注入 index.html 的 __DIANJING_RUNTIME_AUTOMATION_TOKEN__ 同源（见
+// createLoopbackServer 闭包内 token 变量）。render side 走
+// src/app/shell/electron-file-channel.ts 的 postJson 自动从 window 读。
+// 校验失败 401 + { error: 'unauthorized' }。/titlebar-theme 是无副作用纯色
+// 更新不挂 token，避免给主题切换加无谓守卫
+function checkBearerAuth(req: IncomingMessage, res: ServerResponse, expectedToken: string): boolean {
+  const header = req.headers.authorization
+  if (typeof header !== 'string') {
+    failJson(res, 401, 'unauthorized')
+    return false
+  }
+  // 大小写不敏感 scheme + 一个空格分隔——参考 RFC 6750 §2.1 但只验最小子集
+  const match = /^Bearer\s+(.+)$/i.exec(header)
+  if (!match || match[1] !== expectedToken) {
+    failJson(res, 401, 'unauthorized')
+    return false
+  }
+  return true
+}
+
+function readJsonBody(req: IncomingMessage, res: ServerResponse): Promise<unknown> {
+  return new Promise((resolveBody) => {
+    const chunks: Buffer[] = []
+    let total = 0
+    let aborted = false
+    req.on('data', (chunk: Buffer) => {
+      if (aborted) return
+      total += chunk.length
+      if (total > MAX_FILE_BYTES) {
+        aborted = true
+        if (!res.headersSent) {
+          res.writeHead(413, { 'content-type': 'application/json; charset=utf-8' })
+        }
+        res.end(JSON.stringify({ error: 'payload too large' }))
+        resolveBody(null)
+        return
+      }
+      chunks.push(chunk)
+    })
+    req.on('end', () => {
+      if (aborted) return
+      try {
+        resolveBody(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+      } catch (error) {
+        if (!res.headersSent) {
+          res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' })
+        }
+        res.end(JSON.stringify({ error: 'invalid json', detail: String(error) }))
+        resolveBody(null)
+      }
+    })
+    req.on('error', (error) => {
+      process.stderr.write(`[electron-main] 请求体读失败：${error.message}\n`)
+      if (!res.headersSent) res.writeHead(400).end()
+      resolveBody(null)
+    })
+  })
+}
+
+function okJson(res: ServerResponse, body: Record<string, unknown>): void {
+  res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' })
+  res.end(JSON.stringify(body))
+}
+
+function failJson(res: ServerResponse, status: number, error: string, detail?: string): void {
+  if (res.headersSent) return
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' })
+  res.end(JSON.stringify({ error, ...(detail !== undefined ? { detail } : {}) }))
+}
+
+// dialog filter 形状校验：{ name: string, extensions: string[] } 数组。
+// extensions 不带 .——前端 tauri API 同款契约（save-targets.ts 用 .slice(1) 去掉），
+// Electron 的 dialog.showSaveDialog 接受不带 . 的扩展名，showOpenDialog 同款。
+function parseFilters(value: unknown): Array<{ name: string; extensions: string[] }> | null {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value)) return null
+  const result: Array<{ name: string; extensions: string[] }> = []
+  for (const entry of value) {
+    if (typeof entry !== 'object' || entry === null) return null
+    const { name, extensions } = entry as { name?: unknown; extensions?: unknown }
+    if (typeof name !== 'string') return null
+    if (!Array.isArray(extensions)) return null
+    const exts: string[] = []
+    for (const ext of extensions) {
+      if (typeof ext !== 'string') return null
+      exts.push(ext)
+    }
+    result.push({ name, extensions: exts })
+  }
+  return result
+}
+
+async function handleFileDialogSave(req: IncomingMessage, res: ServerResponse, expectedToken: string): Promise<void> {
+  if (!checkBearerAuth(req, res, expectedToken)) return
+  const parsed = await readJsonBody(req, res)
+  if (parsed === null) return
+  const body = parsed as { defaultPath?: unknown; filters?: unknown }
+  const defaultPath = typeof body.defaultPath === 'string' ? body.defaultPath : undefined
+  const filters = parseFilters(body.filters)
+  if (filters === null) {
+    failJson(res, 400, 'filters must be array of { name, extensions[] }')
+    return
+  }
+  try {
+    const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+    const result = window
+      ? await dialog.showSaveDialog(window, {
+          defaultPath,
+          filters
+        })
+      : await dialog.showSaveDialog({ defaultPath, filters })
+    // Electron Cancel 语义：result.canceled = true 且 filePath 空字符串。
+    // 统一归一为前端好处理的 null（前端已有 AbortError 判空模式）
+    okJson(res, { path: result.canceled || !result.filePath ? null : result.filePath })
+  } catch (error) {
+    process.stderr.write(`[electron-main] showSaveDialog 失败：${error instanceof Error ? error.message : String(error)}\n`)
+    failJson(res, 500, 'showSaveDialog failed', error instanceof Error ? error.message : String(error))
+  }
+}
+
+async function handleFileDialogOpen(req: IncomingMessage, res: ServerResponse, expectedToken: string): Promise<void> {
+  if (!checkBearerAuth(req, res, expectedToken)) return
+  const parsed = await readJsonBody(req, res)
+  if (parsed === null) return
+  const body = parsed as { multiple?: unknown; filters?: unknown }
+  const filters = parseFilters(body.filters)
+  if (filters === null) {
+    failJson(res, 400, 'filters must be array of { name, extensions[] }')
+    return
+  }
+  const multiple = body.multiple === true
+  try {
+    const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+    const properties: Array<'openFile' | 'multiSelections'> = ['openFile']
+    if (multiple) properties.push('multiSelections')
+    const result = window
+      ? await dialog.showOpenDialog(window, { properties, filters })
+      : await dialog.showOpenDialog({ properties, filters })
+    // Electron Cancel 时 filePaths 是空数组，前端好处理
+    okJson(res, { paths: result.canceled ? [] : result.filePaths })
+  } catch (error) {
+    process.stderr.write(`[electron-main] showOpenDialog 失败：${error instanceof Error ? error.message : String(error)}\n`)
+    failJson(res, 500, 'showOpenDialog failed', error instanceof Error ? error.message : String(error))
+  }
+}
+
+async function handleFileWrite(req: IncomingMessage, res: ServerResponse, expectedToken: string): Promise<void> {
+  if (!checkBearerAuth(req, res, expectedToken)) return
+  const parsed = await readJsonBody(req, res)
+  if (parsed === null) return
+  const body = parsed as { path?: unknown; data?: unknown }
+  if (typeof body.path !== 'string' || body.path.length === 0) {
+    failJson(res, 400, 'path must be non-empty string')
+    return
+  }
+  if (typeof body.data !== 'string') {
+    failJson(res, 400, 'data must be base64 string')
+    return
+  }
+  let bytes: Buffer
+  try {
+    bytes = Buffer.from(body.data, 'base64')
+  } catch (error) {
+    failJson(res, 400, 'invalid base64', error instanceof Error ? error.message : String(error))
+    return
+  }
+  try {
+    // 同步写：fig 文件一般几 MB，写盘 < 50ms；不引异步 fs/promises 避免
+    // 错误处理分叉（writeFile callback 异常 + await 后 reject 都得兜）。
+    // 失败抛——被 catch 后返 500，前端 writeFile throw 与原 tauri 错误一致
+    writeFileSync(body.path, bytes)
+    okJson(res, { ok: true })
+  } catch (error) {
+    process.stderr.write(`[electron-main] writeFile 失败：${error instanceof Error ? error.message : String(error)}\n`)
+    failJson(res, 500, 'writeFile failed', error instanceof Error ? error.message : String(error))
+  }
+}
+
+async function handleRecentFiles(req: IncomingMessage, res: ServerResponse, expectedToken: string): Promise<void> {
+  if (!checkBearerAuth(req, res, expectedToken)) return
+  const parsed = await readJsonBody(req, res)
+  if (parsed === null) return
+  const body = parsed as { paths?: unknown }
+  if (!Array.isArray(body.paths)) {
+    failJson(res, 400, 'paths must be string[]')
+    return
+  }
+  const accepted: string[] = []
+  const skipped: string[] = []
+  for (const path of body.paths) {
+    if (typeof path !== 'string' || path.length === 0) {
+      skipped.push(String(path))
+      continue
+    }
+    // app.addRecentDocument 在 Windows 上要求路径存在——不存在的 path 调会
+    // 静默被 OS 丢弃，但 Electron 也会 console 噪音，提前 existsAsFile 过滤
+    if (!existsAsFile(path)) {
+      skipped.push(path)
+      continue
+    }
+    app.addRecentDocument(path)
+    accepted.push(path)
+  }
+  okJson(res, { ok: true, accepted: accepted.length, skipped: skipped.length })
+}
+
+// electron-desktop P1 file-read（2026-09-20）：闭环「打开文件」——选完路径后
+// 经此端点读盘回 base64 字节。与 file-write 同套对称（base64 与 MAX_FILE_BYTES
+// 上限复用），无副作用鉴权后允许任意文件读取（沙箱形态已无 fs 沙盒可言，
+// 主进程权限等同 fs 全访问——titlebar-theme 不挂鉴权因纯色更新无副作用，
+// 本族 5 个端点统一挂鉴权）。返回 name（path basename）+ data（base64）。
+// 失败：路径不存在/非文件 → 400 + invalid path；超 MAX → 413（readJsonBody
+// 内部拦）；其它读盘错 → 500
+async function handleFileRead(req: IncomingMessage, res: ServerResponse, expectedToken: string): Promise<void> {
+  if (!checkBearerAuth(req, res, expectedToken)) return
+  const parsed = await readJsonBody(req, res)
+  if (parsed === null) return
+  const body = parsed as { path?: unknown }
+  if (typeof body.path !== 'string' || body.path.length === 0) {
+    failJson(res, 400, 'path must be non-empty string')
+    return
+  }
+  // statSync 二合一：存在性 + 是文件而不是目录/特殊文件——existsAsFile 仅
+  // 返 boolean，handleFileRead 还得拒目录读（readFileSync 读目录会抛 EISDIR）
+  let stat: ReturnType<typeof statSync>
+  try {
+    stat = statSync(body.path)
+  } catch {
+    failJson(res, 400, 'invalid path', body.path)
+    return
+  }
+  if (!stat.isFile()) {
+    failJson(res, 400, 'path is not a regular file')
+    return
+  }
+  try {
+    const bytes = readFileSync(body.path)
+    okJson(res, { name: basename(body.path), data: bytes.toString('base64') })
+  } catch (error) {
+    process.stderr.write(`[electron-main] readFile 失败：${error instanceof Error ? error.message : String(error)}\n`)
+    failJson(res, 500, 'readFile failed', error instanceof Error ? error.message : String(error))
+  }
+}
+
+// node:path 的 basename 在不同平台分隔符不同（POSIX '/', win32 '\'），但本端
+// 点只用于显示文件名——任一平台调同款 basename 都能正确取尾段。win32 上 path
+// 全是 \，POSIX 全是 /，混用罕见；保险起见先统一 split 多分隔符再取尾段
+function basename(filePath: string): string {
+  const parts = filePath.split(/[/\\]/)
+  return parts[parts.length - 1] ?? filePath
 }
 
 function baseWindowOptions(extra: Electron.BrowserWindowConstructorOptions = {}): Electron.BrowserWindowConstructorOptions {

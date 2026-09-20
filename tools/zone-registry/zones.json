@@ -27,6 +27,7 @@
   ],
   "ownedFiles": [
     "src/app/shell/electron.ts",
+    "src/app/shell/electron-file-channel.ts",
     "src/components/settings/chat/ChatSettingsSection.vue",
     "src/components/settings/models/PiModelsPanel.vue",
     "src/components/settings/models/PiDesignModelCard.vue",
@@ -174,9 +175,9 @@
     {
       "id": "P2",
       "file": "src/views/WorkspaceView.vue",
-      "reason": "remove createDemoShapes/useHead/SafariBanner + dead demo gate in shouldCreateHome (deletion cuts). T10: carrier migrated from src/views/EditorView.vue after upstream bb5960cd deleted it (files-workspace refactor); CollabPanel cut split to P33",
+      "reason": "remove createDemoShapes/useHead/SafariBanner + dead demo gate in shouldCreateHome (deletion cuts). T10: carrier migrated from src/views/EditorView.vue after upstream bb5960cd deleted it (files-workspace refactor); CollabPanel cut split to P33. 2026-09-20 续登 electronShellStyle 扩 --traffic-light-width 平台分支（main 注 __DIANJING_PLATFORM__；mac 78px / 其他平台 0px；与右侧 --window-controls-width 方向独立共存）",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
+      "lastReviewed": "2026-09-20"
     },
     {
       "id": "P3",
@@ -1203,9 +1204,9 @@
     {
       "id": "P214",
       "file": "src/theme/tab-bar.ts",
-      "reason": "electron-desktop P0（2026-09-07）：hidden titlebar 配套——页签栏 root 加 app-region drag（窗口拖拽），trigger/close/newAction 加 no-drag（点击不被吞）。",
+      "reason": "electron-desktop P0（2026-09-07）：hidden titlebar 配套——页签栏 root 加 app-region drag（窗口拖拽），trigger/close/newAction 加 no-drag（点击不被吞）。2026-09-20 续登 newButton 槽（上游 e69ba75c1 回归删 no-drag 后 IconButton 点击被整栏 drag 吞掉）+ macOS 续登 pl-[length:var(--traffic-light-width,0px)] 左侧预留避让 traffic-light 三键（WorkspaceView.vue 按 platform 注变量）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-07"
+      "lastReviewed": "2026-09-20"
     },
     {
       "id": "P218",
@@ -1858,6 +1859,62 @@
       "reason": "添加图片配套件 3 补漏（2026-09-19 review 揪出）：Brief 素材上传 accept 换 RASTER_IMAGE_FILE_ACCEPT 单一真源（增收 GIF/BMP）——素材消费 = 光栅字节（figma.createImage 入库），SVG 不入（素材管线无矢量化环节）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-19"
+    },
+    {
+      "id": "P312",
+      "file": "src/components/TabBar.vue",
+      "reason": "electron-desktop P0 no-drag 续登（2026-09-20）：IconButton 显式传 :class=\"baseStyles.newButton()\"——上游 e69ba75c1 回归删 no-drag 后 + 按钮被 [-webkit-app-region:drag] 吞点击；newButton 槽内容在 P214 续展",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-20"
+    },
+    {
+      "id": "P314",
+      "file": "src/app/document/io/save.ts",
+      "reason": "electron-desktop P1 saveFigFileAs 续登（2026-09-20）：在 IS_TAURI 分支后新增 isElectron() 分支——原生 Save dialog → chooseElectronSavePath → writeElectronFile，避开 prompt() 在 Electron 不支持抛错被静默吞",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-20"
+    },
+    {
+      "id": "P315",
+      "file": "src/app/document/io/write.ts",
+      "reason": "electron-desktop P1 writeFile 续登（2026-09-20）：filePath 存在且 isElectron() 时走 writeElectronFile（/__dianjing/file-write 端点）；isTauri() 优先（后续若 Tauri + Electron 并存形态出现，tauri 直连更快）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-20"
+    },
+    {
+      "id": "P316",
+      "file": "src/app/shell/menu/files.ts",
+      "reason": "electron-desktop P1 文件菜单续登（2026-09-20）：openFileDialog 增 isElectron() 分支走 chooseElectronOpenPaths；openFileFromPath 守卫放宽为 isTauri() || isElectron() 且 isElectron() 时走 readElectronFile 端点闭环——读盘 → new File([data], name) → openFileInNewTab + rememberRecentFile。2026-09-20 续登 file-read 端点接上 openFileFromPath",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-20"
+    },
+    {
+      "id": "P317",
+      "file": "src/app/document/export/files.ts",
+      "reason": "electron-desktop P1 导出续登（2026-09-20）：saveExportedFile 增 isElectron() 分支——chooseElectronSavePath 拿路径 + writeElectronFile 写盘（ext 前导 . 剥除）；与 isTauri 分支语义对齐",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-20"
+    },
+    {
+      "id": "P318",
+      "file": "src/app/shell/menu/recent-files.ts",
+      "reason": "electron-desktop P1 最近文件菜单续登（2026-09-20）：syncRecentFilesMenu 增 isElectron() 分支走 syncElectronRecentFiles（推 /__dianjing/recent-files → app.addRecentDocument）；main 侧不构造 Menu.setApplicationMenu——sandbox + contextIsolation 无 preload 通道，菜单点击无 ipcRenderer.on 回传，搭原生菜单是单向死代码",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-20"
+    },
+    {
+      "id": "P319",
+      "file": "src/app/shell/menu/editor.ts",
+      "reason": "electron-desktop P1 useEditorMenu 早返放开（2026-09-20）：!isTauri() && !isElectron() 才 return——Electron 下也注册 actions + watchRecentFilesMenu + useNativeMenuEvents（tauri listen 永不触发，hook 空挂无害）；菜单点击由渲染层快捷键 + 命令面板承担（无 IPC 回传通道）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-20"
+    },
+    {
+      "id": "P320",
+      "file": "desktop-electron/main/main.ts",
+      "reason": "electron-desktop P1 file-read 端点 + token 鉴权续登（2026-09-20）：新增 POST /__dianjing/file-read 端点 body { path } → { name, data:base64 }；5 个文件家族端点（dialog/save、dialog/open、file-write、file-read、recent-files）统一要求 authorization: Bearer <token>（与注入 index.html 的 RUNTIME_AUTOMATION_TOKEN_KEY 同源；checkBearerAuth helper 401 fail-fast）；/titlebar-theme 不挂（纯色更新无副作用）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-20"
     }
   ],
   "deletedPaths": [
