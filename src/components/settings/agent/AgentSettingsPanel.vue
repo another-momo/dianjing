@@ -94,9 +94,10 @@ onMounted(async () => {
   try {
     const result = await fetchStudioFolderPath()
     studioFolderPath.value = result.dir
-  } catch {
-    // 保留 fallback 形态——fetch 失败时静默兜底，不打断面板
-    // oxlint-disable-next-line open-pencil/no-silent-catch
+  } catch (error) {
+    // 留 warn 供诊断（no-silent-catch 纪律，ChatPanel 同款）；fetch 失败回退
+    // UA 兜底形态，不打断面板
+    console.warn('[settings] 自定义拓展目录拉取失败，回退 UA 兜底形态：', error)
   }
 })
 // ai-panel-ux-consolidation：按钮态机——idle 默认「打开文件夹」；ok=true

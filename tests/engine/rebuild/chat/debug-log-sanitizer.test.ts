@@ -127,9 +127,9 @@ describe('serializeChatLog: copy debug log base64 elision (2026-09-20 regression
     const statsEnd = text.indexOf('=== CONVERSATION ===')
     const statsSection = text.slice(statsStart, statsEnd)
     const kbMatch = statsSection.match(/Total text content: ([\d.]+) KB/)
-    expect(kbMatch).not.toBeNull()
+    if (!kbMatch) throw new Error('stats 段缺 Total text content 行（fixture 假设破裂）')
 
-    const reportedKb = Number(kbMatch![1])
+    const reportedKb = Number(kbMatch[1])
     // 脱敏后 part ≈ {type,toolInvocation:{toolName,state,args,result:{...rest,base64:'[inlined as file part, 128 chars]'}}}
     // 数量级应远小于原 128 字符 base64 撑出的 ~128 bytes 单 part；且绝对不可能 ≥ 1 KB（纯文本 + 一个脱敏 part）。
     expect(reportedKb).toBeLessThan(1)
