@@ -65,7 +65,8 @@ describe('orchestration/env — runtime-globals constants', () => {
       'LOCAL_AUTOMATION_URL_KEY',
       'RUNTIME_AUTOMATION_TOKEN_KEY',
       'RUNTIME_BRIDGE_URL_KEY',
-      'RUNTIME_ELECTRON_KEY'
+      'RUNTIME_ELECTRON_KEY',
+      'RUNTIME_PLATFORM_KEY'
     ])
   })
 

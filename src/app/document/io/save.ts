@@ -76,9 +76,9 @@ export function createSaveActions({
   async function saveFigFileAs() {
     const { data, version } = await buildVersionedFigFile()
 
-    if (IS_TAURI) {
-      const path = await chooseTauriFigSavePath()
-      if (!path) return false
+    // 「按绝对路径保存」的共享收尾——Tauri 与 Electron 分支同形（jscpd 克隆门禁
+    // 要求抽 helper）：绑定路径 → 写盘 → 成功则记 source identity + 起外部改动监听
+    async function saveToPath(path: string): Promise<boolean> {
       setStorageBinding(null)
       setFilePath(path)
       setFileHandle(null)
@@ -89,23 +89,22 @@ export function createSaveActions({
       return wrote
     }
 
+    if (IS_TAURI) {
+      const path = await chooseTauriFigSavePath()
+      if (!path) return false
+      return saveToPath(path)
+    }
+
     // electron-desktop P1 文件通道（2026-09-20）：Electron 形态下 prompt()
     // 不支持抛错被静默吞——改走原生 Save dialog（dialog.showSaveDialog）拿到
     // 绝对路径后经 /__dianjing/file-write 端点写盘。语义与 IS_TAURI 分支对齐：
     // 取消（path=null）返回 false；写入成功 setSourceIdentity + startWatchingFile
-    if (!IS_TAURI && isElectron()) {
+    if (isElectron()) {
       const path = await chooseElectronSavePath('Untitled.fig', [
         { name: 'Figma file', extensions: ['fig'] }
       ])
       if (!path) return false
-      setStorageBinding(null)
-      setFilePath(path)
-      setFileHandle(null)
-      state.documentName = documentNameFromFigPath(path)
-      const wrote = await writeFile(data, version)
-      if (wrote) setSourceIdentity({ handle: null, path })
-      startWatchingFile()
-      return wrote
+      return saveToPath(path)
     }
 
     if (window.showSaveFilePicker) {

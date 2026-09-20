@@ -14,7 +14,7 @@
 //
 // 鉴权（2026-09-20 续登）：文件家族 5 个端点统一要求 authorization: Bearer
 // <token>，token 与注入 index.html 的 __DIANJING_RUNTIME_AUTOMATION_TOKEN__
-// 同源（见 main.ts createLoopbackServer 闭包 token 变量）。本模块 postJson
+// 同源（见 main.ts createLoopbackServer 闭包 token 变量）。本模块 postJSON
 // 自动从 window[RUNTIME_AUTOMATION_TOKEN_KEY] 读，无值时返 401 fail-fast——
 // 浏览器形态走 isElectron() 早返不走端点，不带 token 无副作用
 //
@@ -25,6 +25,7 @@
 //  - 网络断开 / 5xx / 401：throw new Error(message) 让上层走 try/catch，
 //    与 tauri invoke reject 语义对齐。
 
+import { decodeBase64, encodeBase64 } from '@open-pencil/core/bytes'
 import { hasWindowGlobal } from '@open-pencil/core/constants'
 
 import { RUNTIME_AUTOMATION_TOKEN_KEY } from '@/app/orchestration/runtime-globals'
@@ -67,7 +68,7 @@ function getElectronAuthToken(): string | null {
   return typeof token === 'string' ? token : null
 }
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
+async function postJSON<T>(url: string, body: unknown): Promise<T> {
   // 任何失败一律 throw——上层 save.ts / files.ts 已习惯 try/catch。
   // 不读非 2xx 响应的 body（main 已经把 detail 写进 body 但前端用不到），
   // 读 status + 抛可定位错误足够
@@ -88,7 +89,8 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
     try {
       detail = await response.text()
     } catch {
-      // 读 body 也失败——留 detail 空
+      // 读 body 也失败——留 detail 空（best-effort，不让读取异常盖过状态码错误）
+      detail = ''
     }
     throw new Error(`${url} failed: ${response.status}${detail ? ` ${detail}` : ''}`)
   }
@@ -101,7 +103,7 @@ export async function chooseElectronSavePath(
   filters: FileDialogFilter[]
 ): Promise<string | null> {
   if (!isElectron()) return null
-  const result = await postJson<SaveDialogResponse>('/__dianjing/file-dialog/save', {
+  const result = await postJSON<SaveDialogResponse>('/__dianjing/file-dialog/save', {
     defaultPath,
     filters
   })
@@ -114,7 +116,7 @@ export async function chooseElectronOpenPaths(
   filters: FileDialogFilter[]
 ): Promise<string[]> {
   if (!isElectron()) return []
-  const result = await postJson<OpenDialogResponse>('/__dianjing/file-dialog/open', {
+  const result = await postJSON<OpenDialogResponse>('/__dianjing/file-dialog/open', {
     multiple,
     filters
   })
@@ -124,16 +126,9 @@ export async function chooseElectronOpenPaths(
 /** Electron 形态下经 main 写文件（避免渲染层受 sandbox 限制）。 */
 export async function writeElectronFile(path: string, data: Uint8Array): Promise<void> {
   if (!isElectron()) return
-  // 二进制→base64。String.fromCharCode.apply 在大文件 (>~256KB) 抛 RangeError，
-  // 分块转换更稳。fig 文件常见几百 KB-几 MB，分 32KB 块避免单次 call 太长。
-  const CHUNK = 32 * 1024
-  let binary = ''
-  for (let i = 0; i < data.length; i += CHUNK) {
-    const slice = data.subarray(i, Math.min(i + CHUNK, data.length))
-    binary += String.fromCharCode(...slice)
-  }
-  const base64 = btoa(binary)
-  await postJson<WriteFileResponse>('/__dianjing/file-write', { path, data: base64 })
+  // base64 编解码统一走 core/bytes 单源（js-base64 直转 Uint8Array，不经
+  // 字符串中间态——无 String.fromCharCode.apply 大文件 RangeError 风险）
+  await postJSON<WriteFileResponse>('/__dianjing/file-write', { path, data: encodeBase64(data) })
 }
 
 /** Electron 形态下经 main 读文件回 Uint8Array（用于打开文件闭环）。 */
@@ -142,18 +137,12 @@ export async function readElectronFile(
 ): Promise<{ name: string; data: Uint8Array } | null> {
   if (!isElectron()) return null
   // main 已用 statSync 校验存在 + isFile()，落到本函数仍 try/catch 兜 500
-  const result = await postJson<ReadFileResponse>('/__dianjing/file-read', { path })
-  // base64 → Uint8Array。atob 返「二进制字符串」（每字符是 1 字节），逐字符
-  // charCodeAt 转 Uint8Array 与 writeElectronFile 的逆向对称。atob 在 Node 16+
-  // 全局可用，与浏览器一致
-  const binary = atob(result.data)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return { name: result.name, data: bytes }
+  const result = await postJSON<ReadFileResponse>('/__dianjing/file-read', { path })
+  return { name: result.name, data: decodeBase64(result.data) }
 }
 
 /** Electron 形态下推 OS 级最近文件清单（喂 app.addRecentDocument）。 */
 export async function syncElectronRecentFiles(paths: string[]): Promise<void> {
   if (!isElectron()) return
-  await postJson<RecentFilesResponse>('/__dianjing/recent-files', { paths })
+  await postJSON<RecentFilesResponse>('/__dianjing/recent-files', { paths })
 }
