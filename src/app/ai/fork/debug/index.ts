@@ -31,9 +31,11 @@ function redactMedia(value: unknown): unknown {
 }
 
 // Tool-shaped parts may carry media either inside toolInvocation.result or as a
-// top-level output field. Clone, redact both candidates, and tally what we
+// top-level output field; file parts carry the image body as a `data:` URL in
+// `url` (mapping.ts mediaToolOutputChunks emits the file chunk alongside the
+// sanitized tool output). Clone, redact all three candidates, and tally what we
 // elided so message stats can report the excluded payload size.
-function redactToolPart(part: JSONObject): {
+function redactPart(part: JSONObject): {
   sanitized: JSONObject
   mediaChars: number
   mediaImages: number
@@ -55,6 +57,12 @@ function redactToolPart(part: JSONObject): {
     mediaChars += part.output.base64.length
     mediaImages += 1
     out.output = sanitizeMediaToolOutput(part.output)
+  }
+  const url = part.url
+  if (typeof url === 'string' && url.startsWith('data:')) {
+    mediaChars += url.length
+    mediaImages += 1
+    out.url = `[data URL elided, ${url.length} chars]`
   }
   return { sanitized: out as JSONObject, mediaChars, mediaImages }
 }
@@ -94,6 +102,12 @@ function formatMessageStats(messages: UIMessage[]): string {
       const p = part as JSONObject
       if (p.type === 'text') {
         totalTextLength += typeof p.text === 'string' ? p.text.length : 0
+      } else if (p.type === 'file') {
+        // file part（媒体本体 data URL）：计入总长与媒体载荷统计，不算工具调用
+        const { sanitized, mediaChars: partChars, mediaImages: partImages } = redactPart(p)
+        totalTextLength += JSON.stringify(sanitized).length
+        mediaImages += partImages
+        mediaChars += partChars
       } else if (
         p.type === 'tool-invocation' ||
         p.type === 'dynamic-tool' ||
@@ -101,7 +115,7 @@ function formatMessageStats(messages: UIMessage[]): string {
         (typeof p.type === 'string' && p.type.startsWith('tool-'))
       ) {
         toolCalls++
-        const { sanitized, mediaChars: partChars, mediaImages: partImages } = redactToolPart(p)
+        const { sanitized, mediaChars: partChars, mediaImages: partImages } = redactPart(p)
         totalTextLength += JSON.stringify(sanitized).length
         mediaImages += partImages
         mediaChars += partChars
@@ -165,7 +179,7 @@ export function serializeChatLog(messages: UIMessage[], failure?: AIChatFailure 
       ) {
         parts.push(formatToolPart(p))
       } else {
-        const { sanitized } = redactToolPart(p)
+        const { sanitized } = redactPart(p)
         parts.push(
           `  [${typeof p.type === 'string' ? p.type : 'unknown'}] ${JSON.stringify(sanitized)}`
         )

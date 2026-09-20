@@ -2,14 +2,20 @@
  * Copy debug log base64 elision — 2026-09-20 owner 报「base64 又进 copy debug
  * log」回归。serializeChatLog 之前对 tool part 的 `result` / `output` /
  * 兜底分支直接 JSON.stringify，look 与 export_image 通道 A 返回的
- * `{base64, mimeType}` 整段进剪贴板。本测试钉扎 5 档：
+ * `{base64, mimeType}` 整段进剪贴板。本测试钉扎 6 档：
  *
  *   1. look 通道 A 输出含 base64：脱敏占位符 `[inlined as file part, N chars]` 出现，
  *      原 base64 字面值不出现；
  *   2. export_image 同上（MEDIA_OUTPUT_TOOLS 含 look + export_image，分支形态一致）；
  *   3. stats totalTextLength 按脱敏后算（与构造量相近、不被原 base64 撑爆）；
  *   4. Media payload stats 提示行仅在有媒体载荷时输出（`N images / N KB`）；
- *   5. 非媒体 part（text / errorText / reasoning）行为不变。
+ *   5. 非媒体 part（text / errorText / reasoning）行为不变；
+ *   6. file part（同日报第二波回归：owner 真实日志实锤漏脱）——mapping.ts
+ *      mediaToolOutputChunks 对登记媒体工具在脱敏 tool output 之外另发
+ *      `{type:'file', url:'data:<mime>;base64,<原图>'}` 媒体块（图像本体给 UI
+ *      显示），url 不走 result/output 两候选，落兜底分支整段泄露。修复 =
+ *      redactPart 补 `data:` url elide（`[data URL elided, N chars]`）+ stats
+ *      把 file part 计入媒体载荷；非 data: url（http 等）原样保留不计媒体。
  *
  * 测试只调 serializeChatLog，禁调 copyChatLog（navigator 浏览器全局 node 测无）。
  */
@@ -84,6 +90,16 @@ function assistantMessage(parts: unknown[]): Message {
 
 function userMessage(text: string): Message {
   return { id: 'u1', role: 'user', parts: [{ type: 'text', text }] }
+}
+
+// file part = mapping.ts mediaToolOutputChunks 对登记媒体工具另发的媒体块：
+// `{type:'file', mediaType, url:'data:<mime>;base64,<原图>'}`（图像本体给 UI
+// 显示，真实泄露路径即此）。'data:image/png;base64,' 22 字符 + LONG_B64 128
+// 字符 = url 全长 150。
+const FILE_PART_DATA_URL = `data:image/png;base64,${LONG_B64}`
+
+function lookFilePart(): Record<string, unknown> {
+  return { type: 'file', mediaType: 'image/png', url: FILE_PART_DATA_URL }
 }
 
 describe('serializeChatLog: copy debug log base64 elision (2026-09-20 regression)', () => {
@@ -198,6 +214,37 @@ describe('serializeChatLog: copy debug log base64 elision (2026-09-20 regression
     expect(text).toContain('1:2')
     expect(text).toContain('1:3')
     expect(text).not.toContain('inlined as file part')
+    expect(text).not.toContain('Media payload (excluded after elision)')
+  })
+
+  test('file part（data URL 图像本体）→ url elide 占位符 + 原 base64 不出现 + mediaType 保留', () => {
+    // 复刻 owner 真实日志形状：脱敏 tool output 兄弟节点带完整 data URL 的 file part
+    const text = serializeChatLog([assistantMessage([lookToolPart(), lookFilePart()])])
+
+    expect(text).not.toContain(LONG_B64)
+    expect(text).not.toContain(FILE_PART_DATA_URL)
+    expect(text).toContain('[file]')
+    expect(text).toContain('[data URL elided, 150 chars]')
+    expect(text).toContain('image/png')
+  })
+
+  test('file part 计入 Media payload stats（tool result + file part = 2 images）', () => {
+    const text = serializeChatLog([assistantMessage([lookToolPart(), lookFilePart()])])
+
+    const statsStart = text.indexOf('=== MESSAGE STATS ===')
+    const statsEnd = text.indexOf('=== CONVERSATION ===')
+    const statsSection = text.slice(statsStart, statsEnd)
+
+    // tool result 128 chars + file url 150 chars = 278 chars ≈ 0.3 KB
+    expect(statsSection).toMatch(/Media payload \(excluded after elision\): 2 images \/ 0\.3 KB/)
+  })
+
+  test('file part 的 url 非 data:（http 外链）→ 原样保留且不计媒体载荷', () => {
+    const part = { type: 'file', mediaType: 'image/png', url: 'https://example.com/x.png' }
+    const text = serializeChatLog([assistantMessage([part])])
+
+    expect(text).toContain('https://example.com/x.png')
+    expect(text).not.toContain('data URL elided')
     expect(text).not.toContain('Media payload (excluded after elision)')
   })
 })
