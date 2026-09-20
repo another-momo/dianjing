@@ -1905,14 +1905,14 @@
     {
       "id": "P319",
       "file": "src/app/shell/menu/editor.ts",
-      "reason": "electron-desktop P1 useEditorMenu 早返放开（2026-09-20）：!isTauri() && !isElectron() 才 return——Electron 下也注册 actions + watchRecentFilesMenu + useNativeMenuEvents（tauri listen 永不触发，hook 空挂无害）；菜单点击由渲染层快捷键 + 命令面板承担（无 IPC 回传通道）",
+      "reason": "electron-desktop P1 useEditorMenu 早返放开（2026-09-20）：!isTauri() && !isElectron() 才 return——Electron 下也注册 actions + watchRecentFilesMenu；菜单点击由渲染层快捷键 + 命令面板承担（无 IPC 回传通道）。useNativeMenuEvents 的 Tauri 门禁 2026-09-20 收进 P321 自闭",
       "disposition": "permanent",
       "lastReviewed": "2026-09-20"
     },
     {
-      "id": "P320",
-      "file": "desktop-electron/main/main.ts",
-      "reason": "electron-desktop P1 file-read 端点 + token 鉴权续登（2026-09-20）：新增 POST /__dianjing/file-read 端点 body { path } → { name, data:base64 }；5 个文件家族端点（dialog/save、dialog/open、file-write、file-read、recent-files）统一要求 authorization: Bearer <token>（与注入 index.html 的 RUNTIME_AUTOMATION_TOKEN_KEY 同源；checkBearerAuth helper 401 fail-fast）；/titlebar-theme 不挂（纯色更新无副作用）",
+      "id": "P321",
+      "file": "src/app/shell/menu/native-events.ts",
+      "reason": "electron-menu-listen-gate（2026-09-20）：useNativeMenuEvents 顶部补 isTauri() 早返——@tauri-apps/api listen() 注册时即读 window.__TAURI_INTERNALS__.transformCallback，非 Tauri 形态该全局不存在调用即抛；editor.ts 早返放开（P319）后此路径在 Electron 首次执行，打包版启动 unhandledrejection toast（Cannot read properties of undefined (reading 'transformCallback')）。教训：上游文件本批首次被改需新登 patch；「永不触发即无害」假设错——注册期就崩",
       "disposition": "permanent",
       "lastReviewed": "2026-09-20"
     }

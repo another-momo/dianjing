@@ -29,11 +29,11 @@ const COMMAND_MENU_IDS = new Set<EditorCommandId>(
 
 export function useEditorMenu() {
   // electron-desktop P1 早返放开（2026-09-20）：Electron 形态下也注册 actions
-  // + watchRecentFilesMenu（推 /__dianjing/recent-files）+ useNativeMenuEvents
-  // （tauri listen 在 Electron 下永不触发——hook 挂的是空 listener，无害）。
-  // 菜单点击由渲染层既有快捷键 + 命令面板承担（无 IPC 回传通道，搭主菜单是
-  // 单向死代码——见 recent-files.ts 注释）。watcher 把最近文件喂 main 让
-  // app.addRecentDocument 维护 OS 级 dock/jump-list
+  // + watchRecentFilesMenu（推 /__dianjing/recent-files）。菜单点击由渲染层
+  // 既有快捷键 + 命令面板承担（无 IPC 回传通道，搭主菜单是单向死代码——见
+  // recent-files.ts 注释）。watcher 把最近文件喂 main 让 app.addRecentDocument
+  // 维护 OS 级 dock/jump-list。useNativeMenuEvents 是 Tauri-only（内部 isTauri
+  // 自闭——listen 注册时即读 __TAURI_INTERNALS__，非 Tauri 调用即抛）
   if (!isTauri() && !isElectron()) return
 
   watchRecentFilesMenu()
