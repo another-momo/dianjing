@@ -22,7 +22,7 @@
 - `tools/zone-registry/zones.json` 是唯一所有权真相：`ownedRoots` / `ownedFiles` 内自由改；改动其他（上游供血）文件必须登记 `patches`；删除走 `deletedPaths`；搬移登记 `relocations`。台账登记与代码改动同批提交——漏登 = 交付不完整。
 - pre-commit 强制 `check:zones`；`bun run check:zones:drift` 查看对上游漂移明细。
 - `disposition: "revoked"` 的 patch **不提供覆盖**——改动曾 revoked 退役的文件（回 follow-pure）须新登 P-id，往 revoked 条目上追加备注不算登记。
-- 上游合并 SOP：合并前 check:zones 绿 → 按 zone 裁定冲突 → 合并窗口内每次 check:zones 输出的 RELOCATION_WATCH advisory 必读（上游残迹落进 ownedRoot 的最早信号），逐条裁定后再 commit → 合并后 ownedFiles 字节审计 + relocations / tarball 台账更新。裁撤目录必须以目录条目登记 deletedPaths——逐文件条目挡不住上游新增，目录条目才有 checkDeletedAbsent 复活硬拦截。
+- 上游合并 SOP：合并前 check:zones 绿 → 按 zone 裁定冲突 → 合并窗口内每次 check:zones 输出的 RELOCATION_WATCH advisory 必读（上游残迹落进 ownedRoot 的最早信号），逐条裁定后再 commit → 合并后 ownedFiles 字节审计 + relocations / tarball 台账更新。裁撤目录必须以目录条目登记 deletedPaths——逐文件条目挡不住上游新增，目录条目才有 checkDeletedAbsent 复活硬拦截。判上游版式/内容演进方向时以最新 release tag 为准，不锚本地 origin 分支 ref——release tag 会超前于分支头。
 - 复活带 `deletedPaths` 墓碑的路径 = ①摘墓碑 ②**git add 暂存新文件**（未暂存时 git diff vs merge-base 不覆盖 untracked，该路径呈 D 撞 checkDeletedRegistered；暂存后翻 M 走豁免）③check:zones 实跑验收——只验 JSON 可解析不等于过语义闸。
 - `tools/zone-registry/` 自身与 `.github/workflows/` 均为 ownedRoot，fork 治理设施自由改。
 - 设置类工作流归各业务域自己的 `settings/` 目录（`use.ts` 编排 + 兄弟模块分工、持久化留在 domain services），不建全局 composables 桶——采上游 2026-09 family 重组语义。
@@ -67,6 +67,11 @@
 - CI windows runner checkout 把文本物化成 CRLF（Git for Windows 默认 `autocrlf=true`），打包产物内资产字节与本机 dev 不同——yaml 会把 frontmatter 末行孤立 `\r` 并进标量；行尾敏感解析必须解析层归一（`\r\n?`→`\n`）+ 资产侧 `.gitattributes` 钉 `eol=lf` 双保险。
 - guard 类路径/字符串匹配器禁依赖 node 平台语义 API（`path.isAbsolute` 等）——同代码 Windows 绿 Linux 红；先统一分隔符再按自定义跨平台规则判定。
 - 多行字符串字面量 `+` 拼接会被 oxfmt 折叠成单行、触发 no-useless-concat——夹具/多行串构造用 `['...', ...].join(...)`（与 no-nested-ternary 括号还原同属「格式器归化撞 lint」家族）。
+- 空 catch 的合规写法 = 块内至少一条实语句（`return` / `console.warn`——no-silent-catch 的豁免判定看块内有无语句）；`oxlint-disable-next-line` 对它无效——报点锚在 CatchClause 起始行，写在块内的 disable 注释行号错位、形同虚设（.vue/.ts 同律）。
+- 禁 `x!` 非空断言——正则匹配等可空结果先 `if (!m) throw new Error(...)` 守卫收窄，再索引。
+- i18n 新键成对落地：en 源 `packages/vue/src/i18n/messages/<domain>.ts` + `locales/zh-cn/<domain>.json`；zh 译文 Latin+CJK 混排时同步登记 `tools/i18n/mixed-script-baseline.txt`——check:i18n 质量闸，漏登即红。
+- 悬浮提示禁用 native `title` 属性（check:arch 硬拦）——一律 Tip 组件包裹。
+- 工具 description 里的禁令必须配显式 GO 从句（「用户显式给出 X 时即调用」）——纯负面戒律会被模型误读成拒绝依据。
 
 ## 6. 测试纪律
 
@@ -76,6 +81,7 @@
 - bun mock 生命周期：`mock.restore()` 只恢复 spy，**不撤销 `mock.module()` 覆盖**——模块级 mock 不随 cleanup 钩子隔离；引入全局/模块级插桩前先读现装 runner 的 mock 文档。
 - globalThis 桩（fetch 等）的还原钩子禁放共享 helpers 的模块级 `afterEach`——bun 模块缓存致该钩子只随首个 import 者注册一次，第二消费者的桩无人还原、泄漏污染同进程分片后续全部 fetch；每个消费文件各自 `afterEach` 还原。
 - 桩贴真实故障边界：协议/验真类路径桩全局 fetch（或 socket），不桩 SDK 方法——SDK 方法桩遵守 throw/成功契约，盖不住实现吞状态。
+- 夹具用的虚空路径/名字必须在所有 CI 平台都不存在——`/etc/hosts/x` 在 Linux 是真实文件（报 ENOTDIR 而非 ENOENT）；虚空名用唯一造名。
 
 ## 7. 仓库地图
 
@@ -83,6 +89,7 @@
 - `src/app/ai/fork/` —— AI 前端 fork 层（ownedRoot）：transports / session 管理
 - `src/app/bridge/` —— 自动化桥（ownedRoot）：server（browser-rpc 窗口路由）/ client / vite-plugin / runtime
 - `src/components/assistant/` —— AI 助手 UI（ownedRoot）：ChatPanel / active-design / markdown
+- `src/theme/` —— 双主题令牌（feedback / motion 等预设）。动效工具类用前必核主题层真实生成（tw-animate-css 仅 `animate-collapsible-*` 一族，其余 `animate-*` 来自 tailwind v4 core 的 theme.css，均可 grep 实证）——裸写未注册类名 = 死类名，无任何门禁可兜。
 - `packages/core/src/text/` —— 文本与字体：font/cn-catalog（CN 目录）、web-font、fonts.ts 管理器
 - `packages/core/src/tools/fork/` —— 工具 fork 层（ownedRoot）：marketing / brief / active-design
 - `packages/scene-graph | pen | kiwi | fig | dom-css | vue` —— 基础库：场景图 / 画笔 / 约束求解 / fig 编解码 / DOM CSS / Vue 绑定
