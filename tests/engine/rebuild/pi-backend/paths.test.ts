@@ -25,7 +25,8 @@ import {
   resolveSkillsDir,
   resolveStateDir,
   resolveStudioDirs,
-  resolveWorkspaceDir
+  resolveWorkspaceDir,
+  toDisplayPath
 } from '@/app/ai/pi-backend/paths'
 
 // D2：扁平化——STATE_DIR_NAME 概念消亡，子目录直接挂 rootDir。pi-agent/
@@ -162,5 +163,92 @@ describe('pi-backend/paths — resolveStudioDirs（2026-09-18：userDir = rootDi
     expect(dirs.userDir.replaceAll('\\', '/')).toBe('/state/root/workspace/.agents')
     // userDir 不嵌任何 `.dianjing` 子层（D2 关键断言）
     expect(dirs.userDir.replaceAll('\\', '/')).not.toContain('.dianjing')
+  })
+})
+
+describe('pi-backend/paths — toDisplayPath（后端计算 UI 展示形态）', () => {
+  // 测试纪律：注入 env 而非读 process.platform / process.env.APPDATA /
+  // os.homedir()——保证 posix CI 也能覆盖 win32 分支；同段也复刻各形态边界。
+  test('win32 + APPDATA 前缀命中 → %APPDATA% + 余段（尾巴反斜杠保留）', () => {
+    const result = toDisplayPath(
+      'C:\\Users\\x\\AppData\\Roaming\\Dianjing\\workspace\\image-gen-output',
+      { platform: 'win32', appDataDir: 'C:\\Users\\x\\AppData\\Roaming' }
+    )
+    // slice 在原串上做——反斜杠分隔符原样保留
+    expect(result).toBe('%APPDATA%\\Dianjing\\workspace\\image-gen-output')
+  })
+
+  test('win32 前缀不命中 → 原样返回绝对路径（DIANJING_ROOT_DIR 隔离场景）', () => {
+    const result = toDisplayPath('D:\\spike\\root\\workspace\\image-gen-output', {
+      platform: 'win32',
+      appDataDir: 'C:\\Users\\x\\AppData\\Roaming'
+    })
+    expect(result).toBe('D:\\spike\\root\\workspace\\image-gen-output')
+  })
+
+  test('win32 appDataDir = null → 原样返回（无 env 信息时的安全兜底）', () => {
+    const result = toDisplayPath('C:\\Users\\x\\AppData\\Roaming\\Dianjing\\workspace\\.agents', {
+      platform: 'win32',
+      appDataDir: null
+    })
+    expect(result).toBe('C:\\Users\\x\\AppData\\Roaming\\Dianjing\\workspace\\.agents')
+  })
+
+  test('darwin + home 前缀命中 → ~ + 余段（macOS 应用数据子目录形态）', () => {
+    const result = toDisplayPath(
+      '/Users/alice/Library/Application Support/Dianjing/workspace/.agents',
+      { platform: 'darwin', homeDir: '/Users/alice' }
+    )
+    expect(result).toBe('~/Library/Application Support/Dianjing/workspace/.agents')
+  })
+
+  test('linux + home 前缀命中 → ~ + 余段（XDG_CONFIG_HOME 落形态）', () => {
+    const result = toDisplayPath('/home/bob/.config/Dianjing/workspace/.agents', {
+      platform: 'linux',
+      homeDir: '/home/bob'
+    })
+    expect(result).toBe('~/.config/Dianjing/workspace/.agents')
+  })
+
+  test('非 win32 + home 外 → 原样返回绝对路径', () => {
+    const result = toDisplayPath('/var/spike/root/workspace/.agents', {
+      platform: 'linux',
+      homeDir: '/home/bob'
+    })
+    expect(result).toBe('/var/spike/root/workspace/.agents')
+  })
+
+  test('非 win32 + homeDir = null → 原样返回', () => {
+    const result = toDisplayPath('/home/bob/.config/Dianjing/workspace/.agents', {
+      platform: 'linux',
+      homeDir: null
+    })
+    expect(result).toBe('/home/bob/.config/Dianjing/workspace/.agents')
+  })
+
+  test('边界：相似前缀不命中——/home/user2 不被 /home/user 吞', () => {
+    // 字符串前缀匹配 ≠ 路径边界匹配——必须显式加 '/' 守卫；否则
+    // /home/user2/foo 会被误判为 /home/user 的子目录
+    const result = toDisplayPath('/home/user2/Dianjing/workspace/.agents', {
+      platform: 'linux',
+      homeDir: '/home/user'
+    })
+    expect(result).toBe('/home/user2/Dianjing/workspace/.agents')
+  })
+
+  test('边界：home 前缀带尾随斜杠仍命中（normalize 剥尾 /）', () => {
+    const result = toDisplayPath('/home/bob/.config/Dianjing/workspace/.agents', {
+      platform: 'linux',
+      homeDir: '/home/bob/'
+    })
+    expect(result).toBe('~/.config/Dianjing/workspace/.agents')
+  })
+
+  test('边界：win32 同名 path=appDataDir 自身也算命中（精确等于分支）', () => {
+    const result = toDisplayPath('C:\\Users\\x\\AppData\\Roaming', {
+      platform: 'win32',
+      appDataDir: 'C:\\Users\\x\\AppData\\Roaming'
+    })
+    expect(result).toBe('%APPDATA%')
   })
 })

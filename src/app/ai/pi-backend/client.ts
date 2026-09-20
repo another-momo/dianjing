@@ -118,3 +118,16 @@ export async function openPiStudioFolder(): Promise<OpenStudioFolderResult> {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
 }
+
+/**
+ * `GET /api/pi/studio-folder` 响应形态——dir 为后端计算的展示形态
+ * （win32 → %APPDATA% 缩写 / 非 win32 → ~ 缩写 / 前缀不匹配原样回绝对路径）。
+ *
+ * 自定义类型而非另立字面量：先 grep 仓内是否已有同形 `{ dir: string }` 导出
+ * 类型（type-shapes 门禁同形复用），本单新增前未找到——故单源声明。
+ */
+export type StudioFolderPath = { dir: string }
+
+export async function fetchStudioFolderPath(): Promise<StudioFolderPath> {
+  return requestJSON<StudioFolderPath>('/studio-folder')
+}

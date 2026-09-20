@@ -8,7 +8,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
-import { openPiStudioFolder } from '@/app/ai/pi-backend/client'
+import { fetchStudioFolderPath, openPiStudioFolder } from '@/app/ai/pi-backend/client'
 import { applyPiCapabilities, piCapabilities } from '@/app/ai/pi-backend/mode-selection'
 import { useForkAgentCapabilities } from '@/app/i18n/fork'
 import SettingsGroup from '@/components/settings/layout/SettingsGroup.vue'
@@ -77,18 +77,28 @@ const builtinTools = computed({
 // 显式展示路径文本 + 「复制路径」按钮——用户自行粘贴到资源管理器/终端/Finder
 // 打开。后续打开文件夹通路就位后可在此 hook 上接，UI 与 i18n 不变。
 //
-// D2 起 userDir 随状态根走；2026-09-18 userdata 重排后 = <OS 应用数据目录>/Dianjing/
-// workspace/.agents（resolveAppDataRoot 单源，与 Electron userData 同位）。浏览器侧无
-// IPC 解析绝对路径，按 UA 粗判平台给出对应形态的展示路径（env 变量/`~` token 形态，
-// 资源管理器与 shell 均可直接粘贴识别）；判不出的平台回退 Linux 形态。
+// 主通路：onMounted 拉取 `GET /api/pi/studio-folder`——后端按真实 platform/env
+// 计算展示形态（resolveStudioDirs + toDisplayPath，与图片本地留存 `dir` 同源：
+// win32 → %APPDATA% 缩写；非 win32 → ~ 缩写；DIANJING_ROOT_DIR 隔离 / 临时目录
+// 前缀不匹配时原样回绝对路径）。fetch 失败时回退到 UA 粗判形态——浏览器无
+// IPC 时给出的最后兜底（路径常量与最终真值可能略有偏差，仅文案兜底用）。
 const isWindowsUA = navigator.userAgent.includes('Windows')
 const isMacUA = !isWindowsUA && navigator.userAgent.includes('Mac')
-function platformStudioFolderPath(): string {
+function fallbackStudioFolderPath(): string {
   if (isWindowsUA) return '%APPDATA%\\Dianjing\\workspace\\.agents'
   if (isMacUA) return '~/Library/Application Support/Dianjing/workspace/.agents'
   return '~/.config/Dianjing/workspace/.agents'
 }
-const studioFolderPath = platformStudioFolderPath()
+const studioFolderPath = ref(fallbackStudioFolderPath())
+onMounted(async () => {
+  try {
+    const result = await fetchStudioFolderPath()
+    studioFolderPath.value = result.dir
+  } catch {
+    // 保留 fallback 形态——fetch 失败时静默兜底，不打断面板
+    // oxlint-disable-next-line open-pencil/no-silent-catch
+  }
+})
 // ai-panel-ux-consolidation：按钮态机——idle 默认「打开文件夹」；ok=true
 // 显示「已打开」1.2s 后回归；ok=false 或 fetch 异常时回退「复制路径」三态
 // （copyStatus 的 copied/failed 文案沿用）。调用语义同一按钮，统一从
@@ -97,7 +107,7 @@ const openStatus = ref<'idle' | 'opened' | 'copying' | 'copied' | 'failed'>('idl
 
 async function copyStudioFolderPath(): Promise<void> {
   try {
-    await navigator.clipboard.writeText(studioFolderPath)
+    await navigator.clipboard.writeText(studioFolderPath.value)
     openStatus.value = 'copied'
   } catch {
     openStatus.value = 'failed'

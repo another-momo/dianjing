@@ -28,8 +28,12 @@ const DEFAULTS: { retainLocal: boolean } = { retainLocal: false }
 
 /**
  * 响应 DTO（路由层组装：retainLocal 来自 store，dir 由 resolveImageGenOutputDir
- * 在 server.ts 装配时注入；前端 type-only import，DTO 单源在 backend，构建期
- * 擦除——同 ImageGenCredentialStatus 先例）。
+ * 经 toDisplayPath 算出后注入；前端 type-only import，DTO 单源在 backend，
+ * 构建期擦除——同 ImageGenCredentialStatus 先例）。
+ *
+ * dir 为 UI 展示形态——win32 下 %APPDATA% 缩写、非 win32 下 ~ 缩写；
+ * 前缀不匹配（DIANJING_ROOT_DIR 隔离、临时目录等）时原样回绝对路径。
+ * dir 不落盘，跟着状态根走——状态根迁移后下次 GET 自动跟随。
  */
 export interface ImageGenSettingsStatus {
   retainLocal: boolean

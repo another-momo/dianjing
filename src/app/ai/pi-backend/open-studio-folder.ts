@@ -5,6 +5,12 @@
  * 拆出本模块而非塞进 server.ts：handler 自身不大，但 spawn/EventEmitter
  * 引用 + 默认 opener 三平台分支 + handler docstring 把 server.ts 顶过
  * max-lines 阈值。独立模块便于测试桩注入 opener（open-studio-folder.test.ts）。
+ *
+ * 端点：
+ *  - POST /api/pi/open-studio-folder：按 OS 唤起资源管理器打开 userDir
+ *  - GET  /api/pi/studio-folder：返回 userDir 的后端展示形态（%APPDATA%/~
+ *    缩写 / 前缀不匹配时原样回绝对路径）——前端复制路径展示用，与
+ *    「图片本地留存」`/api/pi/image-gen/settings` 的 dir 同源
  */
 
 import { spawn, type ChildProcess } from 'node:child_process'
@@ -13,7 +19,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import { readStudioBuiltinDir } from '@/app/orchestration/env'
 
-import { resolveImageGenOutputDir, resolveStudioDirs } from './paths'
+import { resolveImageGenOutputDir, resolveStudioDirs, toDisplayPath } from './paths'
 
 /** opener 注入形态——测试桩掉真 spawn，避免 explorer/open/xdg-open 跨平台
  *  副作用。返回子进程在同步抛错 / error 事件时由 handler 兜底翻译为
@@ -66,6 +72,29 @@ export async function handleOpenImageGenFolderRequest(
   openFolder: OpenFolderOpener
 ): Promise<void> {
   await openFolderAndRespond(resolveImageGenOutputDir(rootDir), req, res, sendJSON, openFolder)
+}
+
+/**
+ * GET /api/pi/studio-folder——返回 userDir 的后端展示形态。
+ *
+ * 与 POST /api/pi/open-studio-folder 同源 resolveStudioDirs（builtinDir 走
+ * env override / userDir 随 rootDir），dir 经 toDisplayPath 计算——win32 下
+ * APPDATA 前缀匹配 → %APPDATA% 缩写；非 win32 下 home 前缀匹配 → ~ 缩写；
+ * 前缀不匹配（DIANJING_ROOT_DIR 隔离、临时目录等）原样回绝对路径。与图片
+ * 本地留存 `/api/pi/image-gen/settings` 的 dir 同源，便于前端展示形态统一。
+ */
+export async function handleStudioFolderPathRequest(
+  rootDir: string,
+  _req: IncomingMessage,
+  res: ServerResponse,
+  sendJSON: (res: ServerResponse, status: number, payload: unknown) => void
+): Promise<void> {
+  if (_req.method !== 'GET') {
+    res.writeHead(405).end('Method Not Allowed')
+    return
+  }
+  const { userDir } = resolveStudioDirs(rootDir, readStudioBuiltinDir())
+  sendJSON(res, 200, { dir: toDisplayPath(userDir) })
 }
 
 /** 两端点共享的打开骨架：POST 白名单 → mkdir 兜底 → opener 同步抛错

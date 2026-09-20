@@ -33,6 +33,7 @@
  * 解析单源由 orchestration/app-data 的 resolveAppDataRoot 承担。
  */
 
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 // oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
@@ -235,4 +236,56 @@ export function resolveStudioDirs(rootDir: string, envBuiltinOverride: string | 
 /** `rootDir/workspace/` —— 凭据守卫 B 案的会话 cwd 下沉落点（与凭据四件所在根隔离） */
 export function resolveWorkspaceDir(rootDir: string): string {
   return join(rootDir, PI_WORKSPACE_SUBDIR)
+}
+
+// ── UI 展示形态（缩写/绝对路径回退）──
+
+/**
+ * `toDisplayPath` 注入形参——平台与前缀目录可被覆盖，便于 posix CI
+ * 覆盖 win32 分支、单测注入 fixture 而非读真实 process.env。
+ * 三态语义：`undefined`（键缺席）= 取进程真实缺省；`null` = 显式禁用
+ * 前缀缩写（原样回绝对路径）；字符串 = 用它做前缀匹配。
+ *
+ *  - `platform`：缺省 `process.platform`（win32 走 `%APPDATA%` 缩写，
+ *    非 win32 走 `~` 缩写）
+ *  - `appDataDir`：win32 下用于前缀匹配——缺省 `process.env.APPDATA`
+ *  - `homeDir`：非 win32 用于前缀匹配——缺省 `os.homedir()`
+ */
+export interface DisplayPathEnv {
+  platform?: NodeJS.Platform
+  appDataDir?: string | null
+  homeDir?: string | null
+}
+
+/**
+ * 把绝对路径转成 UI 展示形态——便于直接粘贴进资源管理器 / shell：
+ *  - win32 + `appDataDir` 前缀匹配 → `%APPDATA%` + 余段
+ *  - 非 win32 + `homeDir` 前缀匹配 → `~` + 余段
+ *  - 前缀不匹配（DIANJING_ROOT_DIR 隔离、临时目录等场景）→ 原样返回绝对路径
+ *
+ * 跨平台守卫：双方 `replaceAll('\\', '/')` 归一化 + 剥尾随 `/`，
+ * `p === prefix || p.startsWith(prefix + '/')` 才算命中；返回值保留
+ * absPath 原分隔符（slice 在原串上做，不重写分隔符）。
+ *
+ * 测试纪律：禁走 `path.isAbsolute` / `path.relative` 等平台语义 API
+ * （不同 OS 下语义分裂）；自实现前缀规则保证注入 fixture 的可读性。
+ */
+export function toDisplayPath(absPath: string, env: DisplayPathEnv = {}): string {
+  const platform: NodeJS.Platform = env.platform ?? process.platform
+  // undefined = 取进程真实缺省；null = 显式禁用（前缀判空即原样回）
+  let prefix: string | null | undefined
+  if (platform === 'win32') {
+    prefix = env.appDataDir === undefined ? process.env.APPDATA : env.appDataDir
+  } else {
+    prefix = env.homeDir === undefined ? homedir() : env.homeDir
+  }
+  if (typeof prefix !== 'string' || prefix === '') return absPath
+  const p = absPath.replaceAll('\\', '/')
+  const pre = prefix.replaceAll('\\', '/').replace(/\/+$/, '')
+  if (!pre) return absPath
+  if (p !== pre && !p.startsWith(pre + '/')) return absPath
+  // slice 在原串上做：pre 是归一化后的 prefix（剥尾随 /），与 absPath 起点对齐
+  const sliceFrom = prefix.replace(/[\\/]+$/, '').length
+  if (platform === 'win32') return '%APPDATA%' + absPath.slice(sliceFrom)
+  return '~' + absPath.slice(sliceFrom)
 }

@@ -51,7 +51,7 @@ mock.module('@earendil-works/pi-coding-agent', () => ({
   }
 }))
 
-import { type OpenStudioFolderResult } from '@/app/ai/pi-backend/client'
+import { type OpenStudioFolderResult, type StudioFolderPath } from '@/app/ai/pi-backend/client'
 import { type OpenFolderOpener, createPiBackendServer } from '@/app/ai/pi-backend/server'
 
 const TOKEN = 'open-folder-test-token'
@@ -208,6 +208,54 @@ describe('POST /api/pi/open-studio-folder（ai-panel-ux-consolidation）', () =>
 
   test('无 token → 401', async () => {
     const res = await fetch(`${baseURL}/api/pi/open-studio-folder`, { method: 'POST' })
+    expect(res.status).toBe(401)
+  })
+})
+
+// 响应体形复用 client.ts 的 StudioFolderPath（type-only import 构建期擦除，
+// 不拉 client.ts 的 vue 运行时依赖进测试进程）——本地不重声明（type-shapes 门禁）
+async function getStudioFolderPath(headers: Record<string, string> = {}): Promise<{
+  status: number
+  body: StudioFolderPath | { error?: string }
+}> {
+  const res = await fetch(`${baseURL}/api/pi/studio-folder`, {
+    method: 'GET',
+    headers: { authorization: `Bearer ${TOKEN}`, ...headers }
+  })
+  return { status: res.status, body: (await res.json()) as StudioFolderPath }
+}
+
+describe('GET /api/pi/studio-folder（自定义拓展目录展示形态）', () => {
+  test('happy path：tmpdir 不在 APPDATA/home 下，前缀不命中，dir = userDir 绝对路径原样', async () => {
+    const r = await getStudioFolderPath()
+    expect(r.status).toBe(200)
+    const body = r.body as StudioFolderPath
+    // tmpdir rootDir → userDir = rootDir/workspace/.agents
+    // toDisplayPath 前缀不命中（tmpdir 不在 APPDATA/home 下）→ 原样回绝对路径
+    expect(body.dir.replaceAll('\\', '/')).toBe(
+      join(rootDir, 'workspace', '.agents').replaceAll('\\', '/')
+    )
+    expect(body.dir.length).toBeGreaterThan(0)
+  })
+
+  test('POST → 405（与 handleOpenStudioFolderRequest 405 形态一致）', async () => {
+    const res = await fetch(`${baseURL}/api/pi/studio-folder`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    expect(res.status).toBe(405)
+  })
+
+  test('PUT → 405', async () => {
+    const res = await fetch(`${baseURL}/api/pi/studio-folder`, {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    expect(res.status).toBe(405)
+  })
+
+  test('无 token → 401（与 server.ts 鉴权前置契约一致）', async () => {
+    const res = await fetch(`${baseURL}/api/pi/studio-folder`, { method: 'GET' })
     expect(res.status).toBe(401)
   })
 })

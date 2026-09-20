@@ -71,6 +71,7 @@ import {
   defaultOpenFolderOpener,
   handleOpenImageGenFolderRequest,
   handleOpenStudioFolderRequest,
+  handleStudioFolderPathRequest,
   type OpenFolderOpener
 } from './open-studio-folder'
 import { resolveAgentDir } from './paths'
@@ -575,6 +576,11 @@ export function createPiBackendServer({
     // 兜复杂度；须在 /api/pi/ 管理面前缀之前匹配）
     if (url.pathname === '/api/pi/open-studio-folder') {
       void handleOpenStudioFolderRequest(rootDir, req, res, sendJSON, openFolder)
+      return
+    }
+    // 自定义拓展目录展示形态端点（exact match，与 open-studio-folder 同源，dir 走 toDisplayPath）
+    if (url.pathname === '/api/pi/studio-folder') {
+      void handleStudioFolderPathRequest(rootDir, req, res, sendJSON)
       return
     }
     // 图片本地留存目录打开端点（exact match；同 open-studio-folder 形态但目录不同）

@@ -11,6 +11,8 @@
  *          （空 apiKey = 清除，00 #7；此时其余字段不校验）
  *   DELETE /api/pi/image-gen/credentials
  *   GET    /api/pi/image-gen/settings → { retainLocal, dir }
+ *     （dir 为后端计算的展示形态：win32 → %APPDATA% 缩写 / 非 win32 → ~ 缩写；
+ *      前缀不匹配（DIANJING_ROOT_DIR 隔离）时原样回绝对路径——语义恒正确）
  *   PUT    /api/pi/image-gen/settings  { retainLocal } （非 boolean → 400 JSON 信封）
  *
  * server.ts 在 /api/pi/ 管理面前缀之前挂本处理器（bearer 鉴权由 server.ts
@@ -21,7 +23,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
-import { resolveImageGenOutputDir } from '../paths'
+import { resolveImageGenOutputDir, toDisplayPath } from '../paths'
 import type { ImageGenCredentialStore } from './credentials'
 import type { ImageGenSettingsStore } from './settings'
 
@@ -91,7 +93,10 @@ async function handleCredentialsRequest(
 
 /**
  * 图片本地留存偏好 GET/PUT——retainLocal 布尔（fail-safe 缺省 false），
- * dir 由路由层填（resolveImageGenOutputDir(rootDir)）——不落盘，跟着状态根走。
+ * dir 由路由层填（toDisplayPath(resolveImageGenOutputDir(rootDir))）——
+ * 后端按真实 platform/env 计算展示形态（win32 → %APPDATA% 缩写、
+ * 非 win32 → ~ 缩写；DIANJING_ROOT_DIR 隔离时前缀不匹配回退绝对路径）。
+ * dir 不落盘，仅供 UI 显示，跟着状态根走。
  */
 async function handleSettingsRequest(
   settings: ImageGenSettingsStore,
@@ -102,7 +107,7 @@ async function handleSettingsRequest(
   if (req.method === 'GET') {
     sendJSON(res, 200, {
       retainLocal: settings.get().retainLocal,
-      dir: resolveImageGenOutputDir(rootDir)
+      dir: toDisplayPath(resolveImageGenOutputDir(rootDir))
     })
     return
   }
@@ -118,7 +123,10 @@ async function handleSettingsRequest(
     return
   }
   const next = settings.setRetainLocal(body.retainLocal)
-  sendJSON(res, 200, { retainLocal: next.retainLocal, dir: resolveImageGenOutputDir(rootDir) })
+  sendJSON(res, 200, {
+    retainLocal: next.retainLocal,
+    dir: toDisplayPath(resolveImageGenOutputDir(rootDir))
+  })
 }
 
 export interface ImageGenAdminDeps {
