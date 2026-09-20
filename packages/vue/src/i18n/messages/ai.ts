@@ -54,6 +54,7 @@ export const aiMessageDefaults = {
   oneKeyManyModels: 'One key for 100+ models from all providers.',
   describeChange: 'Describe a change…',
   describeCreateOrChange: 'Describe what you want to create or change.',
+  agentWorking: 'Agent is working',
   stopGenerating: 'Stop generating',
   sendMessage: 'Send message',
   attachImages: 'Attach images',

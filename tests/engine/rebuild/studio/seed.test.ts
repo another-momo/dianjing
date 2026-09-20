@@ -10,6 +10,7 @@
  *   3. 复制后二次调用幂等
  *   4. 内置 _example 模板文件本身过 validate（合法 frontmatter）——属于契约钉扎
  *   5. 内置目录不存在 → no-op 不抛
+ *   6. skills/ 空目录兜底：新用户 seed 后在位；已 seed 老用户（`_` 早返路径）也补齐
  *
  * `_` 前缀 id 的双保险：registry 扫描跳过 `_` 前缀目录（泳道 A 已落地，
  * 模板永不进 validate）；validate 层 isAssetId 仍拒绝 `_` 起头 id（首字符
@@ -104,6 +105,28 @@ describe('ensureUserStudioSeed', () => {
       expect(result.copied).toEqual([])
     } finally {
       rmSync(userDir, { recursive: true, force: true })
+    }
+  })
+
+  test('skills 空目录兜底：新用户在位 + 已 seed 老用户（`_` 早返路径）也补齐', () => {
+    // 新用户：seed 顺带建空 skills/
+    const freshDir = mkdtempSync(join(tmpdir(), 'studio-seed-skills-fresh-'))
+    try {
+      ensureUserStudioSeed(freshDir, BUILTIN_DIR)
+      expect(existsSync(join(freshDir, 'skills'))).toBe(true)
+    } finally {
+      rmSync(freshDir, { recursive: true, force: true })
+    }
+
+    // 已 seed 老用户（`_` 前缀模板在位 → 复制路径早返）：升级后首跑仍须补 skills/
+    const legacyDir = mkdtempSync(join(tmpdir(), 'studio-seed-skills-legacy-'))
+    try {
+      mkdirSync(join(legacyDir, 'workflows/_example'), { recursive: true })
+      const result = ensureUserStudioSeed(legacyDir, BUILTIN_DIR)
+      expect(result.seeded).toBe(false)
+      expect(existsSync(join(legacyDir, 'skills'))).toBe(true)
+    } finally {
+      rmSync(legacyDir, { recursive: true, force: true })
     }
   })
 })

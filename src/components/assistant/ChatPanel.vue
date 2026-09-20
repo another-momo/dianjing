@@ -1049,7 +1049,7 @@ function handleClearChat() {
 
     <!-- Chat toolbar -->
     <div
-      v-if="messages.length > 0"
+      v-if="messages.length > 0 && pinnedDecisions.length === 0"
       class="flex shrink-0 items-center gap-1 border-t border-border px-3 py-1"
     >
       <AppTextButton
@@ -1083,7 +1083,7 @@ function handleClearChat() {
     <div
       v-if="isGateReady && pinnedDecisions.length > 0"
       data-test-id="pending-decision-dock"
-      class="shrink-0 space-y-2 border-t border-border px-2.5 pt-2.5"
+      class="shrink-0 animate-in fade-in slide-in-from-bottom-2 space-y-2 border-t border-border px-2.5 pt-2.5 pb-2 duration-200 motion-reduce:animate-none"
     >
       <PendingDecisionCard
         v-for="view in pinnedDecisions"
@@ -1091,9 +1091,20 @@ function handleClearChat() {
         :decision="view"
         @ask-submit="handleFormSubmit"
       />
+      <AppTextButton
+        v-if="status === 'streaming' || status === 'submitted'"
+        :ui="{
+          base: 'flex items-center gap-1 rounded px-1.5 py-0.5 text-[var(--color-warning-action)] hover:bg-[var(--color-warning-bg)]'
+        }"
+        data-test-id="dock-stop-button"
+        @click="handleStop"
+      >
+        <icon-lucide-square class="size-3" />
+        {{ ai.stopGenerating }}
+      </AppTextButton>
     </div>
     <PiChatInput
-      v-if="isGateReady"
+      v-if="isGateReady && pinnedDecisions.length === 0"
       :key="chatInputRemountKey"
       ref="chatInputRef"
       :status="status"

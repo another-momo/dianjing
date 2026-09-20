@@ -1,3 +1,4 @@
+zh-cn:ai.agentWorking
 zh-cn:ai.apiKey
 zh-cn:ai.apiType
 zh-cn:ai.baseURL

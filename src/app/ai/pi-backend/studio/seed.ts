@@ -17,6 +17,10 @@
  *   覆盖（用户已改写的内容一律保留）。
  * - ai-panel-ux-consolidation：seed 同时落地 README.md（用户操作手册）；已存
  *   在则跳过（不覆盖用户改写）——与 `_example` 复制同纪律。
+ * - skills/ 空目录无条件兜底创建（chat-input-ux 批）：skills 无内置 `_`
+ *   前缀模板可种（只补空目录、不种 example），但目录须在位——SDK skills
+ *   扫描与 README 手册都假设其存在；放在 `_` 早返之前，已 seed 过的老
+ *   用户升级路径也随调用补齐。
  */
 
 import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs'
@@ -165,6 +169,11 @@ export function ensureUserStudioSeed(userStudioDir: string, builtinStudioDir: st
   // 检测用户目录：先建目录（首跑 userStudioDir 不存在是正常的，不是错误），
   // 再扫是否已有 `_` 前缀的子目录（workflows 或 profiles 任一侧即视为已 seed）。
   mkdirSync(userStudioDir, { recursive: true })
+
+  // skills 空目录兜底：无 `_` 前缀模板可种但目录须在位（SDK skills 扫描与
+  // README 手册的公共假设）；必须在 hasAnyUnderscoreDir 早返之前——已 seed
+  // 过的老用户升级路径靠此行补齐。recursive 幂等，已存在即 no-op。
+  mkdirSync(join(userStudioDir, 'skills'), { recursive: true })
 
   // 写 README（已存在则跳过——不覆盖用户改写；与 `_example` 复制同纪律）
   const readmePath = join(userStudioDir, 'README.md')

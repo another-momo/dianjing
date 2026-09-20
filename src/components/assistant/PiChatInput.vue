@@ -1056,7 +1056,14 @@ defineExpose({ restoreDraft, clearDraft })
           </ComboboxPortal>
         </ComboboxRoot>
       </div>
-      <form @submit="handleSubmit">
+      <form class="relative" @submit="handleSubmit">
+        <div
+          v-if="isStreaming"
+          aria-hidden="true"
+          class="absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden rounded-t-lg"
+        >
+          <div class="chat-streaming-progress h-full w-1/3 bg-accent" />
+        </div>
         <InputGroup :disabled="isStreaming">
           <!-- ux/inline-selection-chips：内嵌 chip——contenteditable div 承载
                输入/IME/光标；选区 token 段在 DOM 里渲成 contenteditable=false
@@ -1078,10 +1085,27 @@ defineExpose({ restoreDraft, clearDraft })
             </div>
             <div
               v-show="!hasText && !pinnedSkill"
-              class="pointer-events-none absolute top-2.5 left-3 text-xs leading-relaxed text-muted"
+              class="pointer-events-none absolute top-2.5 left-3 flex items-center gap-1.5 text-xs leading-relaxed text-muted"
               :style="skillChipIndent > 0 ? { paddingLeft: `${skillChipIndent}px` } : undefined"
             >
-              {{ ai.describeChange }}
+              <template v-if="isStreaming">
+                <span>{{ ai.agentWorking }}</span>
+                <span class="inline-flex items-center gap-0.5">
+                  <span
+                    class="inline-block size-0.5 rounded-full bg-current animate-bounce motion-reduce:animate-none"
+                    style="animation-delay: 0ms"
+                  />
+                  <span
+                    class="inline-block size-0.5 rounded-full bg-current animate-bounce motion-reduce:animate-none"
+                    style="animation-delay: 150ms"
+                  />
+                  <span
+                    class="inline-block size-0.5 rounded-full bg-current animate-bounce motion-reduce:animate-none"
+                    style="animation-delay: 300ms"
+                  />
+                </span>
+              </template>
+              <template v-else>{{ ai.describeChange }}</template>
             </div>
             <div
               ref="editorRef"
@@ -1175,10 +1199,14 @@ defineExpose({ restoreDraft, clearDraft })
               :label="ai.stopGenerating"
               size="sm"
               data-test-id="chat-stop-button"
-              class="border border-border"
+              class="relative border border-[var(--color-warning-border)] text-[var(--color-warning-action)] hover:bg-[var(--color-warning-bg)]"
               @click="emit('stop')"
             >
-              <icon-lucide-square class="size-3" />
+              <icon-lucide-square class="size-3 animate-pulse motion-reduce:animate-none" />
+              <span
+                aria-hidden="true"
+                class="pointer-events-none absolute inset-0 animate-ping rounded-md border border-[var(--color-warning-border)] motion-reduce:hidden"
+              />
             </IconButton>
             <IconButton
               v-else
@@ -1199,6 +1227,26 @@ defineExpose({ restoreDraft, clearDraft })
 </template>
 
 <style scoped>
+/* 流式禁用态输入框顶 2px 不定进度条——w-1/3 子块在 overflow-hidden 容器内
+   持续 translateX(-100% → 300%)，视觉上形成单段连续滑动（1.2s 缓急，
+   prefers-reduced-motion 时直接关停） */
+@keyframes chat-streaming-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+.chat-streaming-progress {
+  animation: chat-streaming-indeterminate 1.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-streaming-progress {
+    animation: none;
+  }
+}
+
 /* contenteditable 内嵌 chip 样式——与正文同行同高、原子边界 */
 .chat-inline-editor :deep(.chat-inline-chip) {
   display: inline-flex;

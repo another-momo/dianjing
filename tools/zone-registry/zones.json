@@ -1434,9 +1434,9 @@
     {
       "id": "P247",
       "file": "packages/vue/src/i18n/locales/zh-cn/ai.json",
-      "reason": "改名期③补扫（2026-09-14）：②产品面扫荡漏区——zh-cn 语言包 chatNetworkFailed 文案 OpenPencil→点睛设计（③ L3 实测恢复对话框现形后顺藤摸瓜全量 sweep 本目录）。2026-09-18 chat-p1：滚动浮钮/复制/错误动作所需 zh 翻译（jumpToLatest 跳转到最新消息/copyResponse 复制回答/responseCopied 已复制回答/openProviderSettingsAction 打开设置/continueChat 继续）核实已齐备，本批零改动",
+      "reason": "改名期③补扫（2026-09-14）：②产品面扫荡漏区——zh-cn 语言包 chatNetworkFailed 文案 OpenPencil→点睛设计（③ L3 实测恢复对话框现形后顺藤摸瓜全量 sweep 本目录）。2026-09-18 chat-p1：滚动浮钮/复制/错误动作所需 zh 翻译（jumpToLatest 跳转到最新消息/copyResponse 复制回答/responseCopied 已复制回答/openProviderSettingsAction 打开设置/continueChat 继续）核实已齐备，本批零改动。2026-09-20 chat-input-ux：新增 agentWorking 键（流式禁用态输入框动态 placeholder）。",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-18"
+      "lastReviewed": "2026-09-20"
     },
     {
       "id": "P248",
@@ -1582,9 +1582,9 @@
     {
       "id": "P269",
       "file": "packages/vue/src/i18n/messages/ai.ts",
-      "reason": "2026-09-17：pi-chat 4MB→32MB 请求体上限配套——en 源新增 chatPayloadTooLarge 键（413/502/ECONNRESET 归因「请求体过大或本地连接中断」）；zh 翻译随附 locales/zh-cn/ai.json（P247 既有条目覆盖）。2026-09-18 chat-p1：滚动浮钮/复制/错误动作所需键（jumpToLatest/copyResponse/responseCopied/openProviderSettingsAction/continueChat）核实已随既有合并齐备，本批零改动",
+      "reason": "2026-09-17：pi-chat 4MB→32MB 请求体上限配套——en 源新增 chatPayloadTooLarge 键（413/502/ECONNRESET 归因「请求体过大或本地连接中断」）；zh 翻译随附 locales/zh-cn/ai.json（P247 既有条目覆盖）。2026-09-18 chat-p1：滚动浮钮/复制/错误动作所需键（jumpToLatest/copyResponse/responseCopied/openProviderSettingsAction/continueChat）核实已随既有合并齐备，本批零改动。2026-09-20 chat-input-ux：新增 agentWorking 键（流式禁用态输入框动态 placeholder）。",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-18"
+      "lastReviewed": "2026-09-20"
     },
     {
       "id": "P270",
