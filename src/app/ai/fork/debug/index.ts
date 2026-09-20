@@ -5,6 +5,8 @@ import type { UIMessage } from 'ai'
 
 import type { JSONObject } from '@open-pencil/scene-graph/primitives'
 
+import { isMediaToolOutput, sanitizeMediaToolOutput } from '@/app/ai/pi-backend/media-output'
+
 import type { AIChatFailure } from '../failure'
 
 // T27：旧浏览器内 ToolLoop 的客户端工具日志/step 计数面已随 src/app/ai/tools/
@@ -22,12 +24,48 @@ export function safeFailureDetail(detail: string): string {
     : `${redacted.slice(0, MAX_FAILURE_DETAIL_LENGTH)}…`
 }
 
+// Media payloads carry raw base64 that must not land in the debug log; swap the
+// value for the UI placeholder the rest of the app already uses.
+function redactMedia(value: unknown): unknown {
+  return isMediaToolOutput(value) ? sanitizeMediaToolOutput(value) : value
+}
+
+// Tool-shaped parts may carry media either inside toolInvocation.result or as a
+// top-level output field. Clone, redact both candidates, and tally what we
+// elided so message stats can report the excluded payload size.
+function redactToolPart(part: JSONObject): {
+  sanitized: JSONObject
+  mediaChars: number
+  mediaImages: number
+} {
+  let mediaChars = 0
+  let mediaImages = 0
+  const out: Record<string, unknown> = { ...part }
+  if (part.toolInvocation) {
+    const inv = part.toolInvocation as JSONObject
+    const invCopy: Record<string, unknown> = { ...inv }
+    if (isMediaToolOutput(invCopy.result)) {
+      mediaChars += invCopy.result.base64.length
+      mediaImages += 1
+      invCopy.result = sanitizeMediaToolOutput(invCopy.result)
+    }
+    out.toolInvocation = invCopy
+  }
+  if (isMediaToolOutput(part.output)) {
+    mediaChars += part.output.base64.length
+    mediaImages += 1
+    out.output = sanitizeMediaToolOutput(part.output)
+  }
+  return { sanitized: out as JSONObject, mediaChars, mediaImages }
+}
+
 function formatToolPart(part: Record<string, unknown>): string {
   const inv = part.toolInvocation as JSONObject | undefined
   if (inv) {
     const lines = [`  [tool] ${String(inv.toolName)} (${String(inv.state)})`]
     if (inv.args) lines.push(`    args: ${JSON.stringify(inv.args)}`)
-    if (inv.result !== undefined) lines.push(`    result: ${JSON.stringify(inv.result)}`)
+    if (inv.result !== undefined)
+      lines.push(`    result: ${JSON.stringify(redactMedia(inv.result))}`)
     return lines.join('\n')
   }
 
@@ -35,7 +73,8 @@ function formatToolPart(part: Record<string, unknown>): string {
   const state = typeof part.state === 'string' ? part.state : '?'
   const lines = [`  [tool] ${name} (${state})`]
   if (part.input) lines.push(`    input: ${JSON.stringify(part.input)}`)
-  if (part.output !== undefined) lines.push(`    output: ${JSON.stringify(part.output)}`)
+  if (part.output !== undefined)
+    lines.push(`    output: ${JSON.stringify(redactMedia(part.output))}`)
   if (part.errorText) lines.push(`    error: ${part.errorText as string}`)
   return lines.join('\n')
 }
@@ -45,6 +84,8 @@ function formatMessageStats(messages: UIMessage[]): string {
   let assistantMessages = 0
   let toolCalls = 0
   let totalTextLength = 0
+  let mediaImages = 0
+  let mediaChars = 0
 
   for (const msg of messages) {
     if (msg.role === 'user') userMessages++
@@ -60,7 +101,10 @@ function formatMessageStats(messages: UIMessage[]): string {
         (typeof p.type === 'string' && p.type.startsWith('tool-'))
       ) {
         toolCalls++
-        totalTextLength += JSON.stringify(p).length
+        const { sanitized, mediaChars: partChars, mediaImages: partImages } = redactToolPart(p)
+        totalTextLength += JSON.stringify(sanitized).length
+        mediaImages += partImages
+        mediaChars += partChars
       }
     }
   }
@@ -70,6 +114,11 @@ function formatMessageStats(messages: UIMessage[]): string {
     `Tool invocations in messages: ${toolCalls}`,
     `Total text content: ${(totalTextLength / 1024).toFixed(1)} KB (~${Math.ceil(totalTextLength / 4)} tokens approx)`
   ]
+  if (mediaImages > 0) {
+    lines.push(
+      `Media payload (excluded after elision): ${mediaImages} images / ${(mediaChars / 1024).toFixed(1)} KB`
+    )
+  }
   return lines.join('\n')
 }
 
@@ -116,7 +165,10 @@ export function serializeChatLog(messages: UIMessage[], failure?: AIChatFailure 
       ) {
         parts.push(formatToolPart(p))
       } else {
-        parts.push(`  [${typeof p.type === 'string' ? p.type : 'unknown'}] ${JSON.stringify(p)}`)
+        const { sanitized } = redactToolPart(p)
+        parts.push(
+          `  [${typeof p.type === 'string' ? p.type : 'unknown'}] ${JSON.stringify(sanitized)}`
+        )
       }
     }
 
