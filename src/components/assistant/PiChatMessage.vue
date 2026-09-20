@@ -351,7 +351,7 @@ function filePartFilename(part: FilePart): string {
               </CollapsibleTrigger>
               <CollapsibleContent
                 v-if="toolState(part) !== 'pending'"
-                class="data-[state=closed]:collapsible-up data-[state=open]:collapsible-down overflow-hidden text-[10px]"
+                class="data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down overflow-hidden text-[10px]"
               >
                 <!-- T92：displayToolOutput 统一出口——media 输出 base64 裁成
                   [omitted N chars]（对齐老分支 displayOutput 语义） -->

@@ -87,7 +87,7 @@ function updateOpen(value: boolean): void {
     </CollapsibleTrigger>
     <CollapsibleContent
       data-slot="chat-reasoning-content"
-      class="motion-safe:data-[state=closed]:animate-collapsible-up motion-safe:data-[state=open]:animate-collapsible-down animation-duration-150 overflow-hidden"
+      class="data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down animation-duration-150 motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none overflow-hidden"
     >
       <div class="border-t border-border px-2 py-1.5 text-[11px] leading-relaxed text-muted">
         <ChatMarkdown :content="text" :mode="markdownMode" surface="reasoning" />
