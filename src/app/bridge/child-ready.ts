@@ -6,7 +6,7 @@ import type { Readable } from 'node:stream'
 export function waitForChildReady(
   child: ChildProcess & { stderr: Readable },
   marker: string,
-  timeoutMs = 10_000
+  timeoutMs = 30_000
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const lines = createInterface({ input: child.stderr })
