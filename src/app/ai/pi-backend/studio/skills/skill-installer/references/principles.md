@@ -1,10 +1,5 @@
 # 优质 skill 迁移改造原则（principles.md）
 
-> 来源：参考项目/00-migrated-skill/PRINCIPLES.md（2026-09-18 定稿）。
-> 本文件 = skill-installer 内置 reference 副本——元 skill 不可读仓内参考项目，按 SDK 面
-> runtime 知识必须烘焙进随 skill 发布的 references/。
-> 修改同步：源文件修订时同批改本 reference。
-
 ## 核心原则：尽可能原文原味保留，只做局部必要的 runtime 适应性修改
 
 **默认动作 = 原文搬运。** 正文措辞、结构、知识密度、默认值、触发词一概不动——skill
@@ -77,8 +72,6 @@ SKILL.md / references（agent 读指令）。每个 skill 收尾前做一次泄�
 
 ## 落位约定
 
-- 每个 skill 一个目录：本产品内置层 `<builtinStudioDir>/skills/<skill-name>/`，用户层
-  `<rootDir>/workspace/.agents/skills/<skill-name>/`（install_skill 写用户层；内置层
-  仅随产品发版）。
+- 每个 skill 一个目录：用户层 `workspace/.agents/skills/<skill-name>/`（install_skill 是
+  唯一写口）；内置层随产品发版，不由工具写。
 - skill 本体 = `SKILL.md` + 其引用资产目录原结构（如 `references/`、`design-system/`）。
-- 迁入后由 install_skill 工具接入用户层（用户层 skills 目录的唯一写口）。
