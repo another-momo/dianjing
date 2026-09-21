@@ -107,9 +107,9 @@ export function createSaveActions({
       return saveToPath(path)
     }
 
-    if (window.showSaveFilePicker) {
-      const handle = await chooseBrowserFigSaveHandle()
-      if (!handle) return false
+    // The picker helper returns null when the browser has no File System Access API.
+    const handle = await chooseBrowserFigSaveHandle()
+    if (handle) {
       setStorageBinding(null)
       setFileHandle(handle)
       setFilePath(null)

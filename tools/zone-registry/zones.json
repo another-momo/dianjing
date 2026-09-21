@@ -1,5 +1,5 @@
 {
-  "$comment": "Zone registry（工作机制 v2 现行规则，2026-09-06 瘦身）。本文件是 fork 与上游合并的文件所有权唯一真相，由 tools/zone-registry/src/check.ts（check:zones，pre-commit 强制）机器执行。现行规则：改动上游供血文件必须登记 patches；新增文件只许落在 ownedRoots；deletedPaths 不得复活；stubs 登记伪装上游接口的 fork 自有桩（与 patches 互斥——R-mutex）；pendingReclass 是计划元数据（重分类仪式完成前文件保持 follow-pure，可携带 deletion-cut patch）；relocations 登记搬移意图（上游旧位置→fork 新家园，空数组=纯裁撤无继承者），check.ts RELOCATION_WATCH 对 upstreamBase..upstream/master diff 命中时打印移植评估 advisory（永不 fail gate，--drift 出明细）；upstreamMergeTarball 机制（按合并事件白名单字节一致拷贝、锚 base SHA、drift 即违规）保留给未来合并，当前清零。上游合并 SOP：合并前 check:zones 绿 → 按 zone 裁定冲突 → 合并后 ownedFiles 字节审计（清 phantom）+ relocations/tarball 台账更新。最近合并：2026-09-14 上游 9dac52da1→5cc6fa70e（109 commits：DU 83 保持删除 + UA 19 拒收（#661 会话历史不移植）+ UU 20 手工裁定（SettingsDialog 全取我方，MobileDrawer/DesktopToolbar/tab-bar 取上游重打 fork patch）+ ownedRoots 静默并入 2 件尽收（child-ready.ts 待移植/portless-route.ts 小改进）+ GHOST 7+1 随删 + P179 退役 + deletedPaths 增补 4 条——package-quality/package-artifacts/authoring-reference/ci（上游 npm 发布与 CI 分类链，与我方 electron 形态无关，check:packages/test:packages 随之摘出 check 链）；依赖尽收 oxfmt 0.67/vue-stream-markdown beta.5/@lezer/highlight/dedent）。历史台账全本：docs/archive/rebuild-campaign/zones-comment-ledger-2026-09-06.md 与 git 历史。机制复盘节奏由 tools/hooks/src/mechanism-review.ts 跟踪。",
+  "$comment": "Zone registry（工作机制 v2 现行规则，2026-09-06 瘦身）。本文件是 fork 与上游合并的文件所有权唯一真相，由 tools/zone-registry/src/check.ts（check:zones，pre-commit 强制）机器执行。现行规则：改动上游供血文件必须登记 patches；新增文件只许落在 ownedRoots；deletedPaths 不得复活；stubs 登记伪装上游接口的 fork 自有桩（与 patches 互斥——R-mutex）；pendingReclass 是计划元数据（重分类仪式完成前文件保持 follow-pure，可携带 deletion-cut patch）；relocations 登记搬移意图（上游旧位置→fork 新家园，空数组=纯裁撤无继承者），check.ts RELOCATION_WATCH 对 upstreamBase..upstream/master diff 命中时打印移植评估 advisory（永不 fail gate，--drift 出明细）；upstreamMergeTarball 机制（按合并事件白名单字节一致拷贝、锚 base SHA、drift 即违规）保留给未来合并，当前清零。上游合并 SOP：合并前 check:zones 绿 → 按 zone 裁定冲突 → 合并后 ownedFiles 字节审计（清 phantom）+ relocations/tarball 台账更新。最近合并：2026-09-21 上游 d7971ff03→1204b677c（v0.15.1，12 commits：收 #716 三合一（P3 呈现 sRGB 兜底/fig 导出性能/实例文本）、#724 picker 按文档 profile 存色、#708 web 半深链（openpencil:// Tauri 桌面半不移植）；拒收 048 工具开关+step-limit（17 件 M 还原 + 15 件落地新文件删除，P322-P338 登记）、3ba 折叠动效（P330）、81a demo 重写（P327/P334）、0f6+b19 MCP 只读工具与桌面 e2e；UA 2 件经 rename 投放后删除（step-limit.ts→ai/fork/、origins.ts→bridge/server/，relocations 有记）；disclosure.ts 上游删除我方保留转 ownedFiles）。历史台账全本：docs/archive/rebuild-campaign/zones-comment-ledger-2026-09-06.md 与 git 历史。机制复盘节奏由 tools/hooks/src/mechanism-review.ts 跟踪。",
   "ownedRoots": [
     "docs/",
     "tools/zone-registry/",
@@ -98,7 +98,8 @@
     "src/app/editor/clipboard/image-feedback.ts",
     "src/components/fill-picker/rasterize-svg.ts",
     "tests/engine/app/toolbar-add-image.test.ts",
-    "tests/engine/bytes/image-mime.test.ts"
+    "tests/engine/bytes/image-mime.test.ts",
+    "src/theme/settings/disclosure.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -107,7 +108,7 @@
       "oldPath": "packages/mcp/",
       "newPaths": ["src/app/bridge/server/"],
       "since": "Batch 2c (2026-09-05)",
-      "note": "mcp 裁撤内核迁入；stdio/tool registration 等外壳未迁；2026-09-14 合并采 child-ready 机制（server/index.ts 吸收 marker 块；vite-plugin 就绪探测移植另行）"
+      "note": "mcp 裁撤内核迁入；stdio/tool registration 等外壳未迁；2026-09-14 合并采 child-ready 机制（server/index.ts 吸收 marker 块；vite-plugin 就绪探测移植另行）；2026-09-21 合并拒收 048 transport/origins.ts（UA 经 rename 投放 bridge/server/ 后删除——tauri:// CORS 白名单外壳件，我方 bridge server 已有自有 CORS 处理）"
     },
     {
       "oldPath": "packages/cli/",
@@ -119,7 +120,7 @@
       "oldPath": "src/app/ai/chat/",
       "newPaths": ["src/app/ai/fork/"],
       "since": "Batch 2a (2026-09-05)",
-      "note": "路径分离：use/failure/transports 迁 fork；2026-09-05 整目录进 deletedPaths；2026-09-08 合并吸收上游改动（storage/use.ts 随删除批）；2026-09-14 合并拒收 #661 会话历史（owner 拍板：pi-backend 自有 JSONL 历史，数据源不同不移植）"
+      "note": "路径分离：use/failure/transports 迁 fork；2026-09-05 整目录进 deletedPaths；2026-09-08 合并吸收上游改动（storage/use.ts 随删除批）；2026-09-14 合并拒收 #661 会话历史（owner 拍板：pi-backend 自有 JSONL 历史，数据源不同不移植）；2026-09-21 合并拒收 048 step-limit.ts（UA 经 rename 投放 ai/fork/ 后删除——step-limit 若要须重新设计进 pi-backend，非合并动作）"
     },
     {
       "oldPath": "src/components/chat/",
@@ -175,9 +176,9 @@
     {
       "id": "P2",
       "file": "src/views/WorkspaceView.vue",
-      "reason": "remove createDemoShapes/useHead/SafariBanner + dead demo gate in shouldCreateHome (deletion cuts). T10: carrier migrated from src/views/EditorView.vue after upstream bb5960cd deleted it (files-workspace refactor); CollabPanel cut split to P33. 2026-09-20 续登 electronShellStyle 扩 --traffic-light-width 平台分支（main 注 __DIANJING_PLATFORM__；mac 78px / 其他平台 0px；与右侧 --window-controls-width 方向独立共存）",
+      "reason": "remove createDemoShapes/useHead/demo gate（deletion cuts；2026-09-21 合并 v0.15.1 维持：appRuntimeConfig/tabCount demo 接线同摘）。electronShellStyle 标题栏避让（--window-controls-width/--traffic-light-width）+ #708 深链接线保留 web 半（openWebLinkFromLocation/stripWebLinkParams/drain 队列），桌面半 openpencil:// 不移植。T10: carrier migrated from src/views/EditorView.vue",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-20"
+      "lastReviewed": "2026-09-21"
     },
     {
       "id": "P3",
@@ -1915,6 +1916,125 @@
       "reason": "electron-menu-listen-gate（2026-09-20）：useNativeMenuEvents 顶部补 isTauri() 早返——@tauri-apps/api listen() 注册时即读 window.__TAURI_INTERNALS__.transformCallback，非 Tauri 形态该全局不存在调用即抛；editor.ts 早返放开（P319）后此路径在 Electron 首次执行，打包版启动 unhandledrejection toast（Cannot read properties of undefined (reading 'transformCallback')）。教训：上游文件本批首次被改需新登 patch；「永不触发即无害」假设错——注册期就崩",
       "disposition": "permanent",
       "lastReviewed": "2026-09-20"
+    },
+    {
+      "id": "P322",
+      "file": "packages/vue/src/i18n/messages/automation.ts",
+      "reason": "2026-09-21 合并 v0.15.1：拒收 048a8fbbc 工具开关/MCP 失败诊断 +38 键（toolAccess*/mcpFailure* 等，面板与消费面全随 048 拒收批裁撤）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P323",
+      "file": "packages/vue/src/i18n/messages/settings.ts",
+      "reason": "2026-09-21 合并 v0.15.1：拒收 048 的 automation→mcp 改名与 toolAccess 新键（五板块导航不变，mcp/tools 板块永不吸收——437b931cb 拍板）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P324",
+      "file": "packages/vue/src/i18n/locales/zh-cn/automation.json",
+      "reason": "2026-09-21 合并 v0.15.1：048 automation 中文键配套拒收（随 P322）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P325",
+      "file": "packages/vue/src/i18n/locales/zh-cn/settings.json",
+      "reason": "2026-09-21 合并 v0.15.1：048 settings 中文键配套拒收（随 P323）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P326",
+      "file": "skills/open-pencil/SKILL.md",
+      "reason": "2026-09-21 合并 v0.15.1：拒收 048/0f6420d9c 文档改动——close_file 工具与 Settings→Tool access 章节描述的能力我方均未吸收，文档须与实装一致",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P327",
+      "file": "src/app/editor/preparation/types.ts",
+      "reason": "2026-09-21 合并 v0.15.1：拒收 81a07c0c9 的 'demo-load' 联合成员（demo 域已裁，无生产/消费方）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P328",
+      "file": "src/app/i18n/notifications/locales/zh-cn.json",
+      "reason": "2026-09-21 合并 v0.15.1：#708 openQueuedFilesFailed 译文品牌修正 OpenPencil→点睛设计（随 P24 区翻译纪律）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P329",
+      "file": "src/app/settings/preferences/store.ts",
+      "reason": "2026-09-21 合并 v0.15.1：拒收 048 maxAgentSteps 偏好字段（step-limit 概念与我方 broker 层级正交，若要须重新设计进 pi-backend）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P330",
+      "file": "src/components/properties/frame-presets/FramePresetsSection.vue",
+      "reason": "2026-09-21 合并 v0.15.1：拒收 3ba79e6c0 折叠动效统一（依赖件 theme/collapsible 随 048 拒收批同删；钉在 pre-3ba 形态）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P331",
+      "file": "src/components/settings/layout/SettingsDisclosure.vue",
+      "reason": "2026-09-21 合并 v0.15.1：拒收 048 的 AppCollapsible 改写——保 reka-ui 直用 + theme/settings/disclosure.ts（上游已删该主题件，我方转 ownedFiles 自持）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P332",
+      "file": "src/components/ui/feedback/AppAlert.vue",
+      "reason": "2026-09-21 合并 v0.15.1：拒收 048 的 details 槽（唯一消费方 MCP 失败 UI 随拒收批裁撤，死槽不收）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P333",
+      "file": "src/theme/feedback/alert.ts",
+      "reason": "2026-09-21 合并 v0.15.1：拒收 048 的 details 主题键（随 P332）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P334",
+      "file": "tests/e2e/layers/panel.spec.ts",
+      "reason": "2026-09-21 合并 v0.15.1：拒收 81a07c0c9 的 demo 内容断言改写（demo 域已裁，断言对象不存在）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P335",
+      "file": "tests/e2e/settings/diagnostics.spec.ts",
+      "reason": "2026-09-21 合并 v0.15.1：拒收 048 诊断面板测试改写（面板不存在）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P336",
+      "file": "tests/e2e/settings/mcp.spec.ts",
+      "reason": "2026-09-21 合并 v0.15.1：拒收 048 mcp 面板测试改写（面板不存在）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P337",
+      "file": "tests/e2e/settings/polish.spec.ts",
+      "reason": "2026-09-21 合并 v0.15.1：拒收 048 设置面板 polish 断言改写（引用被拒收的板块）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P338",
+      "file": "tests/e2e/storybook/controls.spec.ts",
+      "reason": "2026-09-21 合并 v0.15.1：拒收 048 storybook 控件断言改写（引用被拒收的 PresetNumberField/AppCollapsible）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
     }
   ],
   "deletedPaths": [
@@ -2089,7 +2209,19 @@
     "tests/e2e/brand/",
     "tests/e2e/canvas/demo-workspace.spec.ts",
     "tests/e2e/canvas/demo-workspace.spec.ts-snapshots/",
-    "tests/e2e/app/webmcp.spec.ts"
+    "tests/e2e/app/webmcp.spec.ts",
+    "src/components/settings/tool-access/",
+    "src/components/ui/collapsible/",
+    "src/components/ui/input/PresetNumberField.stories.ts",
+    "src/components/ui/input/PresetNumberField.vue",
+    "src/theme/collapsible/",
+    "src/theme/input/preset-number.ts",
+    "tests/e2e/settings/chat.spec.ts",
+    "tests/e2e/settings/mcp-failure.spec.ts",
+    "tests/e2e/settings/tool-access.spec.ts",
+    "tests/engine/app/chat/step-limit.test.ts",
+    "tests/engine/app/chat/tool-access.test.ts",
+    "tests/engine/app/settings/ai-tool-access.test.ts"
   ],
   "upstreamMergeTarball": []
 }

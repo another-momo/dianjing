@@ -36,7 +36,7 @@ export interface ServerOptions {
   withTcp?: boolean
   /** Auth token for /rpc and /health endpoints. Auto-generated (32-hex) when omitted. Pass null explicitly to disable auth. */
   authToken?: string | null
-  corsOrigin?: string | null
+  corsOrigin?: string | readonly string[] | null
   /**
    * If set, the server starts a grace-period timer while no app is attached.
    * The timer closes the server and removes its discovery file unless an app
@@ -72,7 +72,7 @@ export interface ServerHandle {
 /** Set up Hono routes: /health, /rpc */
 function createHonoApp(options: {
   authToken: string | null
-  corsOrigin: string | null
+  corsOrigin: string | readonly string[] | null
   browserRPC: ReturnType<typeof createBrowserRPCBridge>
   sendToBrowser: (msg: RPCJSONObject, opts: { windowId?: string }) => Promise<unknown>
 }): Hono {
