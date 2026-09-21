@@ -62,6 +62,7 @@
 - `check:quick` 的 typecheck 段（tsgo）同样不覆盖 `.vue`——SFC 内消费已退役字段/类型改名在 check:quick 全绿下潜伏，只有 `check:vue`（vue-tsc ×2）能兜；.vue 触面的改动收口前必跑 check:vue 或交 L2/CI。
 - no-nested-ternary 的「加括号」修法会被 oxfmt 重新展开回无括号形（格式器归化优先级高于括号保留）——唯一格式器稳定解 = 抽归化助手/显式分支；lint 结构红修完必须 oxfmt 后再复 lint。
 - 手跑 oxfmt 必须走 `node_modules/.bin` 钉版 exe 禁 bunx、首参必须带 `.oxfmtrc.json`——bunx 全局缓存副本与钉版同版本号不同构建、括号行为分叉，bunx 过格式的文件 CI format 照红；缺省配置 ≠ 项目配置。
+- 禁依赖命令管道承接门禁/推送类命令的语义（`cmd | tail && break` 式）——管道吞 exit code 造成假绿/假 break、`| head` 的 SIGPIPE 会杀长驻进程（vite）；一律裸跑，长输出走后台日志文件翻页。
 - steiger（check:arch）FSD 同前缀兄弟文件阈值 = 3（非 4）：同目录 ≥3 个同前缀文件即红——归域目录（ask/ 式）或错开前缀。tools/<domain>/ 布局契约：工具文件必须落 `tools/<domain>/src/**`（strict-tools-layout），且域目录必须有 package.json 标记（test:tools 逐域读取，缺即 ENOENT）。
 - ai SDK 就地改 tool part 对象（引用不变）——卡片状态门禁 computed 读 `part.state` 恒陈旧，须父级重渲染直传原值 prop（`:part-state` 模式）。
 - CI windows runner checkout 把文本物化成 CRLF（Git for Windows 默认 `autocrlf=true`），打包产物内资产字节与本机 dev 不同——yaml 会把 frontmatter 末行孤立 `\r` 并进标量；行尾敏感解析必须解析层归一（`\r\n?`→`\n`）+ 资产侧 `.gitattributes` 钉 `eol=lf` 双保险。
@@ -78,6 +79,7 @@
 - bun:test 框架；**禁引入 DOM 测试基建**（happy-dom/jsdom 一律不许）——浏览器行为用真浏览器实测（主 agent）。
 - worker 只跑目标测试文件；全量单测用 `bun run test:unit:serial`（套件分批串行，带 `(i/N)` 批次进度），禁单次全仓 `bun test tests/engine`（单进程内存累积）。serial 可按批次过滤（`bun tools/unit-tests/src/serial.ts editor scene`，批次 = tests/engine 一级目录）——改动域明确时本地只跑受影响批次，全量交 CI（分片并行）或后台长跑。
 - playwright（`test` / `test:figma`）主 agent 独占，与任何重型任务互斥。
+- 页内注入的探针/采样器（rAF 循环、定时器）随用随清——遗留插桩在状态变更后可能变幽灵循环每帧抛错刷屏；无法精准确认清干净时重载页面兜底。
 - bun mock 生命周期：`mock.restore()` 只恢复 spy，**不撤销 `mock.module()` 覆盖**——模块级 mock 不随 cleanup 钩子隔离；引入全局/模块级插桩前先读现装 runner 的 mock 文档。
 - globalThis 桩（fetch 等）的还原钩子禁放共享 helpers 的模块级 `afterEach`——bun 模块缓存致该钩子只随首个 import 者注册一次，第二消费者的桩无人还原、泄漏污染同进程分片后续全部 fetch；每个消费文件各自 `afterEach` 还原。
 - 桩贴真实故障边界：协议/验真类路径桩全局 fetch（或 socket），不桩 SDK 方法——SDK 方法桩遵守 throw/成功契约，盖不住实现吞状态。
