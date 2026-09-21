@@ -36,7 +36,7 @@ const zhCN = {
     chipsPendingTip: '将以 {mode} · {profile} 新建设计，发送时确认',
     chipsManifestFailed: '设计模式与风格加载失败——选择器已禁用。',
     chipsRetry: '重试',
-    chipsCaptureSelection: '采集画布选区',
+    chipsCaptureSelection: '引用画布选区',
     chipsCaptureEmpty: '画布上还没有选中节点',
     // T89：skill dropdown trigger + 搜索占位 + 空匹配提示
     chipsSkillChoose: '选择技能',

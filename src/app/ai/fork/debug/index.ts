@@ -140,7 +140,7 @@ export function serializeChatLog(messages: UIMessage[], failure?: AIChatFailure 
   const sections: string[] = []
 
   sections.push('╔══════════════════════════════════════╗')
-  sections.push('║     OPEN PENCIL AI DEBUG LOG         ║')
+  sections.push('║     AI DEBUG LOG                       ║')
   sections.push(`║     ${new Date().toISOString()}   ║`)
   sections.push('╚══════════════════════════════════════╝')
   sections.push('')

@@ -158,7 +158,7 @@ export const askMessageDefaults = {
  * T61：输入条 chips（mode/profile 两级数据驱动）+ manifest 失败条 英文默认值。
  * T65：gallery 键删除（组件退役，决策 B3）。T66：chipsEmptyHint 删除——空槽引导
  * 收敛进 ChatContextBar 双段式 trigger（决策①），输入条零状态显示。
- * T70：chipsCaptureSelection / chipsCaptureEmpty——「采集画布选区」按钮 +
+ * T70：chipsCaptureSelection / chipsCaptureEmpty——「引用画布选区」按钮 +
  * 空选区轻提示（ChatInput attachment 槽；空选区不产生 token）。
  * chipsPendingTip：pending 意向的变色 chip 锚点 Tip 全文（badge 已退役）。
  */
@@ -169,7 +169,7 @@ export const chipsMessageDefaults = {
   chipsPendingTip: params('Will create {mode} · {profile} as a new design — confirm on send'),
   chipsManifestFailed: 'Failed to load design modes and profiles — selectors are disabled.',
   chipsRetry: 'Retry',
-  chipsCaptureSelection: 'Capture canvas selection',
+  chipsCaptureSelection: 'Reference canvas selection',
   chipsCaptureEmpty: 'Nothing selected on the canvas',
   // T89：skill dropdown trigger + 搜索占位 + 空匹配提示
   chipsSkillChoose: 'Choose a skill',

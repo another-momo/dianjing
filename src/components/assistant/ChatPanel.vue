@@ -84,8 +84,6 @@ import PiChatMessage from './PiChatMessage.vue'
 import PiProviderGateCard from './PiProviderGateCard.vue'
 import { useScrollFollowing } from './useScrollFollowing'
 
-const IS_DEV = import.meta.env.DEV
-
 const { ensureChat, resetChat, chatFailure, clearChatFailure } = useAIChat()
 const { ai } = useI18n()
 const notifications = useNotificationMessages()
@@ -1053,7 +1051,6 @@ function handleClearChat() {
       class="flex shrink-0 items-center gap-1 border-t border-border px-3 py-1"
     >
       <AppTextButton
-        v-if="IS_DEV"
         :ui="{
           base: 'flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-hover'
         }"
