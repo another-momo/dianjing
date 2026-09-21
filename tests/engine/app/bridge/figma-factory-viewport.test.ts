@@ -70,7 +70,7 @@ function makeFakeStore() {
     }
   }
   return {
-    store: store as unknown as Parameters<typeof makeFigmaFromStore>[0],
+    store: store as Parameters<typeof makeFigmaFromStore>[0],
     graph,
     state,
     repaintCount: () => repaintCount
@@ -180,10 +180,7 @@ describe('makeFigmaFromStore viewport 写回（方案 A 断头路接通）', () 
     })
     const repaintsBefore = repaintCount()
 
-    const result = viewportZoomToFit.execute(api, { ids: [frame.id] }) as {
-      center: { x: number; y: number }
-      zoom: number
-    }
+    const result = viewportZoomToFit.execute(api, { ids: [frame.id] }) as FigmaViewportSnapshot
 
     expect(result.zoom).toBe(0.5)
     expect(result.center).toEqual({ x: 1940, y: 970 })
