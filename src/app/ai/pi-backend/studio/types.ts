@@ -16,6 +16,10 @@
  * 校验在 validate.ts（纯函数），文件存在性在 registry 加载期检查（缺失条目摘出 +
  * failures 显式条目，S2 §8 不静默）。
  *
+ * 2026-09-21 owner 拍板统一限定形寻址：agent 侧只看到一种拼法（带桶前缀的 key），
+ * base 标签特判 `base`（去结巴 `base:base`）；详见 `referenceAddressPrefix` 单源。
+ * 内部 resolvedReferences 桶键（`${kind}:${id}`，从不露面）保持不变。
+ *
  * P2-4（2026-09-07）：profile 的「适用 mode」字段由 `applicable_to` 重命名为 `modes`
  * ——语义清晰（profile 在哪些 mode 下可用），缺省/空数组 = 所有 mode 可用（无限制），
  * 显式填写才限制可用范围。manifest 投影键同步适用 `modes`（PD-17 翻案后 P2-10 启
@@ -152,7 +156,17 @@ export interface StudioRegistry {
   resolvedReferences: ReadonlyMap<string, ReadonlyMap<string, string>>
 }
 
-/** resolvedReferences 桶键（T85；registry 写入侧与 assembleTurn 消费侧共用单源） */
+/** resolvedReferences 桶键（T85；registry 写入侧与 assembleTurn 消费侧共用单源）。
+ *  内部形态，不露出给 agent（agent 只见 referenceAddressPrefix 拼出的寻址 key）。 */
 export function referenceBucketKey(kind: StudioAssetKind, id: string): string {
   return `${kind}:${id}`
+}
+
+/** 寻址 key 桶前缀（2026-09-21 owner 拍板统一限定形寻址）。
+ *  - base → `base`（kind 单例，id 恒为 base，省结巴的 `base:base` 与模型先验对齐）
+ *  - workflow / profile → `${kind}:${id}`（id 必要）
+ * 寻址 key 整体 = `referenceAddressPrefix(kind, id) + '/' + path`。active-design-host
+ * 渲染与允许集同源消费，禁在两处各拼前缀漂移。 */
+export function referenceAddressPrefix(kind: StudioAssetKind, id: string): string {
+  return kind === 'base' ? 'base' : `${kind}:${id}`
 }

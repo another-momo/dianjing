@@ -13,8 +13,12 @@
 #                    筛选。
 #   version   (可选) 正整数。版本号，UI 可用以标记弃用/历史。
 #   references(可选) 非空按需参考清单：[{path, description}]。
-#                    path 为相对路径，扩展名限 .md/.txt/.json/.yaml/.csv，
-#                    禁 `..` / 绝对路径 / 盘符。
+#                    path 为相对路径（相对该资产所在目录），扩展名限
+#                    .md/.txt/.json/.yaml/.csv，禁 `..` / 绝对路径 / 盘符。
+#
+#                    注：声明层 path 是相对路径；AI 调 load_reference 时传的
+#                    path 则是「按需参考」索引节行首 key（恒带桶前缀，如
+#                    `profile:<id>/references/xxx.md`）。两层区分，不混写。
 id: _example
 label: 示例 profile
 version: 1

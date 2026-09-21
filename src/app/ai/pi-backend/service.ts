@@ -32,6 +32,9 @@
  *    桥侧按设计区合并撤销单元
  *  - T85：load_reference 本地工具装配（customTools 同缝）——允许集读
  *    host.turnAssembly().allowedReferences，回合外恒空集
+ *    2026-09-21 owner 拍板统一限定形寻址：允许集 key 恒为限定形（`base/<path>`
+ *    / `workflow:<id>/<path>` / `profile:<id>/<path>`），详见 types.ts
+ *    `referenceAddressPrefix` 与 active-design-host.ts `collectActiveReferences`
  *  - 2026-09-21 修法 C：run 级冻结 {documentId, pageId}——run 起始探测
  *    pageId 钉进 target 闭包，整个 run 复用，切 tab/翻页不再影响执行中 run
  *    的落点；探测失败留 undefined 走桥 fallback currentPageId

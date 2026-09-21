@@ -46,7 +46,7 @@ references:
 
 ## 阶段 2 · hero 物化（图像轮）
 
-做：把锁定的标题按 CP1 方向先 render 进 HeroContent 槽（真文案、真字号、最终位置）→ look 自检 hero 槽排版（标题位置/字号/对比度、有无遮挡/溢出，有问题修完再走）→ prepare_hero_scaffold（克隆标题版式为页面级参考帧）→ generate_image 候选 ×2~~3（默认 2~~3，参考用 scaffold）。每候选落独立节点；references 用 scaffold 时 prompt 必须明写参照用法（围绕标题构图 + 标题区平静低细节 + 画面中不画任何文字）。写候选 prompt 前 load_reference 读 `references/hero-prompt-template-kv-first.md`（三段模板 + 变异纪律 + 回图诊断）。
+做：把锁定的标题按 CP1 方向先 render 进 HeroContent 槽（真文案、真字号、最终位置）→ look 自检 hero 槽排版（标题位置/字号/对比度、有无遮挡/溢出，有问题修完再走）→ prepare_hero_scaffold（克隆标题版式为页面级参考帧）→ generate_image 候选 ×2~~3（默认 2~~3，参考用 scaffold）。每候选落独立节点；references 用 scaffold 时 prompt 必须明写参照用法（围绕标题构图 + 标题区平静低细节 + 画面中不画任何文字）。写候选 prompt 前 load_reference 读 `workflow:longform-hero-kv-first/references/hero-prompt-template-kv-first.md`（三段模板 + 变异纪律 + 回图诊断）。
 
 候选纪律：单变量受控变异——一批内只动一个变量轴（构图 / 氛围 / 题材择一）。用户整批拒绝 = 合法请求；整批重生 ×2 仍未选中则停止重生，回 CP1 改方向后重提。
 
@@ -93,7 +93,7 @@ profile 协同（阶段 3）：以下属性 profile 有规定时按 profile，�
 
 图像 prompt 纪律：所有 AI 生图 prompt 附 hero 的风格词尾缀（从 CP2 锁定的方向词取），保证整张长图视觉统一。
 
-══ polish 段 ══ 全节填完后：describe 全量审计 → look 分区钻取验收 → 按 `references/fix-playbook-kv-first.md` 逐项排查修复。polish 阶段允许调整所有内容（文案重写、布局重排、图片替换、字号/颜色/间距微调），不重发 CP——CP 是与用户确认的节点，polish 在已确认方向内做自由改进。
+══ polish 段 ══ 全节填完后：describe 全量审计 → look 分区钻取验收 → 按 `workflow:longform-hero-kv-first/references/fix-playbook-kv-first.md` 逐项排查修复。polish 阶段允许调整所有内容（文案重写、布局重排、图片替换、字号/颜色/间距微调），不重发 CP——CP 是与用户确认的节点，polish 在已确认方向内做自由改进。
 
 不做：不在 CP3 确认前填充内容；profile 的 Hero treatment 节另有规定时以 profile 为准。
 

@@ -74,8 +74,13 @@ const README_CONTENT = `# 自定义拓展目录（.agents）
 \`base.md\` 也可覆盖（放本目录根）：所有 mode 共享的行为基座，每回合注入。
 base / workflow / profile 的 frontmatter 均可声明 \`references\` 按需参考
 （\`[{path, description}]\`），agent 经 \`load_reference\` 工具按需读取——
-path 相对该资产文件所在目录解析：用户覆盖 base.md 时，其 references 相对
-**本目录**解析（如声明 \`references/xxx.md\` 即读本目录 \`references/xxx.md\`）。
+
+- **声明层**（frontmatter 的 \`path\`）：相对该资产文件所在目录解析（用户覆盖
+  base.md 时，path 相对**本目录**；如声明 \`references/xxx.md\` 即读本目录
+  \`references/xxx.md\`）；
+- **寻址层**（agent 调 \`load_reference\` 时传的 \`path\`）：照抄系统提示词
+  「按需参考」节行首 key——恒带桶前缀（\`base/<path>\` / \`workflow:<id>/<path>\` /
+  \`profile:<id>/<path>\`）。声明与寻址是两层，不要混写。
 
 ## 起步
 

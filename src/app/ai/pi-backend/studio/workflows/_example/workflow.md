@@ -16,8 +16,12 @@
 #                    canvas = `宽x`（高度随内容）或 `宽x高`（定高）。
 #   references(可选) 非空按需参考清单：[{path, description}]——AI 仅在显式调用
 #                    load_reference 时按需加载（不进入 prompt 正文）。
-#                    path 为相对路径，扩展名限 .md/.txt/.json/.yaml/.csv，
-#                    禁 `..` / 绝对路径 / 盘符。
+#                    path 为相对路径（相对该资产所在目录），扩展名限
+#                    .md/.txt/.json/.yaml/.csv，禁 `..` / 绝对路径 / 盘符。
+#
+#                    注：声明层 path 是相对路径；AI 调 load_reference 时传的
+#                    path 则是「按需参考」索引节行首 key（恒带桶前缀，如
+#                    `workflow:<id>/references/xxx.md`）。两层区分，不混写。
 id: _example
 label: 示例 workflow
 subtitle: 教学示例——复制此文件改写即可获得自定义 mode

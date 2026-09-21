@@ -212,6 +212,9 @@ export async function assembleSession(
     // 本回合 active 资产声明并集——assembleTurn 计算、host 持有于 turn 缓存袋、
     // finalizeTurn 随 turn=null 复位；回合外空集，任何 path 皆拒）
     // P2-3（2026-09-07）：read_reference → load_reference 重命名
+    // 2026-09-21 owner 拍板统一限定形寻址：允许集 key 恒带桶前缀，agent 调
+    // load_reference 须照抄「按需参考」索引节行首 key（详见 types.ts
+    // `referenceAddressPrefix` + active-design-host.ts `collectActiveReferences`）
     createLoadReferenceTool({
       allowedPaths: () => host.turnAssembly()?.allowedReferences ?? EMPTY_REFERENCES
     }),

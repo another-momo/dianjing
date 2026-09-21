@@ -242,14 +242,14 @@ distinct. Reuse is acceptable only when each instance clearly communicates its
 own intended meaning; unintended repetition is a defect.
 
 For a slot matrix, cutout stack, or layered collage, read
-`references/asset-architecture.md`. When two or more shipping assets are needed,
+`workflow:art-directed/references/asset-architecture.md`. When two or more shipping assets are needed,
 write the asset plan into the brief's conclusion area before generating
 anything; record each asset's form, target rectangle, layer order, and
 dependencies.
 
 ### Prompt the shipping assets
 
-Before writing shipping prompts, read `references/imagery.md` and follow it
+Before writing shipping prompts, read `workflow:art-directed/references/imagery.md` and follow it
 exactly. The art-directed composition reference may render poster text;
 shipping assets may not.
 
@@ -320,7 +320,7 @@ one focused pass.
    the decision once in the brief's conclusion area; when two or more shipping
    assets are required, record the asset plan from that same decision there as
    well. When typography is a primary visual material or the defaults feel
-   generic, read `references/font-system.md`, choose fonts by role from the
+   generic, read `workflow:art-directed/references/font-system.md`, choose fonts by role from the
    available font list, and do not default to the same system sans/serif pair.
 5. **Generate the artwork** per the batching, retry, and inspection policy
    above. Record every shipping prompt verbatim in the conclusion area before
@@ -383,9 +383,9 @@ simply absent.
   region or a local scrim, and add a panel only when its material, edges,
   palette, and overlap make it an intentional part of the composition rather
   than a generic card.
-- When unsure about the layout, read `references/layout-typography.md`.
+- When unsure about the layout, read `workflow:art-directed/references/layout-typography.md`.
 - When typography is prominent or the available choices feel generic, read
-  `references/font-system.md` and choose from the available font list by role.
+  `workflow:art-directed/references/font-system.md` and choose from the available font list by role.
 
 ## Build for editing
 
@@ -398,10 +398,10 @@ restyle. Full-bleed backdrops, scrims, and fixed frames stay single nodes.
 ## Add only what this poster needs
 
 - Before prompting generated artwork, and again when artwork comes back wrong,
-  read `references/imagery.md`.
+  read `workflow:art-directed/references/imagery.md`.
 - When the design calls for product matrices, collage fragments, multiple
   cutouts, or foreground/background occlusion, read
-  `references/asset-architecture.md`.
+  `workflow:art-directed/references/asset-architecture.md`.
 - For print, size the canvas in print dimensions at 96 px/inch (A4 ≈ 794x1123).
 - Add no poster-specific interactivity. The editor itself is the only
   interaction layer.

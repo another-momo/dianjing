@@ -450,13 +450,16 @@ describe('P0-1 newIntent 优先级装配（resolveTurnAssets）', () => {
     // 修复前：空槽恒 'BASE'（workflow/profile/references 全丢）
     // P2-3（2026-09-07）：read_reference → load_reference
     // A3 B7：base/workflow/profile 段均非空，前冠来源头
+    // 2026-09-21 owner 拍板统一限定形寻址：索引行恒带桶前缀、节首加操作指令
     expect(turn.systemPrompt).toBe(
       '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY\n\n' +
         '## 按需参考（load_reference 工具按需读取）\n' +
-        '- references/imagery.md —— 图像决策纪律（workflow: longform）'
+        'path 参数 = 照抄下行行首 key（含桶前缀）\n' +
+        '- workflow:longform/references/imagery.md —— 图像决策纪律'
     )
     expect(Object.fromEntries(turn.allowedReferences)).toEqual({
-      'references/imagery.md': '/abs/studio/workflows/longform/references/imagery.md'
+      'workflow:longform/references/imagery.md':
+        '/abs/studio/workflows/longform/references/imagery.md'
     })
     // 空槽 → 无身份封套（设计区尚未落图）
     expect(turn.contextLines).toEqual([])
@@ -642,22 +645,26 @@ describe('references 索引注入（T85 定谳 3/4）', () => {
     return r
   }
 
-  test('有槽：索引节追加 systemPrompt 尾段（行格式逐字钉扎）+ 允许集 = 声明 path → 绝对路径', () => {
+  test('有槽：索引节追加 systemPrompt 尾段（行格式逐字钉扎）+ 允许集 = 限定 key → 绝对路径', () => {
     const turn = assemble(registryWithRefs(), {
       status: 'ok',
       design: designSnap({ profileId: '' }),
       briefMissing: false
     })
     // A3 B7：来源头冠段
+    // 2026-09-21：索引行恒带桶前缀、节首加操作指令、行尾无来源标注
     expect(turn.systemPrompt).toBe(
       '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n' +
         '## 按需参考（load_reference 工具按需读取）\n' +
-        '- references/imagery.md —— 图像决策纪律（workflow: longform）\n' +
-        '- references/typography.md —— 版式排印原则（workflow: longform）'
+        'path 参数 = 照抄下行行首 key（含桶前缀）\n' +
+        '- workflow:longform/references/imagery.md —— 图像决策纪律\n' +
+        '- workflow:longform/references/typography.md —— 版式排印原则'
     )
     expect(Object.fromEntries(turn.allowedReferences)).toEqual({
-      'references/imagery.md': '/abs/studio/workflows/longform/references/imagery.md',
-      'references/typography.md': '/abs/studio/workflows/longform/references/typography.md'
+      'workflow:longform/references/imagery.md':
+        '/abs/studio/workflows/longform/references/imagery.md',
+      'workflow:longform/references/typography.md':
+        '/abs/studio/workflows/longform/references/typography.md'
     })
   })
 
@@ -674,14 +681,18 @@ describe('references 索引注入（T85 定谳 3/4）', () => {
     expect(turn.allowedReferences.size).toBe(0)
   })
 
-  test('空槽 = base only：base 有 references 才出现索引节（source 标 base）', () => {
+  test('空槽 = base only：base 有 references 才出现索引节（base 桶特判 base 标签）', () => {
     const withBase = assemble(registryWithRefs({ base: true }), { status: 'empty' })
     // A3 B7：base 段前冠来源头
+    // 2026-09-21：索引行恒带桶前缀；base 桶特判 `base`（非 `base:base`）
     expect(withBase.systemPrompt).toBe(
-      '# studio base\nBASE\n\n## 按需参考（load_reference 工具按需读取）\n- references/house.md —— 团队纪律（base）'
+      '# studio base\nBASE\n\n' +
+        '## 按需参考（load_reference 工具按需读取）\n' +
+        'path 参数 = 照抄下行行首 key（含桶前缀）\n' +
+        '- base/references/house.md —— 团队纪律'
     )
     expect(Object.fromEntries(withBase.allowedReferences)).toEqual({
-      'references/house.md': '/abs/studio/base/references/house.md'
+      'base/references/house.md': '/abs/studio/base/references/house.md'
     })
     // base 无 references 的空槽：无节、空允许集
     const plain = assemble(makeRegistry(), { status: 'empty' })
@@ -695,12 +706,12 @@ describe('references 索引注入（T85 定谳 3/4）', () => {
       design: designSnap(),
       briefMissing: false
     })
-    expect(turn.systemPrompt).toContain('- references/recipe.md —— 配方细节（profile: watercolor）')
+    expect(turn.systemPrompt).toContain('- profile:watercolor/references/recipe.md —— 配方细节')
     const lines = turn.systemPrompt.split('\n')
-    const idxW = lines.findIndex((l) => l.includes('references/imagery.md'))
-    const idxP = lines.findIndex((l) => l.includes('references/recipe.md'))
+    const idxW = lines.findIndex((l) => l.includes('workflow:longform/references/imagery.md'))
+    const idxP = lines.findIndex((l) => l.includes('profile:watercolor/references/recipe.md'))
     expect(idxP).toBeGreaterThan(idxW)
-    expect(turn.allowedReferences.get('references/recipe.md')).toBe(
+    expect(turn.allowedReferences.get('profile:watercolor/references/recipe.md')).toBe(
       '/abs/studio/profiles/watercolor/references/recipe.md'
     )
   })
@@ -726,11 +737,11 @@ describe('references 索引注入（T85 定谳 3/4）', () => {
   })
 })
 
-// ── reference 寻址消歧：跨桶同名 path 的限定形寻址 ──────────────────────────
+// ── 统一限定形寻址：跨桶同名 path 各登记（无 first-wins 静默误指）─────────
 
-describe('reference 寻址消歧（跨桶同名 path）', () => {
+describe('reference 统一限定形寻址（跨桶同名 path）', () => {
   /** base + workflow 各自声明同名 references/imagery.md + 一条独立 typography */
-  function registryWithConflict(): StudioRegistry {
+  function registryWithCrossBucketPath(): StudioRegistry {
     const r = makeRegistry()
     if (r.base) {
       r.base.references = [{ path: 'references/imagery.md', description: '基础图像纪律' }]
@@ -756,65 +767,54 @@ describe('reference 寻址消歧（跨桶同名 path）', () => {
     return r
   }
 
-  test('冲突 path：索引行改为限定形 + ⚠ 注记；非冲突行保持裸路径零噪音', () => {
-    const turn = assemble(registryWithConflict(), {
+  test('跨桶同名 path：索引行各登记为限定 key + 桶前缀，行尾无来源标注；无 ⚠ 注记', () => {
+    const turn = assemble(registryWithCrossBucketPath(), {
       status: 'ok',
       design: designSnap({ profileId: '' }),
       briefMissing: false
     })
-    // base 行：限定形 base:base + ⚠ 注记
+    // base 桶特判 `base`（非 `base:base` 结巴形）
+    expect(turn.systemPrompt).toContain('- base/references/imagery.md —— 基础图像纪律')
+    expect(turn.systemPrompt).toContain('- workflow:longform/references/imagery.md —— 长图图像纪律')
+    // 非同名 typography.md 同样限定形（agent 唯一寻址手段 = 照抄行首 key）
     expect(turn.systemPrompt).toContain(
-      '- base:base/references/imagery.md ⚠同名冲突，用限定形寻址 —— 基础图像纪律（base）'
+      '- workflow:longform/references/typography.md —— 版式排印原则'
     )
-    // workflow 行：限定形 workflow:longform + ⚠ 注记（即便 base 也声明同名）
-    expect(turn.systemPrompt).toContain(
-      '- workflow:longform/references/imagery.md ⚠同名冲突，用限定形寻址 —— 长图图像纪律（workflow: longform）'
-    )
-    // 非冲突的 typography.md 行保持裸路径、零噪音（无 ⚠）
-    expect(turn.systemPrompt).toContain(
-      '- references/typography.md —— 版式排印原则（workflow: longform）'
-    )
-    // 冲突行确实带 ⚠，非冲突行不带 → 用行级断言（split('\n') 后逐行检查）
-    const lines = turn.systemPrompt.split('\n').filter((l) => l.includes('references/typography'))
-    for (const line of lines) {
-      expect(line.includes('⚠同名冲突')).toBe(false)
-    }
-    // 冲突行确实带 ⚠
-    const conflictLines = turn.systemPrompt
-      .split('\n')
-      .filter((l) => l.includes('references/imagery.md'))
-    expect(conflictLines.length).toBeGreaterThan(0)
-    for (const line of conflictLines) {
-      expect(line.includes('⚠同名冲突')).toBe(true)
-    }
-    // 负向：裸路径 imagery.md 不再出现在「无 ⚠」的渲染行（限定形 + ⚠ 才是冲突行入口）
+    // 整段无来源标注 / ⚠ 注记
+    expect(turn.systemPrompt).not.toContain('⚠同名冲突')
+    expect(turn.systemPrompt).not.toContain('（base）')
+    expect(turn.systemPrompt).not.toContain('（workflow:')
+    expect(turn.systemPrompt).not.toContain('（profile:')
+    // 负向：裸路径不再作为寻址 key 出现在渲染行
     expect(turn.systemPrompt).not.toMatch(/^- references\/imagery\.md ——/)
+    expect(turn.systemPrompt).not.toMatch(/^- references\/typography\.md ——/)
+    // 节首加操作指令行
+    expect(turn.systemPrompt).toContain('path 参数 = 照抄下行行首 key（含桶前缀）')
   })
 
-  test('冲突 path：允许集同时含裸路径（first-wins，索引首条一致）+ 限定 key（全冲突方可达）', () => {
-    const turn = assemble(registryWithConflict(), {
+  test('跨桶同名 path：允许集只登记限定 key（裸 path 已彻底移除，无 first-wins 静默误指）', () => {
+    const turn = assemble(registryWithCrossBucketPath(), {
       status: 'ok',
       design: designSnap({ profileId: '' }),
       briefMissing: false
     })
     const allowed = turn.allowedReferences
-    // 裸路径：first-wins —— base 先声明 → 解析到 base 绝对路径
-    expect(allowed.get('references/imagery.md')).toBe('/abs/studio/base/references/imagery.md')
-    // 限定 key：base/workflow 各可达
-    expect(allowed.get('base:base/references/imagery.md')).toBe(
-      '/abs/studio/base/references/imagery.md'
-    )
+    // 跨桶同名：两个不同 key 各自可达
+    expect(allowed.get('base/references/imagery.md')).toBe('/abs/studio/base/references/imagery.md')
     expect(allowed.get('workflow:longform/references/imagery.md')).toBe(
       '/abs/studio/workflows/longform/references/imagery.md'
     )
-    // 非冲突：仍仅裸路径登记
-    expect(allowed.get('references/typography.md')).toBe(
+    // 非同名：仍登记限定 key（agent 只用限定形）
+    expect(allowed.get('workflow:longform/references/typography.md')).toBe(
       '/abs/studio/workflows/longform/references/typography.md'
     )
-    expect(allowed.has('workflow:longform/references/typography.md')).toBe(false)
+    // 负向：裸 path / 旧 base:base 结巴形不再在允许集中
+    expect(allowed.has('references/imagery.md')).toBe(false)
+    expect(allowed.has('references/typography.md')).toBe(false)
+    expect(allowed.has('base:base/references/imagery.md')).toBe(false)
   })
 
-  test('同 bucket 内多次声明同名 path：仍走 first-wins（不算冲突）', () => {
+  test('同 bucket 内多次声明同名 path：渲染两条（资产作者面可见）；允许集 Map 天然去重一条', () => {
     const r = makeRegistry()
     r.workflows.set(
       'longform',
@@ -832,15 +832,17 @@ describe('reference 寻址消歧（跨桶同名 path）', () => {
       design: designSnap({ profileId: '' }),
       briefMissing: false
     })
-    // 同桶同名 path 不算跨桶冲突 → 仍按裸路径渲染（两条都保留，重复但属既有用法）
-    expect(turn.systemPrompt).toContain('- references/imagery.md —— first（workflow: longform）')
-    expect(turn.systemPrompt).toContain('- references/imagery.md —— second（workflow: longform）')
-    expect(turn.systemPrompt).not.toContain('⚠同名冲突')
-    // 允许集仅一条裸路径登记
+    // 限定形行格式、两条都渲染
+    expect(turn.systemPrompt).toContain('- workflow:longform/references/imagery.md —— first')
+    expect(turn.systemPrompt).toContain('- workflow:longform/references/imagery.md —— second')
+    // 允许集 Map 同 key 去重 → 仅一条登记
     expect(turn.allowedReferences.size).toBe(1)
+    expect(turn.allowedReferences.get('workflow:longform/references/imagery.md')).toBe(
+      '/abs/studio/workflows/longform/references/imagery.md'
+    )
   })
 
-  test('冲突 path + profile 也声明同名：三方全可达（裸路径仍 first-wins）', () => {
+  test('三方跨桶同名（base + workflow + profile）：索引行各带桶前缀；允许集三方全可达', () => {
     const r = makeRegistry()
     if (r.base) {
       r.base.references = [{ path: 'references/shared.md', description: '基础共享' }]
@@ -872,20 +874,13 @@ describe('reference 寻址消歧（跨桶同名 path）', () => {
       design: designSnap(),
       briefMissing: false
     })
-    expect(turn.systemPrompt).toContain(
-      '- base:base/references/shared.md ⚠同名冲突，用限定形寻址 —— 基础共享（base）'
-    )
-    expect(turn.systemPrompt).toContain(
-      '- workflow:longform/references/shared.md ⚠同名冲突，用限定形寻址 —— 工作流共享（workflow: longform）'
-    )
-    expect(turn.systemPrompt).toContain(
-      '- profile:watercolor/references/shared.md ⚠同名冲突，用限定形寻址 —— 风格共享（profile: watercolor）'
-    )
-    // 裸路径 first-wins：base 最先（activeAssets 顺序：base → workflow → profile）
-    expect(turn.allowedReferences.get('references/shared.md')).toBe(
+    expect(turn.systemPrompt).toContain('- base/references/shared.md —— 基础共享')
+    expect(turn.systemPrompt).toContain('- workflow:longform/references/shared.md —— 工作流共享')
+    expect(turn.systemPrompt).toContain('- profile:watercolor/references/shared.md —— 风格共享')
+    // 三方限定 key 全可达、各自指向各自桶解析绝对路径
+    expect(turn.allowedReferences.get('base/references/shared.md')).toBe(
       '/abs/studio/base/references/shared.md'
     )
-    // 三方限定 key 全可达
     expect(turn.allowedReferences.get('workflow:longform/references/shared.md')).toBe(
       '/abs/studio/workflows/longform/references/shared.md'
     )

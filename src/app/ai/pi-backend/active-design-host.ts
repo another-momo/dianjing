@@ -27,6 +27,10 @@
  *    按 general 组装（不注 profile）。
  *    T85 起尾段追加「按需参考」索引节（active 资产 references 并集非空时），
  *    并集即本回合 load_reference 允许集（load-reference.ts）。
+ *    2026-09-21 owner 拍板统一限定形寻址：索引行恒带桶前缀（`base/<path>` /
+ *    `workflow:<id>/<path>` / `profile:<id>/<path>`），agent 唯一寻址手段 =
+ *    照抄行首 key；冲突机制整段删除（key 全串唯一不可能冲突，first-wins 静默
+ *    误指随之消失；registry 侧的跨桶同名检测仍保留作作者面响亮信号）。
  *  - 新建意图一次性旗标：首行信封 `[新建意图确认 modeId=<id> profileId=<id>
  *    canvas=<值>]`（字段可缺省，顺序固定；canvas 自 T65 起）剥离 → 本回合
  *    newIntentConfirmed() 返真 → run 结束 finalizeTurn（runPrompt finally）
@@ -64,6 +68,7 @@ import { readDiscoveryFile } from '@/app/bridge/server/discovery'
 
 import { postBridgeRPC } from './bridge-rpc'
 import {
+  referenceAddressPrefix,
   referenceBucketKey,
   type StudioAssetReference,
   type StudioBase,
@@ -113,9 +118,12 @@ export interface TurnAssembly {
   /** context 注入行（身份封套 + 系统提示）；空槽 → 空数组 */
   contextLines: string[]
   /**
-   * T85 定谳 4：本回合 load_reference 允许集（声明 path → 加载期解析绝对路径；
+   * T85 定谳 4：本回合 load_reference 允许集（限定形 key → 加载期解析绝对路径；
    * 空 = 本回合不可读任何 reference）。宿主持有于 turn 缓存袋，finalizeTurn
    * 随 turn=null 一并复位（同 intentConfirmed 一次性态纪律）。
+   * 2026-09-21：key 形态恒为 `base/<path>` / `workflow:<id>/<path>` /
+   * `profile:<id>/<path>`——base 桶特判 `base`，workflow/profile 保留 `${kind}:${id}`，
+   * 与索引节渲染同源（`referenceAddressPrefix` 单源），见 types.ts。
    */
   allowedReferences: ReadonlyMap<string, string>
 }
@@ -123,108 +131,49 @@ export interface TurnAssembly {
 /** 索引节标题（T85 定谳 3 字面口径；P2-3 同步工具名） */
 const REFERENCES_INDEX_HEADING = '## 按需参考（load_reference 工具按需读取）'
 
-/** 限定形寻址 key：冲突时多桶同名 path 经此形区分（基桶 key + '/' + relPath） */
-function referenceQualifiedKey(
+/** 索引节下首行操作指令——agent 照抄行首 key 即唯一寻址手段（2026-09-21 owner 拍板加注） */
+const REFERENCES_INDEX_INSTRUCTION = 'path 参数 = 照抄下行行首 key（含桶前缀）'
+
+/** 限定形寻址 key：`referenceAddressPrefix(kind, id) + '/' + path`（types.ts 单源；
+ *  base 桶特判 `base`，workflow/profile 桶 `${kind}:${id}`）。agent 唯一寻址手段。 */
+function qualifiedReferenceKey(
   kind: 'base' | 'workflow' | 'profile',
   id: string,
   path: string
 ): string {
-  return `${referenceBucketKey(kind, id)}/${path}`
+  return `${referenceAddressPrefix(kind, id)}/${path}`
 }
-
-/** 索引行「同名冲突」注记字面 */
-const CONFLICT_NOTE = '⚠同名冲突，用限定形寻址'
 
 /** 本回合 active 资产的 references 并集：base 恒在 + 命中的 workflow + 命中的 profile。
  *
- *  同 path 跨桶冲突消歧：
- *  - 无冲突：裸 path 行为不变（索引行 + 允许集首项均指向裸 path，first-wins）
- *  - 有冲突：所有冲突方的索引行改为限定形 `${bucketKey}/${path}` + ⚠ 注记；
- *    允许集同时登记限定 key（所有冲突方可寻址）；裸 path 仍 first-wins 保留
- *    （旧语义不变——索引首条与裸 path 寻址一致）。
+ * 2026-09-21 owner 拍板：统一限定形寻址（agent 侧只剩一条规则——照抄索引行首 key）。
+ * 索引行恒带桶前缀（`base/<path>` / `workflow:<id>/<path>` / `profile:<id>/<path>`），
+ * key 全串唯一，不可能跨桶同名冲突——first-wins 静默误指随之消失。允许集同样只登
+ * 记限定 key，Map 天然去重覆盖同桶同名 path 重复声明。
  */
 function collectActiveReferences(
   registry: StudioRegistry,
   assets: Array<StudioBase | StudioWorkflow | StudioProfile>
 ): { indexSection: string; allowed: Map<string, string> } {
-  const entries = collectReferenceEntries(registry, assets)
-  const lines = renderIndexLines(entries)
-  const allowed = buildAllowedSet(entries)
-  return {
-    indexSection: lines.length === 0 ? '' : `${REFERENCES_INDEX_HEADING}\n${lines.join('\n')}`,
-    allowed
-  }
-}
-
-interface ReferenceEntry {
-  asset: StudioBase | StudioWorkflow | StudioProfile
-  source: string
-  bucket: ReadonlyMap<string, string> | undefined
-  ref: StudioAssetReference
-}
-
-/** 累积声明 → 标记每个 entry 的冲突位（仅不同 bucketKey 计冲突；同桶同 path 不计）。
- *  Map 而非数组：维持发现顺序同时为每条 entry 预存冲突标记，渲染侧与允许集侧
- *  分别按 Map 序遍历、共享同一冲突视图。
- *
- *  实现：先纯统计 → 二次按累积结果给每条 entry 设标记（避免第一次出现某 path 时
- *  误把首条标成 false——同 path 后续加入第二桶后才知冲突）。 */
-function collectReferenceEntries(
-  registry: StudioRegistry,
-  assets: Array<StudioBase | StudioWorkflow | StudioProfile>
-): Map<ReferenceEntry, boolean> {
-  const rawEntries: ReferenceEntry[] = []
-  const distinctBucketsByPath = new Map<string, Set<string>>()
+  const lines: string[] = []
+  const allowed = new Map<string, string>()
   for (const asset of assets) {
     if (!asset.references || asset.references.length === 0) continue
-    const source = asset.kind === 'base' ? 'base' : `${asset.kind}: ${asset.id}`
     const bucket = registry.resolvedReferences.get(referenceBucketKey(asset.kind, asset.id))
-    const bucketKey = bucket ? referenceBucketKey(asset.kind, asset.id) : ''
     for (const ref of asset.references) {
-      rawEntries.push({ asset, source, bucket, ref })
-      let set = distinctBucketsByPath.get(ref.path)
-      if (!set) {
-        set = new Set<string>()
-        distinctBucketsByPath.set(ref.path, set)
-      }
-      if (bucketKey) set.add(bucketKey)
-    }
-  }
-  const entries = new Map<ReferenceEntry, boolean>()
-  for (const entry of rawEntries) {
-    const conflict = (distinctBucketsByPath.get(entry.ref.path)?.size ?? 0) > 1
-    entries.set(entry, conflict)
-  }
-  return entries
-}
-
-/** 渲染索引行：冲突行用限定形 + ⚠ 注记；非冲突行保持裸路径零噪音 */
-function renderIndexLines(entries: Map<ReferenceEntry, boolean>): string[] {
-  const lines: string[] = []
-  for (const [e, conflict] of entries) {
-    if (conflict && e.bucket) {
-      const qualified = referenceQualifiedKey(e.asset.kind, e.asset.id, e.ref.path)
-      lines.push(`- ${qualified} ${CONFLICT_NOTE} —— ${e.ref.description}（${e.source}）`)
-    } else {
-      lines.push(`- ${e.ref.path} —— ${e.ref.description}（${e.source}）`)
-    }
-  }
-  return lines
-}
-
-/** 填充允许集：限定 key 全冲突方登记 + 裸 path first-wins（同桶同 path 不再冲突计数） */
-function buildAllowedSet(entries: Map<ReferenceEntry, boolean>): Map<string, string> {
-  const allowed = new Map<string, string>()
-  for (const [e, conflict] of entries) {
-    const abs = e.bucket?.get(e.ref.path)
-    if (!abs) continue
-    if (conflict && e.bucket) {
-      const qualified = referenceQualifiedKey(e.asset.kind, e.asset.id, e.ref.path)
+      const abs = bucket?.get(ref.path)
+      if (!abs) continue
+      const qualified = qualifiedReferenceKey(asset.kind, asset.id, ref.path)
+      // 同桶同名 path 重复声明：Map 天然去重 + 渲染侧保留全部条目（资产作者面可见）
+      lines.push(`- ${qualified} —— ${ref.description}`)
       if (!allowed.has(qualified)) allowed.set(qualified, abs)
     }
-    if (!allowed.has(e.ref.path)) allowed.set(e.ref.path, abs)
   }
-  return allowed
+  if (lines.length === 0) return { indexSection: '', allowed }
+  return {
+    indexSection: `${REFERENCES_INDEX_HEADING}\n${REFERENCES_INDEX_INSTRUCTION}\n${lines.join('\n')}`,
+    allowed
+  }
 }
 
 /** 组装收尾：references 索引节追加进 systemPrompt 尾段（并集非空时）+ 允许集入 TurnAssembly */
@@ -280,6 +229,10 @@ export type TurnSlotState = ActiveDesignSlotState & {
  *  - T85 定谳 3：本回合 active 资产（base 恒在 + 命中 workflow + 命中 profile）的
  *    references 并集非空时，systemPrompt 尾段追加「按需参考」索引节；并集即本回合
  *    load_reference 允许集（allowedReferences，finalizeTurn 复位）
+ *  - 2026-09-21 统一限定形寻址：索引行恒带桶前缀（`base/<path>` /
+ *    `workflow:<id>/<path>` / `profile:<id>/<path>`），agent 唯一寻址手段 = 照抄
+ *    行首 key；冲突机制整段删除（key 全串唯一不可能冲突，first-wins 静默误指
+ *    随之消失；registry 侧的跨桶同名检测仍保留作作者面响亮信号）
  *  - A3 B7：各段带来源头行——非空段前冠 `# studio base` / `# workflow: <id>` /
  *    `# profile: <id>`（asset.kind + asset.id，collectActiveReferences 同款）；
  *    空段不冠头（joinSegments 滤空串语义不变）。Agent 可机械分辨当前注入构成——
