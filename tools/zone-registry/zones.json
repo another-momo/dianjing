@@ -2035,6 +2035,41 @@
       "reason": "2026-09-21 合并 v0.15.1：拒收 048 storybook 控件断言改写（引用被拒收的 PresetNumberField/AppCollapsible）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P339",
+      "file": "src/components/ui/feedback/AppBanner.vue",
+      "reason": "2026-09-21 合并 v0.15.1 修红：#716 带入的 AppBanner 以 testId prop 渲染 data-test-id，触 check:arch 共享层禁生产 test-id 规则（CI 35563778185）——改 data-slot 解剖（banner/banner-content/banner-dismiss），testId prop 摘除，消费方与 stories 同批剥属性",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P340",
+      "file": "src/components/ui/feedback/banner.ts",
+      "reason": "2026-09-21 合并 v0.15.1 修红：#716 带入的 AppBanner 以 testId prop 渲染 data-test-id，触 check:arch 共享层禁生产 test-id 规则（CI 35563778185）——改 data-slot 解剖（banner/banner-content/banner-dismiss），testId prop 摘除，消费方与 stories 同批剥属性",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P341",
+      "file": "src/components/FileApiBanner.vue",
+      "reason": "2026-09-21 合并 v0.15.1 修红：#716 带入的 AppBanner 以 testId prop 渲染 data-test-id，触 check:arch 共享层禁生产 test-id 规则（CI 35563778185）——改 data-slot 解剖（banner/banner-content/banner-dismiss），testId prop 摘除，消费方与 stories 同批剥属性",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P342",
+      "file": "src/components/canvas/ColorSpaceBanner.vue",
+      "reason": "2026-09-21 合并 v0.15.1 修红：#716 带入的 AppBanner 以 testId prop 渲染 data-test-id，触 check:arch 共享层禁生产 test-id 规则（CI 35563778185）——改 data-slot 解剖（banner/banner-content/banner-dismiss），testId prop 摘除，消费方与 stories 同批剥属性",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P343",
+      "file": "src/components/ui/feedback/AppBanner.stories.ts",
+      "reason": "2026-09-21 合并 v0.15.1 修红：#716 带入的 AppBanner 以 testId prop 渲染 data-test-id，触 check:arch 共享层禁生产 test-id 规则（CI 35563778185）——改 data-slot 解剖（banner/banner-content/banner-dismiss），testId prop 摘除，消费方与 stories 同批剥属性",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
     }
   ],
   "deletedPaths": [
