@@ -34,6 +34,7 @@ import { createExportImageToFileTool } from '../export-image-to-file'
 import type { ImageGenCredentialStore } from '../image-gen/credentials'
 import { createImageGenTool } from '../image-gen/generate'
 import type { ImageGenSettingsStore } from '../image-gen/settings'
+import { createInstallSkillTool } from '../install-skill'
 import { createKeyGuardExtension } from '../key-guard'
 import { createLoadImageTool } from '../load-image'
 import { createLoadReferenceTool } from '../load-reference'
@@ -223,7 +224,19 @@ export async function assembleSession(
     // place_image_from_bytes）；export_image_to_file = 画布节点写盘唯一入口
     // （桥调 core export_image 拿 base64 → 三态裁决 → fs.writeFile）
     createLoadImageTool({ rootDir, target }),
-    createExportImageToFileTool({ rootDir, target })
+    createExportImageToFileTool({ rootDir, target }),
+    // 2026-09-21 skill-installer v1 批 1（仓外
+    // docs/202609201453-skill-installer-meta-skill-design.md §5 + 快照 §4）：
+    // install_skill 桥工具——元 skill 唯一写口；闸门复用 authz 族
+    // (pending-decision store + per-session authzSink)；路径判定与 key-guard
+    // 共享 path-decision 单源
+    createInstallSkillTool({
+      rootDir,
+      store: decisionStore,
+      sessionId,
+      authzSink,
+      ...(builtinStudioDir ? { builtinSkillsDir: resolveBuiltinSkillsDir(builtinStudioDir) } : {})
+    })
   ]
 
   // T60：每回合组装 = active-design-host prepareTurn 产出的

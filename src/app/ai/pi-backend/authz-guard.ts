@@ -36,8 +36,8 @@ import type { UIMessageChunk } from 'ai'
 
 import type { AuthzAnswerPayload, AuthzDecision, PendingDecisionStore } from './pending-decision'
 
-/** data-authz-request payload（并行线冻结契约，逐字字段禁改） */
-export interface AuthzRequestNotice {
+/** data-authz-request payload 联合（toolName 判别）——bash 由本档装配，install_skill 由 install-skill.ts 装配（设计稿 §5「闸门复用 authz 族」 + §6 无人值守 = 同族拒装语义） */
+export interface BashAuthzRequest {
   formId: string
   kind: 'authz'
   toolName: 'bash'
@@ -47,6 +47,25 @@ export interface AuthzRequestNotice {
   /** 本可命中/将入库的规则原文（「你将放行的是什么」= 卡按钮呈现文本；空命令等不可派生时缺省） */
   matchedRule?: string
 }
+
+/** install_skill 单次确认卡（无规则记忆——安装是一次性许可，按次决定） */
+export interface InstallSkillAuthzRequest {
+  formId: string
+  kind: 'authz'
+  toolName: 'install_skill'
+  /** 暂存区绝对路径（用户层可见位） */
+  sourceDir: string
+  /** 目标 skill name（已过 SDK validateName 硬闸） */
+  name: string
+  /** overwrite 模式（同名已存时必须 true） */
+  overwrite: boolean
+  /** 将安装的文件清单（暂存区相对路径，渲染卡面用） */
+  files: string[]
+  /** 适配点摘要（agent 生成；元 skill 走工作流后给出） */
+  adapterSummary: string
+}
+
+export type AuthzRequestNotice = BashAuthzRequest | InstallSkillAuthzRequest
 
 /** data-authz-decision payload（已决完结信号，前端归档用；形态与 ask 已决 details 同构） */
 export interface AuthzDecisionNotice {
@@ -231,7 +250,11 @@ export function createAuthzGuardHandler(
   }
 
   return async (event) => {
-    if (event.toolName !== 'bash') return undefined
+    if (event.toolName !== 'bash') {
+      // install_skill 走自己的闸门（install-skill.ts：先 validate 拿到 file
+      // 清单后再注册 authz pending）；bash 专用通路不接管。
+      return undefined
+    }
     const command = event.input['command']
     // input.command 必填（bash schema 实证）；非 string 放行由 SDK schema 自拒
     if (typeof command !== 'string') return undefined
