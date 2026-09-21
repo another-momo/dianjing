@@ -310,12 +310,17 @@ function createDesignRoot(
 }
 
 /**
- * T91b 新建意图确认门：args 一次性（每调携带）、pluginData 持久（用户答「是」
- * 后写一次）——任一为真即放行（返 null）。二者皆未成立 → 返 awaiting 信封
- * （非错误）——前端 ChatPanel 拦截展示 ChatNewIntentCard，用户确认 → POST
- * intent-confirm → 写入 pluginData → 重放工具调用，AI 不应自行重试。
- * A3 B6：守卫收窄——纯 general（无 profileId）静默放行；general+profile 未
- * 确认仍拦。纯通用工作区无 workflow/profile 绑定——无高风险参数，不需确认。
+ * T91b 新建意图确认门。批 1 后（2026-09-21 D3 拍板）：
+ *  - args.confirmedNewIntent === true（程序化路径，单次同步）→ 放行
+ *  - 纯 general（无 profileId）→ 静默放行（A3 B6，无高风险参数）
+ *  - pluginData.confirmed = false → 返 awaiting（持久态未确认）
+ *  - pluginData.confirmed = true → 严格比对 args.modeId/profileId 与 pluginData
+ *    键值，不符 → 返 awaiting（守卫绑定身份；F3 修复：原"选择即锁定"从 prompt
+ *    文案升级为结构）。args.profileId 缺省按 pluginState.profileId 判定。
+ *
+ * 注：批 1 前曾有 envelope 兼容路径（用户消息首行 `[新建意图确认 modeId=…]`
+ * 剥离置 confirmed=true）——D2 拍板后整段退役，确认参数只走
+ * POST /api/pi/intent-confirm 写 pluginData 四键。
  */
 function checkNewIntentGate(
   args: SetupDesignArgs,
@@ -324,13 +329,31 @@ function checkNewIntentGate(
 ): SetupDesignResult | null {
   const argsConfirmed = args.confirmedNewIntent === true
   const isPureGeneral = args.modeId === SETUP_GENERAL_MODE_ID && args.profileId === undefined
-  if (argsConfirmed || pluginState.confirmed || isPureGeneral) return null
+  if (argsConfirmed || isPureGeneral) return null
+  if (!pluginState.confirmed) {
+    return awaitingEnvelope(args, pluginState, catalog)
+  }
+  // D3 守卫绑定身份：pluginState.confirmed 时严格比对 args 与 pluginData 键值
+  if (pluginState.modeId !== args.modeId) {
+    return awaitingEnvelope(args, pluginState, catalog)
+  }
+  const argsProfileId = args.profileId ?? ''
+  if (argsProfileId !== pluginState.profileId) {
+    return awaitingEnvelope(args, pluginState, catalog)
+  }
+  return null
+}
+
+/** D3：bind 不符 / 未确认共用 awaiting 信封构造（避免重复） */
+function awaitingEnvelope(
+  args: SetupDesignArgs,
+  pluginState: NewIntentState,
+  catalog?: SetupCatalog
+): SetupDesignResult {
   return {
     status: 'awaiting_new_intent_confirmation',
     proposed: {
       modeId: args.modeId,
-      // T91b：args 缺 profileId 时回退 pluginData，让 envelope 携带一致信息
-      // （前端 ChatAwaitingIntentCard 显示"风格"列需用）
       profileId: args.profileId ?? pluginState.profileId,
       briefId: args.briefId
     },
@@ -345,10 +368,12 @@ function checkNewIntentGate(
  * 恒新建第二框（最小空闲名递增）。
  *
  * T91b 新建意图确认：pluginData `newIntentConfirmed` 与 args.confirmedNewIntent
- * 二者其一为 true 即放行。任一未成立时返 awaiting 信封（非错误）——
- * 前端 ChatPanel 拦截展示 ChatNewIntentCard，用户确认 → POST intent-confirm
- * → 写入 pluginData → 重放工具调用。成功后 clearNewIntent 清三键，避免下次
- * 装配点误用旧的 modeId。
+ * 二者其一为 true 即放行（前者经 POST /api/pi/intent-confirm 写入；后者为
+ * 程序化单次同步）。任一未成立时返 awaiting 信封（非错误）——前端 ChatPanel
+ * 拦截展示 ChatNewIntentCard，用户确认 → POST intent-confirm → 写入
+ * pluginData → 重放工具调用。成功后 clearNewIntent 清四键，避免下次装配点
+ * 误用旧的 modeId。批 1 后（2026-09-21 D3）：pluginData 路径新增 bind 检查
+ * （args.modeId/profileId 必须严格匹配 pluginData 同名键），裸信封通道已退役。
  */
 export function setupDesign(
   figma: FigmaAPI,

@@ -257,18 +257,26 @@ describe('setup_design core：契约组', () => {
     expect(scanMarketingDesigns(figma)).toEqual([])
   })
 
-  // T91b：pluginData 路径双面——args 缺 + pluginData 确认 → 放行 + 落图后清三键；
+  // T91b：pluginData 路径双面——args 缺 + pluginData 确认 → 放行 + 落图后清四键；
   // args 缺 + pluginData 未确认 → 返 awaiting 信封；clearNewIntent 复位。
-  test('⑧b pluginData 双源确认 + 清三键（放行 + 落图后清 + 未确认返 awaiting）', () => {
+  // 批 1（D3 守卫绑定）：pluginData confirmed 时 args.modeId/profileId 必须与
+  // pluginData 键值严格相符——故 args 需携带同一 profileId（catalog 在册值）。
+  test('⑧b pluginData 双源确认 + 清四键（放行 + 落图后清 + 未确认返 awaiting）', () => {
     const { graph, figma, brief } = setupPage()
 
-    // case 1: pluginData confirmed → 放行；落图后 pluginData 三键应清
-    writeNewIntent(figma, { modeId: 'longform', profileId: 'p1', confirmed: true })
-    const okResult = setupDesign(figma, { modeId: 'longform', briefId: brief.id }, CATALOG)
+    // case 1: pluginData confirmed + args 绑定相符 → 放行；落图后 pluginData 四键应清
+    writeNewIntent(figma, { modeId: 'longform', profileId: 'profile-a', confirmed: true })
+    const okResult = setupDesign(
+      figma,
+      { modeId: 'longform', profileId: 'profile-a', briefId: brief.id },
+      CATALOG
+    )
     if ('rootId' in okResult) {
       const root = expectDefined(graph.getNode(okResult.rootId))
       expect(getSharedPluginData(root, BRIEF_PLUGIN_NAMESPACE, DESIGN_MODE_KEY)).toBe('longform')
-      expect(getSharedPluginData(root, BRIEF_PLUGIN_NAMESPACE, DESIGN_PROFILE_KEY)).toBe('p1')
+      expect(getSharedPluginData(root, BRIEF_PLUGIN_NAMESPACE, DESIGN_PROFILE_KEY)).toBe(
+        'profile-a'
+      )
     } else throw new Error('expected setupDesign success')
     // A3 B2：四键（含 canvas 缺省 ''）
     expect(readNewIntent(figma)).toEqual({
@@ -292,6 +300,47 @@ describe('setup_design core：契约组', () => {
       confirmed: false,
       canvas: ''
     })
+  })
+
+  // 批 1（2026-09-21 D3 拍板）守卫绑定：pluginData.confirmed=true 时 args 键值
+  // 与 pluginData 不符 → 重新 awaiting（身份漂移即重确认）；无框落地。
+  test('⑧c 守卫绑定：args 与 pluginData 键值不符 → 重新 awaiting（D3）', () => {
+    const { graph, figma, brief } = setupPage()
+    const before = expectDefined(graph.getNode(figma.currentPage.id)).childIds.length
+
+    // modeId 不符（pluginData=longform，args=workflow）→ awaiting
+    writeNewIntent(figma, { modeId: 'longform', profileId: '', confirmed: true })
+    const modeMismatch = setupDesign(figma, { modeId: 'workflow', briefId: brief.id }, CATALOG)
+    expect(modeMismatch).toMatchObject({
+      status: 'awaiting_new_intent_confirmation',
+      proposed: { modeId: 'workflow', briefId: brief.id }
+    })
+
+    // profileId 不符（pluginData 有、args 缺）→ awaiting（⑧b 回归锚：绑定不严时此调用曾误放行）
+    writeNewIntent(figma, { modeId: 'longform', profileId: 'profile-a', confirmed: true })
+    const profileMissing = setupDesign(figma, { modeId: 'longform', briefId: brief.id }, CATALOG)
+    expect(profileMissing).toMatchObject({
+      status: 'awaiting_new_intent_confirmation',
+      proposed: { modeId: 'longform', profileId: 'profile-a', briefId: brief.id }
+    })
+
+    // profileId 不符（args 有、pluginData 无）→ awaiting
+    writeNewIntent(figma, { modeId: 'longform', confirmed: true })
+    const profileExtra = setupDesign(
+      figma,
+      { modeId: 'longform', profileId: 'profile-a', briefId: brief.id },
+      CATALOG
+    )
+    expect(profileExtra).toMatchObject({
+      status: 'awaiting_new_intent_confirmation',
+      proposed: { modeId: 'longform', profileId: 'profile-a', briefId: brief.id }
+    })
+
+    // 全程无框落地；pluginData 持久态不被 awaiting 消费（confirmed 仍在）
+    expect(expectDefined(graph.getNode(figma.currentPage.id)).childIds.length).toBe(before)
+    expect(scanMarketingDesigns(figma)).toEqual([])
+    expect(readNewIntent(figma).confirmed).toBe(true)
+    clearNewIntent(figma)
   })
 
   test('⑨ 关联设计区登记：条目 designId + 名称投影 + bound-designs 指针 + 读穿三元组', () => {

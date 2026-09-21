@@ -550,7 +550,14 @@ export function createPiChatService({
     if (!capabilitiesStore.get().agentSkills) {
       return { ok: false, error: 'invalid_args', message: 'agent skills 不可用' }
     }
-    return confirmNewIntentViaBridge(args, documentId, windowId)
+    const result = await confirmNewIntentViaBridge(args, documentId, windowId)
+    // D3 锁定行只注一次：写键成功 → 所有现存 session 的 host 置「新鲜」标记，
+    // 下回合 prepareTurn 注入确认参数行后即消费。全 session 标记与
+    // onSlotSwitchedViaBridge 同先例（端点不绑 sessionId，备选回合消费到）
+    if (result.ok) {
+      for (const entry of sessions.values()) entry.host.markNewIntentFresh()
+    }
+    return result
   }
 
   async function abort(sessionId: string): Promise<void> {

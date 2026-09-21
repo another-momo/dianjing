@@ -31,12 +31,12 @@
  *    `workflow:<id>/<path>` / `profile:<id>/<path>`），agent 唯一寻址手段 =
  *    照抄行首 key；冲突机制整段删除（key 全串唯一不可能冲突，first-wins 静默
  *    误指随之消失；registry 侧的跨桶同名检测仍保留作作者面响亮信号）。
- *  - 新建意图一次性旗标：首行信封 `[新建意图确认 modeId=<id> profileId=<id>
- *    canvas=<值>]`（字段可缺省，顺序固定；canvas 自 T65 起）剥离 → 本回合
- *    newIntentConfirmed() 返真 → run 结束 finalizeTurn（runPrompt finally）
- *    强制复位。T65 集成缺口修复：剥离时把确认参数组装成一行系统提示注入
- *    本回合 context（「用户已为本次新建确认参数：…（选择即锁定，不得覆盖）」，
- *    缺省字段省略；裸信封无参数不注入）——确认参数此前对 AI 不可见。
+ *  - 新建意图一次性旗标：本回合 newIntentConfirmed() 返真 → run 结束
+ *    finalizeTurn（runPrompt finally）强制复位。
+ *    批 1 后（2026-09-21 D2/D3 拍板）：信封通道整段退役，确认参数只走
+ *    POST /api/pi/intent-confirm 写 document root pluginData 四键；首回合
+ *    锁定行注入由 intent-confirm 端点置「新鲜」标记驱动，下回合 prepareTurn
+ *    消费即清——防止 F3 锁定行每回合复发。
  *
  * 桥失败语义：探针不可达（无 discovery / 桥 502 / 无活动文档）→ 本回合按空槽
  * 组装并 warn（冒烟环境无浏览器即此路径；工具调用届时会各自显式失败）；
@@ -76,40 +76,6 @@ import {
   type StudioRegistry,
   type StudioWorkflow
 } from './studio/types'
-
-// ── 新建意图信封（共享契约：首行 `[新建意图确认 modeId=<id> profileId=<id> canvas=<值>]`，
-//    字段可缺省、顺序固定；canvas = 尺寸覆盖值，T65 §2.4）──────────────────────────
-
-const NEW_INTENT_MARKER =
-  /^\[新建意图确认(?:\s+modeId=([^\]\s]+))?(?:\s+profileId=([^\]\s]+))?(?:\s+canvas=([^\]\s]+))?\]\r?$/
-
-export interface NewIntentEnvelope {
-  modeId?: string
-  profileId?: string
-  /** 尺寸覆盖值（canvas 串原样透传；格式校验在 core setup_design，非法 → invalid_canvas） */
-  canvas?: string
-}
-
-/** 剥首行信封；仅首行精确命中才剥离（容错：非首行/畸形一律不动原文） */
-export function stripNewIntentEnvelope(text: string): {
-  envelope: NewIntentEnvelope | null
-  stripped: string
-} {
-  const newline = text.indexOf('\n')
-  const firstLine = newline === -1 ? text : text.slice(0, newline)
-  const match = NEW_INTENT_MARKER.exec(firstLine)
-  if (!match) return { envelope: null, stripped: text }
-  const [, modeId, profileId, canvas] = match
-  // 可选捕获组运行时可为 undefined（索引签名类型不含），truthy 守卫兼排两种
-  const envelope: { modeId?: string; profileId?: string; canvas?: string } = {}
-  if (modeId) envelope.modeId = modeId
-  if (profileId) envelope.profileId = profileId
-  if (canvas) envelope.canvas = canvas
-  return {
-    envelope,
-    stripped: newline === -1 ? '' : text.slice(newline + 1)
-  }
-}
 
 // ── 每回合组装（纯函数；base→workflow→profile 顺序固定，前缀缓存友好）─────────
 
@@ -193,8 +159,8 @@ function finishTurn(
 
 /** 身份封套首行（nodeId + briefId；P2-2 §8.1.1 移除 modeId/profileId——agent 从
  *  system prompt 内容本身知道当前 workflow/profile，不需文件名 id；暴露可能泄露
- *  给用户，且 id 不稳定）。注意：`[新建意图确认 modeId=... profileId=...]` 是
- *  P0-1 newIntent 流程的承重设计（setup_design 守卫依赖），绝不可动。 */
+ *  给用户，且 id 不稳定）。setup_design 守卫只依赖 document root pluginData
+ *  四键 + args.confirmedNewIntent（批 1 后不再读用户消息首行信封）。 */
 export function designTargetEnvelope(design: DesignRootSnapshot): string {
   return `[当前设计目标 nodeId=${design.nodeId} briefId=${design.briefId}]`
 }
@@ -589,14 +555,10 @@ export function isFormTargetStillValid(probe: CandidateProbeData): boolean {
 /** 装配后生效身份（resolveTurnAssets 解析后的 modeId+profileId 二元组） */
 function effectiveIdentity(
   slot: TurnSlotState,
-  envelopeIntent: NewIntentState | null,
   probeIntent: NewIntentState | null
 ): { modeId: string; profileId: string } {
-  // intent 优先（与 resolveTurnAssets 同语义）：信封 > probe > slot
-  const useIntent = envelopeIntent && envelopeIntent.modeId !== ''
-  if (useIntent) {
-    return { modeId: envelopeIntent.modeId, profileId: envelopeIntent.profileId }
-  }
+  // 批 1 后（2026-09-21 D2/D3 拍板）：信封通道退役，effective 只看 probe.pluginData
+  // intent 优先（与 resolveTurnAssets 同语义）：probe > slot
   if (probeIntent?.confirmed && probeIntent.modeId !== '') {
     return { modeId: probeIntent.modeId, profileId: probeIntent.profileId }
   }
@@ -670,11 +632,15 @@ export interface ActiveDesignHost {
    *  formId→当时 currentSlotNodeId（与 awaiting envelope 路径等价但触发时点
    *  提前到挂起完成前，answer envelope 不再走聊天回流路径） */
   recordAskForm(formId: string): void
-  /** 回合入口：剥信封 → 置旗标 + 确认参数系统提示行（T65）→ ④移槽 → 槽位读穿/清悬空 → 组装 */
+  /** D3 锁定行只注一次：intent-confirm 端点调 confirmNewIntent 成功后置标记——
+   *  下回合 prepareTurn 注入确认参数行后即消费；防止 pluginData.confirmed
+   *  持久态下锁定行每回合复发。多次 confirm 重复置位（last-write-wins） */
+  markNewIntentFresh(): void
+  /** 回合入口：移槽（formAnswer）→ 槽位读穿/清悬空 → 资产解析 → 新鲜锁定行消费 → 组装 */
   prepareTurn(text: string, documentId?: string, windowId?: string): Promise<{ promptText: string }>
   /** before_agent_start 钩子读取的当回合组装结果（prepareTurn 后恒非空） */
   turnAssembly(): TurnAssembly | null
-  /** run 结束 finally：旗标复位 + 回合态清零（信封永不跨回合滞留） */
+  /** run 结束 finally：旗标复位 + 回合态清零（freshIntent 不清——见 markNewIntentFresh 注释） */
   finalizeTurn(): void
 }
 
@@ -686,9 +652,13 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
   // A3：身份差分通知（B3）——闭包记录上回合解析身份 + 触发源短时记忆。
   // 首回合（lastIdentity === null）不注入通知；其余回合在资产解析后 diff。
   // 触发源闭包旗标：即用即清——setActiveDesignViaBridge / onDesignCreated /
-  // 信封 in / probeConfirmed 任意其一标定本回合触发源；首注即用即清。
+  // probeConfirmed 任意其一标定本回合触发源；首注即用即清。
   let lastIdentity: { modeId: string; profileId: string } | null = null
   let pendingSource: IdentityDiffSource | null = null
+  // D3 锁定行只注一次：intent-confirm 端点置位、prepareTurn 消费即清；
+  // 不在 finalizeTurn 清（端点跨 run 边界调用，与 finalize 同处一 run）；
+  // 用户连续多回合只在 confirm 后的下一回合看到锁定行。
+  let freshIntent = false
 
   async function moveSlot(nodeId: string, documentId?: string, windowId?: string): Promise<void> {
     const ok = await deps.bridge.writeSlot(nodeId, documentId, windowId)
@@ -716,12 +686,14 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
   /**
    * 槽位读穿 + 本回合资产解析（P0-1）。
    *
-   * 一次桥 eval 同时取回槽位快照与 newIntent 三键（原 probeSlot + probeNewIntent
-   * 两次 eval 合并）。`intentConfirmed` 返值即 pluginData 侧确认旗标——prepareTurn
-   * 与信封路径 OR 后作为 setup_design 守卫真源。
+   * 一次桥 eval 同时取回槽位快照与 newIntent 四键（原 probeSlot + probeNewIntent
+   * 两次 eval 合并）。`intentConfirmed` 返值即 pluginData 侧确认旗标——
+   * prepareTurn 直接取作用为 setup_design 守卫真源。
+   *
+   * 批 1 后（2026-09-21 D2/D3 拍板）：信封通道整段退役，asset 解析只看
+   * probe.newIntent；envelopeIntent 参数移除。
    */
   async function probeSlotState(
-    envelopeIntent: NewIntentState | null,
     documentId?: string,
     windowId?: string
   ): Promise<{
@@ -737,21 +709,18 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
       console.warn(
         '[pi-backend] active_design 桥探针不可用——本回合按空槽组装（桥不可达或无活动文档）'
       )
-      // 桥不可达但信封已带参数 → 仍按信封意图解析资产（Turn 1 不该退化成 base only）
       return {
-        slot: resolveTurnAssets(deps.registry(), { status: 'empty' }, envelopeIntent),
+        slot: resolveTurnAssets(deps.registry(), { status: 'empty' }, null),
         notices: [],
         intentConfirmed: false,
         probeIntent: null
       }
     }
     const evaluated = evaluateActiveDesignSlot(probe.slotNodeId, probe.design, probe.brief)
-    // newIntent 优先级：信封（本回合一次性，最新）> pluginData 四键
-    const intent = envelopeIntent && envelopeIntent.modeId !== '' ? envelopeIntent : probe.newIntent
     const intentConfirmed = probe.newIntent.confirmed
     if (evaluated.status !== 'dangling') {
       return {
-        slot: resolveTurnAssets(deps.registry(), evaluated, intent),
+        slot: resolveTurnAssets(deps.registry(), evaluated, probe.newIntent),
         notices: [],
         intentConfirmed,
         probeIntent: probe.newIntent
@@ -760,7 +729,7 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
     // 定谳 3：槽位节点删除/失格 → 清槽 + 一行系统提示
     await moveSlot('', documentId, windowId)
     return {
-      slot: resolveTurnAssets(deps.registry(), { status: 'empty' }, intent),
+      slot: resolveTurnAssets(deps.registry(), { status: 'empty' }, probe.newIntent),
       notices: [ACTIVE_DESIGN_TEXTS.slotCleared],
       intentConfirmed,
       probeIntent: probe.newIntent
@@ -778,9 +747,10 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
         formDesignByFormId.set(details.formId, currentSlotNodeId)
         return
       }
-      // 新流：answered 结果点移槽——formId 命中映射 → 合法性检查 → 移槽 → 删映射
+      // 新流：answered 结果点移槽——formId 命中映射 → 合法性检查 → 移槽 → 清 newIntent → 删映射
       // 异步移槽无法 await（observeToolExecution 同步契约）；fire-and-forget，
       // 失败仅 warn，桥不可达按降级（不移槽——下回合探针读穿为准）
+      // D3（批 1 后）：移槽清键——answered 路径是显式移槽，意图即视为落定
       if (details.status === 'answered' && typeof details.formId === 'string') {
         const formId = details.formId
         const mapped = formDesignByFormId.get(formId)
@@ -788,7 +758,10 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
         if (!mapped) return
         void (async () => {
           const probe = await deps.bridge.probeCandidate(mapped)
-          if (probe && isFormTargetStillValid(probe)) await moveSlot(mapped)
+          if (probe && isFormTargetStillValid(probe)) {
+            await moveSlot(mapped)
+            await deps.bridge.clearNewIntent()
+          }
         })().catch((error: unknown) => {
           console.warn(
             '[active-design-host] 表单作答结果点移槽失败（降级不移槽）：' +
@@ -816,50 +789,32 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
     async prepareTurn(text, documentId, windowId) {
       // 回合开始强制清零（防御：finalizeTurn 遗漏也不跨回合滞留）
       intentConfirmed = false
-      const { envelope, stripped } = stripNewIntentEnvelope(text)
       const intentNotices: string[] = []
-      let envelopeIntent: NewIntentState | null = null
-      if (envelope) {
-        intentConfirmed = true
-        // P0-1：信封参数同样参与资产解析（前端确认卡未写 pluginData 的兼容路径）
-        envelopeIntent = {
-          modeId: envelope.modeId ?? '',
-          profileId: envelope.profileId ?? '',
-          confirmed: true,
-          canvas: envelope.canvas ?? ''
-        }
-        // T65 集成缺口修复：确认参数随本回合 context 对 AI 可见（选择即锁定）。
-        // B2.③：参数锁定行扩展为 intent 任一源——probeSlotState 之后从
-        // envelope（优先）或 probe.newIntent 取参数构 confirmedLine，统一注入
-        // （pushConfirmedIntentLine）。信封路径与持久路径行为归一、不重复注入。
-        pushConfirmedIntentLine(intentNotices, envelopeIntent)
-        // A3：B3 触发源标定——本回合信封在场 = 用户确认新建
-        pendingSource = IDENTITY_DIFF_SOURCES.userConfirmedNew
-      }
       await resolveFormAnswer(text, documentId, windowId)
       const {
         slot,
         notices,
         intentConfirmed: probeConfirmed,
         probeIntent
-      } = await probeSlotState(envelopeIntent, documentId, windowId)
-      // T91b：pluginData 探针确认（二级信源；前端 ChatNewIntentCard 确认后写入）。
-      // OR 信封兼容路径——任一为真即放行。探针不可达按未确认降级。
-      // 偏差说明（P0-1）：守卫旗标保留手动管理，不采文档建议的
-      // `slot.status !== 'ok' && resolvedWorkflow != null` 派生式——裸信封、
-      // modeId=general、slot=ok 的替换/新建议图三条路径下该派生式恒假，
-      // 会把 setup_design 的 __confirmedNewIntent 守卫误关。
-      if (!intentConfirmed && probeConfirmed) intentConfirmed = true
-      // B2.③：信封未在场、pluginData 已确认 → 同样注入参数锁定行（持久路径行为归一）
-      if (!envelope && probeConfirmed && probeIntent) {
+      } = await probeSlotState(documentId, windowId)
+      // T91b：pluginData 探针确认是 setup_design 守卫真源（批 1 后信封通道退役，
+      // 不再有 envelope 兼容路径）。守卫旗标保留手动管理，不采文档建议的
+      // `slot.status !== 'ok' && resolvedWorkflow != null` 派生式——纯 general
+      // 静默放行路径下该派生式恒假，会把 setup_design 的 __confirmedNewIntent
+      // 守卫误关。
+      if (probeConfirmed) intentConfirmed = true
+      // D3 锁定行只注一次：pluginData 已确认 + 本会话 fresh 标记在位 → 注一行
+      // 参数锁定行 + 触发源标定 + 立即消费（防止 pluginData 持久态下每回合复发）
+      if (probeConfirmed && probeIntent && freshIntent) {
         pushConfirmedIntentLine(intentNotices, probeIntent)
-        // A3：B3 触发源标定——无信封但 pluginData 已确认 = 用户确认新建（持久路径）
+        // A3：B3 触发源标定——fresh 路径 = 用户确认新建（pluginData 持久态亦归此类）
         pendingSource = IDENTITY_DIFF_SOURCES.userConfirmedNew
+        freshIntent = false
       }
       currentSlotNodeId = slot.status === 'ok' ? slot.design.nodeId : ''
-      // A3：B3 身份差分——装配后取生效身份（intent 优先后的 modeId+profileId 二元组）
+      // A3：B3 身份差分——装配后取生效身份（probeIntent 优先后的 modeId+profileId 二元组）
       // 与上回合闭包 diff。首回合 lastIdentity === null → 不注入。
-      const effective = effectiveIdentity(slot, envelopeIntent, probeIntent)
+      const effective = effectiveIdentity(slot, probeIntent)
       const identityNotices: string[] = []
       if (lastIdentity !== null && identityChanged(lastIdentity, effective)) {
         const source = pendingSource ?? IDENTITY_DIFF_SOURCES.externalChange
@@ -870,12 +825,15 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
       pendingSource = null
       lastIdentity = effective
       turn = assembleTurn(deps.registry(), slot, [...intentNotices, ...identityNotices, ...notices])
-      return { promptText: stripped }
+      return { promptText: text }
     },
     turnAssembly: () => turn,
     finalizeTurn() {
       intentConfirmed = false
       turn = null
+    },
+    markNewIntentFresh() {
+      freshIntent = true
     }
   }
 }
@@ -893,9 +851,13 @@ export type SetActiveDesignResult =
   | { ok: false; error: ActiveDesignRejectReason | 'bridge_unavailable'; message: string }
 
 /**
- * POST /api/pi/active-design 的处理本体：四条件校验 → 移槽 → 身份三元组。
+ * POST /api/pi/active-design 的处理本体：四条件校验 → 移槽 → 清 newIntent → 身份三元组。
  * documentId 缺省 = 桥当前活动 tab（同工具 document_id 缺省语义）。
  * T98-路由：windowId 透传——多窗时按发起窗路由探针/写槽，避免 A 窗操作串到 B 窗。
+ * D3（批 1 后）：移槽成功即清 document root newIntent 四键——面板「设为当前」
+ * 与同意卡共用此收口点；显式移槽走完意图即视为落定，避免 confirmed=true 长期残留
+ * 与新槽身份不一致（intent > slot 优先级把陈旧意图压过真实槽位）。失败仅 warn：
+ * 下回合探针读穿为准，不影响主流程。
  */
 export async function setActiveDesignViaBridge(
   nodeId: string,
@@ -921,6 +883,8 @@ export async function setActiveDesignViaBridge(
       message: '画布桥写槽失败——确认 dev server 已启动且浏览器已打开 app，然后重试。'
     }
   }
+  // D3 移槽清键：与 onDesignCreated 同律——避免 confirmed=true 残留与新槽身份不一致
+  await bridge.clearNewIntent(documentId, windowId)
   return {
     ok: true,
     modeId: check.design.modeId,

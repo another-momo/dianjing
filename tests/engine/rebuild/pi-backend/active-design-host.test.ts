@@ -1,28 +1,29 @@
 /**
  * T60（Phase 3 W3/T-B9）active_design 宿主路由契约测试——pi-backend 侧。
- * T65：信封扩展可选 canvas 组（顺序固定 modeId→profileId→canvas）+ 集成缺口
- * 修复钉扎——剥离信封时确认参数组装成一行系统提示注入本回合 contextLines
- * （缺省字段省略；裸信封无参数不注入）。
+ * 批 1（2026-09-21 D2/D3 拍板）：`[新建意图确认 …]` 首行信封通道整段退役——
+ * 剥离逻辑、信封置旗、信封参与资产解析全删；确认参数只走 POST
+ * /api/pi/intent-confirm 写 pluginData 四键；锁定行由端点置「新鲜」标记驱动，
+ * 下回合注入即消费（D3 只注一次）；显式移槽路径清未消费键。
  *
  * 验收映射（T60-plan §3 宿主侧 + T65-plan §2.4/§2.5；桥 IO 全注入假件，不触真桥）：
  *  - 组装：空槽（含桥不可达降级）/ 有槽 / 落盘 mode 缺失 / profile 有无 /
  *    base→workflow→profile 顺序固定；身份封套与系统提示行进 contextLines
- *  - 信封剥离 + 一次性旗标：置真 / finalizeTurn 复位 / 不滞留 / 仅首行命中 /
- *    canvas 组解析
- *  - 确认参数系统提示行：全字段 / 部分字段省略 / 裸信封不注入 / 有槽回合
- *    位于身份封套之后
+ *  - 一次性旗标：pluginData confirmed 置真 / finalizeTurn 复位 / 不滞留 /
+ *    裸信封不置旗（批 1 行为变更钉扎）
+ *  - 确认参数系统提示行：fresh 标记 + pluginData confirmed → 注入即消费 /
+ *    缺省字段省略 / 无 fresh 不注 / 有槽回合位于身份封套之后
  *  - 事件④：formId 映射移槽 / 跳过不移 / 未知 formId（刷新丢失边界）不移 /
  *    节点失格不移；映射记录只认 ask_user_question awaiting 信封
  *  - 删除悬空：清槽（writeSlot('')）+ slotCleared 提示行；brief 悬空提示行
- *  - setup_design 旗标契约（验收标准 2 宿主半）：信封真 → newIntentConfirmed
- *    返真（注入缝 __confirmedNewIntent 的真源），无信封恒假
- *  - T91b：pluginData 三键二源确认——document root 三键命中 → 旗标置真，
- *    与 envelope 路径 OR。clearNewIntent hook 由 onDesignCreated 触发
+ *  - setup_design 旗标契约（验收标准 2 宿主半）：pluginData confirmed →
+ *    newIntentConfirmed 返真（注入缝 __confirmedNewIntent 的真源），无确认恒假
+ *  - T91b：pluginData 四键确认——document root 四键命中 → 旗标置真。
+ *    clearNewIntent hook 由 onDesignCreated 触发
  *  - P0-1（newIntent 时序缺口修复）：资产解析（resolveTurnAssets）优先级
  *    newIntent > slot；空槽 + newIntent confirmed 的 Turn 1 也拿到
  *    workflow + profile + references；newIntent 未确认/modeId 空则维持 slot 语义。
  *    守卫（newIntentConfirmed）仍手动管理——不采文档建议的派生式（见宿主内注）。
- *    探针合并：newIntent 三键随 probeSlot 同片段返回（原独立 eval 撤销）
+ *    探针合并：newIntent 四键随 probeSlot 同片段返回（原独立 eval 撤销）
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -40,7 +41,6 @@ import {
   createActiveDesignHost,
   designTargetEnvelope,
   resolveTurnAssets,
-  stripNewIntentEnvelope,
   type ActiveDesignBridgeIO,
   type CandidateProbeData,
   type SlotProbeData
@@ -129,14 +129,14 @@ type FakeBridge = ActiveDesignBridgeIO & {
   setNewIntent(intent: NewIntentState): void
 }
 
-/** 假桥：内存槽位 + 写记录；probeCandidate 读独立候选表 */
-function makeFakeBridge(): FakeBridge {
+/** 假桥：内存槽位 + 写记录；probeCandidate 读独立候选表。init.newIntent = 初始 pluginData 四键（批 1 后确认真源） */
+function makeFakeBridge(init?: { newIntent?: NewIntentState }): FakeBridge {
   let slot: SlotProbeData = {
     slotNodeId: '',
     currentPageId: 'page-1',
     design: null,
     brief: null,
-    newIntent: { modeId: '', profileId: '', confirmed: false, canvas: '' }
+    newIntent: init?.newIntent ?? { modeId: '', profileId: '', confirmed: false, canvas: '' }
   }
   const candidateById = new Map<string, DesignRootSnapshot | null>()
   const writes: string[] = []
@@ -202,85 +202,46 @@ function intent(modeId: string, profileId = '', confirmed = true): NewIntentStat
   return { modeId, profileId, confirmed, canvas: '' }
 }
 
-// ── 信封剥离 ─────────────────────────────────────────────────────────────────
-
-describe('新建意图信封剥离', () => {
-  test('完整信封（modeId+profileId）→ 剥离 + 双字段', () => {
-    const { envelope, stripped } = stripNewIntentEnvelope(
-      '[新建意图确认 modeId=longform profileId=watercolor]\n帮我做一张图'
-    )
-    expect(envelope).toEqual({ modeId: 'longform', profileId: 'watercolor' })
-    expect(stripped).toBe('帮我做一张图')
-  })
-
-  test('字段可缺省：裸标记 / 仅 modeId', () => {
-    expect(stripNewIntentEnvelope('[新建意图确认]\nhi').envelope).toEqual({})
-    expect(stripNewIntentEnvelope('[新建意图确认 modeId=general]\nhi').envelope).toEqual({
-      modeId: 'general'
-    })
-  })
-
-  test('T65 canvas 组：三字段全带 / 跳过 profileId / 仅 canvas', () => {
-    expect(
-      stripNewIntentEnvelope(
-        '[新建意图确认 modeId=longform profileId=watercolor canvas=750x2000]\nhi'
-      ).envelope
-    ).toEqual({ modeId: 'longform', profileId: 'watercolor', canvas: '750x2000' })
-    // 中间字段缺省、canvas 仍在（捕获组按序可选）
-    expect(
-      stripNewIntentEnvelope('[新建意图确认 modeId=longform canvas=1080x]\nhi').envelope
-    ).toEqual({ modeId: 'longform', canvas: '1080x' })
-    expect(stripNewIntentEnvelope('[新建意图确认 canvas=1080x]\nhi').envelope).toEqual({
-      canvas: '1080x'
-    })
-  })
-
-  test('仅首行命中：非首行/畸形不剥离', () => {
-    const notFirst = stripNewIntentEnvelope('你好\n[新建意图确认 modeId=x]')
-    expect(notFirst.envelope).toBeNull()
-    expect(notFirst.stripped).toBe('你好\n[新建意图确认 modeId=x]')
-    expect(stripNewIntentEnvelope('[新建意图确认 modeId=x\nhi').envelope).toBeNull()
-    // canvas 值含空白 → 畸形不剥离（值域 [^\]\s]+）
-    expect(stripNewIntentEnvelope('[新建意图确认 canvas=1080 x]\nhi').envelope).toBeNull()
-  })
-
-  test('信封即整条消息 → stripped 空串；CRLF 容忍', () => {
-    expect(stripNewIntentEnvelope('[新建意图确认 modeId=x]').stripped).toBe('')
-    expect(stripNewIntentEnvelope('[新建意图确认 modeId=x canvas=750x]\r\nhi').stripped).toBe('hi')
-  })
-})
-
 // ── 一次性旗标（验收标准 2 宿主半）────────────────────────────────────────────
 
 describe('新建意图一次性旗标', () => {
-  test('信封回合 newIntentConfirmed 返真；finalizeTurn 复位；次回合不滞留', async () => {
-    const host = makeHost(makeFakeBridge())
-    await host.prepareTurn('[新建意图确认 modeId=longform]\n做图')
+  test('pluginData 确认回合 newIntentConfirmed 返真；finalizeTurn 复位；次回合不滞留', async () => {
+    const host = makeHost(makeFakeBridge({ newIntent: intent('longform') }))
+    await host.prepareTurn('做图')
     expect(host.newIntentConfirmed()).toBe(true)
     host.finalizeTurn()
     expect(host.newIntentConfirmed()).toBe(false)
 
-    await host.prepareTurn('普通消息')
-    expect(host.newIntentConfirmed()).toBe(false)
-    host.finalizeTurn()
+    const host2 = makeHost(makeFakeBridge())
+    await host2.prepareTurn('普通消息')
+    expect(host2.newIntentConfirmed()).toBe(false)
+    host2.finalizeTurn()
   })
 
-  test('无信封恒假（setup_design 契约：旗标假时 core 恒拒绝 unconfirmed_new_intent）', async () => {
+  test('批 1 后信封不置旗（裸信封语义退役：用户消息首行 `[新建意图确认 …]` 不再有任何效力）', async () => {
     const host = makeHost(makeFakeBridge())
-    await host.prepareTurn('做一张长图')
+    await host.prepareTurn('[新建意图确认 modeId=longform]\n做图')
     expect(host.newIntentConfirmed()).toBe(false)
     host.finalizeTurn()
   })
 })
 
-// ── 确认参数系统提示行注入（T65 集成缺口修复：确认参数对 AI 可见）──────────────────
+// ── 确认参数系统提示行注入（T65 集成缺口修复 + D3 只注一次）──────────────────
 
 describe('确认参数系统提示行注入', () => {
-  test('空槽 + 全字段信封 → contextLines 恰为确认参数行（格式逐字钉扎）', async () => {
-    const host = makeHost(makeFakeBridge())
-    await host.prepareTurn(
-      '[新建意图确认 modeId=longform profileId=watercolor canvas=750x2000]\n做图'
+  test('markNewIntentFresh + pluginData confirmed → 注入确认参数行（格式逐字钉扎），注入即消费', async () => {
+    const host = makeHost(
+      makeFakeBridge({
+        newIntent: {
+          modeId: 'longform',
+          profileId: 'watercolor',
+          confirmed: true,
+          canvas: '750x2000'
+        }
+      })
     )
+    host.markNewIntentFresh()
+    await host.prepareTurn('做图')
     expect(host.newIntentConfirmed()).toBe(true)
     expect(host.turnAssembly()?.contextLines).toEqual([
       '用户已为本次新建确认参数：modeId=longform profileId=watercolor 尺寸=750x2000（选择即锁定，不得覆盖）'
@@ -288,55 +249,47 @@ describe('确认参数系统提示行注入', () => {
     host.finalizeTurn()
   })
 
-  test('缺省字段省略：仅 modeId / 仅 canvas', async () => {
-    const host = makeHost(makeFakeBridge())
-    await host.prepareTurn('[新建意图确认 modeId=longform]\n做图')
+  test('缺省字段省略：仅 modeId', async () => {
+    const host = makeHost(makeFakeBridge({ newIntent: intent('longform') }))
+    host.markNewIntentFresh()
+    await host.prepareTurn('做图')
     expect(host.turnAssembly()?.contextLines).toEqual([
       '用户已为本次新建确认参数：modeId=longform（选择即锁定，不得覆盖）'
     ])
     host.finalizeTurn()
+  })
 
-    // A3 B3：上回合 effective=longform，本回合 envelope 仅 canvas（无 modeId）→
-    // effective 回落 ''，触发身份差分通知；本回合 envelope 在场 → 触发源「用户确认新建」
-    await host.prepareTurn('[新建意图确认 canvas=1080x]\n做图')
+  test('D3 只注一次：confirmed 无 fresh 不注；fresh 消费后次回合不再注', async () => {
+    const host = makeHost(makeFakeBridge({ newIntent: intent('longform') }))
+    // confirmed 在位但无 fresh 标记 → 不注入
+    await host.prepareTurn('做图')
+    expect(host.turnAssembly()?.contextLines).toEqual([])
+    host.finalizeTurn()
+
+    // fresh 标记 → 注入一次即消费；次回合 confirmed 仍在但 fresh 已清 → 不再注入
+    host.markNewIntentFresh()
+    await host.prepareTurn('继续')
     expect(host.turnAssembly()?.contextLines).toEqual([
-      '用户已为本次新建确认参数：尺寸=1080x（选择即锁定，不得覆盖）',
-      '[系统] 设计模式已切换：longform → 通用（触发源：用户确认新建）；画布内容不受影响。'
+      '用户已为本次新建确认参数：modeId=longform（选择即锁定，不得覆盖）'
     ])
     host.finalizeTurn()
-  })
-
-  test('裸信封（无参数）→ 旗标置真但不注入提示行；无信封无注入', async () => {
-    const host = makeHost(makeFakeBridge())
-    await host.prepareTurn('[新建意图确认]\n做图')
-    expect(host.newIntentConfirmed()).toBe(true)
-    expect(host.turnAssembly()?.contextLines).toEqual([])
-    host.finalizeTurn()
-
-    await host.prepareTurn('普通消息')
+    await host.prepareTurn('再继续')
     expect(host.turnAssembly()?.contextLines).toEqual([])
     host.finalizeTurn()
   })
 
-  test('有槽回合：提示行位于身份封套之后；次回合不滞留', async () => {
-    const bridge = makeFakeBridge()
+  test('有槽回合：提示行位于身份封套之后', async () => {
+    const bridge = makeFakeBridge({
+      newIntent: { modeId: 'general', profileId: '', confirmed: true, canvas: '750x' }
+    })
     bridge.setSlot('d1', designSnap()) // brief 快照 null → briefMissing 提示行同回合一并注入
     const host = makeHost(bridge)
-    await host.prepareTurn('[新建意图确认 modeId=general canvas=750x]\n另起一张')
+    host.markNewIntentFresh()
+    await host.prepareTurn('另起一张')
     const lines = host.turnAssembly()?.contextLines
     expect(lines).toEqual([
       '[当前设计目标 nodeId=d1 briefId=b1]',
       '用户已为本次新建确认参数：modeId=general 尺寸=750x（选择即锁定，不得覆盖）',
-      ACTIVE_DESIGN_TEXTS.briefMissing
-    ])
-    host.finalizeTurn()
-
-    // A3 B3：本回合无信封/无 probe.confirmed → effective 回落 slot 解析（longform），
-    // 与上回合 effective=general 差分 → 注入身份切换通知
-    await host.prepareTurn('继续')
-    expect(host.turnAssembly()?.contextLines).toEqual([
-      '[当前设计目标 nodeId=d1 briefId=b1]',
-      '[系统] 设计模式已切换：通用（无专项流程，走基础路由） → longform（触发源：外部变更）；画布内容不受影响。',
       ACTIVE_DESIGN_TEXTS.briefMissing
     ])
     host.finalizeTurn()
@@ -569,27 +522,28 @@ describe('P0-1 newIntent 优先级装配（resolveTurnAssets）', () => {
     host.finalizeTurn()
   })
 
-  test('prepareTurn 端到端：信封 modeId（pluginData 未写）也参与资产解析', async () => {
+  test('prepareTurn 端到端：批 1 后信封文本不参与资产解析（pluginData 未写 → base only + 不置旗 + 原文透传）', async () => {
     const host = makeHost(makeFakeBridge())
-    await host.prepareTurn('[新建意图确认 modeId=longform profileId=watercolor]\n做图')
-    // A3 B7：来源头冠段
-    expect(host.turnAssembly()?.systemPrompt).toBe(
-      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
-    )
-    expect(host.newIntentConfirmed()).toBe(true)
+    const text = '[新建意图确认 modeId=longform profileId=watercolor]\n做图'
+    const { promptText } = await host.prepareTurn(text)
+    // 信封通道退役：不再剥离（原文透传）、不驱动资产解析、不置旗
+    expect(promptText).toBe(text)
+    expect(host.turnAssembly()?.systemPrompt).toBe('# studio base\nBASE')
+    expect(host.newIntentConfirmed()).toBe(false)
     host.finalizeTurn()
   })
 
-  test('prepareTurn 端到端：信封优先于 pluginData（信封 modeId 非空时）', async () => {
+  test('prepareTurn 端到端：pluginData 唯一真源——信封文本与 pluginData 冲突时按 pluginData 解析', async () => {
     const registry = makeRegistry()
     registry.workflows.set('poster', makeWorkflow('poster', 'POSTER-WORKFLOW'))
     const bridge = makeFakeBridge()
-    bridge.setNewIntent(intent('longform', 'watercolor')) // 旧 pluginData
+    bridge.setNewIntent(intent('longform', 'watercolor')) // pluginData 持久态
     const host = makeHost(bridge, registry)
     await host.prepareTurn('[新建意图确认 modeId=poster]\n换一个')
+    // 批 1 前信封优先于 pluginData；批 1 后信封无效力——按 pluginData（longform）解析
     // A3 B7：来源头冠段
     expect(host.turnAssembly()?.systemPrompt).toBe(
-      '# studio base\nBASE\n\n# workflow: poster\nPOSTER-WORKFLOW'
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
     )
     host.finalizeTurn()
   })
@@ -893,7 +847,7 @@ describe('reference 统一限定形寻址（跨桶同名 path）', () => {
 // ── prepareTurn 管线（桥假件）────────────────────────────────────────────────
 
 describe('prepareTurn 管线', () => {
-  test('桥不可达（probeSlot → null）→ 空槽降级 + 信封照常剥离（T65 确认参数行 + P0-1 信封资产解析）', async () => {
+  test('桥不可达（probeSlot → null）→ 空槽降级 + 信封文本无效力（批 1：不剥离、不置旗、不参与解析）', async () => {
     const down: ActiveDesignBridgeIO = {
       probeSlot: () => Promise.resolve(null),
       probeCandidate: () => Promise.resolve(null),
@@ -901,20 +855,21 @@ describe('prepareTurn 管线', () => {
       clearNewIntent: () => Promise.resolve(false)
     }
     const host = makeHost(down)
-    const { promptText } = await host.prepareTurn('[新建意图确认 modeId=longform]\n做图')
-    expect(promptText).toBe('做图')
-    expect(host.newIntentConfirmed()).toBe(true)
-    // P0-1：桥不可达也不该把 Turn 1 退化成 base only——信封 modeId 仍驱动资产解析
-    // A3 B7：来源头冠段
+    const text = '[新建意图确认 modeId=longform]\n做图'
+    const { promptText } = await host.prepareTurn(text)
+    // 批 1 后无剥离——promptText 原文透传
+    expect(promptText).toBe(text)
+    expect(host.newIntentConfirmed()).toBe(false)
+    // 桥不可达 → 空槽降级 base only（信封不再把 Turn 1 从降级里捞起）
     expect(host.turnAssembly()).toEqual({
-      systemPrompt: '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW',
-      contextLines: ['用户已为本次新建确认参数：modeId=longform（选择即锁定，不得覆盖）'],
+      systemPrompt: '# studio base\nBASE',
+      contextLines: [],
       allowedReferences: new Map()
     })
     host.finalizeTurn()
   })
 
-  test('桥不可达 + 无信封 → base only（原降级语义不变）', async () => {
+  test('桥不可达 → base only（原降级语义不变）', async () => {
     const down: ActiveDesignBridgeIO = {
       probeSlot: () => Promise.resolve(null),
       probeCandidate: () => Promise.resolve(null),
@@ -1199,10 +1154,12 @@ test('designTargetEnvelope：nodeId + briefId（modeId/profileId 已剥离）', 
 
 describe('A3 波4：B3 身份差分通知', () => {
   test('B3 首回合抑制：lastIdentity===null 即便 slot 携带身份也不注 B3 通知行', async () => {
-    // pluginData 侧 newIntent 持久路径（B2.③ 参数锁定行注；非 B3 通知——首回合豁免）
+    // pluginData 确认 + fresh 标记（拟 intent-confirm 端点成功路径）→
+    // D3 参数锁定行注；非 B3 通知——首回合豁免
     const bridge = makeFakeBridge()
     bridge.setNewIntent(intent('longform', 'watercolor'))
     const host = makeHost(bridge)
+    host.markNewIntentFresh()
     await host.prepareTurn('开始做图')
     const lines = host.turnAssembly()?.contextLines ?? []
     // 首回合豁免——无任何 B3 通知行
@@ -1228,8 +1185,11 @@ describe('A3 波4：B3 身份差分通知', () => {
     ])
     host.finalizeTurn()
 
-    // Turn2：newIntent 切换 profileId 为空（同 mode）——profile-only diff
+    // Turn2：newIntent 切换 profileId 为空（同 mode）——profile-only diff。
+    // pluginData 四键只经 intent-confirm 端点写入 → 端点置 fresh 标记，
+    // 触发源标定「用户确认新建」（无 fresh 的插件数据变更归「外部变更」）
     bridge.setNewIntent(intent('longform', ''))
+    host.markNewIntentFresh()
     await host.prepareTurn('改风格')
     const lines = host.turnAssembly()?.contextLines ?? []
     expect(lines).toContain(
@@ -1241,11 +1201,12 @@ describe('A3 波4：B3 身份差分通知', () => {
 })
 
 describe('A3 波4：B2 pluginData 持久化路径', () => {
-  test('B2 次回合仍按 intent 组装（pluginData 未清）→ workflow longform 段在场 + 参数锁定行持续', async () => {
-    // Turn1：pluginData 写入 newIntent（confirmed）→ 按 probeIntent 解析
+  test('B2 次回合仍按 intent 组装（pluginData 未清）→ workflow 段在场；参数锁定行不复发（D3 只注一次）', async () => {
+    // Turn1：pluginData 写入 newIntent（confirmed）+ fresh 标记（拟端点路径）→ 按 probeIntent 解析
     const bridge = makeFakeBridge()
     bridge.setNewIntent(intent('longform', 'watercolor'))
     const host = makeHost(bridge)
+    host.markNewIntentFresh()
     await host.prepareTurn('开始')
     // A3 B7：来源头冠段
     expect(host.turnAssembly()?.systemPrompt).toBe(
@@ -1256,22 +1217,21 @@ describe('A3 波4：B2 pluginData 持久化路径', () => {
     )
     host.finalizeTurn()
 
-    // Turn2：不写 pluginData、不带信封——fake bridge 内存 newIntent 仍存在
-    // → resolveTurnAssets 走 probeIntent（confirmed=true）→ 同套装配 + 参数锁定行再注
+    // Turn2：fake bridge 内存 newIntent 仍存在 → resolveTurnAssets 走 probeIntent
+    // （confirmed=true）→ 同套装配；但 fresh 已消费 → 参数锁定行不再注（D3 只注一次）
     await host.prepareTurn('普通跟进')
     expect(host.turnAssembly()?.systemPrompt).toBe(
       '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
     )
-    expect(host.turnAssembly()?.contextLines).toContain(
-      '用户已为本次新建确认参数：modeId=longform profileId=watercolor（选择即锁定，不得覆盖）'
-    )
+    expect(host.turnAssembly()?.contextLines ?? []).toEqual([])
     host.finalizeTurn()
   })
 
-  test('B2 canvas 锁在场：newIntent 带 canvas → 无信封 prepareTurn 注尺寸锁定行', async () => {
+  test('B2 canvas 锁在场：newIntent 带 canvas + fresh 标记 → prepareTurn 注尺寸锁定行', async () => {
     const bridge = makeFakeBridge()
     bridge.setNewIntent({ modeId: 'longform', profileId: '', confirmed: true, canvas: '750x2000' })
     const host = makeHost(bridge)
+    host.markNewIntentFresh()
     await host.prepareTurn('普通跟进')
     expect(host.turnAssembly()?.contextLines).toContain(
       '用户已为本次新建确认参数：modeId=longform 尺寸=750x2000（选择即锁定，不得覆盖）'
@@ -1280,10 +1240,11 @@ describe('A3 波4：B2 pluginData 持久化路径', () => {
   })
 
   test('B2 落图后清除：onDesignCreated 清 pluginData → 下回合按空槽组装 + 身份有 diff 则触发源=新设计落图', async () => {
-    // Turn1：pluginData 写入 longform+watercolor（lastIdentity 落点）
+    // Turn1：pluginData 写入 longform+watercolor + fresh 标记（lastIdentity 落点）
     const bridge = makeFakeBridge()
     bridge.setNewIntent(intent('longform', 'watercolor'))
     const host = makeHost(bridge)
+    host.markNewIntentFresh()
     await host.prepareTurn('开始')
     expect(host.turnAssembly()?.contextLines).toContain(
       '用户已为本次新建确认参数：modeId=longform profileId=watercolor（选择即锁定，不得覆盖）'

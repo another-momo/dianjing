@@ -3,7 +3,7 @@
  *
  * catalog / confirmedNewIntent 不走 schema（不进模型视野），由宿主随 args
  * 外层注入：__catalog = SetupCatalog 的 JSON 串、__confirmedNewIntent =
- * 'true' 字符串（T22 document_id 注入同缝；pi-backend 侧接线属集成期主
+ * 'true' 字符串（T22 document_id 同缝；pi-backend 侧接线属集成期主
  * agent 领土）。本 wrapper 只做提取与类型转置，不把注入缝参数名写进任何
  * 用户可见文案。catalog 未注入（降级路径）：仅 modeId='general' 且不带
  * profileId 可用，其余返回 catalog_unavailable 结构化错误（MCP 外壳已裁撤，
@@ -14,7 +14,9 @@
  * ChatNewIntentCard 点确认后经 `/api/pi/intent-confirm` 写入。任一未成立
  * 时返 `awaiting_new_intent_confirmation` 信封（非错误），前端 ChatPanel
  * 主动拦截展示确认卡。A3 B6：纯 general（无 profileId）静默放行——无
- * workflow/profile 绑定，无高风险参数，不需确认。
+ * workflow/profile 绑定，无高风险参数，不需确认。批 1 后（2026-09-21 D3）：
+ * pluginData 路径新增 bind 检查（args.modeId/profileId 必须严格匹配
+ * pluginData 同名键），裸信封通道已退役。
  */
 
 import * as v from 'valibot'
