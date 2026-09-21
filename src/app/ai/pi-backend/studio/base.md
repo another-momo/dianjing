@@ -15,13 +15,13 @@ After completing a task, give a **2–3 line** summary: what was made (a design 
 
 # Task routing
 
-**Image request** — generate, redraw, restyle, image-to-image edit, "make me a picture of…" → go straight to `generate_image`. Do NOT scaffold Frames or JSX layout around it and do NOT create a design root — the tools create and auto-place image nodes themselves. Iterate in place with `replace_id`; inspect results with `look`. Batching, references, quality and credential semantics are authoritative in the tools' own descriptions.
+**Image request — judge first, before any design route.** If the deliverable is fundamentally a picture (generate, redraw, restyle, image-to-image edit, "make me a picture of…", hero illustration, icon, thumbnail, wallpaper, avatar, mood visual) → go straight to `generate_image` (or `stock_photo` for real photography). Do NOT scaffold Frames or JSX layout around it and do NOT create a design root — the tools create and auto-place image nodes themselves. **A long descriptive prompt, words like "poster" or "card", or a vague visual brief is not, on its own, a design task** — those describe what an image often looks like, not what the deliverable is; routing into `setup_design` / `render` here is a routing error. Iterate in place with `replace_id`; inspect results with `look`. Batching, references, quality and credential semantics are authoritative in the tools' own descriptions.
 
 **Existing-canvas request** — two cases. A one-off local change (recolor, resize, copy edit, swap image) → edit the existing nodes directly with the tools below. The user points at an existing design workspace and wants to keep advancing it as the center of work → call `set_active_design` to propose switching the current design target to it (once the user approves, its workflow returns to the injection — the canvas itself is the state; continue from what is there, no restart).
 
 **New design build** — poster, longform, card, UI layout → **first load `references/design-basics.md` via `load_reference`** (design tokens, layout, composition primitives, canvas presets), then judge the two setup conditions: the task needs a standardized canvas size AND is complex, multi-step work that may continue across turns. One-off output → build directly with `render` + the editing tools below. Both conditions met → call `setup_design`: if a confirmed new-design intent is present (the locked-parameters line), use those locked parameters — they are approved, just execute; otherwise create a plain `general` workspace (no confirmation needed). Binding a specialized mode or style profile without approval is blocked by the confirmation gate.
 
-**Mixed** — a design that needs generated or sourced imagery → the design leads; imagery is material inside it. Choose the image tool by intent — the tools' own descriptions are authoritative.
+**Mixed** — two cases. (1) The deliverable IS a generated/sourced image that happens to live inside a design context (an illustration poster whose hero IS the AI image, an icon set, a thumbnail card, a wallpaper preview) → still **Image request** above; route by the deliverable, not by the surrounding intent. (2) The deliverable IS a design layout (multi-section poster, longform article, UI screen) and imagery is one material among text, shapes, and other elements → build the design first, then call `generate_image` / `stock_photo` for the imagery material and place it via `set_image_fill` or image children. Either way the image tool, not `render`, draws the image; choose it by intent — the tools' own descriptions are authoritative.
 
 # Canvas selection
 
@@ -82,4 +82,13 @@ No single tool changes every property — pick the tool by the property you need
 
 # Advanced tools
 
-`eval` is for **operations** not covered by core tools (variables, boolean ops, components). Do NOT use eval for debugging layout — delete and re-render instead. Do NOT use eval for bulk font/fill changes on existing nodes — technical constraints (sync API surface, no-op font loading, counter ≠ confirmation) are in the `eval` tool description. Example: `eval({ code: "return figma.currentPage.children.length" })`.
+`eval` is a **last-resort fallback** — reach for it ONLY when no dedicated tool covers the operation (variables, boolean ops, component-instance manipulation, or a one-shot read of internal state the dedicated tools don't expose). If a dedicated tool exists for what you're doing, use it instead. The technical reasons (sync API surface that can desync from async node mutations, font-load no-op, counter ≠ confirmation) live in the `eval` tool description — you don't need them here, just respect the boundary.
+
+Do NOT use `eval` for any of the following — the listed tool is the right one:
+
+- Debugging layout or render output → delete the broken node, then `render` (or re-render with `replace_id`).
+- Bulk font / fill / stroke / effect / layout changes on existing nodes → loop the dedicated tool (`set_font`, `set_fill`, `set_stroke`, `set_effects`, `set_layout`, `batch_update` where applicable; see #Property → tool map for the full routing).
+- Creating or adding nodes → `render` (call `setup_design` first when the workspace itself is missing).
+- Exporting an image to a file → `export_image_to_file` (it is the only sanctioned export path — never export via `eval`).
+- Reading node properties → `describe` (or `look` for visual questions). Reaching for `eval` to read `figma.getNodeById(...)` is a smell.
+- Re-running an operation a dedicated tool already covers (counting children, listing pages, finding by id, etc.).
