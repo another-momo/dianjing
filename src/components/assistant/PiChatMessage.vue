@@ -17,8 +17,12 @@ import IconButton from '@/components/ui/button/IconButton.vue'
 import {
   CONTEXT_SWITCH_PART_TYPE,
   NEW_INTENT_PART_TYPE,
+  awaitingCardView,
   normalizeSizeChoices,
-  parseSetupAwaitingIntent,
+  parseAwaitingIntentPart,
+  type AwaitingIntentCardRecord,
+  type AwaitingIntentCardView,
+  type AwaitingIntentPartInfo,
   type ContextSwitchPartData,
   type NewIntentPartData
 } from './active-design'
@@ -44,7 +48,8 @@ const {
   streaming = false,
   stopped = false,
   answeredFormIds,
-  consentDecisions
+  consentDecisions,
+  awaitingCards
 } = defineProps<{
   message: UIMessage
   streaming?: boolean
@@ -54,17 +59,14 @@ const {
   answeredFormIds?: ReadonlySet<string>
   /** T61：set_active_design 同意决定（ChatPanel 扫 data part 记录派生，按 toolCallId） */
   consentDecisions?: ReadonlyMap<string, 'agreed' | 'declined'>
+  /** 批 2（2026-09-21 拍板①+D6）：awaiting 意图卡全史扫描态（ChatPanel 派生，
+   *  按 toolCallId）——pending 由 dock 承接内联抑制，resolved/expired 归档渲染 */
+  awaitingCards?: ReadonlyMap<string, AwaitingIntentCardRecord>
 }>()
 const emit = defineEmits<{
   formSubmit: [submission: AskFormSubmission]
-  /** T61：新建意图确认卡决断（ChatPanel 发信封 / 回滚 chips）；T65：canvas 随确认进信封 */
-  intentConfirm: [payload: { messageId: string; referenceNodeIds: string[]; canvas: string | null }]
-  intentCancel: [payload: { messageId: string }]
   /** T61：set_active_design 同意卡决断（同意调端点 / 不同意本地系统行） */
   consentDecide: [payload: { toolCallId: string; agree: boolean }]
-  /** T91b：setup_design awaiting_new_intent_confirmation 信封 → ChatPanel 调 intent-confirm + abort */
-  intentAwaitingConfirm: [payload: { toolCallId: string; modeId: string; profileId: string }]
-  intentAwaitingCancel: [payload: { toolCallId: string; modeId: string; profileId: string }]
 }>()
 const { ai } = useI18n()
 const confirmText = useForkConfirm()
@@ -168,8 +170,40 @@ function newIntentData(part: UIMessagePart<UIDataTypes, UITools>): NewIntentPart
     profileId: typeof raw?.profileId === 'string' ? raw.profileId : null,
     activeDesignName: typeof raw?.activeDesignName === 'string' ? raw.activeDesignName : null,
     sizeChoices: normalizeSizeChoices(raw?.sizeChoices),
+    canvas: typeof raw?.canvas === 'string' && raw.canvas !== '' ? raw.canvas : null,
+    text: typeof raw?.text === 'string' ? raw.text : '',
     resolved: raw?.resolved === 'confirmed' || raw?.resolved === 'cancelled' ? raw.resolved : null
   }
+}
+
+// ── 批 2：awaiting 意图卡归档渲染（未决由 dock 承接，此处只出已决/失效） ──────
+
+/** 信封解析缓存——每 part 一次（F9-3 修复：旧实现每张卡每渲染调 6 遍 parse） */
+const awaitingPartInfos = computed(() => {
+  const map = new Map<string, AwaitingIntentPartInfo | null>()
+  for (const part of message.parts) {
+    if (!isToolUIPart(part) || getToolName(part) !== 'setup_design') continue
+    map.set(part.toolCallId, parseAwaitingIntentPart(part))
+  }
+  return map
+})
+
+/** 归档视图派生：pending 由 dock 承接（返 null → 内联抑制）；已决/失效落流内卡。
+ *  记录缺失（prop 未传等防御路径）→ 按 expired 渲染，绝不落回通用工具卡。
+ *  参数取宽 part 联合（模板链内不做收窄依赖，函数内自行 isToolUIPart 守卫） */
+function isAwaitingEnvelopePart(part: UIMessagePart<UIDataTypes, UITools>): boolean {
+  if (!isToolUIPart(part)) return false
+  return awaitingPartInfos.value.get(part.toolCallId) != null
+}
+
+function awaitingViewFor(part: UIMessagePart<UIDataTypes, UITools>): AwaitingIntentCardView | null {
+  if (!isToolUIPart(part)) return null
+  const info = awaitingPartInfos.value.get(part.toolCallId)
+  if (!info) return null
+  const record = awaitingCards?.get(part.toolCallId)
+  if (!record) return awaitingCardView({ info, candidate: false, state: { kind: 'expired' } })
+  if (record.state.kind === 'pending') return null
+  return awaitingCardView(record)
 }
 
 /** T65（决策 D3）：上下文切换分割线 data part 判定 + 载荷防御性归一 */
@@ -252,46 +286,22 @@ function filePartFilename(part: FilePart): string {
             :disabled="streaming"
             @decide="emit('consentDecide', { toolCallId: part.toolCallId, agree: $event })"
           />
-          <!-- T61：宿主发起的新建意图确认卡（data part，非工具 part） -->
+          <!-- T61：宿主发起的新建意图确认卡——批 2 起未决卡由 dock 承接，流内只渲染
+               已决归档件（resolved 非 null；归档在决断落地时才注入，见 ChatPanel） -->
           <ChatNewIntentCard
-            v-else-if="isNewIntentPart(part)"
+            v-else-if="isNewIntentPart(part) && newIntentData(part).resolved !== null"
             :data="newIntentData(part)"
-            :disabled="streaming"
-            @confirm="
-              emit('intentConfirm', {
-                messageId: message.id,
-                referenceNodeIds: $event.referenceNodeIds,
-                canvas: $event.canvas
-              })
-            "
-            @cancel="emit('intentCancel', { messageId: message.id })"
           />
           <!-- T91b：setup_design awaiting_new_intent_confirmation 信封 → ChatAwaitingIntentCard。
-            先于通用折叠工具卡——core 返的 awaiting 信封不是 error，不能落进 error 视觉。 -->
-          <ChatAwaitingIntentCard
-            v-else-if="
-              isToolUIPart(part) &&
-              getToolName(part) === 'setup_design' &&
-              part.state === 'output-available' &&
-              parseSetupAwaitingIntent(part.output) !== null
-            "
-            :payload="parseSetupAwaitingIntent(part.output)!"
-            :disabled="streaming"
-            @confirm="
-              emit('intentAwaitingConfirm', {
-                toolCallId: part.toolCallId,
-                modeId: parseSetupAwaitingIntent(part.output)!.modeId,
-                profileId: parseSetupAwaitingIntent(part.output)!.profileId
-              })
-            "
-            @cancel="
-              emit('intentAwaitingCancel', {
-                toolCallId: part.toolCallId,
-                modeId: parseSetupAwaitingIntent(part.output)!.modeId,
-                profileId: parseSetupAwaitingIntent(part.output)!.profileId
-              })
-            "
-          />
+            先于通用折叠工具卡——core 返的 awaiting 信封不是 error，不能落进 error 视觉。
+            批 2：pending 由 dock 承接（awaitingViewFor 返 null → 内联抑制），
+            resolved/expired 归档渲染（无按钮只读）。 -->
+          <template v-else-if="isToolUIPart(part) && isAwaitingEnvelopePart(part)">
+            <ChatAwaitingIntentCard
+              v-if="awaitingViewFor(part) !== null"
+              :view="awaitingViewFor(part)!"
+            />
+          </template>
           <!-- 2026-09-18 broker P1：authz 授权请求 data part——未决且流式中由
                输入区 pinned 卡承接（authzInlineDecision 返 null 不渲染）；已决/失效
                落消息流内卡（历史回看 + 审计轨迹，§6 已决归档合一） -->

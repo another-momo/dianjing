@@ -267,8 +267,14 @@ export const panelsMessageDefaults = {
  */
 export const confirmMessageDefaults = {
   intentTitle: 'Start a new design?',
-  intentUnifiedLine:
-    'Start a new design with the selected mode / profile — everything already on the canvas stays as is and will not be deleted.',
+  // 批 2（2026-09-21 拍板⑤）：卡面复述将确认的 mode/profile label——
+  // 替代旧 intentUnifiedLine 静态文案（F7：卡面不说确认内容）
+  intentSummaryLine: params(
+    'Start a new design as {mode} / {profile} — everything already on the canvas stays as is and will not be deleted.'
+  ),
+  intentNoProfile: 'No profile',
+  // 批 2（拍板②）：草稿随卡——拦截正文在卡内展示并可编辑，确认发的是卡上内容
+  intentDraftSection: 'Message to send (editable)',
   intentSizeSection: 'Canvas size',
   intentSizeAuto: 'Auto (AI decides)',
   intentSizeCustomPlaceholder: 'Custom, e.g. 750x or 750x2000',
@@ -286,16 +292,23 @@ export const confirmMessageDefaults = {
   consentDeclinedLine: params('Declined switching to {name} — the current design is unchanged.'),
   consentFailedLine: 'Switch failed — the target design may have been moved or deleted.',
   // T91b：setup_design awaiting_new_intent_confirmation 信封卡片
+  // 批 2（2026-09-21 拍板①⑤⑥）：message 不再直渲（那是模型向协议指令），换用户向
+  // awaitingIntentPrompt；mode/profile 走 label 投影、briefId 换需求单名、canvas 显示
+  // AI 提议值；确认成功自动重发末条用户消息（confirmedLine/cancelledLine 系统行退役，
+  // 已决归档由卡面徽标承担）；expired = 未作答即被新消息/更新提议越过（借 authz expired）
   awaitingIntentTitle: 'The AI wants to create a new design — confirm?',
+  awaitingIntentPrompt:
+    'The AI wants to create a new design with these parameters. Confirm to proceed — your last request will be resent automatically.',
   awaitingIntentMode: 'Mode',
   awaitingIntentProfile: 'Profile',
   awaitingIntentBrief: 'Brief',
+  awaitingIntentCanvas: 'Canvas size',
   awaitingIntentConfirm: 'Confirm',
   awaitingIntentCancel: 'Cancel',
-  awaitingIntentConfirmedToast: 'New-design intent confirmed',
-  awaitingIntentConfirmedLine: 'Confirmed — resend your request to create the design.',
-  awaitingIntentCancelledLine: 'New-design intent cancelled.',
+  awaitingIntentConfirmedToast: 'Confirmed — resending your request',
   awaitingIntentFailedLine: params('Confirm failed: {msg}'),
+  awaitingIntentExpiredBadge: 'Expired',
+  awaitingIntentExpiredLine: 'This new-design proposal was not answered and has expired.',
   contextSwitchLine: params('—— Switched to {name} ——'),
   // T93：reasoning part 折叠卡标题（PiChatMessage.vue，预研 §5.2 方案 A）
   reasoningTitle: 'Thinking process',

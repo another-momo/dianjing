@@ -110,7 +110,9 @@ const zhCN = {
   },
   confirm: {
     intentTitle: '以新身份开始新设计？',
-    intentUnifiedLine: '将按选中的模式 / 风格开始新设计——画布上的现有内容原样保留，不会被删除。',
+    intentSummaryLine: '将按「{mode} / {profile}」新建设计——画布上的现有内容原样保留，不会被删除。',
+    intentNoProfile: '无风格档案',
+    intentDraftSection: '发送内容（可编辑）',
     intentSizeSection: '画布尺寸',
     intentSizeAuto: '自动（AI 决定）',
     intentSizeCustomPlaceholder: '自定义，如 750x 或 750x2000',
@@ -129,16 +131,20 @@ const zhCN = {
     consentFailedLine: '切换失败——目标设计可能已被移动或删除。',
     contextSwitchLine: '—— 已切换到「{name}」——',
     // T91b：setup_design awaiting_new_intent_confirmation 信封卡片（AI 提议，用户二元决策）
+    // 批 2（2026-09-21 拍板①⑤⑥）：message 不再直渲（模型向协议指令），换用户向
+    // awaitingIntentPrompt；已决归档由卡面徽标承担，系统行退役
     awaitingIntentTitle: 'AI 想新建一张设计——需要你确认',
+    awaitingIntentPrompt: 'AI 将按以上参数新建设计。确认后自动重发你的上一条需求，继续创作。',
     awaitingIntentMode: '模式',
     awaitingIntentProfile: '风格',
     awaitingIntentBrief: '需求单',
+    awaitingIntentCanvas: '画布尺寸',
     awaitingIntentConfirm: '确认',
     awaitingIntentCancel: '取消',
-    awaitingIntentConfirmedToast: '已确认新建意图',
-    awaitingIntentConfirmedLine: '已确认新建意图——可以重发需求继续创建。',
-    awaitingIntentCancelledLine: '已取消新建意图。',
+    awaitingIntentConfirmedToast: '已确认——正在重发需求继续创建',
     awaitingIntentFailedLine: '确认失败：{msg}',
+    awaitingIntentExpiredBadge: '已失效',
+    awaitingIntentExpiredLine: '该新建提议未作答，已失效。',
     // T93：reasoning part 折叠卡标题（PiChatMessage.vue）
     reasoningTitle: '思考过程',
     // T96：流式中 reasoning 折叠卡标题（PiChatMessage.vue）——区别于已结束的

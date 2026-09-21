@@ -3,24 +3,27 @@
  * T91b：setup_design awaiting_new_intent_confirmation 信封卡片。
  *
  * 触发：AI 调 setup_design 但 args + pluginData 皆未确认 → core 返 awaiting 信封
- * （非错误）；前端 ChatMessage 检测到该信封 → 渲染本卡片（替换通用工具卡）。
+ * （非错误）；前端检测到该信封 → 未决态由 pending-decision dock 承接交互，
+ * 已决/失效归档在消息流内以本卡渲染（替换通用工具卡）。
  *
- * 形态分叉 vs T61 ChatNewIntentCard：宿主发起的卡让用户选择 mode / 尺寸 /
- * references；本卡是 AI 已提议完整三键（modeId / profileId / briefId），只
- * 暴露 confirm/cancel 二元决策——不重复选择面。
- *
- * Confirm → emit confirm；Cancel → emit cancel。ChatPanel 调
- * `postIntentConfirm`（写 pluginData 三键）→ `abort(sessionId)` →
- * AI 重放 setup_design 即放行（pluginData 已确认 + 清键后生效）。
+ * 批 2（2026-09-21 拍板①⑤⑥ + D6）：
+ *  - 卡面 label 化：mode/profile 以 piStudioManifest label 投影（回退信封 catalog
+ *    快照的 mode label，再回退裸 id）；briefId 换需求单名（解析不到回退 id）；
+ *    canvas 显示 AI 提议值（工具 input.canvas，缺省 = 自动）；信封 message 不再
+ *    直渲（那是模型向协议指令，F1-L2），换用户向 i18n 键。
+ *  - 三态合一：pending = 未决可交互（dock，仅 idle 可点——disabled 由 ChatPanel
+ *    透传）；resolved = 已决归档（徽标）；expired = 未作答即失效（徽标 + 说明行）。
+ *  - 确认成功后由 ChatPanel 自动重发末条用户消息续跑（用户零重打）。
  */
 import { computed } from 'vue'
 
+import { piStudioManifest } from '@/app/ai/pi-backend/mode-selection'
 import { useForkConfirm } from '@/app/i18n/fork'
 
-import type { SetupAwaitingIntentPayload } from './active-design'
+import type { AwaitingIntentCardView } from './active-design'
 
-const { payload, disabled = false } = defineProps<{
-  payload: SetupAwaitingIntentPayload
+const { view, disabled = false } = defineProps<{
+  view: AwaitingIntentCardView
   disabled?: boolean
 }>()
 
@@ -31,7 +34,25 @@ const emit = defineEmits<{
 
 const confirmText = useForkConfirm()
 
-const isLocked = computed(() => disabled)
+const isLocked = computed(() => view.mode !== 'pending' || disabled)
+
+// ── 拍板⑤：label 投影（manifest 活数据优先 → 信封 catalog 快照 → 裸 id） ──
+
+const modeLabel = computed(
+  () =>
+    piStudioManifest.value?.modes.find((mode) => mode.id === view.modeId)?.label ??
+    view.catalogModes.find((mode) => mode.id === view.modeId)?.label ??
+    view.modeId
+)
+const profileLabel = computed(() => {
+  if (view.profileId === '') return confirmText.value.intentNoProfile
+  return (
+    piStudioManifest.value?.profiles.find((profile) => profile.id === view.profileId)?.label ??
+    view.profileId
+  )
+})
+const briefLabel = computed(() => view.briefName ?? view.briefId)
+const canvasLabel = computed(() => view.canvas ?? confirmText.value.intentSizeAuto)
 
 function handleConfirm() {
   if (isLocked.value) return
@@ -55,28 +76,61 @@ function handleCancel() {
       <span class="text-[12px] font-medium text-surface">{{
         confirmText.awaitingIntentTitle
       }}</span>
+      <span
+        v-if="view.mode === 'resolved'"
+        data-test-id="awaiting-intent-resolved-badge"
+        class="rounded bg-hover px-1.5 py-0.5 text-[11px] text-muted"
+      >
+        {{
+          view.decision === 'confirmed'
+            ? confirmText.intentConfirmedBadge
+            : confirmText.intentCancelledBadge
+        }}
+      </span>
+      <span
+        v-else-if="view.mode === 'expired'"
+        data-test-id="awaiting-intent-expired-badge"
+        class="rounded bg-hover px-1.5 py-0.5 text-[11px] text-muted"
+      >
+        {{ confirmText.awaitingIntentExpiredBadge }}
+      </span>
     </div>
 
     <div class="space-y-0.5 text-[11px] text-surface">
       <div>
         <span class="text-muted">{{ confirmText.awaitingIntentMode }}:</span>
-        <span data-test-id="awaiting-intent-mode" class="ml-1">{{ payload.modeId }}</span>
+        <span data-test-id="awaiting-intent-mode" class="ml-1">{{ modeLabel }}</span>
       </div>
-      <div v-if="payload.profileId">
+      <div>
         <span class="text-muted">{{ confirmText.awaitingIntentProfile }}:</span>
-        <span data-test-id="awaiting-intent-profile" class="ml-1">{{ payload.profileId }}</span>
+        <span data-test-id="awaiting-intent-profile" class="ml-1">{{ profileLabel }}</span>
       </div>
-      <div v-if="payload.briefId">
+      <div v-if="view.briefId">
         <span class="text-muted">{{ confirmText.awaitingIntentBrief }}:</span>
-        <span data-test-id="awaiting-intent-brief" class="ml-1">{{ payload.briefId }}</span>
+        <span data-test-id="awaiting-intent-brief" class="ml-1">{{ briefLabel }}</span>
+      </div>
+      <div>
+        <span class="text-muted">{{ confirmText.awaitingIntentCanvas }}:</span>
+        <span data-test-id="awaiting-intent-canvas" class="ml-1">{{ canvasLabel }}</span>
       </div>
     </div>
 
-    <p v-if="payload.message" data-test-id="awaiting-intent-message" class="text-[11px] text-muted">
-      {{ payload.message }}
+    <p
+      v-if="view.mode === 'pending'"
+      data-test-id="awaiting-intent-prompt"
+      class="text-[11px] text-muted"
+    >
+      {{ confirmText.awaitingIntentPrompt }}
+    </p>
+    <p
+      v-else-if="view.mode === 'expired'"
+      data-test-id="awaiting-intent-expired-line"
+      class="text-[11px] text-muted"
+    >
+      {{ confirmText.awaitingIntentExpiredLine }}
     </p>
 
-    <div class="flex items-center justify-end gap-2">
+    <div v-if="view.mode === 'pending'" class="flex items-center justify-end gap-2">
       <button
         type="button"
         :disabled="isLocked"

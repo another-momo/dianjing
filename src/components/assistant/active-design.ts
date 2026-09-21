@@ -1,10 +1,13 @@
 /**
  * T61（Phase 3 W3/T-B10）：选择器 UI 重做的共享前端助手——
  *
- *  - 新建意图信封序列化（共享契约 1，逐字：`[新建意图确认 modeId=<id> profileId=<id>
- *    canvas=<值>]`，全字段可缺省——canvas 为 T65 §2.4 扩展；T60/T65 宿主侧剥离正则
- *    见 pi-backend/active-design-host.ts）与宿主发起的 data part 类型（确认卡 /
- *    同意决定记录 / T65 上下文切换分割线回执）。
+ *  - 宿主发起的 data part 类型（确认卡归档 / 同意决定记录 / T65 上下文切换分割线回执）。
+ *  - 批 2（2026-09-21 拍板③）：`[新建意图确认 …]` 用户消息首行信封**生产侧整段退役**
+ *    （serializeNewIntentEnvelope 删除）——批 1 后端已废剥离通道，确认参数只走
+ *    POST /api/pi/intent-confirm；继续塞信封只会让协议文本原样进 prompt 与气泡。
+ *  - 批 2（拍板①⑤⑥ + D6）：setup_design awaiting 信封的 part 级解析（含工具 input
+ *    的 canvas 提议值）、全史扫描派生（pending / resolved / expired——过期规则 =
+ *    未作答即被后续用户消息越过；兄弟卡只留最后候选为活卡）、需求单名前端解析。
  *  - 物化判据已随 A3/C1 退役：勾选股删除后 Case A/B 分叉理由塌，统一卡面
  *    对物化前后无条件为真，判据失去唯一消费者——前端不再 re-export。
  *  - 切换端点客户端（共享契约 2：POST /api/pi/active-design {nodeId} →
@@ -13,6 +16,8 @@
  *    scanMarketingDesigns / brief-edit 读写原语。
  */
 
+import { getToolName, isTextUIPart, isToolUIPart } from 'ai'
+import type { UIDataTypes, UIMessage, UIMessagePart, UITools } from 'ai'
 import { ref } from 'vue'
 
 import { computeAllLayouts } from '@open-pencil/core/layout'
@@ -43,25 +48,6 @@ import { makeFigmaFromStore } from '@/app/bridge/figma-factory'
 import { getWindowId } from '@/app/bridge/window-id'
 import type { EditorStore } from '@/app/editor/active-store'
 import { ensureGraphFonts } from '@/app/editor/fonts'
-
-// ── 新建意图信封（共享契约 1；T65 §2.4 扩展 canvas 字段） ─────────────────────
-
-/**
- * 逐字契约：`[新建意图确认 modeId=<id> profileId=<id> canvas=<值>]`（全字段可缺省；
- * canvas 值 = 预设/自由 canvas 字符串，`750x` 高 HUG 或 `750x2000` 固定高）。
- * 置于消息首行；宿主（T60/T65）剥离置旗标，剩余文本进 run。
- */
-export function serializeNewIntentEnvelope(selection: {
-  modeId?: string | null
-  profileId?: string | null
-  canvas?: string | null
-}): string {
-  const fields: string[] = []
-  if (selection.modeId) fields.push(`modeId=${selection.modeId}`)
-  if (selection.profileId) fields.push(`profileId=${selection.profileId}`)
-  if (selection.canvas) fields.push(`canvas=${selection.canvas}`)
-  return fields.length > 0 ? `[新建意图确认 ${fields.join(' ')}]` : '[新建意图确认]'
-}
 
 // ── 尺寸预设（T65 §2.3 契约 [{label, canvas}]；core setup.ts CanvasSizePreset 单源） ──
 
@@ -111,7 +97,10 @@ export function intentSizeChoices(modeId: string, modeEntry: unknown): NewIntent
 
 // ── 宿主发起的 data part 类型 ────────────────────────────────────────────────
 
-/** 新建意图确认卡（宿主发起非工具 part，T56 卡片范式） */
+/** 新建意图确认卡（宿主发起非工具 part，T56 卡片范式）
+ *  批 2（拍板①②）：未决卡不再注入消息流——dock 承接交互（草稿随卡可编辑），
+ *  本 part 只在决断落地时追加为**归档件**（resolved 恒非 null；重载后随宿主
+ *  消息蒸发，D6 口径显式接受线 A 无跨会话归档）。 */
 export const NEW_INTENT_PART_TYPE = 'data-new-intent-confirm'
 
 export interface NewIntentPartData {
@@ -120,8 +109,14 @@ export interface NewIntentPartData {
   /** 被替换的当前目标名（无 active 时 null） */
   activeDesignName: string | null
   /** T65：尺寸预设行（按选中 mode 的 manifest.sizes 投影；general 断供后
-   *  由 ChatPanel 改用 GENERAL_SIZE_CHOICES；空 = 只有自定义输入） */
+   *  由 ChatPanel 改用 GENERAL_SIZE_CHOICES；空 = 只有自定义输入）。
+   *  仅未决交互面消费；归档件恒 [] */
   sizeChoices: NewIntentSizeChoice[]
+  /** 批 2：确认选定的 canvas（null = 自动）；未决态恒 null（选择进行中） */
+  canvas: string | null
+  /** 批 2（拍板②草稿随卡）：未决态 = 拦截正文初值（卡内编辑）；归档 = 实际
+   *  发出/取消时的卡上正文快照（卡面即事实源，消灭快照 ≠ 用户预期） */
+  text: string
   resolved: 'confirmed' | 'cancelled' | null
 }
 
@@ -167,13 +162,23 @@ export function parseSetActiveDesignProposed(input: unknown): {
 }
 
 // ── T91b：setup_design awaiting_new_intent_confirmation 信封解析 ─────────────
+//
+// 批 2（2026-09-21 拍板①⑤⑥ + D6）重写：
+//  - 信封 message 字段不再消费（那是 texts.ts 的模型向协议指令，直渲即内部
+//    信息泄露 F1-L2）——卡面文案换用户向 i18n 键；
+//  - catalog 快照的 modes 保留为 label 投影回退材料（manifest 未加载时兜底）；
+//  - AI 提议的 canvas 从工具 part **input** 取（信封 output 无此字段，F8）；
+//  - 全史扫描派生卡态：pending（唯一活卡，dock 承接）/ resolved（会话内已决 +
+//    派生已决：随后同身份落图即已确认）/ expired（未作答即被后续用户消息越过，
+//    或被更新的候选取代——借 authz expired 概念，拍板①过期规则）。
 
-/** awaiting 信封详情：modeId / profileId / briefId（共享契约 5——core single source） */
+/** awaiting 信封详情（共享契约 5——core single source；message 字段批 2 起不消费） */
 export interface SetupAwaitingIntentPayload {
   modeId: string
   profileId: string
   briefId: string
-  message: string
+  /** 信封 catalog 快照的 mode label 投影材料（防御性归一后只留 {id,label} 全合法条目） */
+  catalogModes: { id: string; label: string }[]
 }
 
 /** 从工具 part output 解析 awaiting 信封（不在则返 null——卡片不渲染） */
@@ -195,11 +200,235 @@ export function parseSetupAwaitingIntent(input: unknown): SetupAwaitingIntentPay
       ? (proposed as { briefId: string }).briefId
       : ''
   if (!modeId) return null
-  const message =
-    typeof (input as { message?: unknown }).message === 'string'
-      ? (input as { message: string }).message
-      : ''
-  return { modeId, profileId, briefId, message }
+  const catalog = (input as { catalog?: unknown }).catalog
+  const rawModes =
+    typeof catalog === 'object' && catalog !== null
+      ? (catalog as { modes?: unknown }).modes
+      : undefined
+  const catalogModes: { id: string; label: string }[] = []
+  if (Array.isArray(rawModes)) {
+    for (const entry of rawModes) {
+      if (typeof entry !== 'object' || entry === null) continue
+      const id = (entry as { id?: unknown }).id
+      const label = (entry as { label?: unknown }).label
+      if (typeof id === 'string' && id !== '' && typeof label === 'string' && label !== '') {
+        catalogModes.push({ id, label })
+      }
+    }
+  }
+  return { modeId, profileId, briefId, catalogModes }
+}
+
+/** awaiting 卡完整信息面（part 级解析：output 信封 + input 的 canvas 提议值） */
+export interface AwaitingIntentPartInfo {
+  toolCallId: string
+  modeId: string
+  profileId: string
+  briefId: string
+  /** AI 提议的 canvas（工具 input.canvas；非法/缺省 → null，卡面显示「自动」） */
+  canvas: string | null
+  catalogModes: { id: string; label: string }[]
+  /** 需求单名（扫描期经调用方注入的解析器读画布得出；解析不到 → null，卡面回退 id） */
+  briefName: string | null
+}
+
+type AnyPart = UIMessagePart<UIDataTypes, UITools>
+
+/** 从工具 part 解析 awaiting 卡（setup_design + output-available + 信封形状；否则 null） */
+export function parseAwaitingIntentPart(part: AnyPart): AwaitingIntentPartInfo | null {
+  if (!isToolUIPart(part) || getToolName(part) !== 'setup_design') return null
+  if (part.state !== 'output-available') return null
+  const payload = parseSetupAwaitingIntent(part.output)
+  if (!payload) return null
+  const input = part.input
+  const rawCanvas =
+    typeof input === 'object' && input !== null ? (input as { canvas?: unknown }).canvas : undefined
+  const canvas =
+    typeof rawCanvas === 'string' && CANVAS_VALUE_PATTERN.test(rawCanvas) ? rawCanvas : null
+  return { ...payload, toolCallId: part.toolCallId, canvas, briefName: null }
+}
+
+/** 卡态三态：pending = 唯一活卡（dock 承接交互）；resolved = 已决归档；
+ *  expired = 未作答即失效（归档只读，借 authz expired 概念） */
+export type AwaitingCardState =
+  | { kind: 'pending' }
+  | { kind: 'resolved'; decision: 'confirmed' | 'cancelled' }
+  | { kind: 'expired' }
+
+export interface AwaitingIntentCardRecord {
+  info: AwaitingIntentPartInfo
+  /** 基础过滤通过（未会话已决、未派生已决、无后续用户消息）——pending 只取
+   *  最后候选，其余候选染 expired（兄弟卡联动锁：AI 循环重试产的多张同回合
+   *  信封卡，确认/取消活卡时其余候选由 ChatPanel 封印 superseded 防复活） */
+  candidate: boolean
+  state: AwaitingCardState
+}
+
+/** 会话内已决记号（ChatPanel 持有；superseded = 兄弟卡联动封印，渲染同 expired） */
+export type AwaitingSessionDecision = 'confirmed' | 'cancelled' | 'superseded'
+
+/** setup_design 成功输出形状（派生已决判据：rootId + modeId 字符串） */
+function parseSetupDesignSuccess(output: unknown): { modeId: string; profileId: string } | null {
+  if (typeof output !== 'object' || output === null) return null
+  const rootId = (output as { rootId?: unknown }).rootId
+  const modeId = (output as { modeId?: unknown }).modeId
+  if (typeof rootId !== 'string' || rootId === '') return null
+  if (typeof modeId !== 'string' || modeId === '') return null
+  const profileId = (output as { profileId?: unknown }).profileId
+  return { modeId, profileId: typeof profileId === 'string' ? profileId : '' }
+}
+
+/**
+ * 全史扫描 awaiting 卡态（D6 派生口径，纯函数——重载后无会话态也同律适用）：
+ *  1. 会话已决优先（confirmed/cancelled → resolved；superseded → expired）；
+ *  2. 派生已决：其后（按 消息序,part 序 严格靠后）出现同 modeId+profileId 的
+ *     setup_design 成功输出 → resolved confirmed（「随后落图即已确认」）；
+ *  3. 过期：其后出现任意用户消息 → expired（未作答即被越过，拍板①过期规则）；
+ *  4. 剩余为基础候选；最后候选 = pending 活卡，其余候选 expired（兄弟联动）。
+ *
+ * resolveBriefName：需求单名解析器（读画布，ChatPanel 注入；缺省/解析不到 → null）。
+ */
+export function scanAwaitingIntentCards(
+  messages: UIMessage[],
+  sessionDecisions: ReadonlyMap<string, AwaitingSessionDecision>,
+  resolveBriefName?: (briefId: string) => string | null
+): Map<string, AwaitingIntentCardRecord> {
+  interface Located {
+    info: AwaitingIntentPartInfo
+    messageIndex: number
+    partIndex: number
+  }
+  const envelopes: Located[] = []
+  const successes: {
+    modeId: string
+    profileId: string
+    messageIndex: number
+    partIndex: number
+  }[] = []
+  let lastUserMessageIndex = -1
+  messages.forEach((message, messageIndex) => {
+    if (message.role === 'user') {
+      lastUserMessageIndex = messageIndex
+      return
+    }
+    if (message.role !== 'assistant') return
+    message.parts.forEach((part, partIndex) => {
+      if (!isToolUIPart(part) || getToolName(part) !== 'setup_design') return
+      if (part.state !== 'output-available') return
+      const info = parseAwaitingIntentPart(part)
+      if (info) {
+        envelopes.push({ info, messageIndex, partIndex })
+        return
+      }
+      const success = parseSetupDesignSuccess(part.output)
+      if (success) successes.push({ ...success, messageIndex, partIndex })
+    })
+  })
+
+  const records = new Map<string, AwaitingIntentCardRecord>()
+  const candidates: Located[] = []
+  for (const located of envelopes) {
+    const { info } = located
+    if (resolveBriefName && info.briefId !== '') {
+      info.briefName = resolveBriefName(info.briefId)
+    }
+    const session = sessionDecisions.get(info.toolCallId)
+    if (session === 'confirmed' || session === 'cancelled') {
+      records.set(info.toolCallId, {
+        info,
+        candidate: false,
+        state: { kind: 'resolved', decision: session }
+      })
+      continue
+    }
+    if (session === 'superseded') {
+      records.set(info.toolCallId, { info, candidate: false, state: { kind: 'expired' } })
+      continue
+    }
+    const derivedConfirmed = successes.some(
+      (success) =>
+        success.modeId === info.modeId &&
+        success.profileId === info.profileId &&
+        (success.messageIndex > located.messageIndex ||
+          (success.messageIndex === located.messageIndex && success.partIndex > located.partIndex))
+    )
+    if (derivedConfirmed) {
+      records.set(info.toolCallId, {
+        info,
+        candidate: false,
+        state: { kind: 'resolved', decision: 'confirmed' }
+      })
+      continue
+    }
+    if (located.messageIndex < lastUserMessageIndex) {
+      records.set(info.toolCallId, { info, candidate: false, state: { kind: 'expired' } })
+      continue
+    }
+    candidates.push(located)
+    records.set(info.toolCallId, { info, candidate: true, state: { kind: 'expired' } })
+  }
+  // 兄弟卡联动锁：最后候选 = 唯一活卡（dock 承接），其余候选保持 expired
+  const live = candidates[candidates.length - 1]
+  if (live) {
+    records.set(live.info.toolCallId, {
+      info: live.info,
+      candidate: true,
+      state: { kind: 'pending' }
+    })
+  }
+  return records
+}
+
+/** ChatAwaitingIntentCard 的视图契约（pending/resolved/expired 三态合一） */
+export interface AwaitingIntentCardView {
+  mode: 'pending' | 'resolved' | 'expired'
+  modeId: string
+  profileId: string
+  briefId: string
+  briefName: string | null
+  canvas: string | null
+  catalogModes: { id: string; label: string }[]
+  /** resolved 态的决断（expired 无决断——未作答） */
+  decision?: 'confirmed' | 'cancelled'
+}
+
+/** 记录 → 卡片视图（ChatPanel dock 与 PiChatMessage 归档渲染共用单源） */
+export function awaitingCardView(record: AwaitingIntentCardRecord): AwaitingIntentCardView {
+  const { info, state } = record
+  const view: AwaitingIntentCardView = {
+    mode: state.kind,
+    modeId: info.modeId,
+    profileId: info.profileId,
+    briefId: info.briefId,
+    briefName: info.briefName,
+    canvas: info.canvas,
+    catalogModes: info.catalogModes
+  }
+  if (state.kind === 'resolved') view.decision = state.decision
+  return view
+}
+
+/** 需求单名解析（批 2 拍板⑤：briefId 换需求单名）——core findBrief 只收节点 id，
+ *  AI 传参同口径；匹配当前页 brief 节点 id，解析不到 → null（卡面回退裸 id） */
+export function resolveBriefDisplayName(store: EditorStore | null, briefId: string): string | null {
+  if (!store || briefId === '') return null
+  const entry = scanCurrentPageBriefs(store).find((brief) => brief.briefId === briefId)
+  return entry?.name ?? null
+}
+
+/** 末条用户消息正文（批 2 拍板⑥：awaiting 确认成功后自动续跑的重发源） */
+export function lastUserMessageText(messages: UIMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message.role !== 'user') continue
+    const text = message.parts
+      .filter(isTextUIPart)
+      .map((part) => part.text)
+      .join('')
+      .trim()
+    if (text !== '') return text
+  }
+  return null
 }
 
 /** T91b：POST /api/pi/intent-confirm——前端 ChatAwaitingIntentCard / ChatNewIntentCard 确认按钮触发。
