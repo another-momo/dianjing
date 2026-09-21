@@ -114,6 +114,7 @@ describe('parseAwaitingIntentPart（part 级信封识别）', () => {
 
   test('catalog.modes 混杂形状 → 只留 {id,label} 全合法条目', () => {
     const output = awaitingOutput('m1')
+    // oxlint-disable-next-line open-pencil/no-broad-double-cast -- 混杂形状桩由被测函数的防御性归一兜住（同 asPart 豁免）
     output.catalog.modes = [
       { id: 'a', label: 'A' },
       { id: 'b' },
