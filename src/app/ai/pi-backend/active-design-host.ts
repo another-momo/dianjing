@@ -70,7 +70,6 @@ import { postBridgeRPC } from './bridge-rpc'
 import {
   referenceAddressPrefix,
   referenceBucketKey,
-  type StudioAssetReference,
   type StudioBase,
   type StudioProfile,
   type StudioRegistry,

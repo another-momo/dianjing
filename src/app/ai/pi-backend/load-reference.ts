@@ -83,7 +83,7 @@ const rejectedPathReason = referencePathProblem
 function nearMissCandidates(requested: string, allowed: ReadonlyMap<string, string>): string[] {
   const found = new Set<string>()
   let form = requested
-  while (true) {
+  for (;;) {
     for (const key of allowed.keys()) {
       if (key === form || key.endsWith('/' + form)) found.add(key)
     }
