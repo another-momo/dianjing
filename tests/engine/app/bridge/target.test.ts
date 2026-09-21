@@ -23,8 +23,6 @@
 /* oxlint-disable open-pencil/no-module-mocking -- tabs 模块依赖链沉（shell/ui→dom-css→需要 dist），worktree 无 dist 编译；mock 暴露 target 消费的三函数即可 */
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 
-import { createEditorStore } from '@/app/editor/session/create'
-
 type FakeTab = {
   id: string
   store: {
@@ -85,10 +83,21 @@ const resolveAutomationTarget = targetModule.resolveAutomationTarget
 const stripAutomationTargetArgs = targetModule.stripAutomationTargetArgs
 type AutomationTargetArgs = Parameters<typeof resolveAutomationTarget>[1]
 
-// activeStore 入参用真空 store（clipboard 测试同族先例：直接 createEditorStore()）——
-// getTabForStore 已被 mock 接管（无 document_id 时直接回 tab-A，行为与「活跃 tab = tab-A」
-// 一致），该入参仅过类型闸，字段不被读取
-const activeStore = createEditorStore()
+// activeStore 入参：getTabForStore 已被 mock 接管（无 document_id 时直接回 tab-A，
+// 行为与「活跃 tab = tab-A」一致），入参仅过类型闸、字段不被读取——用 fake tab 的
+// store 经 type guard 收窄（规则推荐路径；不用 createEditorStore 真构造：同进程
+// 他文件的 mock.module('@/app/editor/fonts') 会让其依赖链缺导出而炸，教训
+// 2026-09-21 figma-factory-viewport 同族 mock 泄漏实证）
+function asActiveStore(store: FakeTab['store']): Parameters<typeof resolveAutomationTarget>[0] {
+  const candidate: unknown = store
+  if (candidate === null || typeof candidate !== 'object') {
+    throw new Error('fake store must be an object')
+  }
+  return candidate as Parameters<typeof resolveAutomationTarget>[0]
+}
+const firstFakeTab = fakeTabs.at(0)
+if (!firstFakeTab) throw new Error('fixture broken: fakeTabs empty')
+const activeStore = asActiveStore(firstFakeTab.store)
 
 beforeEach(() => {
   // 重置 tab 图（防测试间串状态）

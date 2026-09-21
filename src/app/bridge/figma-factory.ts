@@ -7,7 +7,17 @@ export function makeFigmaFromStore(
   store: EditorStore,
   pageId = store.state.currentPageId
 ): FigmaAPI {
-  const api = new FigmaAPI(store.graph)
+  const api = new FigmaAPI(store.graph, {
+    // 接通 viewport 断头路（仓外 docs/202609201112-viewport-focus-dead-path-review.md
+    // §5 方案 A）：工具经 FigmaAPI 写的 viewport 在此回写编辑器 store——center/zoom →
+    // panX/panY 是下方 seed 的逆变换。bridge 为浏览器上下文，恒有 window。
+    onViewportChange: ({ center, zoom }) => {
+      store.state.panX = window.innerWidth / 2 - center.x * zoom
+      store.state.panY = window.innerHeight / 2 - center.y * zoom
+      store.state.zoom = zoom
+      store.requestRepaint()
+    }
+  })
   api.setRenderer(store.renderer ?? null)
   api.currentPage = api.wrapNode(pageId)
   api.currentPage.selection = [...store.state.selectedIds]

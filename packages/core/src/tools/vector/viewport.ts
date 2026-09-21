@@ -1,5 +1,6 @@
 import * as v from 'valibot'
 
+import type { FigmaNodeProxy } from '#core/figma-api'
 import { toolNumber } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
 
@@ -43,6 +44,7 @@ export const viewportZoomToFit = defineTool({
     let minY = Infinity
     let maxX = -Infinity
     let maxY = -Infinity
+    const targets: FigmaNodeProxy[] = []
     for (const id of ids) {
       const node = figma.getNodeById(id)
       if (!node) continue
@@ -51,13 +53,17 @@ export const viewportZoomToFit = defineTool({
       minY = Math.min(minY, bounds.y)
       maxX = Math.max(maxX, bounds.x + bounds.width)
       maxY = Math.max(maxY, bounds.y + bounds.height)
+      targets.push(node)
     }
-    if (minX === Infinity) return { error: 'No valid nodes found' }
-    const centerX = (minX + maxX) / 2
-    const centerY = (minY + maxY) / 2
-    figma.viewport = { center: { x: centerX, y: centerY }, zoom: 1 }
+    if (targets.length === 0) return { error: 'No valid nodes found' }
+    // 走 figma-api 的 scrollAndZoomIntoView：复用其 fit 算法（padding 80、
+    // min(viewW/contentW, viewH/contentH, 1)）——原先写死 zoom: 1，"fit" 名不副实；
+    // 且写 _viewport 后由 onViewportChange 回写编辑器 store（桥上下文）。
+    figma.viewport.scrollAndZoomIntoView(targets)
+    const { center, zoom } = figma.viewport
     return {
-      center: { x: centerX, y: centerY },
+      center,
+      zoom,
       bounds: { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
     }
   }

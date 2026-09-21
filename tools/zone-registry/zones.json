@@ -85,6 +85,7 @@
     "tests/engine/app/bridge/bridge-vite-plugin.test.ts",
     "tests/engine/app/bridge/target.test.ts",
     "tests/engine/app/bridge/portless-route.test.ts",
+    "tests/engine/app/bridge/figma-factory-viewport.test.ts",
     "tests/engine/app/settings/credentials/media.test.ts",
     "tests/engine/app/settings/credentials/preferences/use.test.ts",
     "electron-builder.yml",
@@ -659,9 +660,9 @@
     {
       "id": "P131",
       "file": "packages/core/src/figma-api/index.ts",
-      "reason": "T55（2026-09-01）：exportImage options 类型增 renderInContext/clip（S3 §5 主机能力前置，01 §8 锚定；签名向后兼容）；2026-09-14 T40 延展：viewport zoom-fit 守卫换 hasWindowGlobal 活探",
+      "reason": "T55（2026-09-01）：exportImage options 类型增 renderInContext/clip（S3 §5 主机能力前置，01 §8 锚定；签名向后兼容）；2026-09-14 T40 延展：viewport zoom-fit 守卫换 hasWindowGlobal 活探；2026-09-21 延展：构造增可选 onViewportChange（set viewport 与 scrollAndZoomIntoView 写 _viewport 时触发）——接通工具侧 viewport 写回编辑器 store 通路（仓外 docs/202609201112-viewport-focus-dead-path-review.md §5 方案 A），缺省注入行为不变",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-14",
+      "lastReviewed": "2026-09-21",
       "task": "T55"
     },
     {
@@ -2069,6 +2070,13 @@
       "id": "P343",
       "file": "src/components/ui/feedback/AppBanner.stories.ts",
       "reason": "2026-09-21 合并 v0.15.1 修红：#716 带入的 AppBanner 以 testId prop 渲染 data-test-id，触 check:arch 共享层禁生产 test-id 规则（CI 35563778185）——改 data-slot 解剖（banner/banner-content/banner-dismiss），testId prop 摘除，消费方与 stories 同批剥属性",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P344",
+      "file": "packages/core/src/tools/vector/viewport.ts",
+      "reason": "2026-09-21 viewport 聚焦断头路修复（仓外 docs/202609201112-viewport-focus-dead-path-review.md §5）：viewport_zoom_to_fit 不再写死 zoom:1——改走 figma.viewport.scrollAndZoomIntoView 复用其 fit 算法（padding 80、min(viewW/contentW, viewH/contentH, 1)），返回增 zoom 字段；写回编辑器经 P131 的 onViewportChange 通路",
       "disposition": "permanent",
       "lastReviewed": "2026-09-21"
     }

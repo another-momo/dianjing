@@ -47,6 +47,21 @@ import {
 
 const noop = () => undefined
 
+/** viewport 快照——onViewportChange 回调载荷（center 为画布坐标下的视口中心点）。 */
+export interface FigmaViewportSnapshot {
+  center: Vector
+  zoom: number
+}
+
+export interface FigmaAPIOptions {
+  /**
+   * viewport 写回回调：`set viewport` 与 `viewport.scrollAndZoomIntoView` 写 _viewport
+   * 后触发。bridge（makeFigmaFromStore）借此把工具侧 viewport 变更回写编辑器 store；
+   * 缺省（测试直 new FigmaAPI、非 bridge 直调）行为不变——_viewport 仍是实例私有字段。
+   */
+  onViewportChange?: (viewport: FigmaViewportSnapshot) => void
+}
+
 export { FigmaNodeProxy } from './proxy'
 export type {
   FigmaBooleanOperationNode,
@@ -76,13 +91,15 @@ export class FigmaAPI implements NodeProxyHost {
   private _nodeCache = new Map<string, FigmaNodeProxy>()
   private _pageProxies = new WeakSet<FigmaNodeProxy>()
   private _renderer: SkiaRenderer | null = null
+  private _onViewportChange: ((viewport: FigmaViewportSnapshot) => void) | null
 
   readonly mixed = MIXED
 
-  constructor(graph: SceneGraph) {
+  constructor(graph: SceneGraph, options?: FigmaAPIOptions) {
     this.graph = graph
     const pages = graph.getPages()
     this._currentPageId = pages[0]?.id ?? graph.rootId
+    this._onViewportChange = options?.onViewportChange ?? null
   }
 
   setRenderer(renderer: SkiaRenderer | null): void {
@@ -505,6 +522,13 @@ export class FigmaAPI implements NodeProxyHost {
 
   private _viewport = { x: 0, y: 0, zoom: 1 }
 
+  private _notifyViewportChange(): void {
+    this._onViewportChange?.({
+      center: { x: this._viewport.x, y: this._viewport.y },
+      zoom: this._viewport.zoom
+    })
+  }
+
   get viewport(): {
     center: Vector
     zoom: number
@@ -524,12 +548,14 @@ export class FigmaAPI implements NodeProxyHost {
         const viewH = hasWindowGlobal() ? window.innerHeight : 720
         const zoom = Math.min(viewW / contentW, viewH / contentH, 1)
         this._viewport = { x: b.x + b.width / 2, y: b.y + b.height / 2, zoom }
+        this._notifyViewportChange()
       }
     }
   }
 
   set viewport(v: { center: Vector; zoom: number }) {
     this._viewport = { x: v.center.x, y: v.center.y, zoom: v.zoom }
+    this._notifyViewportChange()
   }
 
   createImage(data: Uint8Array): { hash: string } {
