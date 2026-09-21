@@ -69,7 +69,7 @@ references:
 
 执行步骤：
 
-1. 调用 prepare_hero_scaffold——在根框旁生成参考画框，把 HeroContent 槽内的标题按最终位置克隆进去，让生图 API 看到「这里有个标题，请围绕它构图、保持该区域平静」
+1. 先 look 自检骨架排版（hero 槽标题位置/字号/对比度、各节文字有无遮挡/溢出），发现问题先修再继续；确认无误后调用 prepare_hero_scaffold——在根框旁生成参考画框，把 HeroContent 槽内的标题按最终位置克隆进去，让生图 API 看到「这里有个标题，请围绕它构图、保持该区域平静」
 2. 调用 generate_image——`replace_id` = scaffold_id，`references` 传 scaffold 节点作合成参照。prompt 按 `references/hero-prompt-template-structure-first.md` 三段结构编写（写前读）
 3. 调用 compose_backdrop——hero 图移入背景层，同时自动从 hero 底部采样主题色，生成一条与之相符的渐变色满铺整个画布背景。hero 与下方内容节之间不再有硬边界，整张长图共享连续色彩基调
 4. look 验收：hero 底部无可见接缝、标题区可读。不通过则重生 hero（重跑步骤 1→3）；重生 2 次仍不通过则换素材路线（stock_photo / 用户素材）；无素材可换时结论区声明待补
