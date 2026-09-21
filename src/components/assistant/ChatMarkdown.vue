@@ -22,6 +22,9 @@ const {
 }>()
 
 const isDark = computed(() => resolvedAppTheme.value === 'dark')
+// 动画只放流式期：vue-stream-markdown 的 fade 类在 span 上永久滞留（不随 animationend
+// 摘除），static 历史消息累积数万动画 span 会把 Blink 每帧动画服务打爆（楔死根因）
+const animateWhileStreaming = computed(() => animationsEnabled.value && mode === 'streaming')
 const ui = chatMarkdownTheme()
 const markdownComponents = { code: InlineCode }
 const hardenOptions = computed(() =>
@@ -37,7 +40,7 @@ const renderKey = computed(() => markdownRenderKey({ mode, surface }))
       :components="markdownComponents"
       :content="content"
       :is-dark="isDark"
-      :enable-animate="animationsEnabled"
+      :enable-animate="animateWhileStreaming"
       :mode="mode"
       :extensions="markdownExtensions"
       :harden-options="hardenOptions"
