@@ -125,10 +125,13 @@ const baseBody = stripFrontmatter(
 // 2026-09-16 A3 波4：base.md frontmatter 二条 references（render-jsx + design-basics）
 // → 索引节由 1 行扩 2 行；B7 装配段冠来源头 `# studio base` —— 空槽 expected
 // 同步重钉（baseBody 前冠来源头）
+// 2026-09-21 统一限定形寻址（owner 拍板）：索引节标题下首行增操作指令行、
+// 行首 key 恒带桶前缀（base/）、行尾来源标注（base）删除——三处契约格式同步重钉
 const REFERENCES_INDEX_SECTION = [
   '## 按需参考（load_reference 工具按需读取）',
-  '- references/render-jsx.md —— render 工具的 JSX 语法大全（props 全集 / 布局规则 / 禁用项 / 修复纪律）——首次 render 调用前必读（base）',
-  '- references/design-basics.md —— 通用设计基础（设计令牌 / 版式 / 组合原语 / 画布预设）——搭建类设计任务开工前必读（base）'
+  'path 参数 = 照抄下行行首 key（含桶前缀）',
+  '- base/references/render-jsx.md —— render 工具的 JSX 语法大全（props 全集 / 布局规则 / 禁用项 / 修复纪律）——首次 render 调用前必读',
+  '- base/references/design-basics.md —— 通用设计基础（设计令牌 / 版式 / 组合原语 / 画布预设）——搭建类设计任务开工前必读'
 ].join('\n')
 const EMPTY_SLOT_EXPECTED = `# studio base\n${baseBody}\n\n${REFERENCES_INDEX_SECTION}`
 

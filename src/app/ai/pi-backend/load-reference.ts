@@ -129,12 +129,12 @@ export function createLoadReferenceTool(deps: LoadReferenceToolDeps) {
             ? `path「${normalized}」不在本回合可读清单——本回合 active 资产未声明任何 references（无可读项）${NOT_ALLOWED_SKILL_HINT}`
             : `path「${normalized}」不在本回合可读清单——仅可读：${available.join('、')}${NOT_ALLOWED_SKILL_HINT}`
         const candidates = nearMissCandidates(normalized, allowed)
-        const hint =
-          candidates.length === 1
-            ? `（你是不是要读「${candidates[0]}」？${NOT_ALLOWED_HINT}）`
-            : candidates.length > 1
-              ? `（看起来像是要读以下之一：「${candidates.join('、')}」——同名跨桶各条都列在索引里；${NOT_ALLOWED_HINT}）`
-              : ''
+        let hint = ''
+        if (candidates.length === 1) {
+          hint = `（你是不是要读「${candidates[0]}」？${NOT_ALLOWED_HINT}）`
+        } else if (candidates.length > 1) {
+          hint = `（看起来像是要读以下之一：「${candidates.join('、')}」——同名跨桶各条都列在索引里；${NOT_ALLOWED_HINT}）`
+        }
         return toToolResult({
           error: 'reference_not_allowed',
           message: `${baseMessage}${hint}`,
