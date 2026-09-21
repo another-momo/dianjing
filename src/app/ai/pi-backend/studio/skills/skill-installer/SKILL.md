@@ -4,7 +4,7 @@ description: >
   迁移/安装外部 skill 的元工具。帮你把 Claude Code / Codex / 其他 harness 的 skill 装到我方用户层。
   当用户提供了一个 skill 文件夹、GitHub 仓库根、或他 harness 已装目录（~/.claude/skills/、
   ~/.codex/skills/ 等），想把这个 skill 装过来用时触发。会做 license 扫描、runtime 适配分析、
-  按正面清单逐项确认、必要时拒绝重脚本依赖、最后过 install_skill 闸门写入用户层。
+  按正面清单逐项确认、必要时拒绝重脚本依赖、确认后写入用户层、下一会话即可调用。
   Triggers on: 迁移 skill, 安装 skill, 导入 skill, 装 skill, 把 skill 带过来, skill 迁移,
   Claude Code skill, Codex skill, ~/.claude/skills, ~/.codex/skills, 帮我装 skill,
   migrate skill, install skill, import skill, skill migration, skill installer,
@@ -15,7 +15,7 @@ description: >
 
 把外部 skill 装进本产品用户层（`workspace/.agents/skills/`）。本 skill 只做工作流与判断
 脚手架；写目标目录的活由 `install_skill` 工具（带确认闸门）单独承担——agent 不能直接写
-用户层 skills 目录（key-guard deny 防自植）。
+用户层 skills 目录（直写会被拒绝）。
 
 ## 全程纪律（最重要，先读）
 
@@ -38,7 +38,7 @@ description: >
 | ② 界外目录（他 harness 已装） | `~/.claude/skills/<name>/`、`~/.codex/skills/<name>/` 等 | 是（read 工具直接读绝对路径，如遇授权拦截按提示确认） |
 | ③ GitHub 仓库根               | 用户已下载/克隆到本地的仓库目录                          | 是（用 `find` 自动探测 SKILL.md 定位 skill 根）       |
 
-用户给 URL 或 zip 时，**先引导下载/解压到本地**（默认 readonly 档无解压工具）：
+用户给 URL 或 zip 时，**先引导下载/解压到本地**（本环境没有解压工具）：
 
 > 这个 skill 是个 zip/URL，我没法直接读。请先下载/解压到本机任意目录，把目录路径给我。
 > （GitHub 仓库推荐先 `git clone` 到本地，find 会自动找 SKILL.md 嵌套层。）
@@ -107,11 +107,11 @@ README 营销话术不算 LICENSE。
 命中反面清单（结构性重组、需翻译、改默认值、加产品增强、含 scripts/ 重依赖、含像素级
 PSD 合成链）→ **明确告知阻断点 + 可选替代**：
 
-> 这个 skill 含 scripts/ 子目录的 Python/Node 处理链（[具体]），我方 runtime v1 不支持
-> 可执行 scripts。建议替代：
+> 这个 skill 含 scripts/ 子目录的 Python/Node 处理链（[具体]），当前不支持安装带可执行
+> scripts 的 skill。建议替代：
 >
 > - 知识层素材拆出来自己写一个简化 skill
-> - 等 v2 scripts 声明制放行后再装
+> - 等后续版本支持 scripts 后再装
 >
 > 不强装。
 
@@ -127,7 +127,7 @@ PSD 合成链）→ **明确告知阻断点 + 可选替代**：
 
 ### 7. 调 install_skill
 
-按 §「install_skill 契约」节执行。闸门（authz 族单动作确认卡）由工具侧弹出，无需本 skill
+按 §「install_skill 契约」节执行。确认卡由工具侧弹出，无需本 skill
 额外处理。
 
 ### 8. MIGRATION.md（随装在案）
@@ -143,9 +143,9 @@ PSD 合成链）→ **明确告知阻断点 + 可选替代**：
 
 ```
 已装：<安装路径 workspace/.agents/skills/<name>/>
-生效：下一会话（开新会话即重新 assembly 扫目录；存活会话有 entry 缓存不重载）
+生效：下一会话（新开会话即生效；当前会话不会热重载）
 调用：/skill:<name>
-chips 清单：即开即新（combobox 打开 / 新会话自动刷新清单）
+技能清单：即开即新（打开「选择技能」/ 新会话自动刷新）
 适配点：N 条（详见 MIGRATION.md）
 license：<档级>（用户自担 / 开源合规）
 剥除字段：<清单>
@@ -154,26 +154,25 @@ license：<档级>（用户自担 / 开源合规）
 ## install_skill 契约要点
 
 - **参数**：`{ source_dir（必为 staging 根下）, name, overwrite?: boolean }`
-- **name 硬闸**：必须匹配 `/^[a-z0-9-]+$/`、≤64 字符、禁首尾与连续连字符（SDK 侧只
-  warning 不拒，install_skill 唯一硬拒点）
+- **name 硬闸**：必须匹配 `/^[a-z0-9-]+$/`、≤64 字符、禁首尾与连续连字符，否则拒装
 - **frontmatter 白名单**：install_skill 只认 `name` / `description` / `disable-model-invocation`
   三键——含白名单外字段即拒装并回报违规键清单，由你在 staging 剥除后重试（剥除清单写进
   MIGRATION.md，不告警用户）
-- **跳过件**：`.git` 与 `.` 开头隐藏件不随装（SDK 加载面同样跳过点开头目录）
+- **跳过件**：`.git` 与 `.` 开头隐藏件不随装
 - **拒装条件**：与内置层撞名 / 含 scripts/ 可执行件 / 路径含 `..`/绝对/符号链接 / 非常规
   文件 / 超体积 / source_dir 不在 staging 根下
 - **同名已存在**：返冲突，需 `overwrite:true` + 二次确认 → 旧目录入
   `workspace/.agents/.skill-backups/<name>/<ts>/`，每 name 留最近 3 份
-- **闸门**：authz 族单动作确认卡，payload 渲染文件清单 + 适配点摘要；reject / 断连 / 取消
+- **闸门**：单动作确认卡，卡上渲染将安装的文件清单 + 适配点摘要；拒绝 / 断连 / 取消
   = 拒装（无超时机制）
 - **不感知 MIGRATION.md**：元 skill 在 staging 内写好，整体随目录进
 
 ## 必备 references（开 skill 时按需 read）
 
-| 路径                          | 何时读                                                  |
-| ----------------------------- | ------------------------------------------------------- |
-| `references/principles.md`    | §4 适配分析、§6 agent 面卫生扫描、§8 MIGRATION.md 撰写  |
-| `references/runtime-facts.md` | §2 frontmatter 键合法性、§9 剥除字段依据、撞名/生效语义 |
+| 路径                          | 何时读                                                      |
+| ----------------------------- | ----------------------------------------------------------- |
+| `references/principles.md`    | §4 适配分析、§6 agent 面卫生扫描、§8 MIGRATION.md 撰写      |
+| `references/runtime-facts.md` | §2 frontmatter 键合法性、§8 剥除字段清单依据、撞名/生效语义 |
 
 ## 不做的事
 

@@ -51,19 +51,17 @@ disableModelInvocation` 六字段。
 
 ## 4. install_skill 闸门落地形
 
-- 确认通道现状 = **单动作确认**：authz 族（bash 先例，载荷 `{ formId, kind:'authz',
-toolName, command, cwd }`，reject 等效 deny）+ ask 族（`ask_user_question` 表单卡，1–8
-  问，sequential 硬阻断）。同 session 同时刻双族合计最多 1 条 pending。
+- 确认通道现状 = **单动作确认卡**：拒绝 / 断连 / 显式取消 = 拒装。另有一种 ask 表单卡
+  （1–8 问，逐问硬阻断）；同 session 同时刻两类合计最多 1 条待确认——弹确认卡期间不要再
+  发 ask。
 - **「skill 声明面 + 按清单一次批」形态未落地**——现确认通道无任何批量/清单字段。
-- → v1 闸门落地形：**authz 族单动作确认卡**，payload 渲染将安装的文件清单 + 适配点摘
-  要；P2 形态落地后再升级。
-- **无人值守**：**无超时机制**；abort / SSE 断连 / 显式
-  cancel → reject → authz 等效 deny。v1 拒装语义随 authz 族，与 bash 授权同待遇。
+- → v1 闸门落地形：**单动作确认卡**，卡上渲染将安装的文件清单 + 适配点摘
+  要；清单式确认形态落地后再升级。
+- **无人值守**：**无超时机制**；abort / 断连 / 显式取消 = 拒装，与 bash 授权同待遇。
 
 ## 5. 输出契约对齐
 
-- `listSkills(): { name, description }[]`（`ManifestSkillEntry`），filePath / baseDir 等不
-  出后端
+- `listSkills(): { name, description }[]`，filePath / baseDir 等不出后端
 - install_skill 返回建议对齐：`{ path, files[], name, 生效语义（下一会话）, 调用方式
 /skill:<name> }`
 

@@ -15,7 +15,7 @@
 只改「不改就跑不起来 / 必然出错」的地方，逐项列：
 
 1. **文件读取方式**：源 runtime 的文件访问假设（本地路径、grep 等）→ 换成我方 agent
-   实际有的工具（`read` 工具按 skill 目录相对路径读取，参照 layer-splitting 惯例）。
+   实际有的工具（`read` 工具按 skill 目录相对路径读取）。
 2. **产物落点**：源 runtime 的存盘指令（如写到 `~/Desktop/...`）→ 删掉或改写为我方真实
    通路（如 generate_image 自动上画布；本地留存由产品统一管理，skill 不写死用户路径）。
 3. **引用输入形态**：源 runtime 的「本地文件路径」引用 → 我方真实输入形态（如画布节点
@@ -81,4 +81,4 @@ SKILL.md / references（agent 读指令）。每个 skill 收尾前做一次泄�
   `<rootDir>/workspace/.agents/skills/<skill-name>/`（install_skill 写用户层；内置层
   仅随产品发版）。
 - skill 本体 = `SKILL.md` + 其引用资产目录原结构（如 `references/`、`design-system/`）。
-- 迁入后由 install_skill 工具接入用户层（key-guard deny 面外唯一写口）。
+- 迁入后由 install_skill 工具接入用户层（用户层 skills 目录的唯一写口）。
