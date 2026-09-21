@@ -88,6 +88,7 @@ import {
   ensurePiStudioManifest,
   piStudioManifest,
   piStudioManifestFailed,
+  refreshPiStudioManifest,
   retryPiStudioManifest
 } from '@/app/ai/pi-backend/mode-selection'
 import { getActiveEditorStoreOrNull } from '@/app/editor/active-store'
@@ -867,6 +868,14 @@ watch(pinnedSkill, async () => {
   await nextTick()
   skillChipIndent.value =
     pinnedSkill.value && skillChipRef.value ? skillChipRef.value.offsetWidth : 0
+})
+
+// studio-manifest-refetch：combobox 打开即重拉 manifest——新装 skill「下一会话
+// 生效」后用户第一眼见到的就是新鲜清单；失败保旧值不进失败面（语义在
+// mode-selection refreshPiStudioManifest）。trigger 零 skill 时不渲染
+// （v-if="availableSkills.length > 0"），0→1 首装场景由 ChatPanel 新会话钩补
+watch(skillComboboxOpen, (open) => {
+  if (open) void refreshPiStudioManifest()
 })
 
 const availableSkills = computed(() => {

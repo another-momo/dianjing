@@ -42,6 +42,7 @@ import {
   piActiveDesign,
   piPendingNewIntent,
   piStudioManifest,
+  refreshPiStudioManifest,
   resyncPiActiveDesign
 } from '@/app/ai/pi-backend/mode-selection'
 import { deriveGateState, type GateState } from '@/app/ai/pi-backend/provider-gate'
@@ -918,6 +919,10 @@ async function handleCopyDebug() {
 function handleClearChat() {
   clearChatFailure()
   chat.value = null
+  // studio-manifest-refetch：新会话铸新即重拉 manifest——skill 生效语义是
+  // 「下一会话」，清空对话后 chips 清单同步新鲜（覆盖 0→1 首装场景：combobox
+  // trigger 零 skill 不渲染，打开重拉无从触发）
+  void refreshPiStudioManifest()
   // T27：resetChat 现在 await 铸新会话完成（onSessionReset 返回 Promise），
   // then 里确定性刷新会话栏元信息——替代原 setTimeout(100) 魔法数等待
   void resetChat()

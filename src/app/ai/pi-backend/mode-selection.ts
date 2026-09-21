@@ -59,21 +59,22 @@ export const piStudioManifestFailed = ref(false)
 
 let manifestRequested = false
 
-async function fetchPiStudioManifest(): Promise<void> {
-  piStudioManifestFailed.value = false
+/** 纯拉取：成功返回 manifest，失败返回 null——写态与失败语义由调用方定 */
+async function fetchPiStudioManifest(): Promise<PiStudioManifest | null> {
   try {
     const res = await fetch('/api/pi/studio/manifest')
-    if (!res.ok) {
-      piStudioManifest.value = null
-      piStudioManifestFailed.value = true
-      return
-    }
-    piStudioManifest.value = (await res.json()) as PiStudioManifest
+    if (!res.ok) return null
+    return (await res.json()) as PiStudioManifest
   } catch (error) {
-    piStudioManifest.value = null
-    piStudioManifestFailed.value = true
-    console.warn('[pi-backend] studio manifest 拉取失败——chips 禁用并显式暴露', error)
+    console.warn('[pi-backend] studio manifest 拉取失败', error)
+    return null
   }
+}
+
+/** 首拉/重试写态：失败（null）进显式失败面（chips 禁用 + 错误条 + 重试） */
+function applyInitialManifest(manifest: PiStudioManifest | null): void {
+  piStudioManifest.value = manifest
+  piStudioManifestFailed.value = manifest === null
 }
 
 /** 拉取 manifest（进程内一次；失败 → piStudioManifestFailed 显式暴露，用重试恢复） */
@@ -82,13 +83,26 @@ export async function ensurePiStudioManifest(): Promise<void> {
   manifestRequested = true
   // T87：与 capabilities 并行拉取（独立 endpoint，不被 manifest 失败阻断）——
   // capabilities 失败按 null 降级，不进入 piStudioManifestFailed 显式失败面
-  await Promise.all([fetchPiStudioManifest(), fetchPiCapabilities()])
+  const [manifest] = await Promise.all([fetchPiStudioManifest(), fetchPiCapabilities()])
+  applyInitialManifest(manifest)
 }
 
-/** 错误条重试按钮通路：允许失败后再拉（成功后幂等——manifest 不变更） */
+/** 错误条重试按钮通路：仅在失败态再拉 */
 export async function retryPiStudioManifest(): Promise<void> {
   if (!piStudioManifestFailed.value) return
-  await fetchPiStudioManifest()
+  applyInitialManifest(await fetchPiStudioManifest())
+}
+
+/**
+ * 失效重拉（studio-manifest-refetch）：chips combobox 打开 / 新会话铸新时调用。
+ * 后端 listSkills 每次实时扫目录，新装 skill 随本拉取即见——前端不再进程内
+ * 只拉一次。与首拉不同：已有数据时失败保留旧值不进失败面（瞬断不该灭 chips）；
+ * 零数据时等价首拉语义（失败面照常亮）。
+ */
+export async function refreshPiStudioManifest(): Promise<void> {
+  const manifest = await fetchPiStudioManifest()
+  if (manifest === null && piStudioManifest.value !== null) return
+  applyInitialManifest(manifest)
 }
 
 // ── T87：capabilities 镜像（settings 面板 AppSwitch + ChatInput chips 共享） ─
