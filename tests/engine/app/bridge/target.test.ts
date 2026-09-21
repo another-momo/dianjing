@@ -23,6 +23,8 @@
 /* oxlint-disable open-pencil/no-module-mocking -- tabs 模块依赖链沉（shell/ui→dom-css→需要 dist），worktree 无 dist 编译；mock 暴露 target 消费的三函数即可 */
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 
+import { createEditorStore } from '@/app/editor/session/create'
+
 type FakeTab = {
   id: string
   store: {
@@ -83,9 +85,10 @@ const resolveAutomationTarget = targetModule.resolveAutomationTarget
 const stripAutomationTargetArgs = targetModule.stripAutomationTargetArgs
 type AutomationTargetArgs = Parameters<typeof resolveAutomationTarget>[1]
 
-// 任选一个 fake tab 的 store 当 activeStore 入参（getTabForStore 桩按 fakeTabId
-// 忽略缓存策略隐式查；无 document_id 时该桩直接回 tab-A，行为与「活跃 tab = tab-A」一致）
-const activeStore = fakeTabs[0]!.store as unknown as Parameters<typeof resolveAutomationTarget>[0]
+// activeStore 入参用真空 store（clipboard 测试同族先例：直接 createEditorStore()）——
+// getTabForStore 已被 mock 接管（无 document_id 时直接回 tab-A，行为与「活跃 tab = tab-A」
+// 一致），该入参仅过类型闸，字段不被读取
+const activeStore = createEditorStore()
 
 beforeEach(() => {
   // 重置 tab 图（防测试间串状态）
@@ -137,7 +140,8 @@ describe('resolveAutomationTarget 信封端到端（2026-09-21 修法 A+C）', (
 
   test('信封 page_id 是非 CANVAS 节点 → 抛错（page 类型校验）', () => {
     // 覆写 tab-A 的 graph：PAGE_A1 返回 FRAME（不是 CANVAS）——即使 id 存在也不当 page
-    const tabA = tabGraph.get(TAB_A_ID)!
+    const tabA = tabGraph.get(TAB_A_ID)
+    if (!tabA) throw new Error('fixture broken: tab-A missing from tabGraph')
     tabGraph.set(TAB_A_ID, {
       ...tabA,
       store: {
@@ -183,6 +187,10 @@ describe('stripAutomationTargetArgs（信封层剥除）', () => {
       document_id: TAB_A_ID
     }
     const stripped = stripAutomationTargetArgs(envelope)
-    expect('document_id' in (stripped.args as Record<string, unknown>)).toBe(false)
+    const innerArgs: unknown = stripped.args
+    if (typeof innerArgs !== 'object' || innerArgs === null) {
+      throw new Error('stripped.args should remain an object')
+    }
+    expect('document_id' in innerArgs).toBe(false)
   })
 })
