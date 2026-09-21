@@ -167,6 +167,9 @@ export async function assembleSession(
     catalogJSON: () => JSON.stringify(buildSetupCatalog(getStudioRegistry(rootDir))),
     newIntentConfirmed: () => host.newIntentConfirmed()
   }
+  // authz 直推缝须先于 customTools 声明：install_skill 闸门与 authz-guard 共享
+  // 同一实例（数组字面量求值时引用，声明在后 = TDZ ReferenceError）
+  const authzSink = createAuthzNoticeSink()
   const customTools = [
     ...createOpenPencilTools(
       { current: () => budget.current },
@@ -281,7 +284,6 @@ export async function assembleSession(
   // authzSink 直推 SSE，service.runPrompt 接线）。注册序在 key-guard、
   // path-observe 之后：emitToolCall 遇 block 短路——被 key-guard 拦下的调用
   // 不进授权卡面；path-observe 不观测 bash、authz-guard 只理 bash，观察面不重叠
-  const authzSink = createAuthzNoticeSink()
   extensionFactories.push(
     createAuthzGuardExtension({
       rootDir,

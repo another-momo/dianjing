@@ -24,6 +24,7 @@ import {
   rmSync,
   symlinkSync,
   truncateSync,
+  utimesSync,
   writeFileSync
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -35,6 +36,7 @@ import {
 } from '@/app/ai/pi-backend/authz-guard'
 import {
   createInstallSkillTool,
+  type InstallSkillDetails,
   listBuiltinSkillNames,
   runInstall,
   scanStaging,
@@ -251,6 +253,7 @@ describe('scanStaging', () => {
   })
 
   test('symlink 拒装', () => {
+    let symlinkReady = true
     const staging = makeStaging('sym', (dir) => {
       makeSkillMd(dir)
       mkdirSync(join(rootDir, 'outside'), { recursive: true })
@@ -258,13 +261,16 @@ describe('scanStaging', () => {
       try {
         symlinkSync(join(rootDir, 'outside', 'evil.sh'), join(dir, 'link.sh'))
       } catch {
-        // Windows 沙箱无 SeCreateSymbolicLinkPrivilege 跳过本测
+        // Windows 沙箱无 SeCreateSymbolicLinkPrivilege → 造不出 symlink，
+        // 降级为只验证 files 清单不含 link.sh
+        symlinkReady = false
       }
     })
     const scan = scanStaging(staging)
-    // symlink 拒绝 / 或跳过（Win 沙箱下失败则不在 violations）
-    if (scan.files.find((f) => f.relPath === 'link.sh')) {
-      throw new Error('symlink should not appear in files')
+    // symlink 永不进 files 清单；造出时必须同时落 violations
+    expect(scan.files.some((f) => f.relPath === 'link.sh')).toBe(false)
+    if (symlinkReady) {
+      expect(scan.violations.some((v) => v.includes('link.sh'))).toBe(true)
     }
   })
 
@@ -550,8 +556,8 @@ describe('runInstall source_dir 越界与文件树', () => {
       try {
         symlinkSync(join(outside, 'evil.sh'), join(dir, 'evil.sh'))
       } catch {
-        // Windows 沙箱无 SeCreateSymbolicLinkPrivilege → 测试跳过
-        return
+        // Windows 沙箱无 SeCreateSymbolicLinkPrivilege → 下方 existsSync 门跳过断言
+        console.warn('[install-skill.test] symlink fixture 创建失败，本测断言跳过')
       }
     })
     const sink = makeSink()
@@ -760,7 +766,6 @@ describe('runInstall overwrite 链路', () => {
 
 /** 跨平台 mtime 设值（Node 17+ utimesSync；本仓 bun 1.x 验证存在） */
 function utimesSyncCompat(path: string, time: Date): void {
-  const { utimesSync } = require('node:fs') as typeof import('node:fs')
   utimesSync(path, time, time)
 }
 
@@ -897,7 +902,7 @@ describe('createInstallSkillTool 工具形态', () => {
     expect(pendingReq).toHaveLength(1)
     store.resolveAuthz(pendingReq[0]?.formId ?? '', { decision: 'allow-once' })
     const result = await resultPromise
-    const details = result.details as Record<string, unknown>
+    const details = (result.details ?? {}) as InstallSkillDetails
     expect(details.error).toBeUndefined()
     expect(details.name).toBe('tool-skill')
     expect(details.invocation).toBe('/skill:tool-skill')
@@ -923,7 +928,7 @@ describe('createInstallSkillTool 工具形态', () => {
       name: 'Bad Name',
       overwrite: false
     })
-    const details = result.details as Record<string, unknown>
+    const details = (result.details ?? {}) as InstallSkillDetails
     expect(details.reason).toBe('invalid')
     expect(Array.isArray(details.violations)).toBe(true)
     expect(requestNotices()).toHaveLength(0)

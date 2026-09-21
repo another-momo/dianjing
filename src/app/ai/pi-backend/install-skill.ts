@@ -46,7 +46,8 @@ import {
   renameSync,
   rmSync,
   statSync,
-  writeFileSync
+  writeFileSync,
+  type Dirent
 } from 'node:fs'
 import { dirname, join, sep } from 'node:path'
 
@@ -114,7 +115,7 @@ function toErrorMessage(error: unknown): string {
 }
 
 /** 工具结果 details 形状（错误面 + 成功面并集，测试钉扎用） */
-export interface InstallSkillDetails {
+export type InstallSkillDetails = {
   error?: string
   reason?: 'denied' | 'invalid' | 'conflict'
   /** 校验违规清单（reason=invalid 时填） */
@@ -174,10 +175,13 @@ export function parseSkillFrontmatter(raw: string): Record<string, unknown> {
   const yamlString = normalized.slice(4, endIndex)
   if (yamlString.trim() === '') return {}
   try {
-    const parsed = parseYaml(yamlString)
+    const parsed: unknown = parseYaml(yamlString)
     if (parsed === null || parsed === undefined) return {}
     if (typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-    return parsed as Record<string, unknown>
+    // 具名重建替代 Record cast（门禁禁 as Record<string, unknown>）
+    const result: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(parsed)) result[key] = value
+    return result
   } catch {
     return {}
   }
@@ -257,7 +261,7 @@ function toComparePath(abs: string): string {
 export function scanStaging(stagingAbs: string): StagingScan {
   const out: StagingScan = { files: [], violations: [], totalBytes: 0 }
   const walk = (abs: string, relSegments: string[]): void => {
-    let entries: import('node:fs').Dirent[]
+    let entries: Dirent[]
     try {
       entries = readdirSync(abs, { withFileTypes: true })
     } catch (error) {
@@ -279,7 +283,7 @@ export function scanStaging(stagingAbs: string): StagingScan {
       const relPath = childRel.join('/')
       let isDirectory = entry.isDirectory()
       let isFile = entry.isFile()
-      let isSymlink = entry.isSymbolicLink()
+      const isSymlink = entry.isSymbolicLink()
       if (isSymlink) {
         try {
           const stats = statSync(childAbs)
@@ -331,7 +335,7 @@ export function scanStaging(stagingAbs: string): StagingScan {
 export function listBuiltinSkillNames(builtinSkillsDir: string): string[] {
   const names: string[] = []
   if (!existsSync(builtinSkillsDir)) return names
-  let entries: import('node:fs').Dirent[]
+  let entries: Dirent[]
   try {
     entries = readdirSync(builtinSkillsDir, { withFileTypes: true })
   } catch {
@@ -365,9 +369,9 @@ function timestampForBackup(date: Date): string {
 
 /** formId 后缀：测试可注入确定性；缺省 = 随机 8 hex */
 function defaultRandomFormId(): string {
-  return Math.floor(Math.random() * 0xffffffff)
-    .toString(16)
-    .padStart(8, '0')
+  return Array.from(crypto.getRandomValues(new Uint8Array(4)))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 /** 备份 prune——按 mtime 倒序裁尾到 BACKUP_KEEP 份 */
@@ -390,10 +394,112 @@ function pruneBackups(backupRoot: string, name: string): void {
   for (const entry of toRemove) {
     try {
       rmSync(entry.abs, { recursive: true, force: true })
-    } catch {
-      // prune 失败静默吞——备份是 nice-to-have，不阻断主流程
+    } catch (error) {
+      // 备份是 nice-to-have，prune 失败不阻断主流程——但必须留痕（禁静默吞）
+      console.warn(
+        '[install-skill] 备份 prune 失败（不阻断安装）',
+        entry.abs,
+        toErrorMessage(error)
+      )
     }
   }
+}
+
+/** runInstall 分段校验的失败面（details 直返调用方） */
+type ValidationFailure = { ok: false; details: InstallSkillDetails }
+
+/** 步骤 2-3：路径判定（read facet）+ staging 根下限定（归一化前缀比对，禁平台路径 API） */
+function resolveStagingDir(
+  sourceDir: string,
+  rootDir: string
+): { ok: true; stagingAbs: string } | ValidationFailure {
+  const workspaceDir = resolveWorkspaceDir(rootDir)
+  const srcDecision = decidePath(sourceDir, {
+    facet: 'read',
+    rootDir,
+    cwd: workspaceDir,
+    homeDir: rootDir // 测试隔离：homeDir = rootDir（绝对无碰撞的假根）
+  })
+  if (!srcDecision.ok) {
+    return { ok: false, details: { error: srcDecision.error, reason: 'denied' } }
+  }
+  const stagingAbs = srcDecision.absolutePath
+  const stagingRootCompare = toComparePath(join(workspaceDir, STAGING_PARENT))
+  const stagingAbsCompare = toComparePath(stagingAbs)
+  const insideStaging =
+    stagingAbsCompare === stagingRootCompare ||
+    stagingAbsCompare.startsWith(stagingRootCompare + '/')
+  if (!insideStaging) {
+    return {
+      ok: false,
+      details: invalid([
+        `source_dir must be inside <rootDir>/workspace/${STAGING_PARENT}/ (got ${stagingAbs})`
+      ])
+    }
+  }
+  if (!existsSync(stagingAbs)) {
+    return { ok: false, details: invalid([`source_dir does not exist: ${stagingAbs}`]) }
+  }
+  if (!statSync(stagingAbs).isDirectory()) {
+    return { ok: false, details: invalid([`source_dir is not a directory: ${stagingAbs}`]) }
+  }
+  return { ok: true, stagingAbs }
+}
+
+type ValidSkillFrontmatter = Extract<ReturnType<typeof validateSkillFrontmatter>, { ok: true }>
+
+/** 步骤 4-5：staging 扫描 + SKILL.md frontmatter 校验（白名单 + name 对齐参数） */
+function validateStagingContent(
+  stagingAbs: string,
+  name: string
+): { ok: true; scan: StagingScan; fm: ValidSkillFrontmatter } | ValidationFailure {
+  const scan = scanStaging(stagingAbs)
+  if (scan.violations.length > 0) return { ok: false, details: invalid(scan.violations) }
+  let fm: ReturnType<typeof validateSkillFrontmatter>
+  try {
+    fm = validateSkillFrontmatter(readFileSync(`${stagingAbs}${sep}SKILL.md`, 'utf-8'))
+  } catch (error) {
+    return { ok: false, details: invalid([`failed to read SKILL.md: ${toErrorMessage(error)}`]) }
+  }
+  if (!fm.ok) return { ok: false, details: invalid(fm.violations) }
+  if (fm.name !== name) {
+    return {
+      ok: false,
+      details: invalid([`frontmatter name "${fm.name}" does not match requested name "${name}"`])
+    }
+  }
+  return { ok: true, scan, fm }
+}
+
+/** 步骤 6：撞名校验（内置层硬拒；用户层同名需 overwrite 旗标） */
+function checkNameCollision(args: {
+  name: string
+  overwrite: boolean
+  builtinSkillsDir?: string
+  skillsDir: string
+}): { ok: true; userTargetDir: string; userExists: boolean } | ValidationFailure {
+  const { name, overwrite, builtinSkillsDir, skillsDir } = args
+  if (builtinSkillsDir !== undefined && listBuiltinSkillNames(builtinSkillsDir).includes(name)) {
+    return {
+      ok: false,
+      details: conflictResult(
+        `Skill name "${name}" collides with a built-in skill — built-in skills cannot be overwritten.`,
+        'builtin'
+      )
+    }
+  }
+  const userTargetDir = `${skillsDir}${sep}${name}`
+  const userExists = existsSync(userTargetDir)
+  if (userExists && !overwrite) {
+    return {
+      ok: false,
+      details: conflictResult(
+        `Skill "${name}" already exists in the user layer — pass overwrite:true to replace (the existing directory will be moved to backup first).`,
+        'user'
+      )
+    }
+  }
+  return { ok: true, userTargetDir, userExists }
 }
 
 /**
@@ -432,75 +538,26 @@ export async function runInstall(args: {
   const nameErrors = validateSkillName(name)
   if (nameErrors.length > 0) return invalid(nameErrors)
 
-  // 2. 路径判定（read facet：仅判定 source_dir 可读，不阻 staging 内）
-  const workspaceDir = resolveWorkspaceDir(rootDir)
-  const srcDecision = decidePath(sourceDir, {
-    facet: 'read',
-    rootDir,
-    cwd: workspaceDir,
-    homeDir: rootDir // 测试隔离：homeDir = rootDir（绝对无碰撞的假根）
-  })
-  if (!srcDecision.ok) {
-    return { error: srcDecision.error, reason: 'denied' }
-  }
-  const stagingAbs = srcDecision.absolutePath
+  // 2-3. 路径判定 + staging 根下限定
+  const stagingResolution = resolveStagingDir(sourceDir, rootDir)
+  if (!stagingResolution.ok) return stagingResolution.details
+  const { stagingAbs } = stagingResolution
 
-  // 3. staging 根下判定（自实现：归一化前缀比对，禁 node path.isAbsolute）
-  const stagingRoot = join(workspaceDir, STAGING_PARENT)
-  const stagingRootCompare = toComparePath(stagingRoot)
-  const stagingAbsCompare = toComparePath(stagingAbs)
-  const insideStaging =
-    stagingAbsCompare === stagingRootCompare ||
-    stagingAbsCompare.startsWith(stagingRootCompare + '/')
-  if (!insideStaging) {
-    return invalid([
-      `source_dir must be inside <rootDir>/workspace/${STAGING_PARENT}/ (got ${stagingAbs})`
-    ])
-  }
-  if (!existsSync(stagingAbs)) {
-    return invalid([`source_dir does not exist: ${stagingAbs}`])
-  }
-  const stagingStat = statSync(stagingAbs)
-  if (!stagingStat.isDirectory()) {
-    return invalid([`source_dir is not a directory: ${stagingAbs}`])
-  }
-
-  // 4. staging 扫描
-  const scan = scanStaging(stagingAbs)
-  if (scan.violations.length > 0) return invalid(scan.violations)
-
-  // 5. SKILL.md frontmatter 校验
-  const skillMdAbs = `${stagingAbs}${sep}SKILL.md`
-  let fm: ReturnType<typeof validateSkillFrontmatter>
-  try {
-    fm = validateSkillFrontmatter(readFileSync(skillMdAbs, 'utf-8'))
-  } catch (error) {
-    return invalid([`failed to read SKILL.md: ${toErrorMessage(error)}`])
-  }
-  if (!fm.ok) return invalid(fm.violations)
-  if (fm.name !== name) {
-    return invalid([`frontmatter name "${fm.name}" does not match requested name "${name}"`])
-  }
+  // 4-5. staging 扫描 + frontmatter 校验
+  const content = validateStagingContent(stagingAbs, name)
+  if (!content.ok) return content.details
+  const { scan, fm } = content
 
   // 6. 撞名校验
-  if (builtinSkillsDir) {
-    const builtinNames = listBuiltinSkillNames(builtinSkillsDir)
-    if (builtinNames.includes(name)) {
-      return conflictResult(
-        `Skill name "${name}" collides with a built-in skill — built-in skills cannot be overwritten.`,
-        'builtin'
-      )
-    }
-  }
   const skillsDir = resolveSkillsDir(rootDir)
-  const userTargetDir = `${skillsDir}${sep}${name}`
-  const userExists = existsSync(userTargetDir)
-  if (userExists && !overwrite) {
-    return conflictResult(
-      `Skill "${name}" already exists in the user layer — pass overwrite:true to replace (the existing directory will be moved to backup first).`,
-      'user'
-    )
-  }
+  const collision = checkNameCollision({
+    name,
+    overwrite,
+    ...(builtinSkillsDir !== undefined ? { builtinSkillsDir } : {}),
+    skillsDir
+  })
+  if (!collision.ok) return collision.details
+  const { userTargetDir, userExists } = collision
 
   // 7. 闸门：注册 authz pending（卡面 = 文件清单 + 适配点摘要）
   const formId = `install-skill-${formIdSuffix ?? defaultRandomFormId()}`
@@ -626,7 +683,7 @@ export function createInstallSkillTool(deps: InstallSkillToolDeps) {
         authzSink: deps.authzSink,
         ...(deps.builtinSkillsDir !== undefined ? { builtinSkillsDir: deps.builtinSkillsDir } : {})
       })
-      return toToolResult(detail as Record<string, unknown>)
+      return toToolResult(detail)
     }
   })
 }
