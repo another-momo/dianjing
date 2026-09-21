@@ -32,6 +32,9 @@
  *    桥侧按设计区合并撤销单元
  *  - T85：load_reference 本地工具装配（customTools 同缝）——允许集读
  *    host.turnAssembly().allowedReferences，回合外恒空集
+ *  - 2026-09-21 修法 C：run 级冻结 {documentId, pageId}——run 起始探测
+ *    pageId 钉进 target 闭包，整个 run 复用，切 tab/翻页不再影响执行中 run
+ *    的落点；探测失败留 undefined 走桥 fallback currentPageId
  *
  * 仅运行于独立后端进程（T20 起：main.ts 入口 / vite 插件 spawn 的子进程，
  * 不经 vite esbuild 打包）；只允许相对导入与 node/依赖包导入。
@@ -156,8 +159,10 @@ type SessionEntry = {
   queue: Promise<void>
   /** T21 step budget：当前 prompt 已消耗的 turn 数（turn_start 事件递增） */
   budget: { current: number }
-  /** T22 工具目标：当次请求的 documentId（桥 document_id 注入，T22-plan D4） */
-  target: { documentId?: string; windowId?: string }
+  /** T22 工具目标：当次请求的 documentId（桥 document_id 注入，T22-plan D4）；
+   *  2026-09-21 修法 C：pageId run 起始探测一次钉死，全 run 复用——切 tab/翻页
+   *  不再影响执行中 run 的落点 */
+  target: { documentId?: string; pageId?: string; windowId?: string }
   /** T60：active_design 宿主会话态（旗标/formId 映射/每回合组装缓存袋） */
   host: ReturnType<typeof createActiveDesignHost>
   /**
@@ -355,6 +360,9 @@ export function createPiChatService({
     entry ??= await createSession(sessionId, options.model)
     entry.target.documentId = options.documentId
     entry.target.windowId = options.windowId
+    // 2026-09-21 修法 C：先清 pageId（防上一 run 残留泄漏进本 run 探测前的窗口），
+    // runPrompt 入口探测一次后才会写入
+    entry.target.pageId = undefined
     // T91o：/skill: 命令归一化（skill-command.ts，原理见其头注）——把首个
     // /skill:<name> 提及整形成 SDK 原生可展开的「开头 + 空格收尾」命令形，
     // 展开动作留给 SDK _expandSkillCommand（块格式/transcript 与 pi CLI
@@ -383,6 +391,22 @@ export function createPiChatService({
     const debug = process.env.PI_BACKEND_DEBUG === '1'
     entry.budget.current = 0
     entry.running = true
+    // 2026-09-21 修法 C：run 起始冻结 {documentId, pageId}——documentId 已由
+    // prompt() 写入 entry.target.documentId；pageId 单次桥探测取自该文档当前
+    // 页（activeDesignBridge.probeSlot = 单次 eval，~50ms），整个 run 复用，
+    // 用户切 tab/翻页不再影响执行中 run 的落点。探测失败（桥不可达/无 tab）
+    // 留 pageId = undefined → 桥 fallback 现行 currentPageId，与未冻结语义一致
+    if (entry.target.documentId) {
+      try {
+        const probe = await activeDesignBridge.probeSlot(
+          entry.target.documentId,
+          entry.target.windowId
+        )
+        entry.target.pageId = probe?.currentPageId ?? undefined
+      } catch {
+        entry.target.pageId = undefined
+      }
+    }
     // 2026-09-19 broker P1 件2：authz 直推缝接线——guard 通知经本 run 的 emit 直推 SSE
     entry.authzSink.emit = emit
     const unsubscribe = entry.session.subscribe((event) => {
@@ -422,6 +446,8 @@ export function createPiChatService({
       unsubscribe()
       // T60 定谳 5：一次性旗标 run 结束强制复位（信封永不跨回合滞留）
       entry.host.finalizeTurn()
+      // 2026-09-21 修法 C：run 结束清 pageId（documentId/windowId 留作下次 prompt 覆写基线）
+      entry.target.pageId = undefined
       void sendUndoGroupSignal('end', entry.target.documentId, entry.target.windowId)
       // prompt 完成后 session 文件必然已落盘，补记 index（create 时 file 可能尚未生成）
       const file = entry.session.sessionManager.getSessionFile()

@@ -101,9 +101,11 @@ export type AssembledSession = {
   /**
    * T22：documentId 以当次请求为准（session 复用、target 可变），
    * 工具经闭包读取注入桥 args.document_id
+   * 2026-09-21 修法 C：pageId run 起始由 service 探测一次钉进闭包，整个 run 复用，
+   * 切 tab/翻页不再影响执行中 run 的落点
    * T98-路由：windowId 同缝——tools.ts 经 target.windowId 注入 postBridgeRPC 顶层
    */
-  target: { documentId?: string; windowId?: string }
+  target: { documentId?: string; pageId?: string; windowId?: string }
   /** SessionManager 实例——service.ts 落盘索引时取 getSessionFile() */
   sessionManager: SessionManager
   /** 2026-09-19 broker P1 件2：authz data part 直推缝（service.runPrompt 接线 emit） */
@@ -150,8 +152,9 @@ export async function assembleSession(
   const budget = { current: 0 }
   // T22：documentId 以当次请求为准（session 复用、target 可变），
   // 工具经闭包读取注入桥 args.document_id
+  // 2026-09-21 修法 C：pageId run 起始由 service 探测一次钉进闭包，整个 run 复用
   // T98-路由：windowId 同缝——tools.ts 经 target.windowId 注入 postBridgeRPC 顶层
-  const target: { documentId?: string; windowId?: string } = {}
+  const target: { documentId?: string; pageId?: string; windowId?: string } = {}
   // T60：active_design 宿主会话态（注册表每回合读单例；桥 IO 共享无状态单例）
   const host = createActiveDesignHost({
     registry: () => getStudioRegistry(rootDir),

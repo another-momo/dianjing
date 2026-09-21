@@ -22,10 +22,16 @@
  * （文案照抄旧 ai-adapter.ts appendStepWarning）。pi 无 maxTurns 硬限
  * （agent-core 全量 grep 零命中，2026-08-24），硬停能力不再。
  *
- * T22 工具目标注入（T22-plan D4）：service 把当次请求的 documentId 经
- * ToolTargetSource 闭包传入，execute 时注入桥 args 外层 document_id——桥
- * resolveAutomationTarget 原生支持（target.ts:81），桥代码零改动；不进
- * 工具 schema（不对模型暴露实现细节，与 MCP 侧 schema 显式带参不同）。
+ * T22 工具目标注入（T22-plan D4）+ 2026-09-21 修法 A/C：service 把当次
+ * 请求的 documentId / pageId 经 ToolTargetSource 闭包传入，execute 时一并
+ * 注入桥 args 信封外层 document_id / page_id（与 undo_group 同信封层）——
+ * 桥 resolveAutomationTarget 原生支持（target.ts:80-91），桥代码零改动；
+ * 不进工具 schema（不对模型暴露实现细节）。修法 A 把 document_id 从 args
+ * 嵌套内层提到外层（修原实现差一层的 bug——之前落 args.args 内层、桥读
+ * envelope 落空 → 兜底跑活跃 tab，与发送 tab 不一致）。修法 C 让 pageId
+ * 同 documentId 在 run 起始由 service 探测一次钉进 target 闭包，整个 run
+ * 复用——切 tab/翻页不再影响执行中 run 的落点；tools 只读闭包，不现场重
+ * 读编辑器状态。
  *
  * T98-路由：service 把当次请求的 windowId 经 ToolTargetSource 闭包传入，
  * postBridgeRPC 顶层放 windowId（不进 args——windowId 是请求体外层信封，
@@ -109,9 +115,11 @@ export type StepBudgetSource = {
   current(): number
 }
 
-/** T22：当次请求的桥目标文档（service 每 prompt 更新的可变袋，工具闭包读取） */
+/** T22+2026-09-21：当次 run 桥目标（documentId / pageId run 起始由 service 钉死，工具闭包读取；切 tab/翻页不再影响执行中 run 的落点） */
 export type ToolTargetSource = {
   documentId?: string
+  /** 2026-09-21 修法 C：run 起始探测的 pageId，全 run 复用 */
+  pageId?: string
   /** T98-路由：发起窗口 id（service 每 prompt 更新的可变袋） */
   windowId?: string
 }
@@ -132,17 +140,25 @@ async function callBridgeTool(
     throw new Error(EDITOR_UNREACHABLE_MESSAGE)
   }
 
-  // T22 D4：documentId 注入桥 args 外层 document_id（桥 resolveAutomationTarget
-  // 原生消费；缺省则落当前活动 tab，维持旧语义）
+  // 2026-09-21 修法 A+ C：documentId 与 pageId 提到桥 args 信封外层
+  // （与 undo_group 同信封层；undo-group.ts:34 把 document_id 放在 args 顶层，
+  // resolveAutomationTarget 在 envelope 读 document_id — 现 tool 与 undo_group
+  // 信封形态归一）。工具自身参数（toolArgs）保持干净——之前 document_id 漏进
+  // toolArgs 内层传给工具 execute，schema 无此键被忽略、无害但脏，现清掉。
+  // 缺省则都不出现于 envelope（桥 fallback 维持旧语义：documentId 缺省落活跃
+  // tab；pageId 缺省落该 tab currentPageId）。
   const documentId = target?.documentId
-  const args = documentId ? { ...toolArgs, document_id: documentId } : toolArgs
+  const pageId = target?.pageId
+  const envelope: Record<string, unknown> = { name: toolName, args: toolArgs }
+  if (documentId) envelope.document_id = documentId
+  if (pageId) envelope.page_id = pageId
   // T98-路由：windowId 是请求体外层信封字段，与 documentId 同风格——不进 args，
   // 桥侧按发起窗路由。多窗时不会把 A 窗的调用串到 B 窗。
   const windowId = target?.windowId
 
   let res: Response
   try {
-    res = await postBridgeRPC(discovery, 'tool', { name: toolName, args }, windowId)
+    res = await postBridgeRPC(discovery, 'tool', envelope, windowId)
   } catch (error) {
     // T27 复核：单次重试并非死重试——重试会重读 discovery 文件（每次调用开头），
     // 覆盖「独立 dev:backend 后端存活期间 vite/7600 桥重启、端口或 token 恰好

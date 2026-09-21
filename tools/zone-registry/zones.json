@@ -83,6 +83,7 @@
     "tests/engine/app/bridge/child-ready.test.ts",
     "tests/engine/app/bridge/mcp-runtime.test.ts",
     "tests/engine/app/bridge/bridge-vite-plugin.test.ts",
+    "tests/engine/app/bridge/target.test.ts",
     "tests/engine/app/bridge/portless-route.test.ts",
     "tests/engine/app/settings/credentials/media.test.ts",
     "tests/engine/app/settings/credentials/preferences/use.test.ts",
