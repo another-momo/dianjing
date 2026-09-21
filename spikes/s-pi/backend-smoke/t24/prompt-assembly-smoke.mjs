@@ -17,7 +17,8 @@
  *  C1 空槽组装：探针 == base.md body + 按需参考索引节 byte 级一致（无 workflow
  *     段、无 profile、无 cwd 尾巴——钩子 per-run 整体替换，baked 基底不露面；
  *     2026-09-16 起 base.md 声明 references，索引节每回合追加，见下方常量注释）
- *  C2 新建意图信封：首行剥离 → 历史里用户消息 = 剥离后文本（信封不进 JSONL）；
+ *  C2 新建意图信封：批 1（2026-09-21 拍板③）剥离通道整段退役——裸信封原样
+ *     入史透传（不置旗语义由 host 测试钉扎，批 2 摘前端生产侧后信封不再产生）；
  *     表单作答信封不剥离（AI 须读答案原文）
  *  C3 兼容窗：请求面残留 chatMode/pickedProfileId 字段忽略不报错（正常进 run，
  *     组装口径同 C1）
@@ -423,24 +424,25 @@ try {
   check('C1 空槽：不含旧 marketing 工作流段句式', !(emptySlotProbe ?? '').includes(WORKFLOW_MARKER))
   check('C1 空槽：含 base 正文句式', (emptySlotProbe ?? '').includes(BASE_MARKER))
 
-  // ── C2：新建意图信封首行剥离 → 历史里用户消息 = 剥离后文本
+  // ── C2：新建意图信封剥离通道批 1 退役——裸信封原样入史（不剥离、不置旗；
+  //         不置旗由 host 测试钉扎，此处钉入史原文）
+  const envelopeText =
+    '[新建意图确认 modeId=longform-hero-kv-first profileId=watercolor_poster_v2]\n帮我做一张长图'
   await sendPrompt(
     BASE,
     {
       sessionId: 't60-envelope',
       // T100：spec 必填——seed openrouter/free，spike 一致沿用此档位
       model: { providerId: 'openrouter', modelId: 'openrouter/free' },
-      messages: userMessage(
-        '[新建意图确认 modeId=longform-hero-kv-first profileId=watercolor_poster_v2]\n帮我做一张长图'
-      )
+      messages: userMessage(envelopeText)
     },
     token
   )
-  const strippedText = await lastUserText(BASE, 't60-envelope', token)
+  const envelopeReadBack = await lastUserText(BASE, 't60-envelope', token)
   check(
-    'C2 信封剥离：历史中用户消息 = 剥离后文本（信封不进 JSONL/模型视野）',
-    strippedText === '帮我做一张长图',
-    JSON.stringify(strippedText)
+    'C2 信封退役：裸信封原样入史（批 1 删剥离通道）',
+    envelopeReadBack === envelopeText,
+    JSON.stringify(envelopeReadBack)
   )
 
   // ── C2：表单作答信封不剥离（AI 须读答案原文；无映射不移槽——未知 formId 静默）
