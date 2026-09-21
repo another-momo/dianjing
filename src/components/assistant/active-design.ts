@@ -368,7 +368,7 @@ export function scanAwaitingIntentCards(
     records.set(info.toolCallId, { info, candidate: true, state: { kind: 'expired' } })
   }
   // 兄弟卡联动锁：最后候选 = 唯一活卡（dock 承接），其余候选保持 expired
-  const live = candidates[candidates.length - 1]
+  const live = candidates.at(-1)
   if (live) {
     records.set(live.info.toolCallId, {
       info: live.info,
