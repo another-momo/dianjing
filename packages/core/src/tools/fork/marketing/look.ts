@@ -271,7 +271,17 @@ async function renderNodeForInspection(
     exportOptions.clip = clip
   }
   const data = await figma.exportImage([targetId], exportOptions)
-  if (!data || data.length === 0) return { error: 'Nothing visible to inspect' }
+  if (!data || data.length === 0) {
+    if (!node.visible || node.width <= 0 || node.height <= 0) {
+      return {
+        error: `Nothing visible to inspect — "${node.name}" is hidden or has zero width/height.`
+      }
+    }
+    return {
+      error:
+        'Image export returned empty bytes for a visible node — the render pipeline failed (often transient memory pressure), this is not an empty design. Retry the call; if it persists, restart the app to recover the renderer.'
+    }
+  }
   return { image: { data, mimeType: 'image/jpeg' }, exportInfo }
 }
 
