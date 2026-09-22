@@ -89,6 +89,7 @@
     "tests/engine/app/settings/credentials/media.test.ts",
     "tests/engine/app/settings/credentials/preferences/use.test.ts",
     "electron-builder.yml",
+    "NOTICE",
     "src/components/Toolbar/useAddImage.ts",
     "public/apple-touch-icon.png",
     "public/favicon-128.png",
@@ -248,9 +249,9 @@
     {
       "id": "P17",
       "file": "package.json",
-      "reason": "workspaces (-docs/-tools-docs), scripts (-tauri/-wdio/-docs/*, +check:zones), deps (-wdio/-tauri-cli/-pwa/-yjs-family/-trystero) T10: workspaces += packages/harness（上游新增 pi harness 包，保 harness 裁 ACP 决策随附）；lint/format 路径同步加 packages/harness T19: deps += @earendil-works/pi-coding-agent@0.84.2 + pi-ai@0.84.2 + typebox@1.3.7（精确钉扎，升级走 03 §5.5 窗口）T20: scripts += dev:backend（独立运行 pi 后端进程，不经 vite） T25: workspaces/scripts/deps 去 packages/harness；deps 去五个浏览器直调 AI SDK provider（@ai-sdk/anthropic、deepseek、google、openai、@openrouter/ai-sdk-provider） T27(2026-08-25): scripts += smoke:pi（免 key/浏览器/dev-server 自含批次：t22 target+history、t23 sessions、t24 prompt-assembly）+ smoke:pi:ui（需 dev server 1420 + playwright chromium，免 key 的三个 bind 冒烟，必须 node 跑） T28(2026-08-25): format:check 判据修正（决策单 #10）——改 oxfmt --check 原路径集（与 format 同口径），不写入、不依赖净树（CI 干净树语义等价，本地脏树不再结构性必红）；smoke:pi += t28/session-gc-smoke.mjs（决策单 #2 GC 归档冒烟，凑成五套件） 2026-09-16：scripts += notices:generate（THIRD-PARTY-NOTICES 生成器，bun tools/release/src/third-party-notices.ts 跑 npm 生产闭包 + curated vendored 资产 → build/.generated/THIRD-PARTY-NOTICES.txt）；package:win 链首部串 notices:generate（先于 build:packages，让每次发版自动生成最新声明） 2026-09-18：PR715 接线断链修复（调研 docs/202609181741 §3）——test:unit:quick/heavy 摘不存在的 list.ts 改 run.ts 系（quick 去 --parallel 守本机内存纪律）、补 test:unit:isolated（heavy-tests.yml:33 既有调用点）、test:coverage 改 run.ts all -- --coverage（去 include-heavy 同纪律）、test:unit 改指 test:unit:serial（拆弹单进程全量 OOM footgun 入口）",
+      "reason": "workspaces (-docs/-tools-docs), scripts (-tauri/-wdio/-docs/*, +check:zones), deps (-wdio/-tauri-cli/-pwa/-yjs-family/-trystero) T10: workspaces += packages/harness（上游新增 pi harness 包，保 harness 裁 ACP 决策随附）；lint/format 路径同步加 packages/harness T19: deps += @earendil-works/pi-coding-agent@0.84.2 + pi-ai@0.84.2 + typebox@1.3.7（精确钉扎，升级走 03 §5.5 窗口）T20: scripts += dev:backend（独立运行 pi 后端进程，不经 vite） T25: workspaces/scripts/deps 去 packages/harness；deps 去五个浏览器直调 AI SDK provider（@ai-sdk/anthropic、deepseek、google、openai、@openrouter/ai-sdk-provider） T27(2026-08-25): scripts += smoke:pi（免 key/浏览器/dev-server 自含批次：t22 target+history、t23 sessions、t24 prompt-assembly）+ smoke:pi:ui（需 dev server 1420 + playwright chromium，免 key 的三个 bind 冒烟，必须 node 跑） T28(2026-08-25): format:check 判据修正（决策单 #10）——改 oxfmt --check 原路径集（与 format 同口径），不写入、不依赖净树（CI 干净树语义等价，本地脏树不再结构性必红）；smoke:pi += t28/session-gc-smoke.mjs（决策单 #2 GC 归档冒烟，凑成五套件） 2026-09-16：scripts += notices:generate（THIRD-PARTY-NOTICES 生成器，bun tools/release/src/third-party-notices.ts 跑 npm 生产闭包 + curated vendored 资产 → build/.generated/THIRD-PARTY-NOTICES.txt）；package:win 链首部串 notices:generate（先于 build:packages，让每次发版自动生成最新声明） 2026-09-18：PR715 接线断链修复（调研 docs/202609181741 §3）——test:unit:quick/heavy 摘不存在的 list.ts 改 run.ts 系（quick 去 --parallel 守本机内存纪律）、补 test:unit:isolated（heavy-tests.yml:33 既有调用点）、test:coverage 改 run.ts all -- --coverage（去 include-heavy 同纪律）、test:unit 改指 test:unit:serial（拆弹单进程全量 OOM footgun 入口） 2026-09-22：deps += @modelcontextprotocol/sdk@^1.30.0（MCP 接入阶段 1，craft 蓝本协议机；zod peer 仓内已满足）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-18"
+      "lastReviewed": "2026-09-22"
     },
     {
       "id": "P18",
@@ -290,9 +291,9 @@
     {
       "id": "P23",
       "file": "bun.lock",
-      "reason": "lockfile regenerated after workspace/dependency changes (mechanical)",
+      "reason": "lockfile regenerated after workspace/dependency changes (mechanical) 2026-09-22：deps += @modelcontextprotocol/sdk@^1.30.0（MCP 接入阶段 1，craft 蓝本协议机；zod peer 仓内已满足）",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
+      "lastReviewed": "2026-09-22"
     },
     {
       "id": "P24",
