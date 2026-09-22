@@ -2,6 +2,7 @@
 import { onScopeDispose, ref } from 'vue'
 
 import { getRendererDeadState, subscribeRendererDeadState } from '@open-pencil/core/canvas'
+import { useI18n } from '@open-pencil/vue'
 
 import AppBanner from '@/components/ui/feedback/AppBanner.vue'
 
@@ -12,11 +13,13 @@ const unsubscribe = subscribeRendererDeadState((snapshot) => {
   rendererDead.value = snapshot.dead
 })
 onScopeDispose(unsubscribe)
+
+const { rendering } = useI18n()
 </script>
 
 <template>
   <AppBanner v-if="rendererDead">
-    <span class="font-medium">{{ $t('rendering.rendererCrashed') }}</span>
-    <span class="ml-2 opacity-80">{{ $t('rendering.rendererCrashedHint') }}</span>
+    <span class="font-medium">{{ rendering.rendererCrashed }}</span>
+    <span class="ml-2 opacity-80">{{ rendering.rendererCrashedHint }}</span>
   </AppBanner>
 </template>
