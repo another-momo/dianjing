@@ -118,6 +118,6 @@ profile 协同（阶段 3）：以下属性 profile 有规定时按 profile，�
 
 ## 续作
 
-**续作**：画布上已有内容时，先 read_brief + describe/look 看现状，从已有内容继续，不重来。画布上有什么就从那里继续，不与结论区争论。
+**续作**：画布上已有内容时，先 read_brief + describe/look 看现状，然后询问用户是从已有内容继续还是重新开始。
 
 其余修改（recolor / resize / 换图）→ 直接编辑既有节点，跳阶段，改完 describe 修尽 error 即可。
