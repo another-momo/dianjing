@@ -44,13 +44,21 @@
  *   任何漂移都会破坏：① /rpc 401；② /api/pi 401；③ pi-backend 拿不到桥端口/token。
  */
 
+import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { createReadStream, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from 'node:http'
-import { spawn } from 'node:child_process'
+import {
+  createServer,
+  request as httpRequest,
+  type IncomingMessage,
+  type ServerResponse
+} from 'node:http'
 import { dirname, extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
 import { app, BrowserWindow, dialog, shell, utilityProcess, type UtilityProcess } from 'electron'
+
+import { resolveElectronRootDir } from '@/app/ai/pi-backend/paths'
 import { USER_DATA_DIR_NAME } from '@/app/orchestration/brand'
 import {
   readDisableSingleInstanceLock,
@@ -64,15 +72,15 @@ import {
   readFullSmokeMode
 } from '@/app/orchestration/env'
 import { waitForHealthPolling } from '@/app/orchestration/health'
+import { MAX_AUTO_RESTARTS, nextRestartDelay } from '@/app/orchestration/restart'
 import {
   RUNTIME_AUTOMATION_TOKEN_KEY,
   RUNTIME_BRIDGE_URL_KEY,
   RUNTIME_ELECTRON_KEY,
   RUNTIME_PLATFORM_KEY
 } from '@/app/orchestration/runtime-globals'
-import { MAX_AUTO_RESTARTS, nextRestartDelay } from '@/app/orchestration/restart'
 import { generateToken } from '@/app/orchestration/token'
-import { resolveElectronRootDir } from '@/app/ai/pi-backend/paths'
+
 import { pickFreePort, randomPort } from '../tools/ports.js'
 import { classifyExternalUrl, isHttpOrHttps, isLoopbackHttpUrl } from './url-safety.js'
 import { loadWindowState, saveWindowState, type WindowState } from './window-state.js'
@@ -170,7 +178,9 @@ function scheduleRestart(handle: SidecarHandle): void {
     return
   }
   handle.restartCount++
-  console.error(`[sidecar] ${handle.name} ${delay}ms 后自动重启（第 ${handle.restartCount}/${MAX_AUTO_RESTARTS} 次）`)
+  console.error(
+    `[sidecar] ${handle.name} ${delay}ms 后自动重启（第 ${handle.restartCount}/${MAX_AUTO_RESTARTS} 次）`
+  )
   handle.restartTimer = setTimeout(() => {
     handle.restartTimer = null
     spawnAndWatch(handle)
@@ -190,7 +200,9 @@ function spawnAndWatch(handle: SidecarHandle): void {
       stdio: 'pipe'
     })
   } catch (error) {
-    console.error(`[sidecar] ${handle.name} fork 失败：${error instanceof Error ? error.message : String(error)}`)
+    console.error(
+      `[sidecar] ${handle.name} fork 失败：${error instanceof Error ? error.message : String(error)}`
+    )
     scheduleRestart(handle)
     return
   }
@@ -242,7 +254,9 @@ function stopSidecar(handle: SidecarHandle): Promise<void> {
     try {
       child.kill()
     } catch (error) {
-      console.error(`[sidecar] ${handle.name} kill 失败：${error instanceof Error ? error.message : String(error)}`)
+      console.error(
+        `[sidecar] ${handle.name} kill 失败：${error instanceof Error ? error.message : String(error)}`
+      )
       finish()
       return
     }
@@ -280,27 +294,63 @@ function stopSidecar(handle: SidecarHandle): Promise<void> {
 // ── 回环静态服务 + /api/pi 反代 ──
 
 const MIME_TYPES: Record<string, string> = {
-  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript',
-  '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml',
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
-  '.ico': 'image/x-icon', '.wasm': 'application/wasm', '.woff': 'font/woff', '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf', '.otf': 'font/otf', '.map': 'application/json', '.txt': 'text/plain; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript',
+  '.mjs': 'text/javascript',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.ico': 'image/x-icon',
+  '.wasm': 'application/wasm',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
+  '.map': 'application/json',
+  '.txt': 'text/plain; charset=utf-8',
   '.webmanifest': 'application/manifest+json'
 }
-const HOP_BY_HOP_HEADERS = new Set(['connection', 'keep-alive', 'transfer-encoding', 'upgrade', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer'])
+const HOP_BY_HOP_HEADERS = new Set([
+  'connection',
+  'keep-alive',
+  'transfer-encoding',
+  'upgrade',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailer'
+])
 
 function existsAsFile(filePath: string): boolean {
-  try { return statSync(filePath).isFile() } catch { return false }
+  try {
+    return statSync(filePath).isFile()
+  } catch {
+    return false
+  }
 }
 
 function sendFile(res: ServerResponse, filePath: string): void {
-  res.writeHead(200, { 'content-type': MIME_TYPES[extname(filePath)] ?? 'application/octet-stream' })
+  res.writeHead(200, {
+    'content-type': MIME_TYPES[extname(filePath)] ?? 'application/octet-stream'
+  })
   const stream = createReadStream(filePath)
-  stream.on('error', () => { if (!res.headersSent) res.writeHead(500); res.end() })
+  stream.on('error', () => {
+    if (!res.headersSent) res.writeHead(500)
+    res.end()
+  })
   stream.pipe(res)
 }
 
-function proxyPi(req: IncomingMessage, res: ServerResponse, backendPortInner: number, bearer: string): void {
+function proxyPi(
+  req: IncomingMessage,
+  res: ServerResponse,
+  backendPortInner: number,
+  bearer: string
+): void {
   // SSE 流式代理——vite http-proxy 的等价物（spike 不引 http-proxy 包，手写）
   // 关键纪律：
   //  1. 转发 request body（POST /api/pi-chat 的 JSON）
@@ -315,28 +365,33 @@ function proxyPi(req: IncomingMessage, res: ServerResponse, backendPortInner: nu
   // 主动断（res.writableEnded=false）
   process.stderr.write(`[proxyPi] → ${req.method} ${req.url} (backend=${backendPortInner})\n`)
   const headers: Record<string, string | string[] | undefined> = {}
-  for (const [key, value] of Object.entries(req.headers)) if (!HOP_BY_HOP_HEADERS.has(key)) headers[key] = value
+  for (const [key, value] of Object.entries(req.headers))
+    if (!HOP_BY_HOP_HEADERS.has(key)) headers[key] = value
   headers.authorization = `Bearer ${bearer}`
   headers.host = `127.0.0.1:${backendPortInner}`
-  const upstream = httpRequest({ host: '127.0.0.1', port: backendPortInner, path: req.url, method: req.method, headers }, (response) => {
-    process.stderr.write(`[proxyPi] ← ${response.statusCode} ${req.url}\n`)
-    // 客户端在等上游响应期间断开（页面刷新/设置面板切换取消在途请求）：
-    // res 已销毁，writeHead/pipe 会抛 ERR_STREAM_DESTROYED / EPIPE——直接弃流
-    if (res.destroyed) {
-      response.destroy()
-      return
+  const upstream = httpRequest(
+    { host: '127.0.0.1', port: backendPortInner, path: req.url, method: req.method, headers },
+    (response) => {
+      process.stderr.write(`[proxyPi] ← ${response.statusCode} ${req.url}\n`)
+      // 客户端在等上游响应期间断开（页面刷新/设置面板切换取消在途请求）：
+      // res 已销毁，writeHead/pipe 会抛 ERR_STREAM_DESTROYED / EPIPE——直接弃流
+      if (res.destroyed) {
+        response.destroy()
+        return
+      }
+      const responseHeaders: Record<string, string | string[] | undefined> = {}
+      for (const [key, value] of Object.entries(response.headers))
+        if (!HOP_BY_HOP_HEADERS.has(key)) responseHeaders[key] = value
+      res.writeHead(response.statusCode ?? 502, responseHeaders)
+      // pipe 不转发错误：两侧各自挂 error 监听，否则客户端中途断连时
+      // res.write 抛 EPIPE → uncaughtException → Electron 弹「main process 错误」对话框
+      response.on('error', (error) => {
+        process.stderr.write(`[proxyPi] upstream response error: ${error.message}\n`)
+        if (!res.destroyed) res.destroy()
+      })
+      response.pipe(res)
     }
-    const responseHeaders: Record<string, string | string[] | undefined> = {}
-    for (const [key, value] of Object.entries(response.headers)) if (!HOP_BY_HOP_HEADERS.has(key)) responseHeaders[key] = value
-    res.writeHead(response.statusCode ?? 502, responseHeaders)
-    // pipe 不转发错误：两侧各自挂 error 监听，否则客户端中途断连时
-    // res.write 抛 EPIPE → uncaughtException → Electron 弹「main process 错误」对话框
-    response.on('error', (error) => {
-      process.stderr.write(`[proxyPi] upstream response error: ${error.message}\n`)
-      if (!res.destroyed) res.destroy()
-    })
-    response.pipe(res)
-  })
+  )
   upstream.on('error', (error) => {
     process.stderr.write(`[proxyPi] upstream error: ${error.message}\n`)
     if (!res.headersSent) {
@@ -375,7 +430,9 @@ export interface LoopbackServerOptions {
   port?: number
 }
 
-export function createLoopbackServer(options: LoopbackServerOptions): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
+export function createLoopbackServer(
+  options: LoopbackServerOptions
+): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
   const distDir = resolve(options.distDir)
   const indexPath = join(distDir, 'index.html')
   if (!existsAsFile(indexPath)) throw new Error(`dist/index.html 不存在：${distDir}`)
@@ -415,12 +472,36 @@ export function createLoopbackServer(options: LoopbackServerOptions): Promise<{ 
     if (urlPath === '/__dianjing/recent-files' && req.method === 'POST') {
       return handleRecentFiles(req, res, token)
     }
-    if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405).end(); return }
+    // A-2 关窗接线补全（2026-09-22）：菜单 Quit 批准的传输通道——渲染侧
+    // 已经走 approval 单例（confirmAppExit）确认过 dirty 文档处理，main 收到
+    // 后调 app.quit() 触发各 BrowserWindow 的 close 事件。我们的 close 拦截
+    // 会再问渲染一次「isExitApproved」（已置 true），由 main 走 destroy 关闭
+    // （destroy 跳过 beforeunload——批准已含 user 同意，渲染侧 recovery 状态
+    // 已被 confirmAllDocuments 经 persistRecoveryNow 提前落盘，不必再用
+    // beforeunload 串）
+    if (urlPath === '/__dianjing/quit' && req.method === 'POST') {
+      return handleQuit(req, res, token)
+    }
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405).end()
+      return
+    }
     const filePath = normalize(join(distDir, urlPath))
     const relative = filePath.slice(distDir.length)
-    if (relative.startsWith('..') || filePath.startsWith('..')) { res.writeHead(403).end(); return }
+    if (relative.startsWith('..') || filePath.startsWith('..')) {
+      res.writeHead(403).end()
+      return
+    }
     const candidate = existsAsFile(filePath) ? filePath : indexPath
-    if (candidate === indexPath && extname(urlPath) !== '' && urlPath !== '/' && !existsAsFile(filePath)) { res.writeHead(404).end('Not Found'); return }
+    if (
+      candidate === indexPath &&
+      extname(urlPath) !== '' &&
+      urlPath !== '/' &&
+      !existsAsFile(filePath)
+    ) {
+      res.writeHead(404).end('Not Found')
+      return
+    }
     if (candidate === indexPath) {
       const html = readFileSync(indexPath, 'utf8')
       // spike-electron-spike：双注入——桥 token + 桥 WS URL（运行时全局名见
@@ -433,7 +514,9 @@ export function createLoopbackServer(options: LoopbackServerOptions): Promise<{ 
       // 题色 POST 到 /__dianjing/titlebar-theme，main 调 setTitleBarOverlay。
       // 浏览器形态（含 dev url 路径）不注入——这些功能只在 Electron 壳里生效。
       const script = `<script>window.${RUNTIME_AUTOMATION_TOKEN_KEY}=${JSON.stringify(token)};window.${RUNTIME_BRIDGE_URL_KEY}=${JSON.stringify(`ws://127.0.0.1:${bridgePort}`)};window.${RUNTIME_ELECTRON_KEY}=true;window.${RUNTIME_PLATFORM_KEY}=${JSON.stringify(process.platform)}</script>`
-      res.writeHead(200, { 'content-type': MIME_TYPES['.html'] }); res.end(html.replace('<head>', `<head>${script}`)); return
+      res.writeHead(200, { 'content-type': MIME_TYPES['.html'] })
+      res.end(html.replace('<head>', `<head>${script}`))
+      return
     }
     sendFile(res, candidate)
   })
@@ -520,7 +603,9 @@ function handleTitleBarTheme(req: IncomingMessage, res: ServerResponse): void {
       } catch (error) {
         // setTitleBarOverlay 在非 Windows 平台会抛——本任务仅交付 Windows 包，但
         // main.ts 复用为产品形态后会被 macOS 跑；记日志不冒泡。
-        process.stderr.write(`[electron-main] setTitleBarOverlay 失败：${error instanceof Error ? error.message : String(error)}\n`)
+        process.stderr.write(
+          `[electron-main] setTitleBarOverlay 失败：${error instanceof Error ? error.message : String(error)}\n`
+        )
       }
     }
     res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' })
@@ -548,7 +633,11 @@ const MAX_FILE_BYTES = 64 * 1024 * 1024
 // src/app/shell/electron-file-channel.ts 的 postJson 自动从 window 读。
 // 校验失败 401 + { error: 'unauthorized' }。/titlebar-theme 是无副作用纯色
 // 更新不挂 token，避免给主题切换加无谓守卫
-function checkBearerAuth(req: IncomingMessage, res: ServerResponse, expectedToken: string): boolean {
+function checkBearerAuth(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedToken: string
+): boolean {
   const header = req.headers.authorization
   if (typeof header !== 'string') {
     failJson(res, 401, 'unauthorized')
@@ -635,7 +724,11 @@ function parseFilters(value: unknown): Array<{ name: string; extensions: string[
   return result
 }
 
-async function handleFileDialogSave(req: IncomingMessage, res: ServerResponse, expectedToken: string): Promise<void> {
+async function handleFileDialogSave(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedToken: string
+): Promise<void> {
   if (!checkBearerAuth(req, res, expectedToken)) return
   const parsed = await readJsonBody(req, res)
   if (parsed === null) return
@@ -658,12 +751,23 @@ async function handleFileDialogSave(req: IncomingMessage, res: ServerResponse, e
     // 统一归一为前端好处理的 null（前端已有 AbortError 判空模式）
     okJson(res, { path: result.canceled || !result.filePath ? null : result.filePath })
   } catch (error) {
-    process.stderr.write(`[electron-main] showSaveDialog 失败：${error instanceof Error ? error.message : String(error)}\n`)
-    failJson(res, 500, 'showSaveDialog failed', error instanceof Error ? error.message : String(error))
+    process.stderr.write(
+      `[electron-main] showSaveDialog 失败：${error instanceof Error ? error.message : String(error)}\n`
+    )
+    failJson(
+      res,
+      500,
+      'showSaveDialog failed',
+      error instanceof Error ? error.message : String(error)
+    )
   }
 }
 
-async function handleFileDialogOpen(req: IncomingMessage, res: ServerResponse, expectedToken: string): Promise<void> {
+async function handleFileDialogOpen(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedToken: string
+): Promise<void> {
   if (!checkBearerAuth(req, res, expectedToken)) return
   const parsed = await readJsonBody(req, res)
   if (parsed === null) return
@@ -684,12 +788,23 @@ async function handleFileDialogOpen(req: IncomingMessage, res: ServerResponse, e
     // Electron Cancel 时 filePaths 是空数组，前端好处理
     okJson(res, { paths: result.canceled ? [] : result.filePaths })
   } catch (error) {
-    process.stderr.write(`[electron-main] showOpenDialog 失败：${error instanceof Error ? error.message : String(error)}\n`)
-    failJson(res, 500, 'showOpenDialog failed', error instanceof Error ? error.message : String(error))
+    process.stderr.write(
+      `[electron-main] showOpenDialog 失败：${error instanceof Error ? error.message : String(error)}\n`
+    )
+    failJson(
+      res,
+      500,
+      'showOpenDialog failed',
+      error instanceof Error ? error.message : String(error)
+    )
   }
 }
 
-async function handleFileWrite(req: IncomingMessage, res: ServerResponse, expectedToken: string): Promise<void> {
+async function handleFileWrite(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedToken: string
+): Promise<void> {
   if (!checkBearerAuth(req, res, expectedToken)) return
   const parsed = await readJsonBody(req, res)
   if (parsed === null) return
@@ -716,12 +831,18 @@ async function handleFileWrite(req: IncomingMessage, res: ServerResponse, expect
     writeFileSync(body.path, bytes)
     okJson(res, { ok: true })
   } catch (error) {
-    process.stderr.write(`[electron-main] writeFile 失败：${error instanceof Error ? error.message : String(error)}\n`)
+    process.stderr.write(
+      `[electron-main] writeFile 失败：${error instanceof Error ? error.message : String(error)}\n`
+    )
     failJson(res, 500, 'writeFile failed', error instanceof Error ? error.message : String(error))
   }
 }
 
-async function handleRecentFiles(req: IncomingMessage, res: ServerResponse, expectedToken: string): Promise<void> {
+async function handleRecentFiles(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedToken: string
+): Promise<void> {
   if (!checkBearerAuth(req, res, expectedToken)) return
   const parsed = await readJsonBody(req, res)
   if (parsed === null) return
@@ -756,7 +877,11 @@ async function handleRecentFiles(req: IncomingMessage, res: ServerResponse, expe
 // 本族 5 个端点统一挂鉴权）。返回 name（path basename）+ data（base64）。
 // 失败：路径不存在/非文件 → 400 + invalid path；超 MAX → 413（readJsonBody
 // 内部拦）；其它读盘错 → 500
-async function handleFileRead(req: IncomingMessage, res: ServerResponse, expectedToken: string): Promise<void> {
+async function handleFileRead(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedToken: string
+): Promise<void> {
   if (!checkBearerAuth(req, res, expectedToken)) return
   const parsed = await readJsonBody(req, res)
   if (parsed === null) return
@@ -782,7 +907,9 @@ async function handleFileRead(req: IncomingMessage, res: ServerResponse, expecte
     const bytes = readFileSync(body.path)
     okJson(res, { name: basename(body.path), data: bytes.toString('base64') })
   } catch (error) {
-    process.stderr.write(`[electron-main] readFile 失败：${error instanceof Error ? error.message : String(error)}\n`)
+    process.stderr.write(
+      `[electron-main] readFile 失败：${error instanceof Error ? error.message : String(error)}\n`
+    )
     failJson(res, 500, 'readFile failed', error instanceof Error ? error.message : String(error))
   }
 }
@@ -795,7 +922,29 @@ function basename(filePath: string): string {
   return parts[parts.length - 1] ?? filePath
 }
 
-function baseWindowOptions(extra: Electron.BrowserWindowConstructorOptions = {}): Electron.BrowserWindowConstructorOptions {
+// A-2 关窗接线补全——菜单 Quit 的 main 侧端点。鉴权复用文件家族的
+// checkBearerAuth（同一 token，与注入 index.html 的
+// __DIANJING_RUNTIME_AUTOMATION_TOKEN__ 同源）。body 消费但忽略内容；通过
+// 后 okJson 先回 200，再 setImmediate 调 app.quit()——推迟是防止 quit 时序
+// 与 res.end 抢——quit 触发 close 事件可能同步关 socket，先确认响应帧发出
+// 再走关闭流程更稳（同 prepareForClose render-side await response 模式）
+async function handleQuit(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedToken: string
+): Promise<void> {
+  if (!checkBearerAuth(req, res, expectedToken)) return
+  const parsed = await readJsonBody(req, res)
+  if (parsed === null) return
+  okJson(res, { ok: true })
+  setImmediate(() => {
+    app.quit()
+  })
+}
+
+function baseWindowOptions(
+  extra: Electron.BrowserWindowConstructorOptions = {}
+): Electron.BrowserWindowConstructorOptions {
   return { ...BASE_WINDOW_OPTIONS, ...extra }
 }
 
@@ -838,20 +987,29 @@ function attachWindowSafety(window: BrowserWindow, loadUrl: string): void {
   // 窗口显示错误态（electron 在 did-fail-load 默认会画 ERR_* 错误页即可，
   // 本项目不做自定义错误页，stderr 留日志便于调试）。
   let attempt = 0
-  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
-    if (!isMainFrame) return // 子 frame 失败不重试整页
-    attempt++
-    process.stderr.write(`[electron-main] did-fail-load attempt=${attempt}/${LOAD_RETRY_MAX} code=${errorCode} ${errorDescription} url=${validatedUrl}\n`)
-    if (attempt > LOAD_RETRY_MAX) {
-      process.stderr.write(`[electron-main] 加载 ${loadUrl} 重试 ${LOAD_RETRY_MAX} 次仍失败，保持错误页显示\n`)
-      return
+  window.webContents.on(
+    'did-fail-load',
+    (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
+      if (!isMainFrame) return // 子 frame 失败不重试整页
+      attempt++
+      process.stderr.write(
+        `[electron-main] did-fail-load attempt=${attempt}/${LOAD_RETRY_MAX} code=${errorCode} ${errorDescription} url=${validatedUrl}\n`
+      )
+      if (attempt > LOAD_RETRY_MAX) {
+        process.stderr.write(
+          `[electron-main] 加载 ${loadUrl} 重试 ${LOAD_RETRY_MAX} 次仍失败，保持错误页显示\n`
+        )
+        return
+      }
+      setTimeout(() => {
+        void window.loadURL(loadUrl).catch((err) => {
+          process.stderr.write(
+            `[electron-main] loadURL 重试失败：${err instanceof Error ? err.message : String(err)}\n`
+          )
+        })
+      }, LOAD_RETRY_DELAY_MS)
     }
-    setTimeout(() => {
-      void window.loadURL(loadUrl).catch((err) => {
-        process.stderr.write(`[electron-main] loadURL 重试失败：${err instanceof Error ? err.message : String(err)}\n`)
-      })
-    }, LOAD_RETRY_DELAY_MS)
-  })
+  )
 
   // P0.5.4 外链与导航拦截——setWindowOpenHandler 处理 window.open / target=_blank
   // 与 <a href> click；will-navigate 处理 window.location 改写（包含 SPA 内
@@ -861,13 +1019,17 @@ function attachWindowSafety(window: BrowserWindow, loadUrl: string): void {
   window.webContents.setWindowOpenHandler(({ url }) => {
     const verdict = classifyExternalUrl(url)
     if (verdict.kind === 'dangerous') {
-      process.stderr.write(`[electron-main] window.open 拒绝（${verdict.scheme ?? 'dangerous'}）：${verdict.reason}\n`)
+      process.stderr.write(
+        `[electron-main] window.open 拒绝（${verdict.scheme ?? 'dangerous'}）：${verdict.reason}\n`
+      )
       return { action: 'deny' }
     }
     if (isHttpOrHttps(url)) {
       // 调 shell.openExternal 把外链交给系统浏览器；deny 阻止在 Electron 窗内打开
       void shell.openExternal(url).catch((err) => {
-        process.stderr.write(`[electron-main] shell.openExternal 失败：${err instanceof Error ? err.message : String(err)}\n`)
+        process.stderr.write(
+          `[electron-main] shell.openExternal 失败：${err instanceof Error ? err.message : String(err)}\n`
+        )
       })
       return { action: 'deny' }
     }
@@ -882,18 +1044,30 @@ function attachWindowSafety(window: BrowserWindow, loadUrl: string): void {
       // 必须等于 loadUrl origin。127.0.0.1:port 与 127.0.0.1:other-port 视
       // 跨源，避免「同 host 不同端口」被前缀误判放行。
       let navOrigin: string | null = null
-      try { navOrigin = new URL(navigationUrl).origin } catch { navOrigin = null }
+      try {
+        navOrigin = new URL(navigationUrl).origin
+      } catch {
+        navOrigin = null
+      }
       let loadOrigin: string | null = null
-      try { loadOrigin = new URL(loadUrl).origin } catch { loadOrigin = null }
+      try {
+        loadOrigin = new URL(loadUrl).origin
+      } catch {
+        loadOrigin = null
+      }
       if (navOrigin && loadOrigin && navOrigin === loadOrigin) return
     }
     event.preventDefault()
     if (isHttpOrHttps(navigationUrl)) {
       void shell.openExternal(navigationUrl).catch((err) => {
-        process.stderr.write(`[electron-main] shell.openExternal 失败：${err instanceof Error ? err.message : String(err)}\n`)
+        process.stderr.write(
+          `[electron-main] shell.openExternal 失败：${err instanceof Error ? err.message : String(err)}\n`
+        )
       })
     } else {
-      process.stderr.write(`[electron-main] will-navigate 拒绝（非 http/https 或非预期 host）：${navigationUrl}\n`)
+      process.stderr.write(
+        `[electron-main] will-navigate 拒绝（非 http/https 或非预期 host）：${navigationUrl}\n`
+      )
     }
   })
 }
@@ -904,6 +1078,46 @@ function applySafeShow(window: BrowserWindow): void {
   // 一帧再换内容」闪烁。smoke 路径不调（探针不等绘制），hide 模式也不调。
   window.once('ready-to-show', () => {
     if (!window.isDestroyed()) window.show()
+  })
+}
+
+// A-2 关窗接线补全（2026-09-22）——挂 BrowserWindow close 事件 dirty 网关：
+// 主进程默认 always preventDefault + 调渲染侧 __dianjingHandleCloseRequest 跑
+// confirmAppExit（与关闭 tab、菜单 Quit 共用同一 approval 单例），渲染侧返 true
+// 后再 window.destroy() 真正关（destroy 不再 fire close 事件、不走 beforeunload；
+// dirty 数据已被 confirmAllDocuments 经 persistRecoveryNow 提前落盘，所以再
+// 过一次 beforeunload 无意义）。渲染侧 __dianjingHandleCloseRequest 自然兜住
+// 「菜单 Quit 已批 → 渲染直接返 true 不重复弹」的情形——app.quit() 触发 close
+// 时 approval 单例已置 true，无需特殊分支。多实例同款：每个 BrowserWindow 都
+// 走这条 close 网关，all-window-approved 后正常 destroy 全数释放。
+//
+// 不挂 close 监听路径：smoke / full-smoke（探针靠 webContents.executeJavaScript
+// 跑，不期望走完整 close 流程——smoke 路径直接 app.exit()）。其它四路（dev /
+// 默认形态 / darwin 复活 / app activate）都挂
+function attachWindowCloseGuard(window: BrowserWindow): void {
+  window.on('close', (event) => {
+    event.preventDefault()
+    void window.webContents
+      .executeJavaScript(
+        // 兜底 true 而非 false：渲染侧还没挂上 handler（页面加载早期/错误页）
+        // 时无可保护的 dirty 状态，直接放行——否则错误页上的窗口永远关不掉
+        'window.__dianjingHandleCloseRequest ? window.__dianjingHandleCloseRequest() : true',
+        true
+      )
+      .then((result) => {
+        if (window.isDestroyed()) return
+        if (result === true) {
+          window.destroy()
+        }
+      })
+      .catch((error: unknown) => {
+        process.stderr.write(
+          `[electron-main] 关窗确认失败：${error instanceof Error ? error.message : String(error)}\n`
+        )
+        // 渲染进程不可达（render-process-gone 等）时确认无从谈起——关窗放行，
+        // 否则崩溃窗口永远关不掉（本批逃生舱要解的正是这类锁死）
+        if (!window.isDestroyed()) window.destroy()
+      })
   })
 }
 
@@ -974,20 +1188,34 @@ const PROBE_SCRIPT = `(async () => {
   window.__SMOKE_RESULT__ = out
 })().catch((e) => { window.__SMOKE_RESULT__ = { fatal: String(e) } })`
 
-async function runSmoke(window: BrowserWindow, skipTokenCheck: boolean): Promise<{ ok: boolean; result: unknown }> {
+async function runSmoke(
+  window: BrowserWindow,
+  skipTokenCheck: boolean
+): Promise<{ ok: boolean; result: unknown }> {
   const consoleErrors: string[] = []
   const pageErrors: string[] = []
   window.webContents.on('console-message', (_e, level, message) => {
     if (level >= 2) consoleErrors.push(message)
   })
-  window.webContents.on('render-process-gone', (_e, details) => consoleErrors.push('render-process-gone: ' + JSON.stringify(details)))
-  window.webContents.on('did-fail-load', (_e, code, desc, url) => pageErrors.push('did-fail-load: ' + code + ' ' + desc + ' ' + url))
+  window.webContents.on('render-process-gone', (_e, details) =>
+    consoleErrors.push('render-process-gone: ' + JSON.stringify(details))
+  )
+  window.webContents.on('did-fail-load', (_e, code, desc, url) =>
+    pageErrors.push('did-fail-load: ' + code + ' ' + desc + ' ' + url)
+  )
   await window.webContents.executeJavaScript(PROBE_SCRIPT, true)
   const raw = await window.webContents.executeJavaScript('window.__SMOKE_RESULT__', true)
-  const result = (raw ?? {}) as { fatal?: string; checks?: Array<{ name: string; ok: boolean; detail: string | null }> }
+  const result = (raw ?? {}) as {
+    fatal?: string
+    checks?: Array<{ name: string; ok: boolean; detail: string | null }>
+  }
   if (result.fatal) return { ok: false, result: { ...result, consoleErrors, pageErrors } }
-  const checks = (result.checks ?? []).filter((c) =>
-    !(skipTokenCheck && (c.name === 'runtime automation token injected' || c.name === 'runtime bridge url injected'))
+  const checks = (result.checks ?? []).filter(
+    (c) =>
+      !(
+        skipTokenCheck &&
+        (c.name === 'runtime automation token injected' || c.name === 'runtime bridge url injected')
+      )
   )
   const allOk = checks.length > 0 && checks.every((c) => c.ok)
   return { ok: allOk, result: { checks, consoleErrors, pageErrors } }
@@ -995,7 +1223,10 @@ async function runSmoke(window: BrowserWindow, skipTokenCheck: boolean): Promise
 
 // ── sidecar + 回环启动（编排入口，被 main / full-smoke 共用）──
 
-function buildSidecars(distDir: string, loopbackOrigin: string): { bridge: SidecarHandle; backend: SidecarHandle } {
+function buildSidecars(
+  distDir: string,
+  loopbackOrigin: string
+): { bridge: SidecarHandle; backend: SidecarHandle } {
   // DIANJING_ROOT_DIR：状态根目录（sidecar 内 pi-agent/ pi-sessions/ 等
   // 落盘点——D2 起不再内含 .dianjing 子层，rootDir 即状态根本身）。
   // 解析优先级 env > app.getPath('userData')——env 优先保留是为了让 smoke /
@@ -1091,7 +1322,9 @@ function armBeforeQuitKill(): void {
   })
 }
 
-async function startLoopbackWithSidecars(distDir: string): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
+async function startLoopbackWithSidecars(
+  distDir: string
+): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
   // spike-electron-spike：先钉 loopback 端口（full-smoke 已用 DIANJING_
   // LOOPBACK_PORT 注入；默认 0 = 选个空闲端口），再编排 sidecar——桥 CORS
   // origin 必须等于页面 origin（即 loopbackOrigin），跨源 fetch 才会放行。
@@ -1151,7 +1384,9 @@ async function waitForHealthUntil(url: string, timeoutMs: number, label: string)
     }
     await new Promise((r) => setTimeout(r, HEALTH_INTERVAL_MS))
   }
-  console.warn(`[electron-main] ${timeoutMs}ms 内未等到 ${url} 就绪——继续执行，依赖首次调用触发复活`)
+  console.warn(
+    `[electron-main] ${timeoutMs}ms 内未等到 ${url} 就绪——继续执行，依赖首次调用触发复活`
+  )
 }
 
 // ── main 入口 ──
@@ -1198,7 +1433,9 @@ async function main(): Promise<void> {
     if (!got) {
       // 二实例——Electron 默认会自动 quit，但显式调一次更稳（Electron
       // 28+ 行为有变，部分版本不再自动退出非 default event loop 实例）。
-      console.error('[electron-main] 二实例抢锁失败，退出；既有实例会经 second-instance 事件拉回焦点')
+      console.error(
+        '[electron-main] 二实例抢锁失败，退出；既有实例会经 second-instance 事件拉回焦点'
+      )
       app.quit()
       return
     }
@@ -1221,8 +1458,13 @@ async function main(): Promise<void> {
   // 探针（外部脚本读 FULL_SMOKE_RESULT 后自行 kill 本进程）
   if (fullSmokeMode) {
     const { server, port } = await startLoopbackWithSidecars(join(__dirname, '..', '..', 'dist'))
-    const window = new BrowserWindow(baseWindowOptions({ show: false, webPreferences: { contextIsolation: true, sandbox: true } }))
-    window.once('closed', () => { server.close(); if (primaryWindow === window) primaryWindow = null })
+    const window = new BrowserWindow(
+      baseWindowOptions({ show: false, webPreferences: { contextIsolation: true, sandbox: true } })
+    )
+    window.once('closed', () => {
+      server.close()
+      if (primaryWindow === window) primaryWindow = null
+    })
     attachWindowSafety(window, `http://127.0.0.1:${port}`)
     // full-smoke 不调 applySafeShow——探针靠 webContents.executeJavaScript 跑
     // 不依赖 ready-to-show，强行等会卡超时。
@@ -1239,11 +1481,17 @@ async function main(): Promise<void> {
   const showWindow = readShowWindow()
 
   if (devUrl) {
-    const window = new BrowserWindow(baseWindowOptions({ show: showWindow, webPreferences: { contextIsolation: true, sandbox: true } }))
+    const window = new BrowserWindow(
+      baseWindowOptions({
+        show: showWindow,
+        webPreferences: { contextIsolation: true, sandbox: true }
+      })
+    )
     // P1.9.3 dev 形态也走窗口状态持久化（dev 调试的用户体验与产品形态对齐）
     restoreBounds(window, loadWindowState())
     persistBoundsOnClose(window)
     attachWindowSafety(window, devUrl)
+    attachWindowCloseGuard(window)
     if (showWindow) applySafeShow(window)
     await window.loadURL(devUrl)
     if (smokeMode) {
@@ -1257,11 +1505,20 @@ async function main(): Promise<void> {
   // 默认形态：sidecar + 回环 + 隐藏窗加载。关窗不杀 sidecar（与下一步
   // 「多窗口共享 sidecar」对齐），app quit 才杀
   const { server, port } = await startLoopbackWithSidecars(join(__dirname, '..', '..', 'dist'))
-  const window = new BrowserWindow(baseWindowOptions({ show: showWindow, webPreferences: { contextIsolation: true, sandbox: true } }))
+  const window = new BrowserWindow(
+    baseWindowOptions({
+      show: showWindow,
+      webPreferences: { contextIsolation: true, sandbox: true }
+    })
+  )
   // P1.9.3 恢复 + 关窗前持久化 bounds
   restoreBounds(window, loadWindowState())
   persistBoundsOnClose(window)
-  window.once('closed', () => { server.close(); if (primaryWindow === window) primaryWindow = null })
+  attachWindowCloseGuard(window)
+  window.once('closed', () => {
+    server.close()
+    if (primaryWindow === window) primaryWindow = null
+  })
   primaryWindow = window
   const loadUrl = `http://127.0.0.1:${port}`
   attachWindowSafety(window, loadUrl)
@@ -1304,18 +1561,25 @@ if (!readSmokeMode() && !readFullSmokeMode()) {
 function rebuildPrimaryWindow(): void {
   const devUrl = readElectronDevURL()
   if (devUrl) {
-    const win = new BrowserWindow(baseWindowOptions({ show: true, webPreferences: { contextIsolation: true, sandbox: true } }))
+    const win = new BrowserWindow(
+      baseWindowOptions({ show: true, webPreferences: { contextIsolation: true, sandbox: true } })
+    )
     restoreBounds(win, loadWindowState())
     persistBoundsOnClose(win)
     attachWindowSafety(win, devUrl)
+    attachWindowCloseGuard(win)
     applySafeShow(win)
     primaryWindow = win
-    win.once('closed', () => { if (primaryWindow === win) primaryWindow = null })
+    win.once('closed', () => {
+      if (primaryWindow === win) primaryWindow = null
+    })
     void win.loadURL(devUrl)
     return
   }
   void revivePackagedWindow().catch((error: unknown) => {
-    console.error(`[electron-main] darwin 复活失败：${error instanceof Error ? error.stack : String(error)}`)
+    console.error(
+      `[electron-main] darwin 复活失败：${error instanceof Error ? error.stack : String(error)}`
+    )
   })
 }
 
@@ -1331,11 +1595,15 @@ async function revivePackagedWindow(): Promise<void> {
         port: portFromState
       })
       serverFromState = server
-      console.error(`[electron-main] darwin 复活 A：复听旧 loopback 端口 ${port}，既有 sidecar 直连`)
+      console.error(
+        `[electron-main] darwin 复活 A：复听旧 loopback 端口 ${port}，既有 sidecar 直连`
+      )
       await openPackagedWindow(`http://127.0.0.1:${port}`)
       return
     } catch (error) {
-      console.warn(`[electron-main] darwin 复活 A 失败转 C：${error instanceof Error ? error.message : String(error)}`)
+      console.warn(
+        `[electron-main] darwin 复活 A 失败转 C：${error instanceof Error ? error.message : String(error)}`
+      )
     }
   }
   // C：先收旧 sidecar（存活则端口占用会撞新 spawn 的同端口绑定），再全链重建
@@ -1349,9 +1617,12 @@ async function revivePackagedWindow(): Promise<void> {
 // 复活窗口创建——与 main() 默认形态同骨架，但 show 恒 true（activate 是显式
 // 用户意图）且 closed 回收的是当前 serverFromState（复活 C 路径可能换过 server）
 async function openPackagedWindow(loadUrl: string): Promise<void> {
-  const window = new BrowserWindow(baseWindowOptions({ show: true, webPreferences: { contextIsolation: true, sandbox: true } }))
+  const window = new BrowserWindow(
+    baseWindowOptions({ show: true, webPreferences: { contextIsolation: true, sandbox: true } })
+  )
   restoreBounds(window, loadWindowState())
   persistBoundsOnClose(window)
+  attachWindowCloseGuard(window)
   window.once('closed', () => {
     serverFromState?.close()
     serverFromState = null
@@ -1367,14 +1638,30 @@ async function openPackagedWindow(loadUrl: string): Promise<void> {
 // （「A JavaScript error occurred in the main process」）——spike 期任何漏挂
 // error 监听的流（proxyPi 之类）都不该以弹窗形式打扰用户， loudly 记日志即可
 process.on('uncaughtException', (error) => {
-  console.error(`[electron-main] uncaughtException（已吞，进程继续）：${error.stack ?? error.message}`)
+  console.error(
+    `[electron-main] uncaughtException（已吞，进程继续）：${error.stack ?? error.message}`
+  )
 })
 process.on('unhandledRejection', (reason) => {
-  console.error(`[electron-main] unhandledRejection（已吞，进程继续）：${reason instanceof Error ? reason.stack : String(reason)}`)
+  console.error(
+    `[electron-main] unhandledRejection（已吞，进程继续）：${reason instanceof Error ? reason.stack : String(reason)}`
+  )
 })
 
-void main().catch((error) => { console.error(`[electron-main] ${error instanceof Error ? error.stack : String(error)}`); app.exit(1) })
+void main().catch((error) => {
+  console.error(`[electron-main] ${error instanceof Error ? error.stack : String(error)}`)
+  app.exit(1)
+})
 
 // 导出供 spike:electron:full-smoke / 单元测试用
-export { spawnAndWatch, stopSidecar, bridgeHandle, backendHandle, bridgePort, backendPort, bridgeToken, piToken }
+export {
+  spawnAndWatch,
+  stopSidecar,
+  bridgeHandle,
+  backendHandle,
+  bridgePort,
+  backendPort,
+  bridgeToken,
+  piToken
+}
 export type { SidecarHandle }

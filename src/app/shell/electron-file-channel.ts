@@ -11,6 +11,7 @@
 //   POST /__dianjing/file-write        body { path, data(base64) }     → { ok: true }
 //   POST /__dianjing/file-read         body { path }                   → { name, data(base64) }
 //   POST /__dianjing/recent-files      body { paths: string[] }        → { ok: true, accepted, skipped }
+//   POST /__dianjing/quit              body {}                          → { ok: true }   (A-2 2026-09-22 menu Quit)
 //
 // 鉴权（2026-09-20 续登）：文件家族 5 个端点统一要求 authorization: Bearer
 // <token>，token 与注入 index.html 的 __DIANJING_RUNTIME_AUTOMATION_TOKEN__
@@ -57,6 +58,10 @@ interface RecentFilesResponse {
   ok: true
   accepted: number
   skipped: number
+}
+
+interface QuitResponse {
+  ok: true
 }
 
 function getElectronAuthToken(): string | null {
@@ -145,4 +150,15 @@ export async function readElectronFile(
 export async function syncElectronRecentFiles(paths: string[]): Promise<void> {
   if (!isElectron()) return
   await postJSON<RecentFilesResponse>('/__dianjing/recent-files', { paths })
+}
+
+// A-2 关窗接线补全（2026-09-22）：菜单 Quit 触发的应用退出通道——经此端点
+// 让 main 调 app.quit()。渲染侧已经在调用本函数前经 confirmAppExit 批准过
+// dirty 文档（exit.ts requestAppExit 内），main 侧 fire 每个 BrowserWindow 的
+// close 事件时我们的 close 网关会再问渲染一次 __dianjingHandleCloseRequest，
+// 该函数命中 approval 单例已置 true 的分支直接返 true，main 再 window.destroy()
+// 完成关闭——approval 单例既阻挡了重复弹窗也允许跨入口共享「已批」状态
+export async function requestElectronQuit(): Promise<void> {
+  if (!isElectron()) return
+  await postJSON<QuitResponse>('/__dianjing/quit', {})
 }
