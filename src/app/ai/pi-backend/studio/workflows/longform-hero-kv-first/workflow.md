@@ -6,7 +6,7 @@ step_budget: 70
 sizes:
   - label: 电商详情长图
     canvas: 750x
-  - label: 小红书长图
+  - label: 社媒长图
     canvas: 1080x
 references:
   - path: references/hero-prompt-template-kv-first.md
