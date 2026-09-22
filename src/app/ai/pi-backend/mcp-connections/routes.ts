@@ -19,24 +19,11 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
+import { readBody, sendJSON } from '../http-utils'
 import { getMCPClientPool } from '../mcp/pool-instance'
 import { toPublic, toSdkConfig, type MCPConnectionsStore } from './store'
 
 const LIST_PATHNAME = '/api/pi/mcp/connections'
-
-function sendJSON(res: ServerResponse, status: number, payload: unknown): void {
-  res.writeHead(status, { 'content-type': 'application/json' })
-  res.end(JSON.stringify(payload))
-}
-
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
-    req.on('error', reject)
-  })
-}
 
 /** 公共错误响应——4xx 全部 JSON 信封，与 image-gen 路由纪律同 */
 function sendError(res: ServerResponse, status: number, error: string): void {
