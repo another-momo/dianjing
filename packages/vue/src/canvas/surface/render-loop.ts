@@ -1,4 +1,5 @@
 import { getRendererDeadState, withCrashGuard } from '@open-pencil/core/canvas'
+import type { CrashCapture } from '@open-pencil/core/canvas'
 import type { Editor, EditorState } from '@open-pencil/core/editor'
 
 import type { CanvasRenderLayer } from './types'
@@ -7,6 +8,9 @@ type RenderLoopOptions = {
   layer?: CanvasRenderLayer
   getRenderState?: () => EditorState
   shouldSuspendRender?: () => boolean
+  // B-7 取证钩子：宿主在翻闸前附崩溃现场（缓存水位/最近导出/场景版本）。
+  // 缺省走 withCrashGuard 的内置 markRendererDead（无现场）。
+  capture?: CrashCapture
 }
 
 type EditorRenderScheduler = {
@@ -70,7 +74,7 @@ export function createCanvasRenderLoop(
   // and swallows the throw so the rAF callback can return cleanly.
   const safeRender = withCrashGuard(() => {
     renderNow()
-  })
+  }, options.capture)
 
   function renderFrame() {
     frameScheduled = false

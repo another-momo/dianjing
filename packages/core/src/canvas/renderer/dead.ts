@@ -20,6 +20,8 @@
  * the same latch the render-loop writes.
  */
 
+import type { RendererCrashContext } from './diagnostics'
+
 export interface RendererCrash {
   /** Message from the captured RuntimeError. */
   message: string
@@ -27,6 +29,12 @@ export interface RendererCrash {
   name: string
   /** Time the latch was flipped. */
   at: number
+  /**
+   * B-7 crash forensics: cache watermarks / recent raster exports / scene
+   * versions captured at the moment the latch flipped. Absent in tests that
+   * flip the latch without a live renderer.
+   */
+  context?: RendererCrashContext
 }
 
 export type CrashCapture = (crash: RendererCrash) => void

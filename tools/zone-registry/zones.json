@@ -117,7 +117,9 @@
     "tests/engine/app/document/close/use.test.ts",
     "tests/engine/render/canvas/canvaskit-null-guards.test.ts",
     "packages/core/src/canvas/renderer/image-cache.ts",
-    "tests/engine/render/canvas/image-cache.test.ts"
+    "tests/engine/render/canvas/image-cache.test.ts",
+    "packages/core/src/canvas/renderer/diagnostics.ts",
+    "tests/engine/render/canvas/renderer-diagnostics.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -2266,6 +2268,34 @@
       "id": "P366",
       "file": "packages/core/src/canvas/fills.ts",
       "reason": "B-4 imageCache 有界 LRU（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 第二档）：applyImageFill 内 imageCache.set 拒收（单条超预算）时所有权留调用方——releaseAfterShader 标记、shader 装上 fillPaint 后再 img.delete()（Skia 对已装 shader 持 C++ 引用，对齐 scene.ts「画完再删」先例；review 补洞修正删除时序，原交付在 width() 前删会抛已删对象错）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P367",
+      "file": "packages/core/src/io/formats/raster/render.ts",
+      "reason": "B-7 崩溃现场快照（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4）：renderToSurface finally 记导出取样（尺寸/scale/字节/耗时/成败）入 diagnostics 环形缓冲——崩溃上下文可回溯最近 8 笔导出，预算拒绝（try 外抛出）不进取样",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P368",
+      "file": "packages/vue/src/canvas/surface/render-loop.ts",
+      "reason": "B-7：RenderLoopOptions 增 capture 透传 withCrashGuard——宿主在翻 renderer-dead 闸前附崩溃现场；缺省 undefined 走内置 markRendererDead，生产缺省接线不变",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P369",
+      "file": "packages/vue/src/canvas/surface/lifecycle.ts",
+      "reason": "B-7：capture 接线——翻闸前 captureRendererDiagnostics(state.renderer) 采缓存水位/最近导出/场景版本挂 RendererCrash.context，并 console.error 落一份供重启前排障",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P370",
+      "file": "packages/core/src/canvas/index.ts",
+      "reason": "B-7：桶追加 re-export diagnostics 表面（captureRendererDiagnostics/recordRasterExportSample/getRecentRasterExports + 类型）——P356 之外的第二处 re-export 分歧",
       "disposition": "permanent",
       "lastReviewed": "2026-09-22"
     }

@@ -16,6 +16,14 @@ export type { GuideOverlayState, GuidePreview, GuideSelection } from './guides/t
 export { canvasLabelForeground } from './labels/color'
 export { SkiaRenderer, type RenderOverlays, type RulerTheme } from './renderer'
 export {
+  captureRendererDiagnostics,
+  getRecentRasterExports,
+  recordRasterExportSample,
+  type CacheWatermark,
+  type RasterExportSample,
+  type RendererCrashContext
+} from './renderer/diagnostics'
+export {
   getRendererDeadState,
   isRendererDead,
   markRendererDead,

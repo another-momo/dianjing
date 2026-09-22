@@ -2,7 +2,11 @@ import type { CanvasKit } from 'canvaskit-wasm'
 import { onScopeDispose } from 'vue'
 import type { Ref } from 'vue'
 
-import { SkiaRenderer } from '@open-pencil/core/canvas'
+import {
+  captureRendererDiagnostics,
+  markRendererDead,
+  SkiaRenderer
+} from '@open-pencil/core/canvas'
 import type { Editor } from '@open-pencil/core/editor'
 
 import {
@@ -130,7 +134,14 @@ export function createCanvasSurfaceManager({
   const renderLoop = createCanvasRenderLoop(editor, renderNow, {
     layer: options?.layer,
     getRenderState: options?.getRenderState,
-    shouldSuspendRender: options?.shouldSuspendRender
+    shouldSuspendRender: options?.shouldSuspendRender,
+    // B-7 取证：翻闸瞬间挂现场（缓存水位/最近导出/场景版本），控制台落一份
+    // 供重启前排障；banner 文案保持极简不带内部坐标。
+    capture: (crash) => {
+      const context = captureRendererDiagnostics(state.renderer)
+      console.error('[renderer] WASM crash captured', { ...crash, context })
+      markRendererDead({ ...crash, context })
+    }
   })
 
   function resizeCanvas(canvas: HTMLCanvasElement) {

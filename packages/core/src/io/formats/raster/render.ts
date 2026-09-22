@@ -9,6 +9,7 @@ import {
 import { computeDescendantVisualBounds } from '@open-pencil/scene-graph/geometry'
 
 import type { SkiaRenderer } from '#core/canvas'
+import { recordRasterExportSample } from '#core/canvas/renderer/diagnostics'
 import type { RenderColorSpace } from '#core/color/management'
 import { extractExportGraph, findPageId } from '#core/io/subgraph'
 
@@ -225,6 +226,11 @@ function renderToSurface(
 ): Uint8Array | null {
   const renderWidth = width * renderScale
   const renderHeight = height * renderScale
+  // B-7 取证取样：成败都记（预算拒绝在 try 外抛出，不进取样——它已被
+  // RasterBudgetExceededError 类型化抛给调用方，不属于堆压力信号）。
+  const sampleStartedAt = Date.now()
+  let sampleOk = false
+  let sampleBytes = 0
   // B-2 防御层：上游入口已做预算降级；此处兜底——直接把 width/height/renderScale
   // 代入字节预算校验，避免外部调用绕过入口（如 headless 路径、自定义 setup）
   // 时把巨型分配提交给 CanvasKit 单例。
@@ -329,8 +335,19 @@ function renderToSurface(
       quality
     )
 
+    sampleOk = resultBytes !== null
+    sampleBytes = resultBytes?.length ?? 0
     return resultBytes
   } finally {
+    recordRasterExportSample({
+      at: sampleStartedAt,
+      width,
+      height,
+      scale: renderScale,
+      bytes: sampleBytes,
+      ms: Date.now() - sampleStartedAt,
+      ok: sampleOk
+    })
     image?.delete()
     downsampleSurface?.delete()
     highResImage?.delete()
