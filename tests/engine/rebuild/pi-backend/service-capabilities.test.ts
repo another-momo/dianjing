@@ -86,21 +86,21 @@ describe('pi-backend service.ts capabilities seam（T87）', () => {
 
   test('getCapabilities：缺省 DEFAULTS（capabilities.json 不存在 → 失败安全兜底）', () => {
     const svc = makeService(rootDir)
-    expect(svc.getCapabilities()).toEqual({ builtinTools: 'readonly', agentSkills: true })
+    expect(svc.getCapabilities()).toEqual({ builtinTools: 'full', agentSkills: true })
   })
 
   test('setCapabilities → getCapabilities 往返：与 capabilitiesStore 实例共享', () => {
     const svc = makeService(rootDir)
-    // T96：set 只给 agentSkills 时 builtinTools 保留旧值（缺省 'readonly'）
+    // T96：set 只给 agentSkills 时 builtinTools 保留旧值（缺省 'full'）
     expect(svc.setCapabilities({ agentSkills: true })).toEqual({
-      builtinTools: 'readonly',
+      builtinTools: 'full',
       agentSkills: true
     })
-    expect(svc.getCapabilities()).toEqual({ builtinTools: 'readonly', agentSkills: true })
+    expect(svc.getCapabilities()).toEqual({ builtinTools: 'full', agentSkills: true })
 
     // 落盘后可被新实例读出（验证持久化层一致）
     const svc2 = makeService(rootDir)
-    expect(svc2.getCapabilities()).toEqual({ builtinTools: 'readonly', agentSkills: true })
+    expect(svc2.getCapabilities()).toEqual({ builtinTools: 'full', agentSkills: true })
   })
 
   test('setCapabilities 非布尔 → 抛错', () => {
@@ -118,8 +118,8 @@ describe('pi-backend service.ts capabilities seam（T87）', () => {
   test('getStudioManifest：缺省（agentSkills ON）时 skills 如实扫描；空目录 → skills=[]', () => {
     const svc = makeService(rootDir)
     const manifest = svc.getStudioManifest()
-    // 2026-09-18 翻转：缺省 agentSkills=true——manifest.capabilities 随 DEFAULTS
-    expect(manifest.capabilities).toEqual({ builtinTools: 'readonly', agentSkills: true })
+    // 缺省 agentSkills=true——manifest.capabilities 随 DEFAULTS（2026-09-22 翻转 full）
+    expect(manifest.capabilities).toEqual({ builtinTools: 'full', agentSkills: true })
     expect(manifest.skills).toEqual([])
   })
 
@@ -166,19 +166,16 @@ description: x
 
   // ── T96：三档位装配门控（createAgentSession 入参捕获） ─────────────────
 
-  test('T96 装配门控：builtinTools 缺省（readonly 档）→ tools 只读四件 + 自定义工具', async () => {
+  test('T96 装配门控：builtinTools 缺省（2026-09-22 翻转 full 档）→ noTools/tools 两键全省略', async () => {
     const svc = makeService(rootDir)
-    // 2026-09-18 翻转：缺省从 off 抬到 readonly——装配面从 noTools 变 tools 白名单
+    // 2026-09-22 翻转：缺省 readonly→full——装配面从 tools 白名单变全省略（SDK 默认）
     await svc.prompt('s-default', 'hi', () => undefined, {
       model: { providerId: 'openrouter', modelId: 'openrouter/free' }
     })
     const opts = capturedSessionOptions.at(-1)
     expect(opts).toBeDefined()
-    const customNames = ((opts?.customTools ?? []) as Array<{ name: string }>).map(
-      (tool) => tool.name
-    )
-    expect(opts?.tools).toEqual(['read', 'grep', 'find', 'ls', ...customNames])
     expect('noTools' in (opts ?? {})).toBe(false)
+    expect('tools' in (opts ?? {})).toBe(false)
   })
 
   test('T96 装配门控：builtinTools off（显式关）→ noTools:"builtin"，无 tools 键', async () => {

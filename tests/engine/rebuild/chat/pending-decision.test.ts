@@ -7,7 +7,8 @@
  *  - 冻结契约钉扎：AUTHZ_REQUEST_PART_TYPE 字面量、formId 'authz-' 前缀、
  *    POST /api/pi/decision-answer 五类载荷形态（authz 三决断 + ask answer/skip）
  *    逐字段上送；
- *  - parseAuthzRequestData 防御性归一（形状不符 → null；缺省字段兜底）；
+ *  - parseAuthzRequestData 防御性归一（按 toolName 判别分支：bash / install_skill；
+ *    形状不符 → null；缺省字段兜底）；
  *  - deriveDefaultBashRule（§11-4 默认口径：argv[0]+可识别子命令前缀+' *'）；
  *  - resolved map roundtrip（已决即收卡的数据源）；
  *  - collectPinnedDecisions 收集规则（ask input-* 未答 / authz 未决入列，
@@ -118,6 +119,84 @@ describe('parseAuthzRequestData 防御性归一', () => {
     expect(parseAuthzRequestData(null)).toBeNull()
     expect(parseAuthzRequestData('authz-p5')).toBeNull()
   })
+
+  test('install_skill 支：全字段载荷原样通过（toolName 判别收窄为 install_skill 变体）', () => {
+    const parsed = parseAuthzRequestData({
+      formId: 'install-skill-q1',
+      kind: 'authz',
+      toolName: 'install_skill',
+      sourceDir: '/staging/demo-skill',
+      name: 'demo-skill',
+      overwrite: false,
+      files: ['SKILL.md', 'principles.md'],
+      adapterSummary: 'files: 2\ndescription: A demo skill'
+    })
+    expect(parsed).toEqual({
+      formId: 'install-skill-q1',
+      kind: 'authz',
+      toolName: 'install_skill',
+      sourceDir: '/staging/demo-skill',
+      name: 'demo-skill',
+      overwrite: false,
+      files: ['SKILL.md', 'principles.md'],
+      adapterSummary: 'files: 2\ndescription: A demo skill'
+    })
+    // 判别收窄：装回 BashAuthzRequestData 形状断言 command 缺席
+    if (parsed && parsed.toolName === 'install_skill') {
+      // @ts-expect-error command 字段在 install_skill 变体不存（TS 收窄验证）
+      const _unused = parsed.command
+    }
+  })
+
+  test('install_skill 支：必填字段缺一即 null（sourceDir/name/overwrite/files/adapterSummary）', () => {
+    const base = {
+      formId: 'install-skill-q2',
+      kind: 'authz' as const,
+      toolName: 'install_skill' as const,
+      sourceDir: '/staging/demo',
+      name: 'demo',
+      overwrite: false,
+      files: ['SKILL.md'],
+      adapterSummary: 'files: 1'
+    }
+    expect(parseAuthzRequestData({ ...base, sourceDir: '' })).toBeNull()
+    expect(parseAuthzRequestData({ ...base, sourceDir: undefined })).toBeNull()
+    expect(parseAuthzRequestData({ ...base, name: '' })).toBeNull()
+    expect(parseAuthzRequestData({ ...base, name: undefined })).toBeNull()
+    expect(parseAuthzRequestData({ ...base, files: 'SKILL.md' })).toBeNull()
+    expect(parseAuthzRequestData({ ...base, files: undefined })).toBeNull()
+    expect(parseAuthzRequestData({ ...base, files: [123] })).toBeNull()
+    expect(parseAuthzRequestData({ ...base, overwrite: 'yes' })).toBeNull()
+    expect(parseAuthzRequestData({ ...base, overwrite: undefined })).toBeNull()
+    expect(parseAuthzRequestData({ ...base, adapterSummary: undefined })).toBeNull()
+  })
+
+  test('install_skill 支：command 字段出现不影响安装（装 bash 字段错放——仍按 install_skill 解析，bash 字段忽略）', () => {
+    // 后端 install-skill.ts 不会塞 command，但防御性归一不该把它当 bash 误判
+    const parsed = parseAuthzRequestData({
+      formId: 'install-skill-q3',
+      kind: 'authz',
+      toolName: 'install_skill',
+      sourceDir: '/staging/demo',
+      name: 'demo',
+      overwrite: false,
+      files: ['SKILL.md'],
+      adapterSummary: 'files: 1',
+      command: 'echo stray'
+    })
+    expect(parsed).toMatchObject({ toolName: 'install_skill' })
+  })
+
+  test('未知 toolName → null（不假装 fallback bash）', () => {
+    expect(
+      parseAuthzRequestData({
+        formId: 'authz-q9',
+        kind: 'authz',
+        toolName: 'unknown_tool',
+        command: 'ls'
+      })
+    ).toBeNull()
+  })
 })
 
 describe('deriveDefaultBashRule（§11-4 默认口径）', () => {
@@ -154,6 +233,34 @@ describe('resolved map', () => {
     expect(getAuthzResolved('authz-r0')?.decision).toBe('allow-rule')
     expect(getAuthzResolved('authz-r0')?.ruleText).toBe('bun test *')
   })
+
+  test('install_skill 决断记录：bash 字段缺席也合法（command/cwd/ruleText 可选）', () => {
+    const formId = 'install-skill-resolved-1'
+    expect(getAuthzResolved(formId)).toBeUndefined()
+    markAuthzResolved({
+      formId,
+      decision: 'deny',
+      note: '不放心来源'
+    })
+    const record = getAuthzResolved(formId)
+    expect(record?.decision).toBe('deny')
+    expect(record?.note).toBe('不放心来源')
+    expect(record?.command).toBeUndefined()
+    expect(record?.cwd).toBeUndefined()
+    expect(record?.ruleText).toBeUndefined()
+  })
+
+  test('install_skill allow-once 决断记录：record 不写入 bash 字段', () => {
+    const formId = 'install-skill-resolved-2'
+    markAuthzResolved({
+      formId,
+      decision: 'allow-once'
+    })
+    const record = getAuthzResolved(formId)
+    expect(record?.decision).toBe('allow-once')
+    expect(record?.command).toBeUndefined()
+    expect(record?.cwd).toBeUndefined()
+  })
 })
 
 describe('collectPinnedDecisions（pinned dock 收集规则）', () => {
@@ -177,9 +284,9 @@ describe('collectPinnedDecisions（pinned dock 收集规则）', () => {
   test('authz 未决入列（mode pending）；已决 / 形状不符排除', () => {
     markAuthzResolved({
       formId: 'authz-r1',
+      decision: 'allow-once',
       command: 'bun test',
-      cwd: '/repo',
-      decision: 'allow-once'
+      cwd: '/repo'
     })
     const views = collectPinnedDecisions(
       [
@@ -194,6 +301,81 @@ describe('collectPinnedDecisions（pinned dock 收集规则）', () => {
       kind: 'authz',
       mode: 'pending',
       request: { formId: 'authz-r2', toolName: 'bash' }
+    })
+  })
+
+  test('install_skill 未决入列；已决排除（formId 全局唯一，无 bash 命令原文污染）', () => {
+    const formId = 'install-skill-coll-1'
+    markAuthzResolved({
+      formId: 'install-skill-coll-resolved',
+      decision: 'allow-once'
+    })
+    const views = collectPinnedDecisions(
+      [
+        authzDataPart({
+          formId,
+          kind: 'authz',
+          toolName: 'install_skill',
+          sourceDir: '/staging/demo',
+          name: 'demo',
+          overwrite: false,
+          files: ['SKILL.md'],
+          adapterSummary: 'files: 1'
+        }),
+        authzDataPart({
+          formId: 'install-skill-coll-resolved',
+          kind: 'authz',
+          toolName: 'install_skill',
+          sourceDir: '/staging/demo',
+          name: 'demo',
+          overwrite: false,
+          files: ['SKILL.md'],
+          adapterSummary: 'files: 1'
+        })
+      ],
+      new Set()
+    )
+    expect(views).toHaveLength(1)
+    expect(views[0]).toMatchObject({
+      kind: 'authz',
+      mode: 'pending',
+      request: { formId, toolName: 'install_skill', name: 'demo' }
+    })
+    // 判别联合收窄：install_skill 视图 request 字段不含 command
+    const view = views[0]
+    if (view.kind === 'authz' && view.request.toolName === 'install_skill') {
+      // @ts-expect-error command 字段在 install_skill 变体不存（TS 收窄验证）
+      const _unused = view.request.command
+    }
+  })
+
+  test('bash / install_skill 混排在同 parts 中各自入列（决断独立，formId 不撞）', () => {
+    const views = collectPinnedDecisions(
+      [
+        authzDataPart(validAuthzPayload('authz-mix-bash')),
+        authzDataPart({
+          formId: 'install-skill-mix-1',
+          kind: 'authz',
+          toolName: 'install_skill',
+          sourceDir: '/staging/x',
+          name: 'x',
+          overwrite: true,
+          files: ['SKILL.md'],
+          adapterSummary: 'files: 1'
+        })
+      ],
+      new Set()
+    )
+    expect(views).toHaveLength(2)
+    expect(views[0]).toMatchObject({
+      kind: 'authz',
+      mode: 'pending',
+      request: { toolName: 'bash' }
+    })
+    expect(views[1]).toMatchObject({
+      kind: 'authz',
+      mode: 'pending',
+      request: { toolName: 'install_skill', overwrite: true }
     })
   })
 

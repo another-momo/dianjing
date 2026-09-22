@@ -12,8 +12,8 @@
  * 双键语义（T96，owner 任务卡）：
  *  - builtinTools: 'off' | 'readonly' | 'full' ——session 装配门控：
  *    off → noTools:'builtin'；readonly → tools:[read/grep/find/ls]；
- *    full → 省略字段走 SDK 默认（read/bash/edit/write）。缺省 'readonly'
- *    （2026-09-18 owner 拍板翻转——新装/坏文件兜底从 off 抬到 readonly；
+ *    full → 省略字段走 SDK 默认（read/bash/edit/write）。缺省 'full'
+ *    （2026-09-22 owner 拍板翻转——内测期以 full 档考验授权/安全机制；
  *    存量 capabilities.json 有显式值不跟随，全员强翻需另做版本迁移）
  *  - agentSkills: boolean ——skill 加载开关（pi SDK 路径 noSkills），
  *    与 builtinTools 解耦。缺省 true（2026-09-18 同批翻转）。
@@ -56,9 +56,9 @@ export type BuiltinToolsLevel = 'off' | 'readonly' | 'full'
 
 const BUILTIN_TOOLS_LEVELS: readonly BuiltinToolsLevel[] = ['off', 'readonly', 'full']
 
-// 2026-09-18 owner 拍板翻转：builtinTools off→readonly、agentSkills false→true。
+// 2026-09-22 owner 拍板翻转：builtinTools readonly→full（内测期考验安全机制）。
 // DEFAULTS 只兜新装/文件缺失/坏文件降级，存量显式值不跟随。
-const DEFAULTS: CapabilitiesFile = { version: 2, builtinTools: 'readonly', agentSkills: true }
+const DEFAULTS: CapabilitiesFile = { version: 2, builtinTools: 'full', agentSkills: true }
 
 export type Capabilities = {
   /** 内建工具档位；service.ts 装配据此切换 noTools/tools */
@@ -145,7 +145,7 @@ export function createCapabilitiesStore({
       return { builtinTools: DEFAULTS.builtinTools, agentSkills: DEFAULTS.agentSkills }
     } catch {
       // ENOENT / 坏 JSON → 缺省 DEFAULTS（capabilities 面 fail-safe，
-      // 缺配置/坏文件不落半残状态；兜底值已抬为 readonly+true——2026-09-18 拍板）
+      // 缺配置/坏文件不落半残状态；兜底值已抬为 full+true——2026-09-22 拍板）
       return { builtinTools: DEFAULTS.builtinTools, agentSkills: DEFAULTS.agentSkills }
     }
   }

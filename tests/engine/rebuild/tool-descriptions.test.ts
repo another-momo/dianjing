@@ -11,7 +11,8 @@ function findTool(name: string) {
 describe('tool descriptions', () => {
   test('eval description surfaces the three technical constraints', () => {
     const desc = findTool('eval').description
-    // matches the constraints cited by base.md L98 (sync API surface, no-op font loading, counter ≠ confirmation)
+    // the three technical constraints: sync API surface, no-op font loading, counter ≠ confirmation
+    // （eval 已移出 agent 面、仅宿主桥探针保留——description 仍是探针消费面的契约）
     expect(desc).toContain('sync API surface')
     expect(desc).toContain('no-op font loading')
     expect(desc).toMatch(/counter\s*≠\s*confirmation/)

@@ -5,11 +5,13 @@
  * 冻结契约（后端另一线并行开发，未落地时卡片留可重试态优雅降级）：
  *  - 未决授权请求经 SSE data part `data-authz-request` 直推（非 transient——
  *    ai SDK 会把它落进当前 assistant 消息 parts，见 dist/index.js
- *    isDataUIMessageChunk 分支），payload = AuthzRequestPartData。
+ *    isDataUIMessageChunk 分支），payload = AuthzRequestPartData（toolName 判别
+ *    联合：bash 支带 command/cwd；install_skill 支带文件清单/适配摘要/overwrite）。
  *  - 统一 answer 端点：POST /api/pi/decision-answer，body = DecisionAnswerPayload
  *    （kind 判别路由）；authz decision ∈ allow-once / allow-rule（带 ruleText =
- *    按钮上呈现的规则原文）/ deny（可附 note）；ask 维持 answer/skip 语义封装进
- *    同一端点形态。
+ *    按钮呈现规则原文）/ deny（可附 note）——bash 三决断齐备，install_skill 仅用
+ *    allow-once 与 deny（allow-rule 无规则记忆，后端 hard-deny）；ask 维持
+ *    answer/skip 语义封装进同一端点形态。
  *
  * 未决/已决分面（§6 统筹形态）：
  *  - 未决态 pinned 输入区上方（ChatPanel dock，不随消息流滚动）；
@@ -23,29 +25,39 @@ import { getToolName, isToolUIPart } from 'ai'
 import type { UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { reactive } from 'vue'
 
+import type { BashAuthzRequest, InstallSkillAuthzRequest } from '@/app/ai/pi-backend/authz-guard'
+
 /** 后端直推的未决授权请求 data part 类型（冻结契约） */
 export const AUTHZ_REQUEST_PART_TYPE = 'data-authz-request'
 
-/** 事实层 schema（系统直出，guard 从 event.input 直取，不经模型——防注入面） */
-export interface AuthzRequestPartData {
-  formId: string
-  kind: 'authz'
-  toolName: string
-  command: string
-  cwd: string
-  /** 规则原文（「你将放行的是什么」）；缺席时前端按 §11-4 默认口径派生兜底 */
-  matchedRule?: string
-}
+/**
+ * 事实层 schema（系统直出，guard 从 event.input 直取，不经模型——防注入面）。
+ * 判别联合：toolName 字段区分 bash（命令原文+工作目录）与 install_skill
+ * （文件清单+适配摘要）——后端两路闸门装配同形 data part 通道，前端按 toolName
+ * 分支校验与渲染。直接复用后端类型别名（同构 interface 触发 type-shapes
+ * 门禁——仓内 AGENTS.md §5 高发门禁坑）。
+ */
+export type BashAuthzRequestData = BashAuthzRequest
+export type InstallSkillAuthzRequestData = InstallSkillAuthzRequest
+export type AuthzRequestPartData = BashAuthzRequestData | InstallSkillAuthzRequestData
 
 export type AuthzDecision = 'allow-once' | 'allow-rule' | 'deny'
 
-/** 已决记录（会话内全量细节；归档卡的渲染源） */
+/**
+ * 已决记录（会话内全量细节；归档卡的渲染源）。
+ * bash 字段（command/cwd/ruleText）仅 bash 决断携带；install_skill 仅 formId +
+ * decision + 可选 note——请求载荷里的 skill 名 / 文件清单 / 适配摘要由
+ * view.request 携带，不在 record 里重复。type-shapes 门禁兼容：bash 字段为可选，
+ * install_skill 决断不写入该字段，shape 不与 InstallSkillAuthzRequestData 同构。
+ */
 export interface AuthzDecisionRecord {
   formId: string
-  command: string
-  cwd: string
   decision: AuthzDecision
-  /** decision === 'allow-rule' 时登记的规则原文（按钮上呈现的那串） */
+  /** bash-only：命令原文（等放行命令的审计锚点） */
+  command?: string
+  /** bash-only：工作目录 */
+  cwd?: string
+  /** bash-only：decision === 'allow-rule' 时登记的规则原文（按钮上呈现的那串） */
   ruleText?: string
   /** decision === 'deny' 时用户附言（回传给 agent 的一句话） */
   note?: string
@@ -98,31 +110,62 @@ export async function postDecisionAnswer(
 }
 
 /** data part 载荷防御性归一（形状不符 → null，渲染层不崩不渲染）。
- *  `in` 收窄逐字段取（parseSetActiveDesignProposed 先例），不做宽断言 */
+ *  按 toolName 分支校验：bash 支要求 command 非空；install_skill 支要求
+ *  sourceDir/name/files/overwrite/adapterSummary 必填字段齐备。`in` 收窄
+ *  逐字段取（parseSetActiveDesignProposed 先例），不做宽断言；未知 toolName 返
+ *  null——前端不假装 fallback bash，避免 install_skill 之外的闸门载荷静默走
+ *  bash 分支渲染命令框 */
 export function parseAuthzRequestData(input: unknown): AuthzRequestPartData | null {
   if (typeof input !== 'object' || input === null) return null
   if (!('kind' in input) || input.kind !== 'authz') return null
   if (!('formId' in input) || typeof input.formId !== 'string' || input.formId === '') return null
-  if (!('command' in input) || typeof input.command !== 'string' || input.command === '') {
-    return null
-  }
   const toolName =
     'toolName' in input && typeof input.toolName === 'string' && input.toolName !== ''
       ? input.toolName
       : 'bash'
-  const cwd = 'cwd' in input && typeof input.cwd === 'string' ? input.cwd : ''
-  const matchedRule =
-    'matchedRule' in input && typeof input.matchedRule === 'string' && input.matchedRule !== ''
-      ? input.matchedRule
-      : undefined
-  return {
-    formId: input.formId,
-    kind: 'authz',
-    toolName,
-    command: input.command,
-    cwd,
-    ...(matchedRule !== undefined ? { matchedRule } : {})
+  if (toolName === 'bash') {
+    if (!('command' in input) || typeof input.command !== 'string' || input.command === '') {
+      return null
+    }
+    const cwd = 'cwd' in input && typeof input.cwd === 'string' ? input.cwd : ''
+    const matchedRule =
+      'matchedRule' in input && typeof input.matchedRule === 'string' && input.matchedRule !== ''
+        ? input.matchedRule
+        : undefined
+    return {
+      formId: input.formId,
+      kind: 'authz',
+      toolName: 'bash',
+      command: input.command,
+      cwd,
+      ...(matchedRule !== undefined ? { matchedRule } : {})
+    }
   }
+  if (toolName === 'install_skill') {
+    if (!('sourceDir' in input) || typeof input.sourceDir !== 'string' || input.sourceDir === '') {
+      return null
+    }
+    if (!('name' in input) || typeof input.name !== 'string' || input.name === '') return null
+    if (!('files' in input) || !Array.isArray(input.files)) return null
+    if (!('overwrite' in input) || typeof input.overwrite !== 'boolean') return null
+    if (!('adapterSummary' in input) || typeof input.adapterSummary !== 'string') return null
+    const files: string[] = []
+    for (const f of input.files) {
+      if (typeof f !== 'string') return null
+      files.push(f)
+    }
+    return {
+      formId: input.formId,
+      kind: 'authz',
+      toolName: 'install_skill',
+      sourceDir: input.sourceDir,
+      name: input.name,
+      overwrite: input.overwrite,
+      files,
+      adapterSummary: input.adapterSummary
+    }
+  }
+  return null
 }
 
 /** 可识别子命令（小写词/连字符；旗标与路径不算）——§11-4 默认规则口径 */

@@ -314,7 +314,10 @@ export function createOpenPencilTools(
   modelSupportsVision?: () => boolean
 ) {
   const toolSet = [
-    ...CORE_TOOLS,
+    // availability:'eval' 档工具对 agent 隐藏、core/桥面保留（2026-09-22 owner 拍板：
+    // eval 滥用倾向过强移出 agent 面）。ALL_TOOLS 不动——active-design-host 桥探针
+    // 经 tool-handlers 的 ALL_TOOLS.find 直调 core eval，动它会打断宿主槽位探测。
+    ...CORE_TOOLS.filter((def) => def.availability !== 'eval'),
     ...EXTENDED_TOOLS.filter((def) => (EXTENDED_WHITELIST as readonly string[]).includes(def.name)),
     // T52-T57（S4 W2）：fork 工具暴露——brief 三件套 / setup_design / look /
     // prepare_hero_scaffold 等；T72：internal 段（image_gen_begin/commit）过滤——

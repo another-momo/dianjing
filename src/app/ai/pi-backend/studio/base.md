@@ -51,7 +51,7 @@ Full grammar: `base/references/render-jsx.md` (load before first render). The ru
 - ⚠ **describe severity levels:** fix `error` always, `warning` when possible, ignore `info` (cosmetic). Omit `depth` — it auto-adapts.
 - 👁 **`look` is for questions `describe` cannot answer** (text-over-image legibility, generated-image content, visual harmony) — not a replacement for `describe`. Don't `look` at a node you just looked at and haven't changed since.
 - ⚠ Don't repeat identical `describe`/`viewport_zoom_to_fit` calls — check your last calls before repeating.
-- 💾 **Exporting a file = `export_image_to_file`, always inside the workspace** — it is the sanctioned way to hand the user a file when they ask for one. If the user names a path outside the workspace, say the boundary plainly, save into the workspace instead, and tell them where it landed — never fail silently, never refuse the task. Never export via `eval`.
+- 💾 **Exporting a file = `export_image_to_file`, always inside the workspace** — it is the sanctioned way to hand the user a file when they ask for one. If the user names a path outside the workspace, say the boundary plainly, save into the workspace instead, and tell them where it landed — never fail silently, never refuse the task.
 
 # File & shell tools (when available)
 
@@ -80,15 +80,6 @@ No single tool changes every property — pick the tool by the property you need
 - ❌ No post-render tool exists for: letterSpacing / lineHeight / textCase — set them in render JSX (`<Text lineHeight={...} letterSpacing={...} textCase="upper">`)
 - ⚠ `batch_update` supports a fixed prop whitelist — its tool description is the single source of truth. `font_size`, `text`, `fills`, `effects` are NOT in it.
 
-# Advanced tools
+# Coverage gaps
 
-`eval` is a **last-resort fallback** — reach for it ONLY when no dedicated tool covers the operation (variables, boolean ops, component-instance manipulation, or a one-shot read of internal state the dedicated tools don't expose). If a dedicated tool exists for what you're doing, use it instead. The technical reasons (sync API surface that can desync from async node mutations, font-load no-op, counter ≠ confirmation) live in the `eval` tool description — you don't need them here, just respect the boundary.
-
-Do NOT use `eval` for any of the following — the listed tool is the right one:
-
-- Debugging layout or render output → delete the broken node, then `render` (or re-render with `replace_id`).
-- Bulk font / fill / stroke / effect / layout changes on existing nodes → loop the dedicated tool (`set_font`, `set_fill`, `set_stroke`, `set_effects`, `set_layout`, `batch_update` where applicable; see #Property → tool map for the full routing).
-- Creating or adding nodes → `render` (call `setup_design` first when the workspace itself is missing).
-- Exporting an image to a file → `export_image_to_file` (it is the only sanctioned export path — never export via `eval`).
-- Reading node properties → `describe` (or `look` for visual questions). Reaching for `eval` to read `figma.getNodeById(...)` is a smell.
-- Re-running an operation a dedicated tool already covers (counting children, listing pages, finding by id, etc.).
+Some operations have no dedicated tool (variables, boolean ops, component-instance manipulation). When a request needs one, say the boundary plainly and offer the closest tool-covered alternative — do not contort unrelated tools to fake the capability.

@@ -1,5 +1,5 @@
 /**
- * T87：capabilities store 单测——缺省 DEFAULTS（2026-09-18 翻转 readonly+true）、set/get 往返、坏 JSON 降级、
+ * T87：capabilities store 单测——缺省 DEFAULTS（2026-09-22 翻转 full+true）、set/get 往返、坏 JSON 降级、
  * listSkills 仅在 ON 时扫 + 双源去重 + 脱敏白名单。
  * T96：v2 形状（builtinTools 三档 + agentSkills 解耦）+ v1→v2 读盘迁移钉扎。
  * T91o：expandSkillText 宿主侧展开——OFF 透传 / 贴中文展开 / 多 skill /
@@ -29,9 +29,9 @@ afterEach(() => {
   rmSync(rootDir, { recursive: true, force: true })
 })
 
-test('T87 缺省：capabilities.json 不存在 → DEFAULTS（2026-09-18 翻转 readonly+true）', () => {
+test('T87 缺省：capabilities.json 不存在 → DEFAULTS（2026-09-22 翻转 full+true）', () => {
   const store = createCapabilitiesStore({ agentDir, rootDir })
-  expect(store.get()).toEqual({ builtinTools: 'readonly', agentSkills: true })
+  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true })
   expect(store.listSkills()).toEqual([])
   // 未触发写入（缺省走读 fail-safe，不应副作用生成 capabilities.json）
   expect(existsSync(join(agentDir, 'capabilities.json'))).toBe(false)
@@ -40,18 +40,18 @@ test('T87 缺省：capabilities.json 不存在 → DEFAULTS（2026-09-18 翻转 
 test('T87 写读往返：set ON → get ON；文件落盘 0o600 含 version+builtinTools+agentSkills', () => {
   const store = createCapabilitiesStore({ agentDir, rootDir })
   const next = store.set({ agentSkills: true })
-  // T96：builtinTools 缺省保留旧值（缺省 'readonly'）——set 只写 agentSkills 的兼容面
-  expect(next).toEqual({ builtinTools: 'readonly', agentSkills: true })
-  expect(store.get()).toEqual({ builtinTools: 'readonly', agentSkills: true })
+  // T96：builtinTools 缺省保留旧值（缺省 'full'）——set 只写 agentSkills 的兼容面
+  expect(next).toEqual({ builtinTools: 'full', agentSkills: true })
+  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true })
 
   // 重新构造读面（验落盘而非仅内存缓存）
   const reread = createCapabilitiesStore({ agentDir, rootDir })
-  expect(reread.get()).toEqual({ builtinTools: 'readonly', agentSkills: true })
+  expect(reread.get()).toEqual({ builtinTools: 'full', agentSkills: true })
 
   // 文件结构钉扎（T96：写盘恒 version:2）
   const raw = JSON.parse(readFileSync(join(agentDir, 'capabilities.json'), 'utf8')) as unknown
   expect((raw as { version: number }).version).toBe(2)
-  expect((raw as { builtinTools: string }).builtinTools).toBe('readonly')
+  expect((raw as { builtinTools: string }).builtinTools).toBe('full')
   expect((raw as { agentSkills: boolean }).agentSkills).toBe(true)
 })
 
@@ -72,14 +72,14 @@ test('T96 写读往返：三档位 builtinTools 落盘回读', () => {
 test('T87 坏 JSON 降级：写入非 JSON 内容 → 下次构造读 DEFAULTS', () => {
   writeFileSync(join(agentDir, 'capabilities.json'), '{not-json}', 'utf8')
   const store = createCapabilitiesStore({ agentDir, rootDir })
-  expect(store.get()).toEqual({ builtinTools: 'readonly', agentSkills: true })
+  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true })
   expect(store.listSkills()).toEqual([])
 })
 
 test('T87 缺字段降级：写入空对象 → DEFAULTS', () => {
   writeFileSync(join(agentDir, 'capabilities.json'), '{}', 'utf8')
   const store = createCapabilitiesStore({ agentDir, rootDir })
-  expect(store.get()).toEqual({ builtinTools: 'readonly', agentSkills: true })
+  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true })
 })
 
 test('T96 v1→v2 迁移：version:1 + agentSkills:true → builtinTools full（旧同闸语义）', () => {
@@ -115,7 +115,7 @@ test('T96 v2 非法 builtinTools → 降级 DEFAULTS（坏档位不残留）', (
     'utf8'
   )
   const store = createCapabilitiesStore({ agentDir, rootDir })
-  expect(store.get()).toEqual({ builtinTools: 'readonly', agentSkills: true })
+  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true })
 })
 
 test('T87 set 校验：agentSkills 非布尔 → 抛错且不写盘', () => {
