@@ -115,7 +115,9 @@
     "src/components/canvas/RendererDeadBanner.vue",
     "packages/core/src/canvas/renderer/dead.ts",
     "tests/engine/app/document/close/use.test.ts",
-    "tests/engine/render/canvas/canvaskit-null-guards.test.ts"
+    "tests/engine/render/canvas/canvaskit-null-guards.test.ts",
+    "packages/core/src/canvas/renderer/image-cache.ts",
+    "tests/engine/render/canvas/image-cache.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -2243,6 +2245,27 @@
       "id": "P363",
       "file": "packages/core/src/canvas/scene.ts",
       "reason": "B-3 UAF 审计存疑项堵洞（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 B-3）：renderShape 效果栅格缓存分支两处——r.surface.makeSurface() 返 null 仍 getCanvas 抛 TypeError；surface.makeImageSnapshot() 返 null 时 image.width() 抛 TypeError。两处补 null 守卫后走下方 nodePictureCache 既有失败分支（surface.delete / 不入缓存）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P364",
+      "file": "packages/core/src/canvas/renderer.ts",
+      "reason": "B-4 imageCache 有界 LRU（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 第二档）：imageCache 字段由 new Map<string, CKImage>() 换为 new ImageCache()（CKImage import 同摘）；行为变化仅在超 512MB 预算后逐出 LRU 条目",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P365",
+      "file": "packages/core/src/canvas/renderer/lifecycle.ts",
+      "reason": "B-4 imageCache 有界 LRU（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 第二档）：destroyRenderer 内 imageCache 逐出循环 + clear 两行收成单 r.imageCache.clear()——ResourceCache.clear() 自身全条目 dispose（reason='clear'），不再需要预循环",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P366",
+      "file": "packages/core/src/canvas/fills.ts",
+      "reason": "B-4 imageCache 有界 LRU（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 第二档）：applyImageFill 内 imageCache.set 拒收（单条超预算）时所有权留调用方——releaseAfterShader 标记、shader 装上 fillPaint 后再 img.delete()（Skia 对已装 shader 持 C++ 引用，对齐 scene.ts「画完再删」先例；review 补洞修正删除时序，原交付在 width() 前删会抛已删对象错）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-22"
     }

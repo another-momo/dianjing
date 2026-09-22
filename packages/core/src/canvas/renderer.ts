@@ -37,7 +37,6 @@ import { createGlyphSilhouetteCache } from './text/derived'
 import { TextPreparationCache } from './text/preparation-cache'
 export type { MeasurementMode, RenderOverlays, RulerTheme } from './renderer/types'
 import type {
-  Image as CKImage,
   Path,
   CanvasKit,
   Surface,
@@ -67,6 +66,7 @@ export interface PendingFontNode {
 }
 
 import { EffectRasterCache } from './renderer/effect-raster-cache'
+import { ImageCache } from './renderer/image-cache'
 import { TiledSceneController } from './renderer/tiles'
 import type { RenderOverlays, RulerTheme } from './renderer/types'
 
@@ -101,7 +101,7 @@ export class SkiaRenderer {
     | undefined
   pendingFontNodes = new Map<string, PendingFontNode>()
   textPictureGenerations = new Map<string, { data: Uint8Array; generation: number }>()
-  imageCache = new Map<string, CKImage>()
+  imageCache = new ImageCache()
   vectorPathCache = new Map<string, Path[]>()
   vectorStrokePathCache = new Map<string, Path[]>()
   vectorStrokeOutlineCache = new Map<string, Path[]>()

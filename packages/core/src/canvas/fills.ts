@@ -442,6 +442,9 @@ export function applyImageFill(
   const hash = fill.imageHash
   if (!hash) return false
   let img = r.imageCache.get(hash)
+  // 缓存拒收（单条超预算）时所有权留在调用方——标记后在 shader 建完再删
+  // （Skia 对已装 shader 持 C++ 引用，删 JS 绑定不影响绘制且不泄漏）
+  let releaseAfterShader = false
   if (!img) {
     const data = graph.images.get(hash)
     if (!data) return false
@@ -449,7 +452,9 @@ export function applyImageFill(
     if (!decoded) return false
     img = decoded.makeCopyWithDefaultMipmaps()
     decoded.delete()
-    r.imageCache.set(hash, img)
+    if (!r.imageCache.set(hash, img)) {
+      releaseAfterShader = true
+    }
   }
 
   const imgW = img.width()
@@ -467,6 +472,7 @@ export function applyImageFill(
       localMatrix
     )
     r.fillPaint.setShader(shader)
+    if (releaseAfterShader) img.delete()
     return true
   }
 
@@ -479,6 +485,7 @@ export function applyImageFill(
     localMatrix
   )
   r.fillPaint.setShader(shader)
+  if (releaseAfterShader) img.delete()
   return true
 }
 

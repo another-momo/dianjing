@@ -30,7 +30,6 @@ export function destroyRenderer(r: SkiaRenderer): void {
   if (r.destroyed) return
   r.destroyed = true
 
-  for (const img of r.imageCache.values()) img.delete()
   r.imageCache.clear()
   disposePathCaches(r)
   r.fillPaint.delete()
