@@ -73,6 +73,8 @@
 - i18n 新键成对落地：en 源 `packages/vue/src/i18n/messages/<domain>.ts` + `locales/zh-cn/<domain>.json`；zh 译文 Latin+CJK 混排时同步登记 `tools/i18n/mixed-script-baseline.txt`——check:i18n 质量闸，漏登即红。
 - 悬浮提示禁用 native `title` 属性（check:arch 硬拦）——一律 Tip 组件包裹。
 - 工具 description 里的禁令必须配显式 GO 从句（「用户显式给出 X 时即调用」）——纯负面戒律会被模型误读成拒绝依据。
+- vue 模板判别联合分支禁布尔 computed guard——`v-if="isX"` 不收窄联合，模板取成员独有字段即 TS2339（.vue 盲区下只有 check:vue 能兜）；用返回收窄对象的 computed（`xRequest = computed<X | null>(() => …)`），模板改取收窄对象。
+- 对外文本面（UI 文案 / 对话框 / 错误提示 + prompt / skill 文档 / 工具描述）禁内部坐标：仓内路径行号、内部 slug / workstream 名、机制名（T 号 / 门禁项 / zone 编号）、BOARD / 决策 log / 讨论稿 / commit 引用、协作机制术语——用户与 agent 可见文本用对方语言（工具用 agent 可见名、设置项用 UI 名）。
 
 ## 6. 测试纪律
 
@@ -84,6 +86,8 @@
 - globalThis 桩（fetch 等）的还原钩子禁放共享 helpers 的模块级 `afterEach`——bun 模块缓存致该钩子只随首个 import 者注册一次，第二消费者的桩无人还原、泄漏污染同进程分片后续全部 fetch；每个消费文件各自 `afterEach` 还原。
 - 桩贴真实故障边界：协议/验真类路径桩全局 fetch（或 socket），不桩 SDK 方法——SDK 方法桩遵守 throw/成功契约，盖不住实现吞状态。
 - 夹具用的虚空路径/名字必须在所有 CI 平台都不存在——`/etc/hosts/x` 在 Linux 是真实文件（报 ENOTDIR 而非 ENOENT）；虚空名用唯一造名。
+- 测试禁裸 await 永不绝的闸门 promise（authz 闸门式）——await 即全文件挂死；用 resolver 模式：桩先暴露 resolve 句柄，驱动动作后手动决再断言。
+- 直钉内部函数的单测覆盖不到装配缝（装配层的过滤 / 接线 / TDZ——assembleSession 式）——装配层行为改动须配装配面钉扎：直调装配入口断言终态。
 
 ## 7. 仓库地图
 
