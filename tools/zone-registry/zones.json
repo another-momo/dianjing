@@ -109,7 +109,9 @@
     "src/components/settings/mcp-connections/types.ts",
     "src/components/settings/mcp-connections/form.ts",
     "src/components/settings/mcp-connections/use.ts",
-    "src/components/settings/mcp-connections/mutations.ts"
+    "src/components/settings/mcp-connections/mutations.ts",
+    "tests/engine/render/canvas/raster-budget.test.ts",
+    "tests/engine/io/fig/export/thumbnail-fallback.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -2099,6 +2101,62 @@
       "reason": "2026-09-21 viewport 聚焦断头路修复（仓外 docs/202609201112-viewport-focus-dead-path-review.md §5）：viewport_zoom_to_fit 不再写死 zoom:1——改走 figma.viewport.scrollAndZoomIntoView 复用其 fit 算法（padding 80、min(viewW/contentW, viewH/contentH, 1)），返回增 zoom 字段；写回编辑器经 P131 的 onViewportChange 通路",
       "disposition": "permanent",
       "lastReviewed": "2026-09-21"
+    },
+    {
+      "id": "P345",
+      "file": "packages/core/src/io/formats/fig/export.ts",
+      "reason": "CanvasKit WASM 崩溃逃生舱（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 A-1）：renderFigThumbnail 与 sceneNodeToKiwi 调用链（children loop / shared-style loop）加 try/catch——CanvasKit 单例堆损坏抛 RuntimeError 时降级为 1×1 透明 PNG 占位或跳过单节点 nodeChanges，存盘照常；不阻断 dirty 清除。console.warn 带 error message，不吞错",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22",
+      "task": "A-1"
+    },
+    {
+      "id": "P346",
+      "file": "packages/core/src/io/formats/raster/render.ts",
+      "reason": "CanvasKit WASM 崩溃逃生舱（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 B-1/B-2）：renderToSurface 资源所有权收敛到单一 finally（highResImage/downsamplePixels/downsampleSurface/image 全覆盖，释放后置 null 防 makeImageSnapshot 返 null 时 .delete() 抛 TypeError）；新增 MAX_RASTER_BYTES=512MB 与 RasterBudgetExceededError，renderNodesToImage 按 content bounds × scale × 超采样系数先算字节，超预算按 renderScale 折半回退（最小 1×），仍超则明确拒绝——正常尺寸导出行为零变化",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22",
+      "task": "B-1,B-2"
+    },
+    {
+      "id": "P347",
+      "file": "packages/vue/src/i18n/messages/files.ts",
+      "reason": "导出尺寸核算拒绝文案（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 B-2）：files 命名空间增 exportTooLarge（params 模板：Export is too large to render (selection is {contentW}×{contentH} px at {scale}× — would allocate more than 512 MB)...）——下游 Vue 层可本地化展示 RasterBudgetExceededError",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22",
+      "task": "B-2"
+    },
+    {
+      "id": "P348",
+      "file": "packages/vue/src/i18n/locales/zh-cn/files.json",
+      "reason": "导出尺寸核算拒绝文案·中文（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 B-2）：exportTooLarge 翻译——保留 {contentW}/{contentH}/{scale} 占位符，'512 MB' 拉丁数字混入 CJK 已登记到 P206 mixed-script baseline",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22",
+      "task": "B-2"
+    },
+    {
+      "id": "P349",
+      "file": "tools/i18n/mixed-script-baseline.txt",
+      "reason": "B-2 同批：增 zh-cn:files.exportTooLarge——'512 MB' 拉丁数字与 CJK 文案混排",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22",
+      "task": "B-2"
+    },
+    {
+      "id": "P350",
+      "file": "packages/core/src/io/formats/raster/index.ts",
+      "reason": "B-2 同批：再导出 MAX_RASTER_BYTES / RasterBudgetExceededError（来自 P346）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22",
+      "task": "B-2"
+    },
+    {
+      "id": "P351",
+      "file": "packages/core/src/io/index.ts",
+      "reason": "B-2 同批：再导出 MAX_RASTER_BYTES / RasterBudgetExceededError（来自 P346）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22",
+      "task": "B-2"
     }
   ],
   "deletedPaths": [

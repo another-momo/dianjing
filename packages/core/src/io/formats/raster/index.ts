@@ -1,4 +1,6 @@
 export {
+  MAX_RASTER_BYTES,
+  RasterBudgetExceededError,
   computeContentBounds,
   renderNodesToImage,
   renderThumbnail,

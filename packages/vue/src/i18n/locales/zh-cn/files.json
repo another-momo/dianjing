@@ -25,5 +25,6 @@
   "newDesign": "新建设计",
   "noMatchingFiles": "没有与“{query}”匹配的文件。",
   "saveAsPrompt": "另存为：",
-  "browserFileAPINotSupported": "你的浏览器不支持本地文件 API。文件将被下载，而不是保存在原位置。"
+  "browserFileAPINotSupported": "你的浏览器不支持本地文件 API。文件将被下载，而不是保存在原位置。",
+  "exportTooLarge": "导出尺寸过大，无法渲染（选区为 {contentW}×{contentH} 像素，按 {scale}× 缩放将占用超过 512 MB）。请降低缩放比例或裁剪选区后再试。"
 }

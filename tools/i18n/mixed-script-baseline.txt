@@ -101,3 +101,4 @@ zh-cn:updates.unavailable
 
 zh-cn:credentials.apiKey
 zh-cn:credentials.rememberDevice
+zh-cn:files.exportTooLarge

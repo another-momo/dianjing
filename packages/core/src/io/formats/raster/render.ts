@@ -1,4 +1,4 @@
-import type { CanvasKit, Canvas } from 'canvaskit-wasm'
+import type { CanvasKit, Canvas, Image, MallocObj, Surface } from 'canvaskit-wasm'
 
 import {
   getWorldMatrix,
@@ -99,6 +99,73 @@ function findAlphaBounds(ck: CanvasKit, canvas: Canvas, width: number, height: n
 
 const MIN_TRANSPARENT_TRIM_INSET = 2
 
+/**
+ * B-2（§4 根因治理·第一档）：导出前置字节预算——防止长图 / 超采样组合
+ * 在 CanvasKit 单例堆上一次吃掉数百 MB～1GB。所有 raster 导出入口都按
+ * `content bounds × scale × 超采样系数 × 4 字节` 先算，落到本阈值即按
+ * renderScale 折半回退，最小 1×；仍超即抛 RasterBudgetExceededError 由调用
+ * 层本地化文案。512 MB 阈值远高于正常导出（4K 屏截图 ~50 MB），普通画布
+ * 行为零变化。
+ */
+export const MAX_RASTER_BYTES = 512 * 1024 * 1024
+
+/**
+ * Thrown when the requested raster export exceeds {@link MAX_RASTER_BYTES} even
+ * at the smallest allowed supersample factor (1×). Carries structured fields so
+ * the host (Vue UI, agent bridge, .fig save chain) can render a localized
+ * message and pick a recovery scale without re-parsing the string.
+ */
+export class RasterBudgetExceededError extends Error {
+  readonly name = 'RasterBudgetExceededError'
+  readonly contentW: number
+  readonly contentH: number
+  readonly scale: number
+  readonly projectedBytes: number
+
+  constructor(contentW: number, contentH: number, scale: number, projectedBytes: number) {
+    super(
+      `Raster export exceeds ${MAX_RASTER_BYTES} byte budget (content ${contentW}×${contentH} at ${scale}× would allocate ${projectedBytes} bytes)`
+    )
+    this.contentW = contentW
+    this.contentH = contentH
+    this.scale = scale
+    this.projectedBytes = projectedBytes
+  }
+}
+
+function projectedRasterBytes(
+  contentW: number,
+  contentH: number,
+  scale: number,
+  renderScale: number
+): number {
+  const w = Math.ceil(contentW * scale * renderScale)
+  const h = Math.ceil(contentH * scale * renderScale)
+  return w * h * 4
+}
+
+/**
+ * Returns the largest renderScale ≤ `requestedRenderScale` (minimum 1) such
+ * that the projected high-res surface allocation stays within the byte budget.
+ * Throws {@link RasterBudgetExceededError} if even renderScale=1 overflows.
+ */
+function chooseRasterRenderScale(
+  contentW: number,
+  contentH: number,
+  scale: number,
+  requestedRenderScale: number
+): number {
+  let renderScale = Math.max(1, Math.floor(requestedRenderScale))
+  while (renderScale > 1) {
+    const bytes = projectedRasterBytes(contentW, contentH, scale, renderScale)
+    if (bytes <= MAX_RASTER_BYTES) return renderScale
+    renderScale = Math.max(1, Math.floor(renderScale / 2))
+  }
+  const baseBytes = projectedRasterBytes(contentW, contentH, scale, 1)
+  if (baseBytes <= MAX_RASTER_BYTES) return 1
+  throw new RasterBudgetExceededError(contentW, contentH, scale, baseBytes)
+}
+
 function shouldTrimAlphaBounds(
   alphaBounds: NonNullable<ReturnType<typeof findAlphaBounds>>,
   width: number,
@@ -112,6 +179,35 @@ function shouldTrimAlphaBounds(
       height - alphaBounds.maxY
     ) >= MIN_TRANSPARENT_TRIM_INSET
   )
+}
+
+// CanvasKit's `encodeToBytes` returns null for JPEG/WEBP in this build, so
+// fall back to encoding the raw pixels through the browser canvas.
+function encodeRasterViaBrowserFallback(
+  ck: CanvasKit,
+  renderer: SkiaRenderer,
+  downsampleCanvas: Canvas,
+  alphaBounds: ReturnType<typeof findAlphaBounds>,
+  width: number,
+  height: number,
+  format: ExportFormat,
+  quality: number
+): Uint8Array | null {
+  if (format !== 'JPG' && format !== 'WEBP') return null
+  const exportWidth = alphaBounds ? alphaBounds.maxX - alphaBounds.minX : width
+  const exportHeight = alphaBounds ? alphaBounds.maxY - alphaBounds.minY : height
+  const exportMinX = alphaBounds ? alphaBounds.minX : 0
+  const exportMinY = alphaBounds ? alphaBounds.minY : 0
+
+  const rawPixels = downsampleCanvas.readPixels(exportMinX, exportMinY, {
+    alphaType: ck.AlphaType.Unpremul,
+    colorType: ck.ColorType.RGBA_8888,
+    colorSpace: ck.ColorSpace.SRGB,
+    width: exportWidth,
+    height: exportHeight
+  })
+  if (!(rawPixels instanceof Uint8Array)) return null
+  return renderer.encodeRasterFallback(rawPixels, exportWidth, exportHeight, format, quality)
 }
 
 function renderToSurface(
@@ -129,6 +225,13 @@ function renderToSurface(
 ): Uint8Array | null {
   const renderWidth = width * renderScale
   const renderHeight = height * renderScale
+  // B-2 防御层：上游入口已做预算降级；此处兜底——直接把 width/height/renderScale
+  // 代入字节预算校验，避免外部调用绕过入口（如 headless 路径、自定义 setup）
+  // 时把巨型分配提交给 CanvasKit 单例。
+  const requestedBytes = renderWidth * renderHeight * 4
+  if (requestedBytes > MAX_RASTER_BYTES) {
+    throw new RasterBudgetExceededError(width, height, 1, requestedBytes)
+  }
   const pixels = ck.Malloc(Uint8Array, renderWidth * renderHeight * 4)
   const surface = ck.MakeRasterDirectSurface(
     {
@@ -146,6 +249,15 @@ function renderToSurface(
     return null
   }
 
+  // B-1（§4 逃生舱·第一档·无条件正确）：资源所有权收敛到函数作用域顶部，
+  // 释放后置 null 防重复——makeImageSnapshot() 返 null 时 .delete() 会抛
+  // TypeError，泄漏会反馈给 CanvasKit 单例堆。单一 finally 覆盖所有退出路径
+  // （正常返回 / 早返 / 抛错），成功路径语义零变化。
+  let highResImage: Image | null = null
+  let downsamplePixels: MallocObj | null = null
+  let downsampleSurface: Surface | null = null
+  let image: Image | null = null
+
   try {
     const canvas = surface.getCanvas()
     canvas.scale(renderScale, renderScale)
@@ -153,9 +265,12 @@ function renderToSurface(
     renderer.renderSceneToCanvas(canvas, renderGraph, pageId)
     surface.flush()
 
-    const highResImage = surface.makeImageSnapshot()
-    const downsamplePixels = ck.Malloc(Uint8Array, width * height * 4)
-    const downsampleSurface = ck.MakeRasterDirectSurface(
+    // d.ts 把 makeImageSnapshot 标为非空返回，运行时实际可返 null——cast 保住守卫
+    highResImage = surface.makeImageSnapshot() as Image | null
+    if (!highResImage) return null
+
+    downsamplePixels = ck.Malloc(Uint8Array, width * height * 4)
+    downsampleSurface = ck.MakeRasterDirectSurface(
       {
         alphaType: ck.AlphaType.Premul,
         colorType: ck.ColorType.RGBA_8888,
@@ -166,11 +281,8 @@ function renderToSurface(
       downsamplePixels,
       width * 4
     )
-    if (!downsampleSurface) {
-      ck.Free(downsamplePixels)
-      highResImage.delete()
-      return null
-    }
+    if (!downsampleSurface) return null
+
     const downsampleCanvas = downsampleSurface.getCanvas()
     downsampleCanvas.clear(ck.TRANSPARENT)
     downsampleCanvas.drawImageRectOptions(
@@ -183,6 +295,7 @@ function renderToSurface(
     )
     downsampleSurface.flush()
     highResImage.delete()
+    highResImage = null
 
     const foundAlphaBounds = trimTransparent
       ? findAlphaBounds(ck, downsampleCanvas, width, height)
@@ -191,49 +304,37 @@ function renderToSurface(
       foundAlphaBounds && shouldTrimAlphaBounds(foundAlphaBounds, width, height)
         ? foundAlphaBounds
         : null
-    const image = alphaBounds
-      ? downsampleSurface.makeImageSnapshot([
-          alphaBounds.minX,
-          alphaBounds.minY,
-          alphaBounds.maxX,
-          alphaBounds.maxY
-        ])
-      : downsampleSurface.makeImageSnapshot()
+    image = (
+      alphaBounds
+        ? downsampleSurface.makeImageSnapshot([
+            alphaBounds.minX,
+            alphaBounds.minY,
+            alphaBounds.maxX,
+            alphaBounds.maxY
+          ])
+        : downsampleSurface.makeImageSnapshot()
+    ) as Image | null
+    if (!image) return null
+
     const encoded = image.encodeToBytes(ckImageFormat(ck, format), quality)
     let resultBytes: Uint8Array | null = encoded ? new Uint8Array(encoded) : null
+    resultBytes ??= encodeRasterViaBrowserFallback(
+      ck,
+      renderer,
+      downsampleCanvas,
+      alphaBounds,
+      width,
+      height,
+      format,
+      quality
+    )
 
-    // CanvasKit's `encodeToBytes` returns null for JPEG/WEBP in this build, so
-    // fall back to encoding the raw pixels through the browser canvas.
-    if (!resultBytes && (format === 'JPG' || format === 'WEBP')) {
-      const exportWidth = alphaBounds ? alphaBounds.maxX - alphaBounds.minX : width
-      const exportHeight = alphaBounds ? alphaBounds.maxY - alphaBounds.minY : height
-      const exportMinX = alphaBounds ? alphaBounds.minX : 0
-      const exportMinY = alphaBounds ? alphaBounds.minY : 0
-
-      const rawPixels = downsampleCanvas.readPixels(exportMinX, exportMinY, {
-        alphaType: ck.AlphaType.Unpremul,
-        colorType: ck.ColorType.RGBA_8888,
-        colorSpace: ck.ColorSpace.SRGB,
-        width: exportWidth,
-        height: exportHeight
-      })
-
-      if (rawPixels instanceof Uint8Array) {
-        resultBytes = renderer.encodeRasterFallback(
-          rawPixels,
-          exportWidth,
-          exportHeight,
-          format,
-          quality
-        )
-      }
-    }
-
-    image.delete()
-    downsampleSurface.delete()
-    ck.Free(downsamplePixels)
     return resultBytes
   } finally {
+    image?.delete()
+    downsampleSurface?.delete()
+    highResImage?.delete()
+    if (downsamplePixels) ck.Free(downsamplePixels)
     surface.delete()
     ck.Free(pixels)
   }
@@ -319,6 +420,16 @@ export function renderNodesToImage(
   }
 
   const quality = options.quality ?? (options.format === 'PNG' ? 100 : 90)
+  // B-2（§4 根因治理·第一档）：先按字节预算选 renderScale——超采样系数从
+  // 2×/4× 折半回退到 1×，溢出仍超则向上抛 RasterBudgetExceededError。
+  // pixelW/pixelH 来自同一预算（renderScale=1 时的尺寸），正常导出不变。
+  const requestedRenderScale = Math.max(2, options.scale)
+  const renderScale = chooseRasterRenderScale(
+    contentW,
+    contentH,
+    options.scale,
+    requestedRenderScale
+  )
   return renderToSurface(
     ck,
     renderer,
@@ -334,9 +445,7 @@ export function renderNodesToImage(
       canvas.translate(-bounds.minX, -bounds.minY)
     },
     options.trimTransparent,
-    // Match the supersample grid to the output scale — upscales (scale > 2)
-    // would otherwise resample up from a 2x render with linear filtering.
-    Math.max(2, options.scale)
+    renderScale
   )
 }
 
