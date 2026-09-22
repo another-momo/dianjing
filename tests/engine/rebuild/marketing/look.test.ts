@@ -15,7 +15,7 @@
  * 仍直接 import 定义做细粒度行为断言，注册面钉扎见 registry 相关断言。
  */
 
-import { describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import type { UIMessageChunk } from 'ai'
@@ -29,6 +29,7 @@ import {
   sanitizeMediaToolOutput
 } from '@/app/ai/pi-backend/media-output'
 
+import { isRendererDead, markRendererDead, resetRendererDead } from '#core/canvas/renderer/dead'
 import { lookTool } from '#core/tools/fork/marketing/look'
 
 import { expectDefined } from '#tests/helpers/assert'
@@ -462,6 +463,87 @@ describe('look tool', () => {
     expect(result.channel).toBe('A')
     expect(result.focus).toBe('layout proportions')
     expect(typeof result.note).toBe('string')
+  })
+})
+
+describe('look tool — renderer-dead fail-fast (A-3)', () => {
+  // The renderer-dead latch is a module-level singleton; isolate each
+  // case so leftover state from one test cannot pollute another.
+  beforeEach(() => {
+    resetRendererDead()
+  })
+
+  afterEach(() => {
+    resetRendererDead()
+  })
+
+  test('returns a clear save-and-restart error instead of attempting to render', async () => {
+    const { graph, figma } = setupToolTest()
+    let exportCalls = 0
+    mockExportImage(figma, [])
+    figma.exportImage = async () => {
+      exportCalls++
+      return new Uint8Array([137, 80, 78, 71])
+    }
+    const pageId = graph.getPages()[0].id
+    const frame = graph.createNode('FRAME', pageId, { name: 'Detail', width: 800, height: 600 })
+
+    markRendererDead({ message: 'table index is out of bounds', name: 'RuntimeError', at: 0 })
+
+    const result = await runLook(figma, { id: frame.id })
+
+    expect(isRendererDead()).toBe(true)
+    expect(result.error).toContain('renderer has crashed')
+    expect(result.error).toContain('save the document')
+    expect(result.error).toContain('restart')
+    // Crucial: the export pipeline must NOT have been invoked — the tool
+    // would just throw inside exportImage and burn the caller's turn.
+    expect(exportCalls).toBe(0)
+    expect(result.base64).toBeUndefined()
+    expect(result.note).toBeUndefined()
+  })
+
+  test('still fails fast on the original-bytes path (no render needed)', async () => {
+    // Even nodes that bypass renderImage (single IMAGE fill) must not
+    // return bytes from a dead renderer — the model's expectation is
+    // "ask the user to recover", not "here is a stale image".
+    const { graph, figma } = setupToolTest()
+    const pageId = graph.getPages()[0].id
+    const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4])
+    const { hash } = figma.createImage(pngBytes)
+    const rect = graph.createNode('RECTANGLE', pageId, { name: 'Photo', width: 100, height: 100 })
+    graph.updateNode(rect.id, {
+      fills: [
+        {
+          type: 'IMAGE',
+          imageHash: hash,
+          color: { r: 0, g: 0, b: 0, a: 0 },
+          opacity: 1,
+          visible: true
+        }
+      ]
+    })
+
+    markRendererDead({ message: 'memory access out of bounds', name: 'RuntimeError', at: 0 })
+
+    const result = await runLook(figma, { id: rect.id })
+
+    expect(result.error).toContain('renderer has crashed')
+    expect(result.base64).toBeUndefined()
+  })
+
+  test('normal flow is unaffected when the latch is clear', async () => {
+    // Sanity: the new gate must not regress the existing happy path.
+    const { graph, figma } = setupToolTest()
+    mockExportImage(figma, [])
+    const pageId = graph.getPages()[0].id
+    const frame = graph.createNode('FRAME', pageId, { name: 'Card', width: 800, height: 600 })
+
+    const result = await runLook(figma, { id: frame.id })
+
+    expect(isRendererDead()).toBe(false)
+    expect(result.error).toBeUndefined()
+    expect(result.mimeType).toBe('image/jpeg')
   })
 })
 

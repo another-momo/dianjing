@@ -9,6 +9,13 @@ export interface CanvasContext {
   hitTestSectionTitle: (cx: number, cy: number) => SceneNode | null
   hitTestComponentLabel: (cx: number, cy: number) => SceneNode | null
   hitTestFrameTitle: (cx: number, cy: number) => SceneNode | null
+  /**
+   * Flipped true when the WASM renderer has crashed and been silenced
+   * (docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 A-3).
+   * UI surfaces a persistent prompt; tool calls fail fast while this
+   * is true. Only resets on a fresh editor mount.
+   */
+  rendererDead: Ref<boolean>
 }
 
 export const CANVAS_KEY: InjectionKey<CanvasContext> = Symbol('canvas')

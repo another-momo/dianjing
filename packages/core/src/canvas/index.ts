@@ -15,3 +15,15 @@ export { hitTestGuides, type GuideHit } from './guides/hit-test'
 export type { GuideOverlayState, GuidePreview, GuideSelection } from './guides/types'
 export { canvasLabelForeground } from './labels/color'
 export { SkiaRenderer, type RenderOverlays, type RulerTheme } from './renderer'
+export {
+  getRendererDeadState,
+  isRendererDead,
+  markRendererDead,
+  resetRendererDead,
+  subscribeRendererDeadState,
+  withCrashGuard,
+  type CrashCapture,
+  type RendererCrash,
+  type RendererDeadListener,
+  type RendererDeadSnapshot
+} from './renderer/dead'

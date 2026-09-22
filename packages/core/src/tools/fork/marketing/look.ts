@@ -15,6 +15,7 @@ import type { Fill, SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
 import { detectImageMime, encodeBase64 } from '#core/bytes'
+import { isRendererDead } from '#core/canvas'
 import type { TileWorldBounds } from '#core/canvas/renderer/tiles/geometry'
 import type { FigmaAPI } from '#core/figma-api'
 import { computeContentBounds } from '#core/io/formats/raster/render'
@@ -314,6 +315,16 @@ export const lookTool = defineTool({
       }
     }
     const targetId = id
+
+    // Fail fast on a dead renderer: any render call would just throw and
+    // burn the caller's turn. Tell the model to ask the user to save and
+    // restart so the canvas can be re-created cleanly.
+    if (isRendererDead()) {
+      return {
+        error:
+          'The canvas renderer has crashed and cannot produce images right now. Ask the user to save the document and restart the app to recover.'
+      }
+    }
 
     const node = figma.graph.getNode(targetId)
     if (!node) return { error: `Node "${targetId}" not found` }
