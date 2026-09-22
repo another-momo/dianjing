@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- scene dispatch stays together while shape domains live in sibling modules */
-import type { Canvas, Path } from 'canvaskit-wasm'
+import type { Canvas, Image as CKImage, Path, Surface } from 'canvaskit-wasm'
 
 import { type SceneNode, type SceneGraph, type Fill } from '@open-pencil/scene-graph'
 import type { ArrowEndpoint } from '@open-pencil/scene-graph/arrow-caps'
@@ -530,41 +530,45 @@ export function renderShape(
       colorType: r.ck.ColorType.RGBA_8888,
       alphaType: r.ck.AlphaType.Premul,
       colorSpace: r.ck.ColorSpace.SRGB
-    })
-    const rasterCanvas = surface.getCanvas()
-    try {
-      rasterCanvas.clear(r.ck.TRANSPARENT)
-      rasterCanvas.scale(scale, scale)
-      rasterCanvas.translate(margin, margin)
-      r.renderShapeUncached(rasterCanvas, node, graph)
-      surface.flush()
-      const image = surface.makeImageSnapshot()
-      const retained = r.effectRasterCache.set(node.id, {
-        image,
-        left: -margin,
-        top: -margin,
-        width,
-        height,
-        scale,
-        pixels: image.width() * image.height(),
-        fontGeneration: r.fontGeneration,
-        dependencyIds: node.childIds.slice(0, 1)
-      })
+    }) as Surface | null
+    if (surface) {
+      const rasterCanvas = surface.getCanvas()
       try {
-        canvas.drawImageRectOptions(
-          image,
-          r.ck.LTRBRect(0, 0, image.width(), image.height()),
-          r.ck.LTRBRect(-margin, -margin, node.width + margin, node.height + margin),
-          r.ck.FilterMode.Linear,
-          r.ck.MipmapMode.None,
-          null
-        )
+        rasterCanvas.clear(r.ck.TRANSPARENT)
+        rasterCanvas.scale(scale, scale)
+        rasterCanvas.translate(margin, margin)
+        r.renderShapeUncached(rasterCanvas, node, graph)
+        surface.flush()
+        const image = surface.makeImageSnapshot() as CKImage | null
+        if (image) {
+          const retained = r.effectRasterCache.set(node.id, {
+            image,
+            left: -margin,
+            top: -margin,
+            width,
+            height,
+            scale,
+            pixels: image.width() * image.height(),
+            fontGeneration: r.fontGeneration,
+            dependencyIds: node.childIds.slice(0, 1)
+          })
+          try {
+            canvas.drawImageRectOptions(
+              image,
+              r.ck.LTRBRect(0, 0, image.width(), image.height()),
+              r.ck.LTRBRect(-margin, -margin, node.width + margin, node.height + margin),
+              r.ck.FilterMode.Linear,
+              r.ck.MipmapMode.None,
+              null
+            )
+          } finally {
+            if (!retained) image.delete()
+          }
+          return
+        }
       } finally {
-        if (!retained) image.delete()
+        surface.delete()
       }
-      return
-    } finally {
-      surface.delete()
     }
   }
 

@@ -489,13 +489,17 @@ function stepSceneBackingBuild(r: SkiaRenderer, sceneVersion: number): boolean {
 
   if (build.index < build.childIds.length) return true
 
-  let image: CKImage
+  let image: CKImage | null
   try {
     build.surface.flush()
-    image = build.surface.makeImageSnapshot()
+    image = build.surface.makeImageSnapshot() as CKImage | null
   } finally {
     build.surface.delete()
     r.sceneBackingBuild = null
+  }
+  if (!image) {
+    r.sceneBackingNeedsCrispRender = true
+    return false
   }
   installSceneBackingImage(r, image, build.sceneVersion, build.positionPreviewVersion, backing)
   emitNavigationTrace('backing:crisp', {
@@ -525,8 +529,12 @@ function recordSceneBacking(r: SkiaRenderer, graph: SceneGraph, sceneVersion: nu
       }
     }
     surface.flush()
-    const image = surface.makeImageSnapshot()
-    installSceneBackingImage(r, image, sceneVersion, graph.positionPreviewVersion, backing)
+    const image = surface.makeImageSnapshot() as CKImage | null
+    if (image) {
+      installSceneBackingImage(r, image, sceneVersion, graph.positionPreviewVersion, backing)
+    } else {
+      r.sceneBackingNeedsCrispRender = true
+    }
     const recordMs = now() - startedAt
     emitNavigationTrace('backing:crisp', {
       buildMs: recordMs,

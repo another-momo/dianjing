@@ -91,7 +91,11 @@ export function renderTile(
     surface.flush()
     const flushMs = rendererNow() - flushStartedAt
     const snapshotStartedAt = rendererNow()
-    const image = surface.makeImageSnapshot()
+    const image = surface.makeImageSnapshot() as CKImage | null
+    if (!image) {
+      surfacePool.release(surface)
+      return null
+    }
     const snapshotMs = rendererNow() - snapshotStartedAt
     return {
       key,

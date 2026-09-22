@@ -114,7 +114,8 @@
     "tests/engine/io/fig/export/thumbnail-fallback.test.ts",
     "src/components/canvas/RendererDeadBanner.vue",
     "packages/core/src/canvas/renderer/dead.ts",
-    "tests/engine/app/document/close/use.test.ts"
+    "tests/engine/app/document/close/use.test.ts",
+    "tests/engine/render/canvas/canvaskit-null-guards.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -2221,6 +2222,27 @@
       "id": "P360",
       "file": "src/app/document/close/use.ts",
       "reason": "仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 A-2：Electron 分支注册 window.__dianjingHandleCloseRequest 供 main 经 executeJavaScript 调（走 confirmAppExit 共享 approval 单例）+ keydown 拦 Ctrl/Cmd+R 与 F5 硬刷变体（dirty 先确认再放行 reload）；handleCloseRequestImpl / matchesReloadKey / isMacPlatform 抽纯函数供单测",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P361",
+      "file": "packages/core/src/canvas/renderer/retained-backing.ts",
+      "reason": "B-3 UAF 审计存疑项堵洞（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 B-3）：CanvasKit 类型签名返回 Image | null 但运行时可返 null，原两处 makeImageSnapshot()（stepSceneBackingBuild / recordSceneBacking）未判空直接 install——补 null 守卫后放弃本次 install + 置 sceneBackingNeedsCrispRender 走既有重试分支（不新增机制）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P362",
+      "file": "packages/core/src/canvas/renderer/tiles/render.ts",
+      "reason": "B-3 UAF 审计存疑项堵洞（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 B-3）：renderTile 在 surface.makeImageSnapshot() 返 null 时直接走到 tile.image.width() 抛 TypeError——补 null 守卫后该次 render 返回 null 复用既有失败分支（surfacePool.release 兜底）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P363",
+      "file": "packages/core/src/canvas/scene.ts",
+      "reason": "B-3 UAF 审计存疑项堵洞（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 B-3）：renderShape 效果栅格缓存分支两处——r.surface.makeSurface() 返 null 仍 getCanvas 抛 TypeError；surface.makeImageSnapshot() 返 null 时 image.width() 抛 TypeError。两处补 null 守卫后走下方 nodePictureCache 既有失败分支（surface.delete / 不入缓存）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-22"
     }
