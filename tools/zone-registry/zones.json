@@ -119,7 +119,8 @@
     "packages/core/src/canvas/renderer/image-cache.ts",
     "tests/engine/render/canvas/image-cache.test.ts",
     "packages/core/src/canvas/renderer/diagnostics.ts",
-    "tests/engine/render/canvas/renderer-diagnostics.test.ts"
+    "tests/engine/render/canvas/renderer-diagnostics.test.ts",
+    "tests/engine/render/canvas/canvaskit-uaf-guard.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -2296,6 +2297,13 @@
       "id": "P370",
       "file": "packages/core/src/canvas/index.ts",
       "reason": "B-7：桶追加 re-export diagnostics 表面（captureRendererDiagnostics/recordRasterExportSample/getRecentRasterExports + 类型）——P356 之外的第二处 re-export 分歧",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P371",
+      "file": "packages/core/src/canvaskit.ts",
+      "reason": "B-6 dev 用后即焚代理（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 抓虫网）：getCanvasKit 在 vite dev 形态（import.meta.env.DEV 且非 Bun 运行时）给 CanvasKit 单例套递归 Proxy——embind 对象 .delete() 后再碰任何方法/属性立即在调用点抛带标签错误，isDeleted 保持可查询；生产构建 DEV=false 零开销",
       "disposition": "permanent",
       "lastReviewed": "2026-09-22"
     }

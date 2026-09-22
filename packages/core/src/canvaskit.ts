@@ -30,5 +30,69 @@ export async function getCanvasKit(options?: CanvasKitOptions): Promise<CanvasKi
     locateFile: options?.locateFile ?? defaultLocate
   })
 
+  // B-6 用后即焚代理（仓外 docs/202609221818 §4 抓虫网）：仅 vite dev 形态
+  // 生效（import.meta.env.DEV 且非 Bun 运行时——bun 测试不套，避免代理身份
+  // 差干扰既有断言）；生产构建 DEV=false 整支短路，零开销。
+  if ('env' in import.meta && import.meta.env.DEV && !('Bun' in globalThis)) {
+    instance = wrapCanvasKitUseAfterDeleteGuard(instance)
+  }
+
   return instance
+}
+
+// ── B-6 用后即焚代理 ─────────────────────────────────────────────────────
+// CanvasKit 堆真因未查明期间，把「UAF 写脏堆后在随机位置随机炸」降级为
+// 「首个作案点可定位」：dev 形态给 CanvasKit 返回的 embind 对象套 Proxy，
+// .delete() 之后再碰任何方法/属性立即在调用点抛带标签的 JS 错误。
+// isDeleted 保持可查询（embind 契约里它是 delete 后唯一安全的方法）。
+
+type EmbindInstance = { delete: () => void; isDeleted: () => boolean }
+
+function isEmbindInstance(value: unknown): value is EmbindInstance {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as { delete?: unknown; isDeleted?: unknown }
+  return typeof candidate.delete === 'function' && typeof candidate.isDeleted === 'function'
+}
+
+function wrapEmbind<T extends object>(obj: T, label: string): T {
+  let deleted = false
+  return new Proxy(obj, {
+    get(target, prop, receiver) {
+      if (prop === 'delete') {
+        return () => {
+          deleted = true
+          ;(Reflect.get(target, 'delete') as () => void).call(target)
+        }
+      }
+      if (prop === 'isDeleted') return () => deleted
+      if (deleted) {
+        throw new Error(
+          `[canvaskit-uaf-guard] ${label}.${String(prop)} accessed after delete() —— use-after-delete 首个作案点`
+        )
+      }
+      const value = Reflect.get(target, prop, receiver)
+      if (typeof value !== 'function') return value
+      // 方法调用结果若是 embind 对象（如 surface.makeImageSnapshot()）递归套代理
+      return (...args: unknown[]) => {
+        const result = (value as (...a: unknown[]) => unknown).apply(target, args)
+        return isEmbindInstance(result) ? wrapEmbind(result, `${label}.${String(prop)}()`) : result
+      }
+    }
+  })
+}
+
+/** 给 CanvasKit 模块对象套代理：工厂方法返回的 embind 对象递归受控。 */
+export function wrapCanvasKitUseAfterDeleteGuard(ck: CanvasKit): CanvasKit {
+  return new Proxy(ck, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver)
+      if (typeof value !== 'function') return value
+      return (...args: unknown[]) => {
+        const result = (value as (...a: unknown[]) => unknown).apply(target, args)
+        return isEmbindInstance(result)
+          ? wrapEmbind(result as object, `ck.${String(prop)}()`)
+          : result
+      }
+    }
+  })
 }
