@@ -39,84 +39,80 @@ export function useMCPConnectionForm(
 ) {
   const id = ref<MCPConnectionDraft['id']>(null)
 
-  const schema = computed(() =>
-    v.pipe(
+  const schema = computed(() => {
+    const nameField = v.pipe(
+      v.string(),
+      v.minLength(1, messages.value.requiredField),
+      v.maxLength(MCP_CONNECTION_NAME_MAX_LENGTH, messages.value.connectionNameInvalid),
+      v.check((name) => {
+        try {
+          validateMCPConnectionName(name)
+          return true
+        } catch {
+          return false
+        }
+      }, messages.value.connectionNameInvalid),
+      v.check((name) => !exists(name.trim(), id.value), messages.value.duplicateName)
+    )
+    const argsField = v.optional(
+      v.pipe(
+        v.string(),
+        v.check((value) => {
+          try {
+            parseMCPConnectionArgs(value)
+            return true
+          } catch {
+            return false
+          }
+        }, messages.value.argsInvalid)
+      )
+    )
+    const kvList = v.array(v.object({ key: v.string(), value: v.string() }))
+    // 双档 variant：字段必填/安全校验随 transport 分派——另一档的字段不校验，
+    // 否则隐藏档的空串/残留值会静默拦保存（v.optional 只跳 undefined 不跳 ''）
+    return v.variant('transport', [
       v.object({
-        name: v.pipe(
+        name: nameField,
+        transport: v.literal('http'),
+        url: v.pipe(
           v.string(),
           v.minLength(1, messages.value.requiredField),
-          v.maxLength(MCP_CONNECTION_NAME_MAX_LENGTH, messages.value.connectionNameInvalid),
-          v.check((name) => {
+          v.check((value) => {
             try {
-              validateMCPConnectionName(name)
+              validateMCPConnectionURL(value)
               return true
             } catch {
               return false
             }
-          }, messages.value.connectionNameInvalid),
-          v.check((name) => !exists(name.trim(), id.value), messages.value.duplicateName)
+          }, messages.value.serverURLHint)
         ),
-        url: v.optional(
-          v.pipe(
-            v.string(),
-            v.check((value) => {
-              try {
-                validateMCPConnectionURL(value)
-                return true
-              } catch {
-                return false
-              }
-            }, messages.value.serverURLHint)
-          )
-        ),
-        command: v.optional(
-          v.pipe(
-            v.string(),
-            v.check((value) => {
-              try {
-                validateMCPConnectionCommand(value)
-                return true
-              } catch {
-                return false
-              }
-            }, messages.value.commandInvalid)
-          )
-        ),
-        argsText: v.optional(
-          v.pipe(
-            v.string(),
-            v.check((value) => {
-              try {
-                parseMCPConnectionArgs(value)
-                return true
-              } catch {
-                return false
-              }
-            }, messages.value.argsInvalid)
-          )
-        ),
-        transport: v.picklist(['http', 'stdio']),
-        headers: v.array(v.object({ key: v.string(), value: v.string() })),
-        env: v.array(v.object({ key: v.string(), value: v.string() }))
+        command: v.optional(v.string()),
+        argsText: argsField,
+        headers: kvList,
+        env: kvList
       }),
-      v.forward(
-        v.partialCheck(
-          [['transport'], ['url']],
-          (value) => value.transport !== 'http' || Boolean(value.url?.trim()),
-          messages.value.requiredField
+      v.object({
+        name: nameField,
+        transport: v.literal('stdio'),
+        url: v.optional(v.string()),
+        command: v.pipe(
+          v.string(),
+          v.minLength(1, messages.value.requiredField),
+          v.check((value) => {
+            try {
+              validateMCPConnectionCommand(value)
+              return true
+            } catch {
+              return false
+            }
+          }, messages.value.commandInvalid)
         ),
-        ['url']
-      ),
-      v.forward(
-        v.partialCheck(
-          [['transport'], ['command']],
-          (value) => value.transport !== 'stdio' || Boolean(value.command?.trim()),
-          messages.value.requiredField
-        ),
-        ['command']
-      )
-    )
-  )
+        argsText: argsField,
+        headers: kvList,
+        env: kvList
+      })
+    ])
+  })
 
   const form = useForm({
     initialValues: createEmptyMCPConnectionDraft(),
