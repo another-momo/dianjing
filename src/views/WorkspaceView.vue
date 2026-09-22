@@ -25,6 +25,7 @@ import {
 } from '@/app/tabs'
 import { isTauri } from '@/app/tauri/env'
 import ColorSpaceBanner from '@/components/canvas/ColorSpaceBanner.vue'
+import RendererDeadBanner from '@/components/canvas/RendererDeadBanner.vue'
 import CommandPalette from '@/components/commands/CommandPalette.vue'
 import EditorWorkspace from '@/components/editor/EditorWorkspace.vue'
 import FileApiBanner from '@/components/FileApiBanner.vue'
@@ -185,6 +186,7 @@ onUnmounted(() => {
   >
     <FileApiBanner />
     <ColorSpaceBanner />
+    <RendererDeadBanner />
     <FontStatusBanner />
     <RenameSelectionDialog />
     <CommandPalette />

@@ -1,6 +1,8 @@
 import type { CanvasKit } from 'canvaskit-wasm'
+import { onScopeDispose, ref } from 'vue'
 import type { Ref } from 'vue'
 
+import { getRendererDeadState, subscribeRendererDeadState } from '@open-pencil/core/canvas'
 import type { Editor } from '@open-pencil/core/editor'
 
 import {
@@ -54,11 +56,21 @@ export function useCanvas(
     surface.getRenderer
   )
 
+  // Reactive mirror of the core renderer-dead latch. The latch is a
+  // plain module-level signal; this ref is the Vue surface that the
+  // banner and other consumers can read in templates.
+  const rendererDead: Ref<boolean> = ref(getRendererDeadState().dead)
+  const unsubscribeDead = subscribeRendererDeadState((snapshot) => {
+    rendererDead.value = snapshot.dead
+  })
+  onScopeDispose(unsubscribeDead)
+
   return {
     render: surface.markDirty,
     renderNow: surface.renderNow,
     hitTestSectionTitle,
     hitTestComponentLabel,
-    hitTestFrameTitle
+    hitTestFrameTitle,
+    rendererDead
   }
 }

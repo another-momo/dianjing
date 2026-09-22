@@ -1,3 +1,4 @@
+import { getRendererDeadState, withCrashGuard } from '@open-pencil/core/canvas'
 import type { Editor, EditorState } from '@open-pencil/core/editor'
 
 import type { CanvasRenderLayer } from './types'
@@ -64,9 +65,20 @@ export function createCanvasRenderLoop(
   let lastRenderVersion = -1
   let lastSceneVersion = -1
   let lastSelectedIds: Set<string> | null = null
+  // Wrap once: the same guard handles every render-frame invocation.
+  // When the WASM heap is corrupted, this flips the renderer-dead latch
+  // and swallows the throw so the rAF callback can return cleanly.
+  const safeRender = withCrashGuard(() => {
+    renderNow()
+  })
 
   function renderFrame() {
     frameScheduled = false
+    // Ghost-loop guard: if the previous frame flipped the dead latch,
+    // do not schedule another one. The crash UI is shown by the banner;
+    // the canvas stays frozen until the user reloads (the only path
+    // that re-creates the CanvasKit instance).
+    if (getRendererDeadState().dead) return
     const state = getRenderState()
     if (options.shouldSuspendRender?.() === true) {
       dirty = true
@@ -79,17 +91,19 @@ export function createCanvasRenderLoop(
     const selectionChanged = state.selectedIds !== lastSelectedIds
     if (dirty || versionChanged || sceneChanged || selectionChanged) {
       dirty = false
-      renderNow()
+      safeRender()
     }
   }
 
   const scheduleFrame = () => {
     if (frameScheduled) return
+    if (getRendererDeadState().dead) return
     frameScheduled = true
     scheduler.schedule(renderFrame)
   }
 
   const scheduleDirtyFrame = () => {
+    if (getRendererDeadState().dead) return
     dirty = true
     scheduleFrame()
   }
@@ -123,6 +137,7 @@ export function createCanvasRenderLoop(
     pause,
     markRendered,
     markDirty() {
+      if (getRendererDeadState().dead) return
       dirty = true
       scheduleFrame()
     }

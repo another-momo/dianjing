@@ -111,7 +111,9 @@
     "src/components/settings/mcp-connections/use.ts",
     "src/components/settings/mcp-connections/mutations.ts",
     "tests/engine/render/canvas/raster-budget.test.ts",
-    "tests/engine/io/fig/export/thumbnail-fallback.test.ts"
+    "tests/engine/io/fig/export/thumbnail-fallback.test.ts",
+    "src/components/canvas/RendererDeadBanner.vue",
+    "packages/core/src/canvas/renderer/dead.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -200,9 +202,9 @@
     {
       "id": "P2",
       "file": "src/views/WorkspaceView.vue",
-      "reason": "remove createDemoShapes/useHead/demo gate（deletion cuts；2026-09-21 合并 v0.15.1 维持：appRuntimeConfig/tabCount demo 接线同摘）。electronShellStyle 标题栏避让（--window-controls-width/--traffic-light-width）+ #708 深链接线保留 web 半（openWebLinkFromLocation/stripWebLinkParams/drain 队列），桌面半 openpencil:// 不移植。T10: carrier migrated from src/views/EditorView.vue",
+      "reason": "remove createDemoShapes/useHead/demo gate（deletion cuts；2026-09-21 合并 v0.15.1 维持：appRuntimeConfig/tabCount demo 接线同摘）。electronShellStyle 标题栏避让（--window-controls-width/--traffic-light-width）+ #708 深链接线保留 web 半（openWebLinkFromLocation/stripWebLinkParams/drain 队列），桌面半 openpencil:// 不移植。T10: carrier migrated from src/views/EditorView.vue。A-3：挂载 RendererDeadBanner——画布渲染器崩溃后显示持久提示条（与 ColorSpaceBanner 同行），保存链仍可用，恢复需重启应用",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-21"
+      "lastReviewed": "2026-09-22"
     },
     {
       "id": "P3",
@@ -2157,6 +2159,55 @@
       "disposition": "permanent",
       "lastReviewed": "2026-09-22",
       "task": "B-2"
+    },
+    {
+      "id": "P352",
+      "file": "packages/vue/src/canvas/surface/render-loop.ts",
+      "reason": "A-3 渲染崩溃检测（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 A-3）：renderNow 经 withCrashGuard 包裹，捕获 WASM RuntimeError 后不抛——阻止幽灵循环（每帧抛错）。scheduleFrame / scheduleDirtyFrame / markDirty 在 renderer-dead 态短路——彻底停摆。dead 检测经 getRendererDeadState 读模块级单例（packages/core/src/canvas/renderer/dead.ts，登记为 ownedFile）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P353",
+      "file": "packages/vue/src/canvas/surface/use.ts",
+      "reason": "A-3 渲染崩溃检测：useCanvas 返回 rendererDead 响应式 ref（订阅 packages/core/src/canvas/renderer/dead.ts 的 subscribeRendererDeadState，onScopeDispose 退订），提供给 provideCanvas 注入下游消费",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P354",
+      "file": "packages/vue/src/canvas/CanvasRoot.vue",
+      "reason": "A-3 渲染崩溃检测：解构 useCanvas 出的 rendererDead 注入 provideCanvas，模板 slot 同步暴露——供画布子树内消费方取用",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P355",
+      "file": "packages/vue/src/canvas/context/index.ts",
+      "reason": "A-3 渲染崩溃检测：CanvasContext 接口新增 rendererDead 字段（响应式 ref），供下游组件 useCanvasContext 取值",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P356",
+      "file": "packages/core/src/canvas/index.ts",
+      "reason": "A-3 渲染崩溃检测：re-export packages/core/src/canvas/renderer/dead.ts 的模块表面（getRendererDeadState/isRendererDead/markRendererDead/resetRendererDead/subscribeRendererDeadState/withCrashGuard + 类型）——供 packages/vue 与 fork 工具（look.ts）统一从 @open-pencil/core/canvas 取用",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P357",
+      "file": "packages/vue/src/i18n/messages/rendering.ts",
+      "reason": "A-3 渲染崩溃提示：renderingMessageDefaults 新增 rendererCrashed 与 rendererCrashedHint（中文在 locales/zh-cn/rendering.json 同步）——RendererDeadBanner 持久提示文案。check:i18n 同步过基线",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P358",
+      "file": "tests/engine/vue/canvas/render-loop.test.ts",
+      "reason": "A-3 渲染崩溃检测：追加 describe 'renderer-dead ghost-loop guard'——验证 latch 翻后 scheduleFrame/markDirty 短路、renderNow 内 RuntimeError 被捕获后不再调度新帧",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
     }
   ],
   "deletedPaths": [

@@ -1,7 +1,8 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 
 import type { Editor, EditorEvents } from '@open-pencil/core/editor'
 
+import { markRendererDead, resetRendererDead } from '#core/canvas/renderer/dead'
 import { createCanvasRenderLoop } from '#vue/canvas/surface/render-loop'
 
 type EditorEventName = keyof EditorEvents
@@ -303,6 +304,98 @@ describe('canvas render loop', () => {
       emit('render:requested')
       scheduler.flush()
       expect(renders).toBe(0)
+    } finally {
+      scheduler.restore()
+    }
+  })
+})
+
+describe('canvas render loop — renderer-dead ghost-loop guard (A-3)', () => {
+  // The renderer-dead latch is a module-level singleton; isolate each
+  // case so leftover state cannot pollute the next test.
+  beforeEach(() => {
+    resetRendererDead()
+  })
+
+  afterEach(() => {
+    resetRendererDead()
+  })
+
+  test('stops scheduling new frames once the latch is flipped', () => {
+    const scheduler = createFrameScheduler()
+    try {
+      const { editor, emit } = createEditor()
+      let renders = 0
+      createCanvasRenderLoop(editor, () => {
+        renders++
+      })
+
+      emit('repaint:requested')
+      scheduler.flush()
+      expect(renders).toBe(1)
+
+      // Simulate the render throwing a WASM error — production wires
+      // withCrashGuard to markRendererDead; we drive the latch directly.
+      markRendererDead({ message: 'table index is out of bounds', name: 'RuntimeError', at: 0 })
+
+      // Any subsequent editor event must NOT schedule a new frame —
+      // that's the whole point: stop the throw-once-per-frame loop.
+      emit('repaint:requested')
+      emit('render:requested')
+      emit('viewport:changed')
+      emit('selection:changed')
+
+      expect(scheduler.pendingCount).toBe(0)
+      scheduler.flush()
+      expect(renders).toBe(1)
+    } finally {
+      scheduler.restore()
+    }
+  })
+
+  test('markDirty is a no-op when the latch is flipped', () => {
+    const scheduler = createFrameScheduler()
+    try {
+      const { editor } = createEditor()
+      let renders = 0
+      const loop = createCanvasRenderLoop(editor, () => {
+        renders++
+      })
+
+      markRendererDead({ message: 'memory access out of bounds', name: 'RuntimeError', at: 0 })
+
+      loop.markDirty()
+      expect(scheduler.pendingCount).toBe(0)
+      scheduler.flush()
+      expect(renders).toBe(0)
+    } finally {
+      scheduler.restore()
+    }
+  })
+
+  test('captures RuntimeError thrown inside the wrapped render', () => {
+    const scheduler = createFrameScheduler()
+    try {
+      const { editor, emit } = createEditor()
+      let renderAttempts = 0
+      createCanvasRenderLoop(editor, () => {
+        renderAttempts++
+        // Mimic the WASM-bound throw the guard is built for.
+        const err = new Error('table index is out of bounds')
+        err.name = 'RuntimeError'
+        throw err
+      })
+
+      emit('repaint:requested')
+
+      // First frame throws → guard flips the latch → no second frame.
+      scheduler.flush()
+      expect(renderAttempts).toBe(1)
+
+      emit('repaint:requested')
+      scheduler.flush()
+      // No new frame scheduled after the crash.
+      expect(renderAttempts).toBe(1)
     } finally {
       scheduler.restore()
     }

@@ -10,7 +10,11 @@ export const renderingMessageDefaults = {
   wideGamutUnavailable:
     'This display or browser cannot show Display-P3 colors, so the canvas previews them in sRGB. The document keeps its color space.',
   urlOverride:
-    'The current session renderer is controlled by a URL override. Your saved preference applies when the override is removed.'
+    'The current session renderer is controlled by a URL override. Your saved preference applies when the override is removed.',
+  rendererCrashed:
+    'The canvas renderer has stopped. Save the document, then restart OpenPencil to recover.',
+  rendererCrashedHint:
+    'Editing is paused until the app restarts — saving still works so your changes are safe.'
 } as const
 
 export const renderingMessages = i18n('rendering', renderingMessageDefaults)
