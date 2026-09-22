@@ -17,6 +17,10 @@
 
 import { ref } from 'vue'
 
+// DTO 单源在后端 store（type-only import 构建期擦除，node 依赖不进浏览器包——
+// 同 image-gen/client.ts 引 credentials/settings 先例；重复声明同形对象面会触
+// test:type-shapes 判重）
+import type { MCPConnectionConfig } from '@/app/ai/pi-backend/mcp-connections/store'
 import { requestPiJSON } from '@/app/ai/pi-backend/request-json'
 
 import type { MCPConnection, MCPConnectionDraft, MCPConnectionStatus } from './types'
@@ -108,14 +112,7 @@ export async function refreshMCPConnections(): Promise<void> {
   }
 }
 
-interface SavePayload {
-  transport: 'http' | 'stdio'
-  url?: string
-  command?: string
-  args?: string[]
-  headers?: Record<string, string>
-  env?: Record<string, string>
-}
+type SavePayload = MCPConnectionConfig
 
 function toRecord(entries: Array<{ key: string; value: string }>): Record<string, string> {
   const out: Record<string, string> = {}

@@ -1,5 +1,7 @@
 zh-cn:ai.completions
 zh-cn:ai.responses
+zh-cn:automation.transportHttp
+zh-cn:automation.transportStdio
 zh-cn:code.editorDesignLabel
 zh-cn:code.sourceDesignJSX
 zh-cn:code.sourceHTMLCSS
