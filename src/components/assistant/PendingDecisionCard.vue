@@ -37,6 +37,7 @@ import {
   type AuthzDecision,
   type AuthzDecisionRecord,
   type AuthzDecisionView,
+  type BashAuthzRequestData,
   type DecisionAnswerPayload,
   type InstallSkillAuthzRequestData,
   type PendingDecisionView
@@ -55,8 +56,11 @@ const askView = computed<AskDecisionView | null>(() => (decision.kind === 'ask' 
 const authz = computed<AuthzDecisionView | null>(() =>
   decision.kind === 'authz' ? decision : null
 )
-/** toolName 二级判别收窄——install_skill 走专属渲染与决断路径 */
-const isBash = computed(() => authz.value?.request.toolName === 'bash')
+/** toolName 二级判别收窄——返回收窄后的请求体（布尔 guard 不收窄联合，
+ *  vue-tsc 会报 TS2339；模板直取 command/cwd 走这里） */
+const bashRequest = computed<BashAuthzRequestData | null>(() =>
+  authz.value?.request.toolName === 'bash' ? authz.value.request : null
+)
 const installSkill = computed<InstallSkillAuthzRequestData | null>(() =>
   authz.value?.request.toolName === 'install_skill' ? authz.value.request : null
 )
@@ -223,20 +227,20 @@ const installSkillResolvedLine = computed(() => {
 
       <!-- 事实层标注：防伪造分界的明示属性（§8——内容系统直出，无模型撰写位） -->
       <div v-if="authz.mode === 'pending'" class="text-[10px] text-muted">
-        <template v-if="isBash">命令原文与工作目录由系统直出（未经模型撰写）</template>
+        <template v-if="bashRequest">命令原文与工作目录由系统直出（未经模型撰写）</template>
         <template v-else-if="installSkill">
           skill 元信息（名/文件清单/适配摘要）由系统直出（未经模型撰写）
         </template>
       </div>
 
       <!-- bash 分支：命令原文 + 工作目录 + 规则原文 + 三按钮 -->
-      <template v-if="isBash">
+      <template v-if="bashRequest">
         <pre
           data-test-id="pending-decision-authz-command"
           class="overflow-x-auto rounded bg-input px-2 py-1.5 font-mono text-[11px] break-all whitespace-pre-wrap text-surface"
-          >{{ authz.request.command }}</pre>
-        <div v-if="authz.request.cwd" class="text-[10px] text-muted">
-          工作目录：<span class="font-mono">{{ authz.request.cwd }}</span>
+          >{{ bashRequest.command }}</pre>
+        <div v-if="bashRequest.cwd" class="text-[10px] text-muted">
+          工作目录：<span class="font-mono">{{ bashRequest.cwd }}</span>
         </div>
       </template>
 
@@ -294,7 +298,7 @@ const installSkillResolvedLine = computed(() => {
 
       <template v-if="authz.mode === 'pending'">
         <!-- bash 分支：规则原文 + 三按钮（allow-once / allow-rule / deny） -->
-        <template v-if="isBash">
+        <template v-if="bashRequest">
           <div class="text-[10px] text-muted">
             你将放行的是什么：<span class="font-mono text-surface">{{ ruleText }}</span>
             ——选「按规则放行」后，本会话内匹配该规则的命令不再询问
