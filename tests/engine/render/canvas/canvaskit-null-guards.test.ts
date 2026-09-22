@@ -21,11 +21,11 @@ function noopCanvas() {
     drawPicture: mock(),
     drawColor: mock(),
     clipRect: mock()
-  } as unknown as Canvas
+  } as Canvas
 }
 
 function fakeImage() {
-  return { delete: mock(), width: mock(() => 100), height: mock(() => 100) } as unknown as CKImage
+  return { delete: mock(), width: mock(() => 100), height: mock(() => 100) } as CKImage
 }
 
 function fakeSurface(snapshotReturn: CKImage | null = fakeImage()) {
@@ -34,7 +34,7 @@ function fakeSurface(snapshotReturn: CKImage | null = fakeImage()) {
     flush: mock(),
     delete: mock(),
     makeImageSnapshot: mock(() => snapshotReturn)
-  } as unknown as Surface & {
+  } as Surface & {
     flush: ReturnType<typeof mock>
     delete: ReturnType<typeof mock>
     makeImageSnapshot: ReturnType<typeof mock>
@@ -72,11 +72,11 @@ function backingRenderer(snapshotFactory: () => CKImage | null) {
   buildSurface.makeImageSnapshot = mock(snapshotFactory)
 
   const renderer: Partial<SkiaRenderer> = {
-    ck: buildCkFixture() as unknown as SkiaRenderer['ck'],
+    ck: buildCkFixture() as SkiaRenderer['ck'],
     surface: {
-      makeSurface: mock((_info: ImageInfo) => buildSurface as unknown as Surface)
-    } as unknown as SkiaRenderer['surface'],
-    opacityPaint: { setAlphaf: mock() } as unknown as SkiaRenderer['opacityPaint'],
+      makeSurface: mock((_info: ImageInfo) => buildSurface as Surface)
+    } as SkiaRenderer['surface'],
+    opacityPaint: { setAlphaf: mock() } as SkiaRenderer['opacityPaint'],
     panX: 0,
     panY: 0,
     zoom: 1,
@@ -118,7 +118,7 @@ function backingGraph(): SceneGraph {
       id === 'page' ? { id: 'page', type: 'CANVAS', childIds: [] } : null
     ),
     getAbsolutePosition: mock(() => ({ x: 0, y: 0 }))
-  } as unknown as SceneGraph
+  } as SceneGraph
 }
 
 function shapeNode(overrides: Partial<SceneNode> = {}): SceneNode {
@@ -153,17 +153,17 @@ function shapeNode(overrides: Partial<SceneNode> = {}): SceneNode {
     blendMode: 'NORMAL',
     isMask: false,
     ...overrides
-  } as unknown as SceneNode
+  } as SceneNode
 }
 
 function shapeRenderer(surfaceFactory: () => Surface | null) {
   const setCalls: string[] = []
   const renderer: Partial<SkiaRenderer> = {
-    ck: buildCkFixture() as unknown as SkiaRenderer['ck'],
+    ck: buildCkFixture() as SkiaRenderer['ck'],
     surface: {
       makeSurface: mock((_info: ImageInfo) => surfaceFactory())
-    } as unknown as SkiaRenderer['surface'],
-    opacityPaint: { setAlphaf: mock() } as unknown as SkiaRenderer['opacityPaint'],
+    } as SkiaRenderer['surface'],
+    opacityPaint: { setAlphaf: mock() } as SkiaRenderer['opacityPaint'],
     effectRasterCache: {
       get: mock(() => null),
       delete: mock(),
@@ -171,7 +171,7 @@ function shapeRenderer(surfaceFactory: () => Surface | null) {
         setCalls.push(id)
         return true
       })
-    } as unknown as SkiaRenderer['effectRasterCache'],
+    } as SkiaRenderer['effectRasterCache'],
     effectOverflow: mock(() => 0),
     arrowCapOverflow: mock(() => 0),
     zoom: 1,
@@ -192,7 +192,7 @@ function shapeGraph(node: SceneNode): SceneGraph {
     positionPreviewVersion: 0,
     getNode: mock((id: string) => (id === node.id ? node : null)),
     getAbsolutePosition: mock(() => ({ x: 0, y: 0 }))
-  } as unknown as SceneGraph
+  } as SceneGraph
 }
 
 describe('CanvasKit null return guards (B-3 UAF audit)', () => {
@@ -234,7 +234,7 @@ describe('CanvasKit null return guards (B-3 UAF audit)', () => {
         surface: { makeSurface: mock(() => innerSurface) },
         pageColor: { r: 1, g: 1, b: 1, a: 1 },
         boundEffectLayersToViewport: false
-      } as unknown as SkiaRenderer
+      } as SkiaRenderer
       const surfacePool = {
         acquire: mock(() => innerSurface),
         release: mock(() => undefined)
@@ -242,7 +242,7 @@ describe('CanvasKit null return guards (B-3 UAF audit)', () => {
       const tileIndex = { search: () => [], size: () => 0 }
       const pictureCache = { get: () => null }
 
-      const result = (renderTile as unknown as (...args: unknown[]) => unknown)(
+      const result = (renderTile as (...args: unknown[]) => unknown)(
         renderer,
         { positionPreviewVersion: 0, getNode: () => null },
         tileIndex,
@@ -269,7 +269,7 @@ describe('CanvasKit null return guards (B-3 UAF audit)', () => {
 
     test('falls through when inner makeImageSnapshot returns null (no TypeError)', () => {
       const innerSurface = fakeSurface(null)
-      const { renderer, setCalls } = shapeRenderer(() => innerSurface as unknown as Surface)
+      const { renderer, setCalls } = shapeRenderer(() => innerSurface as Surface)
       const canvas = noopCanvas()
       const node = shapeNode()
 

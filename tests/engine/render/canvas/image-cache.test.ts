@@ -12,7 +12,7 @@ function fakeImage(width: number, height: number): FakeImage {
   return {
     width: () => width,
     height: () => height,
-    delete: mock(() => {})
+    delete: mock()
   }
 }
 
@@ -72,7 +72,7 @@ describe('image cache', () => {
     expect(cache.has('oversize')).toBe(false)
     expect(cache.size).toBe(0)
     // Caller owns it now and must delete (mirrors fills.ts rejection path).
-    ;(big as unknown as { delete: () => void }).delete()
+    big.delete()
     expect(big.delete).toHaveBeenCalledTimes(1)
   })
 
