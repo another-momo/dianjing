@@ -12,6 +12,7 @@
  *  2. 异 modelId → dispose 旧会话 + 按新 spec 重建
  *  3. thinkingLevel 'off' ↔ 缺省 同义不重建；缺省 → 'high' 重建
  *  4. run 进行中改 spec → 新 prompt 等旧 run 收尾后才重建（不打断进行中回合）
+ *  5. bumpMCPConnections（MCP 连接变更）→ 同 spec 也驱逐重建；之后同 revision 复用
  *
  * 夹具：mock.module 桩掉 @earendil-works/pi-coding-agent（service-abort.test.ts
  * 同款共存形态，parseSessionEntries 细心直通同前）；admin 注入 resolveModel
@@ -86,7 +87,8 @@ function makeService() {
       }
     } as never,
     imageGenCredentials: {} as never,
-    imageGenSettings: {} as never
+    imageGenSettings: {} as never,
+    mcpConnections: { list: () => [], get: () => null } as never
   })
 }
 
@@ -172,6 +174,22 @@ describe('pi-backend service prompt 驱逐重建（2026-09-16 拍板②：切换
     release()
     await first
     await second
+    expect(disposeSpy).toHaveBeenCalledTimes(1)
+    expect(createdModels.length).toBe(2)
+  })
+
+  test('bumpMCPConnections（MCP 连接变更）→ 同 spec 也驱逐重建；之后同 revision 复用', async () => {
+    const service = makeService()
+    await service.prompt('sess-mcp', 'hi', () => undefined, { model: SPEC_A })
+    expect(createdModels.length).toBe(1)
+
+    service.bumpMCPConnections()
+    await service.prompt('sess-mcp', 'hi again', () => undefined, { model: SPEC_A })
+    expect(disposeSpy).toHaveBeenCalledTimes(1)
+    expect(createdModels.length).toBe(2)
+
+    // 重建后 entry 烘焙新 revision——再发同 spec 不再驱逐
+    await service.prompt('sess-mcp', 'third', () => undefined, { model: SPEC_A })
     expect(disposeSpy).toHaveBeenCalledTimes(1)
     expect(createdModels.length).toBe(2)
   })

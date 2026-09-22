@@ -72,6 +72,8 @@ import { readPiHistoryFile } from './history'
 import type { ImageGenCredentialStore } from './image-gen/credentials'
 import type { ImageGenSettingsStore } from './image-gen/settings'
 import { createPiEventMapper } from './mapping'
+import type { MCPConnectionsStore } from './mcp-connections/store'
+import { getMCPClientPool } from './mcp/pool-instance'
 import { migrateUserdataLayout } from './migrate'
 import {
   resolveAgentDir,
@@ -155,6 +157,8 @@ export type PiChatService = {
   /** 2026-09-19 broker P1 件1：POST /api/pi/decision-answer 端点真源——kind 判别
    * 路由到 PendingDecisionStore（错族寻址视同 'not_found'） */
   decisionAnswer(input: DecisionAnswerInput): 'ok' | 'not_found'
+  /** MCP 接入阶段 1：连接变更通知——routes 层 PUT/DELETE 后调用，触发会话驱逐 */
+  bumpMCPConnections(): void
 }
 
 type SessionEntry = {
@@ -176,6 +180,10 @@ type SessionEntry = {
   /** 2026-09-16（owner 拍板②）：创建时烘焙的 model spec——prompt 时与请求
    *  spec 比对，不一致驱逐重建（切换对下一个 prompt 生效） */
   spec: ModelSpec
+  /** MCP 接入阶段 1：创建时烘焙的连接集版本号——连接变更（PUT/DELETE 后）
+   *  service 侧 mcpConnectionsRevision 递增，下次 prompt 比对不一致即驱逐
+   *  重建（与 model spec 驱逐同构，避免 mid-generation dispose）。 */
+  mcpConnectionsRevision: number
   /** 2026-09-19 broker P1 件2：authz data part 直推缝（run 活动期接线 emit、收尾拆线） */
   authzSink: AuthzNoticeSink
 }
@@ -184,13 +192,16 @@ export function createPiChatService({
   rootDir,
   admin,
   imageGenCredentials,
-  imageGenSettings
+  imageGenSettings,
+  mcpConnections
 }: {
   rootDir: string
   admin: ProviderAdmin
   imageGenCredentials: ImageGenCredentialStore
   /** 图片本地留存偏好（retainLocal）——settings 路由读、generate_image 实时问开关 */
   imageGenSettings: ImageGenSettingsStore
+  /** MCP 接入阶段 1：连接凭据 store（routes 层 PUT/DELETE 经此落盘 + 触发驱逐） */
+  mcpConnections: MCPConnectionsStore
 }): PiChatService {
   const agentDir = resolveAgentDir(rootDir)
   const sessionsDir = resolveSessionsDir(rootDir)
@@ -200,6 +211,12 @@ export function createPiChatService({
   const archiveDir = resolveArchiveDir(rootDir)
   const maxSessions = readMaxSessions()
   const sessionMaxAgeDays = readSessionMaxAgeDays()
+  // MCP 接入阶段 1：中央连接池（pool-instance 单例，跨 service 共享）——
+  // 装配期 await pool.sync(connections) 把连接集反映到池；
+  // 连接变更通过 revision bump 触发会话驱逐重建（详 prompt() 注释）
+  const mcpPool = getMCPClientPool(rootDir)
+  /** 连接变更版本号——PUT/DELETE 后 bump，所有现存 entry 的 spec 视为过期 */
+  let mcpConnectionsRevision = 0
 
   // 2026-09-18 userdata 重排存量迁移（migrate.ts，warn-only 不阻断）——必须先于
   // seed：seed 会在新位建目录/写 README，先 seed 会让迁移撞「新目录已存在」分支整体跳过。
@@ -294,6 +311,8 @@ export function createPiChatService({
         activeDesignBridge,
         imageGenCredentials,
         imageGenSettings,
+        mcpConnections,
+        mcpPool,
         readIndex
       },
       sessionId,
@@ -318,6 +337,7 @@ export function createPiChatService({
       host,
       running: false,
       spec: modelSpec,
+      mcpConnectionsRevision,
       authzSink
     }
     sessions.set(sessionId, entry)
@@ -341,7 +361,14 @@ export function createPiChatService({
     // 不打断进行中回合；挂 ask 表单的回合同此——等作答/abort 自然解锁），
     // dispose 释放资源；createSession 经 SessionManager.open 重开同一
     // JSONL——历史连续，模型/thinking 换新。
-    if (entry && !sameModelSpec(entry.spec, options.model)) {
+    // MCP 接入阶段 1：连接变更（PUT/DELETE 触发 mcpConnectionsRevision 递增）
+    // 同样驱逐重建——customTools 名单变了，老会话持有的 tool list 与新 pool
+    // 不一致（提案 §5.3 toolsChanged 同款：刻意不 mid-generation dispose）。
+    // 两条件共用同一驱逐路径（先等 queue 收尾 → dispose → 清 entry），
+    // 选用同一日志通道便于排查。
+    const specMismatch = entry && !sameModelSpec(entry.spec, options.model)
+    const connectionsMismatch = entry && entry.mcpConnectionsRevision !== mcpConnectionsRevision
+    if (entry && (specMismatch || connectionsMismatch)) {
       const previous = entry
       await previous.queue.catch(() => undefined)
       try {
@@ -354,9 +381,11 @@ export function createPiChatService({
       }
       sessions.delete(sessionId)
       console.debug(
-        `[pi-backend] 指派变更驱逐重建（${sessionId}）：` +
-          `${previous.spec.providerId}/${previous.spec.modelId} → ` +
-          `${options.model.providerId}/${options.model.modelId}`
+        specMismatch
+          ? `[pi-backend] 指派变更驱逐重建（${sessionId}）：` +
+              `${previous.spec.providerId}/${previous.spec.modelId} → ` +
+              `${options.model.providerId}/${options.model.modelId}`
+          : `[pi-backend] MCP 连接变更驱逐重建（${sessionId}）`
       )
       entry = undefined
     }
@@ -603,6 +632,18 @@ export function createPiChatService({
     }
   }
 
+  /**
+   * MCP 接入阶段 1：连接变更通知——routes 层 PUT/DELETE 后调用，bump
+   * mcpConnectionsRevision 让现存 entry 在下次 prompt 时触发驱逐重建。
+   * 注意本函数**不**直接 evict 在跑 run（与 model spec 驱逐同款刻意行为，
+   * 提案 §5.3 toolsChanged 不 mid-generation dispose）。pool 内连接本身的
+   * reconcile 在下次装配期由 pool.sync 接管。
+   */
+  function bumpMCPConnections(): void {
+    mcpConnectionsRevision += 1
+    console.debug(`[pi-backend] MCP 连接变更（revision → ${mcpConnectionsRevision}）`)
+  }
+
   return {
     prompt,
     resolveLatestSessionId,
@@ -619,6 +660,7 @@ export function createPiChatService({
     decisionAnswer: (input) =>
       input.kind === 'ask'
         ? decisionStore.resolveAsk(input.formId, input.payload)
-        : decisionStore.resolveAuthz(input.formId, input.payload)
+        : decisionStore.resolveAuthz(input.formId, input.payload),
+    bumpMCPConnections
   }
 }

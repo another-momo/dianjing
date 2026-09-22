@@ -156,13 +156,14 @@ describe('路径判定（A线尾单件1：界内界外 allow + 名单硬拒）',
     expect(stub.calls).toHaveLength(0)
   })
 
-  test('凭据四件（key-env / pi-backend-token / pi-agent/auth.json / image-gen.json）→ deny（文件即使不存在也先拒）', async () => {
+  test('凭据五件（key-env / pi-backend-token / pi-agent/auth.json / image-gen.json / mcp-connections.json）→ deny（文件即使不存在也先拒）', async () => {
     const stub = bridgeStub()
     for (const target of [
       join(rootDir, 'key-env'),
       join(rootDir, 'pi-backend-token'),
       join(rootDir, 'pi-agent', 'auth.json'),
-      join(rootDir, 'pi-agent', 'image-gen.json')
+      join(rootDir, 'pi-agent', 'image-gen.json'),
+      join(rootDir, 'pi-agent', 'mcp-connections.json')
     ]) {
       const d = await details(makeTool(stub), { file_path: target })
       expect(d.reason).toBe('denied')

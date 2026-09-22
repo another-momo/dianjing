@@ -67,6 +67,8 @@ import {
 import { createImageGenCredentialStore } from './image-gen/credentials'
 import { handleImageGenAdminRequest } from './image-gen/routes'
 import { createImageGenSettingsStore } from './image-gen/settings'
+import { handleMCPConnectionsRequest } from './mcp-connections/routes'
+import { createMCPConnectionsStore } from './mcp-connections/store'
 import {
   defaultOpenFolderOpener,
   handleOpenImageGenFolderRequest,
@@ -505,11 +507,15 @@ export function createPiBackendServer({
   // 图片本地留存偏好（retainLocal）——单实例供 settings 路由读 / generate_image
   // 工具每条 item 实时问开关（同凭证面纪律：保存后工具侧立即可见）
   const imageGenSettings = createImageGenSettingsStore({ agentDir })
+  // MCP 接入阶段 1：连接凭据 store（routes 写 + service 读 + 装配期 sync）——
+  // 落 agentDir/mcp-connections.json，凭据五件化（详 path-decision.ts）
+  const mcpConnections = createMCPConnectionsStore({ agentDir })
   const service = createPiChatService({
     rootDir,
     admin,
     imageGenCredentials,
-    imageGenSettings
+    imageGenSettings,
+    mcpConnections
   })
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1')
@@ -566,6 +572,24 @@ export function createPiBackendServer({
     if (url.pathname.startsWith('/api/pi/image-gen/')) {
       void handleImageGenAdminRequest(
         { credentials: imageGenCredentials, settings: imageGenSettings, rootDir },
+        req,
+        res,
+        url.pathname
+      )
+      return
+    }
+    // MCP 接入阶段 1：连接凭据面（须在 /api/pi/ 管理面前缀之前匹配；list 投影、
+    // 单条 PUT/DELETE 含健康检查 + 会话驱逐触发）
+    if (
+      url.pathname === '/api/pi/mcp/connections' ||
+      url.pathname.startsWith('/api/pi/mcp/connections/')
+    ) {
+      void handleMCPConnectionsRequest(
+        {
+          store: mcpConnections,
+          onConnectionsChanged: () => service.bumpMCPConnections(),
+          rootDir
+        },
         req,
         res,
         url.pathname

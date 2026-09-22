@@ -79,15 +79,20 @@ export type PathDecision =
 /** image-gen 凭据文件名（image-gen/credentials.ts:63 `join(agentDir, 'image-gen.json')`） */
 const IMAGE_GEN_CREDENTIAL_FILENAME = 'image-gen.json'
 
+/** mcp 接入阶段 1 凭据文件名（mcp-connections/store.ts `join(agentDir, 'mcp-connections.json')`） */
+const MCP_CONNECTIONS_FILENAME = 'mcp-connections.json'
+
 /** `<base>${sep}<name>` —— 名单路径拼接（rootDir 与 filenames 单源全在 paths.ts） */
 function joinWithSep(base: string, name: string): string {
   return `${base}${sep}${name}`
 }
 
 /**
- * 凭据四件绝对路径（rootDir 下）：
+ * 凭据五件绝对路径（rootDir 下）：
  *  - pi-agent/auth.json（provider key 明文）
  *  - pi-agent/image-gen.json（image-gen apiKey 明文，image-gen/credentials.ts:63）
+ *  - pi-agent/mcp-connections.json（MCP 接入凭据：headers/env 值含第三方 key，
+ *    凭据防线收编；mcp-connections/store.ts）
  *  - key-env（自助注入文件）
  *  - pi-backend-token（standalone 模式鉴权 token）
  */
@@ -97,7 +102,8 @@ export function protectedCredentialFiles(rootDir: string): string[] {
     resolveKeyEnvPath(rootDir),
     resolvePiBackendTokenPath(rootDir),
     joinWithSep(agentDir, 'auth.json'),
-    joinWithSep(agentDir, IMAGE_GEN_CREDENTIAL_FILENAME)
+    joinWithSep(agentDir, IMAGE_GEN_CREDENTIAL_FILENAME),
+    joinWithSep(agentDir, MCP_CONNECTIONS_FILENAME)
   ]
 }
 

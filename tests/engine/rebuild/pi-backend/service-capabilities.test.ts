@@ -70,7 +70,8 @@ function makeService(rootDir: string) {
     rootDir,
     admin: { resolveModel: async () => ({ modelRuntime: null, model: null }) } as never,
     imageGenCredentials: {} as never,
-    imageGenSettings: {} as never
+    imageGenSettings: {} as never,
+    mcpConnections: { list: () => [], get: () => null } as never
   })
 }
 

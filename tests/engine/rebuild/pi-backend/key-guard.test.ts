@@ -28,6 +28,7 @@ const WORKSPACE_AGENTS = resolve(WORKSPACE, '.agents')
 const AGENT_DIR = resolve(ROOT, 'pi-agent')
 const AUTH_JSON = resolve(AGENT_DIR, 'auth.json')
 const IMAGE_GEN_JSON = resolve(AGENT_DIR, 'image-gen.json')
+const MCP_CONNECTIONS_JSON = resolve(AGENT_DIR, 'mcp-connections.json')
 const KEY_ENV = resolve(ROOT, 'key-env')
 const PI_BACKEND_TOKEN = resolve(ROOT, 'pi-backend-token')
 
@@ -52,12 +53,13 @@ function makeHandler() {
 }
 
 describe('protectedCredentialFiles', () => {
-  test('四件绝对路径单源——与 paths.ts resolver 同根', () => {
+  test('五件绝对路径单源——与 paths.ts resolver 同根', () => {
     expect(protectedCredentialFiles(ROOT)).toEqual([
       KEY_ENV,
       PI_BACKEND_TOKEN,
       AUTH_JSON,
-      IMAGE_GEN_JSON
+      IMAGE_GEN_JSON,
+      MCP_CONNECTIONS_JSON
     ])
   })
 })
@@ -93,9 +95,9 @@ describe('createKeyGuardHandler — read / edit / write 路径守卫', () => {
     })
   })
 
-  test('read 绝对 key-env / pi-backend-token / pi-agent/image-gen.json → 各 block', () => {
+  test('read 绝对 key-env / pi-backend-token / pi-agent/image-gen.json / pi-agent/mcp-connections.json → 各 block', () => {
     const handler = makeHandler()
-    for (const target of [KEY_ENV, PI_BACKEND_TOKEN, IMAGE_GEN_JSON]) {
+    for (const target of [KEY_ENV, PI_BACKEND_TOKEN, IMAGE_GEN_JSON, MCP_CONNECTIONS_JSON]) {
       expect(handler({ toolName: 'read', input: { path: target } })).toEqual({
         block: true,
         reason: READ_DENY_REASON

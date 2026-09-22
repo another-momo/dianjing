@@ -3,11 +3,11 @@
  * 2026-09-19 A线尾单件1 翻正：read facet = 敏感名单硬拒 + 名单外全 allow
  * （含界外，ok 侧 outside 分类标记）；write facet 语义不动。
  *
- * 覆盖：read facet 三态（凭据四件 deny=protected / 敏感名单 deny=sensitive
+ * 覆盖：read facet 三态（凭据五件 deny=protected / 敏感名单 deny=sensitive
  * ~/.ssh·~/.aws·.env·.pem / 界内 allow outside=false / 界外 allow
  * outside=true——含 rootDir 一级与盘外）/ write facet 回归（写侧三根 deny
  * protected、workspace 子树 allow、界外 deny outside）/ 名单源导出钉扎
- * （protectedCredentialFiles 四件 / protectedWriteRoots 三根 /
+ * （protectedCredentialFiles 五件 / protectedWriteRoots 三根 /
  * sensitiveReadDirPaths 两件——自 key-guard 收编的单一真源）。
  *
  * fixture = 纯字符串路径运算（无真实 IO），与 key-guard.test.ts 同纪律。
@@ -30,12 +30,13 @@ function decide(input: string, facet: 'read' | 'write' = 'read') {
 }
 
 describe('名单源导出（A线尾单自 key-guard 收编的单一真源）', () => {
-  test('protectedCredentialFiles = 凭据四件（rootDir 一级两件 + pi-agent 两件）', () => {
+  test('protectedCredentialFiles = 凭据五件（rootDir 一级两件 + pi-agent 三件）', () => {
     expect(protectedCredentialFiles(ROOT)).toEqual([
       resolve(ROOT, 'key-env'),
       resolve(ROOT, 'pi-backend-token'),
       resolve(ROOT, 'pi-agent', 'auth.json'),
-      resolve(ROOT, 'pi-agent', 'image-gen.json')
+      resolve(ROOT, 'pi-agent', 'image-gen.json'),
+      resolve(ROOT, 'pi-agent', 'mcp-connections.json')
     ])
   })
 
@@ -101,7 +102,7 @@ describe('decidePath read facet —— 界内界外全 allow（名单外）', ()
 })
 
 describe('decidePath read facet —— 敏感名单硬拒', () => {
-  test('凭据四件 → deny，denyCause=protected，absolutePath 带出', () => {
+  test('凭据五件 → deny，denyCause=protected，absolutePath 带出', () => {
     for (const target of protectedCredentialFiles(ROOT)) {
       const d = decide(target)
       expect(d.ok).toBe(false)

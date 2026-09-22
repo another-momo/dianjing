@@ -38,6 +38,10 @@ import { createInstallSkillTool } from '../install-skill'
 import { createKeyGuardExtension } from '../key-guard'
 import { createLoadImageTool } from '../load-image'
 import { createLoadReferenceTool } from '../load-reference'
+import { buildProxyCustomTools } from '../mcp-connections/proxy-tools'
+import type { MCPConnectionsStore } from '../mcp-connections/store'
+import { toSdkConfig } from '../mcp-connections/store'
+import type { MCPClientPool } from '../mcp/mcp-pool'
 import { createPathObserveExtension } from '../path-observe'
 import {
   resolveBuiltinSkillsDir,
@@ -88,6 +92,10 @@ export type AssembleSessionContext = {
   imageGenCredentials: ImageGenCredentialStore
   /** T54：图片本地留存偏好（每条 item 实时问） */
   imageGenSettings: ImageGenSettingsStore
+  /** MCP 接入阶段 1：连接凭据 store（pool 装配期 sync 的连接源） */
+  mcpConnections: MCPConnectionsStore
+  /** MCP 接入阶段 1：中央连接池（pool-instance 单例） */
+  mcpPool: MCPClientPool
   /** index.json 读取（service.ts 闭包内 readIndex——装配段不直接 IO） */
   readIndex: () => Record<string, { file: string }>
 }
@@ -129,6 +137,8 @@ export async function assembleSession(
     activeDesignBridge,
     imageGenCredentials,
     imageGenSettings,
+    mcpConnections,
+    mcpPool,
     readIndex
   } = ctx
 
@@ -136,6 +146,13 @@ export async function assembleSession(
   // 经 prompt → server.ts catch → SSE errorText 透传给前端（前端引导门未拦时
   // 兜底，措辞已在 provider-admin.ts 钉死）
   const { modelRuntime, model } = await admin.resolveModel(modelSpec)
+  // MCP 接入阶段 1：装配期先于 createAgentSession await pool.sync——
+  // 池未连完就装配 = 工具缺列。失败隔离由池侧承担（per-connection 15s 超时 +
+  // 并行连接，failures 不抛，详 mcp-pool.ts sync + 提案 §5.3）
+  const mcpServerConfigs = Object.fromEntries(
+    mcpConnections.list().map((conn) => [conn.slug, toSdkConfig(conn)])
+  )
+  await mcpPool.sync(mcpServerConfigs)
   mkdirSync(sessionsDir, { recursive: true })
   // 2026-09-16 key 守卫 B 案：会话 cwd 下沉 rootDir/workspace——凭据文件
   // 不再挂相对解析根下（绝对路径由 key-guard 堵，两案搭配）
@@ -239,7 +256,12 @@ export async function assembleSession(
       sessionId,
       authzSink,
       ...(builtinStudioDir ? { builtinSkillsDir: resolveBuiltinSkillsDir(builtinStudioDir) } : {})
-    })
+    }),
+    // MCP 接入阶段 1：MCP 代理工具展开（详 mcp-connections/proxy-tools.ts）—
+    // 每件 = 一条 MCP server 工具，name 原样 proxy 名（mcp__{slug}__{tool}），
+    // execute 走 pool.callTool；异常件降级缺席 + warn（提案 §5.3 schema
+    // 兼容降级，整池装配不炸）。natural 顺序：连接变更后下次装配自然刷新
+    ...buildProxyCustomTools(mcpPool)
   ]
 
   // T60：每回合组装 = active-design-host prepareTurn 产出的

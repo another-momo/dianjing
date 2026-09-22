@@ -193,8 +193,10 @@ export class MCPClientPool {
    * Ensure one source is connected with the given config, without touching
    * other pool members (unlike sync(), which reconciles the full set).
    * Reconnects when the config changed (e.g. refreshed OAuth token).
+   * Bounded by the same per-connection timeout as sync (connectTimeoutMs,
+   * default 15s) — route health checks rely on this bound.
    *
-   * @throws Error on connection failure (propagated from connect()).
+   * @throws Error on connection failure or connect timeout.
    */
   async ensureConnected(slug: string, config: SdkMCPServerConfig): Promise<void> {
     if (this.clients.has(slug)) {
@@ -204,7 +206,7 @@ export class MCPClientPool {
       await this.disconnect(slug)
     }
 
-    await this.connect(slug, config)
+    await this.connectWithTimeout(slug, config)
   }
 
   /**
@@ -367,8 +369,7 @@ export class MCPClientPool {
         // registerClient so the emitted defs and the dispatch map stay in sync (#864).
         if (seen.has(name)) continue
         seen.add(name)
-        // Strip $schema — AJV (Pi agent) fails on unregistered meta-schema URIs.
-        // Same pattern as getToolDefsAsJsonSchema() in tool-defs.ts.
+        // Strip $schema — AJV (pi 工具参数校验) fails on unregistered meta-schema URIs.
         const cleanSchema: Record<string, unknown> = { ...tool.inputSchema }
         delete cleanSchema.$schema
         defs.push({

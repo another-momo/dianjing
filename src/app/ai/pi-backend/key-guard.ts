@@ -25,9 +25,11 @@
  *    不与本案的 pi-agent/** / workspace/.pi/** 写侧 deny 面重合（写侧
  *    仅拦 agent tool_call 路径，SDK 自身 IO 不受影响）。
  *
- * 凭据四件（在 rootDir 下）：
+ * 凭据五件（在 rootDir 下）：
  *  - pi-agent/auth.json（provider key 明文）
  *  - pi-agent/image-gen.json（image-gen apiKey 明文，image-gen/credentials.ts:63）
+ *  - pi-agent/mcp-connections.json（MCP 接入阶段 1 凭据：headers/env 值含第三方
+ *    key，名单五件化；mcp-connections/store.ts）
  *  - key-env（自助注入文件）
  *  - pi-backend-token（standalone 模式鉴权 token）
  *
