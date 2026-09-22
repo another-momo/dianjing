@@ -13,7 +13,7 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 /**
  * HTTP transport config for remote MCP servers
  */
-export interface HttpMcpClientConfig {
+export interface HttpMCPClientConfig {
   transport: 'http'
   url: string
   headers?: Record<string, string>
@@ -22,7 +22,7 @@ export interface HttpMcpClientConfig {
 /**
  * Stdio transport config for local MCP servers (spawns subprocess)
  */
-export interface StdioMcpClientConfig {
+export interface StdioMCPClientConfig {
   transport: 'stdio'
   command: string
   args?: string[]
@@ -32,14 +32,14 @@ export interface StdioMcpClientConfig {
 /**
  * Unified config supporting both transport types
  */
-export type McpClientConfig = HttpMcpClientConfig | StdioMcpClientConfig
+export type MCPClientConfig = HttpMCPClientConfig | StdioMCPClientConfig
 
 /**
  * Sensitive environment variables that should NOT be passed to MCP subprocesses.
  * These could contain API keys, tokens, or credentials that MCP servers don't need
  * and shouldn't have access to.
  */
-const BLOCKED_ENV_VARS = [
+const BLOCKED_ENV_VARS = new Set([
   // Craft Agent auth (set by the app itself)
   'ANTHROPIC_API_KEY',
   'CLAUDE_CODE_OAUTH_TOKEN',
@@ -56,7 +56,7 @@ const BLOCKED_ENV_VARS = [
   'GOOGLE_API_KEY',
   'STRIPE_SECRET_KEY',
   'NPM_TOKEN'
-]
+])
 
 /**
  * Per-call options for PoolClient.callTool.
@@ -71,8 +71,8 @@ export interface PoolCallToolOptions {
 }
 
 /**
- * Interface for clients managed by McpClientPool.
- * Both CraftMcpClient (remote MCP sources) and ApiSourcePoolClient (API sources) implement this.
+ * Interface for clients managed by MCPClientPool.
+ * Implemented by CraftMCPClient; tests inject fakes through the same seam.
  */
 export interface PoolClient {
   listTools(): Promise<Tool[]>
@@ -84,7 +84,7 @@ export interface PoolClient {
   close(): Promise<void>
 }
 
-export class CraftMcpClient {
+export class CraftMCPClient {
   private client: Client
   private transport: Transport
   private connected = false
@@ -95,7 +95,7 @@ export class CraftMcpClient {
    *   construction. Used by in-process tests (InMemoryTransport fixture) — production code
    *   should always pass a real config and let the transport be built here.
    */
-  constructor(config: McpClientConfig, transportOverride?: Transport) {
+  constructor(config: MCPClientConfig, transportOverride?: Transport) {
     this.client = new Client({
       name: 'dianjing',
       version: '0.1.0'
@@ -110,7 +110,7 @@ export class CraftMcpClient {
       // but filter out sensitive credentials to prevent leaking secrets to subprocesses
       const processEnv: Record<string, string> = {}
       for (const [key, value] of Object.entries(process.env)) {
-        if (value !== undefined && !BLOCKED_ENV_VARS.includes(key)) {
+        if (value !== undefined && !BLOCKED_ENV_VARS.has(key)) {
           processEnv[key] = value
         }
       }
@@ -175,10 +175,11 @@ export class CraftMcpClient {
       await this.connect()
     }
 
-    const result = await this.client.callTool({ name, arguments: args }, undefined, {
-      ...(options?.signal ? { signal: options.signal } : {}),
-      ...(options?.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {})
-    })
+    const requestOptions: { signal?: AbortSignal; timeout?: number } = {}
+    if (options?.signal) requestOptions.signal = options.signal
+    if (options?.timeoutMs !== undefined) requestOptions.timeout = options.timeoutMs
+
+    const result = await this.client.callTool({ name, arguments: args }, undefined, requestOptions)
     return result
   }
 

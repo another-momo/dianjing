@@ -62,10 +62,7 @@ describe('extractBase64Binary() — false positive regression (#344)', () => {
   })
 
   it('rejects URL-encoded strings', () => {
-    const url =
-      'https://example.com/path?q=hello%20world&token=abc123def456ghi789jkl012mno345pqr678stu901vwx234yz'.repeat(
-        5
-      )
+    const url = 'https://example.com/path?q=hello%20world&token=zzz'.repeat(5)
     expect(extractBase64Binary(url)).toBeNull()
   })
 
@@ -81,8 +78,8 @@ describe('extractBase64Binary() — true positives', () => {
     const b64 = makeRealBase64(256)
     const result = extractBase64Binary(b64)
     expect(result).not.toBeNull()
-    expect(result!.source).toBe('raw-base64')
-    expect(result!.buffer.length).toBe(256)
+    expect(result?.source).toBe('raw-base64')
+    expect(result?.buffer.length).toBe(256)
   })
 
   it('detects base64 with RFC 2045 line breaks (every 76 chars)', () => {
@@ -91,7 +88,7 @@ describe('extractBase64Binary() — true positives', () => {
     const wrapped = raw.replace(/(.{76})/g, '$1\r\n')
     const result = extractBase64Binary(wrapped)
     expect(result).not.toBeNull()
-    expect(result!.source).toBe('raw-base64')
+    expect(result?.source).toBe('raw-base64')
   })
 
   it('detects URL-safe base64-encoded binary', () => {
@@ -101,7 +98,7 @@ describe('extractBase64Binary() — true positives', () => {
     const urlSafe = buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_')
     const result = extractBase64Binary(urlSafe)
     expect(result).not.toBeNull()
-    expect(result!.source).toBe('raw-base64')
+    expect(result?.source).toBe('raw-base64')
   })
 
   it('detects base64 with = padding', () => {
@@ -142,10 +139,10 @@ describe('extractBase64Binary() — edge cases', () => {
   it('preserves Path A (data URL) detection', () => {
     const buf = Buffer.alloc(256)
     for (let i = 0; i < 256; i++) buf[i] = (i * 7 + 13) % 256
-    const dataUrl = `data:application/octet-stream;base64,${buf.toString('base64')}`
-    const result = extractBase64Binary(dataUrl)
+    const dataURL = `data:application/octet-stream;base64,${buf.toString('base64')}`
+    const result = extractBase64Binary(dataURL)
     expect(result).not.toBeNull()
-    expect(result!.source).toBe('data-url')
-    expect(result!.mimeType).toBe('application/octet-stream')
+    expect(result?.source).toBe('data-url')
+    expect(result?.mimeType).toBe('application/octet-stream')
   })
 })

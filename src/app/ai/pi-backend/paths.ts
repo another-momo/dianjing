@@ -214,7 +214,7 @@ export function resolveImageGenDatedDir(rootDir: string, date: Date): string {
 export const MCP_DOWNLOADS_SUBDIR = join(PI_WORKSPACE_SUBDIR, 'mcp-downloads')
 
 /** `rootDir/workspace/mcp-downloads/` —— MCP 二进制存盘根解析 */
-export function resolveMcpDownloadsDir(rootDir: string): string {
+export function resolveMCPDownloadsDir(rootDir: string): string {
   return join(rootDir, MCP_DOWNLOADS_SUBDIR)
 }
 

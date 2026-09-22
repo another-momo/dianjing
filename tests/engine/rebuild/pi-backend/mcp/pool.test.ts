@@ -1,5 +1,5 @@
 /**
- * McpClientPool tests — registerClient seam (protected) lets a fake PoolClient
+ * MCPClientPool tests — registerClient seam (protected) lets a fake PoolClient
  * inject responses without touching the MCP SDK or transport stack.
  *
  * Tests cover:
@@ -26,7 +26,7 @@ import { join } from 'node:path'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 
 import type { PoolCallToolOptions, PoolClient } from '@/app/ai/pi-backend/mcp/client'
-import { McpClientPool, type SdkMcpServerConfig } from '@/app/ai/pi-backend/mcp/mcp-pool'
+import { MCPClientPool, type SdkMCPServerConfig } from '@/app/ai/pi-backend/mcp/mcp-pool'
 
 // ============================================================
 // Fake PoolClient — exercises registerClient seam without real MCP
@@ -52,7 +52,9 @@ function makeFakeClient(options: FakeClientOptions = {}): PoolClient {
   return {
     listTools: async () => {
       if (options.listToolsDelayMs) {
-        await new Promise((r) => setTimeout(r, options.listToolsDelayMs))
+        await new Promise((r) => {
+          setTimeout(r, options.listToolsDelayMs)
+        })
       }
       if (options.pendingResolver) await options.pendingResolver.promise
       if (options.listToolsError) throw options.listToolsError
@@ -69,25 +71,25 @@ function makeFakeClient(options: FakeClientOptions = {}): PoolClient {
 // Test fixture: extend pool to inject fake clients (override protected seam)
 // ============================================================
 
-class TestablePool extends McpClientPool {
+class TestablePool extends MCPClientPool {
   /** slug → fake client to install on connect() */
   fakes = new Map<string, PoolClient>()
 
   protected override async registerClient(slug: string, _client: PoolClient): Promise<void> {
-    // Use the injected fake (bypasses CraftMcpClient construction entirely).
+    // Use the injected fake (bypasses CraftMCPClient construction entirely).
     const fake = this.fakes.get(slug)
     if (!fake) throw new Error(`No fake registered for slug ${slug}`)
     await super.registerClient(slug, fake)
   }
 }
 
-const STDIO_CONFIG: SdkMcpServerConfig = {
+const STDIO_CONFIG: SdkMCPServerConfig = {
   type: 'stdio',
   command: 'noop',
   args: []
 }
 
-const HTTP_CONFIG: SdkMcpServerConfig = {
+const HTTP_CONFIG: SdkMCPServerConfig = {
   type: 'http',
   url: 'http://0.0.0.0:1'
 }
@@ -126,7 +128,7 @@ const TINY_PNG_BASE64 =
 // Tests
 // ============================================================
 
-describe('McpClientPool.sync', () => {
+describe('MCPClientPool.sync', () => {
   let pool: TestablePool
 
   beforeEach(() => {
@@ -169,7 +171,7 @@ describe('McpClientPool.sync', () => {
     // Resolver-pattern fake: listTools never resolves until the test releases it.
     // connectTimeoutMs=50 means the pool's timeout fires well before any reasonable
     // test timeout, so the test itself never hangs.
-    const resolverHolder: { resolve: () => void } = { resolve: () => {} }
+    const resolverHolder: { resolve: () => void } = { resolve: () => undefined }
     const pending = new Promise<void>((r) => {
       resolverHolder.resolve = r
     })
@@ -211,14 +213,14 @@ describe('McpClientPool.sync', () => {
   })
 })
 
-describe('McpClientPool proxy-name handling', () => {
+describe('MCPClientPool proxy-name handling', () => {
   let pool: TestablePool
   let warnSpy: ReturnType<typeof spyOn>
 
   beforeEach(() => {
     pool = new TestablePool()
     // Silence the expected collision warning; capture call count instead.
-    warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+    warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
   })
 
   afterEach(() => {
@@ -268,7 +270,7 @@ describe('McpClientPool proxy-name handling', () => {
   })
 })
 
-describe('McpClientPool.callTool', () => {
+describe('MCPClientPool.callTool', () => {
   let pool: TestablePool
 
   beforeEach(() => {
@@ -338,7 +340,7 @@ describe('McpClientPool.callTool', () => {
       expect(result.content).toMatch(/^\[Image saved: .+\.(png|bin) \(\d+(\.\d+)? ?(B|KB|MB)\)\]$/)
       const match = result.content.match(/\[Image saved: (.+?) \(/)
       expect(match).not.toBeNull()
-      const savedPath = match![1]!
+      const savedPath = match?.[1] ?? ''
       expect(savedPath.startsWith(downloadRoot)).toBe(true)
 
       // File actually exists with non-zero size (PNG header bytes).
@@ -352,14 +354,14 @@ describe('McpClientPool.callTool', () => {
   })
 })
 
-describe('McpClientPool.ensureConnected', () => {
+describe('MCPClientPool.ensureConnected', () => {
   it('reconnects when the config changes (Authorization header refresh)', async () => {
-    const initialConfig: SdkMcpServerConfig = {
+    const initialConfig: SdkMCPServerConfig = {
       type: 'http',
       url: 'http://0.0.0.0:1',
       headers: { Authorization: 'Bearer old' }
     }
-    const refreshedConfig: SdkMcpServerConfig = {
+    const refreshedConfig: SdkMCPServerConfig = {
       type: 'http',
       url: 'http://0.0.0.0:1',
       headers: { Authorization: 'Bearer new' }
@@ -391,7 +393,7 @@ describe('McpClientPool.ensureConnected', () => {
   it('is a no-op when the config has not changed', async () => {
     let connectCalls = 0
     const countingPool = new (class extends TestablePool {
-      override async connect(slug: string, config: SdkMcpServerConfig): Promise<void> {
+      override async connect(slug: string, config: SdkMCPServerConfig): Promise<void> {
         connectCalls++
         return super.connect(slug, config)
       }

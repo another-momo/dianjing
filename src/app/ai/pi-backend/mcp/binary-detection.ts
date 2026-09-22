@@ -8,8 +8,8 @@
  * Extracted from api-tools.ts for centralized use.
  */
 
-import { mkdirSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 // ============================================================
 // Constants
@@ -204,29 +204,38 @@ export function extractBase64Binary(text: string): Base64ExtractionResult | null
   const trimmed = text.trim()
 
   // --- Path A: Data URL ---
-  const dataUrlMatch = trimmed.match(DATA_URL_RE)
-  if (dataUrlMatch) {
-    const mime = dataUrlMatch[1]!
-    const payload = dataUrlMatch[2]!
-    if (payload.length < MIN_BASE64_LENGTH) return null
-
-    try {
-      const decoded = Buffer.from(payload, 'base64')
-      if (decoded.length < MIN_DECODED_SIZE) return null
-
-      // For known binary MIME types, trust the MIME — skip looksLikeBinary check
-      if (!isBinaryMime(mime) && !looksLikeBinary(decoded)) return null
-
-      const ext = getMimeExtension(mime, decoded) || '.bin'
-      return { buffer: decoded, mimeType: mime, ext, source: 'data-url' }
-    } catch {
-      return null
-    }
-  }
+  const dataURLMatch = trimmed.match(DATA_URL_RE)
+  if (dataURLMatch) return extractFromDataURL(dataURLMatch)
 
   // --- Path B: Raw base64 blob ---
-  // Strict canonicalization pipeline — rejects anything that isn't structurally
-  // valid base64. Eliminates false positives from Node's lenient Buffer.from().
+  return extractFromRawBase64(trimmed)
+}
+
+/** Path A: extract from a `data:<mime>;base64,<payload>` URL match. */
+function extractFromDataURL(dataURLMatch: RegExpMatchArray): Base64ExtractionResult | null {
+  const [, mime, payload] = dataURLMatch
+  if (payload.length < MIN_BASE64_LENGTH) return null
+
+  try {
+    const decoded = Buffer.from(payload, 'base64')
+    if (decoded.length < MIN_DECODED_SIZE) return null
+
+    // For known binary MIME types, trust the MIME — skip looksLikeBinary check
+    if (!isBinaryMime(mime) && !looksLikeBinary(decoded)) return null
+
+    const ext = getMimeExtension(mime, decoded) || '.bin'
+    return { buffer: decoded, mimeType: mime, ext, source: 'data-url' }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Path B: extract from a raw base64 blob.
+ * Strict canonicalization pipeline — rejects anything that isn't structurally
+ * valid base64. Eliminates false positives from Node's lenient Buffer.from().
+ */
+function extractFromRawBase64(trimmed: string): Base64ExtractionResult | null {
   if (trimmed.length < MIN_BASE64_LENGTH) return null
 
   // Quick reject: structured data delimiters
@@ -241,11 +250,11 @@ export function extractBase64Binary(text: string): Base64ExtractionResult | null
   // Standard: [A-Za-z0-9+/] with optional = padding
   // URL-safe: [A-Za-z0-9\-_] with optional = padding
   const isStandard = /^[A-Za-z0-9+/]+=*$/.test(stripped)
-  const isUrlSafe = !isStandard && /^[A-Za-z0-9\-_]+=*$/.test(stripped)
-  if (!isStandard && !isUrlSafe) return null
+  const isURLSafe = !isStandard && /^[A-Za-z0-9\-_]+=*$/.test(stripped)
+  if (!isStandard && !isURLSafe) return null
 
   // Step 3: Normalize to standard alphabet for decoding
-  const normalized = isUrlSafe ? stripped.replace(/-/g, '+').replace(/_/g, '/') : stripped
+  const normalized = isURLSafe ? stripped.replace(/-/g, '+').replace(/_/g, '/') : stripped
 
   // Step 4: Auto-pad to make length divisible by 4
   const padded =
@@ -283,7 +292,7 @@ export function formatBytes(bytes: number): string {
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  const size = bytes / Math.pow(k, i)
+  const size = bytes / k ** i
   return `${size.toFixed(i > 0 ? 1 : 0)} ${sizes[i]}`
 }
 

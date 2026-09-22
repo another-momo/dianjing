@@ -109,34 +109,34 @@ describe('looksLikeBinary', () => {
 
 describe('extractBase64Binary (data URL)', () => {
   test('extracts data:image/png;base64 with binary payload', () => {
-    const dataUrl = `data:image/png;base64,${LARGE_PNG_BINARY.toString('base64')}`
-    const result = extractBase64Binary(dataUrl)
+    const dataURL = `data:image/png;base64,${LARGE_PNG_BINARY.toString('base64')}`
+    const result = extractBase64Binary(dataURL)
     expect(result).not.toBeNull()
-    expect(result!.source).toBe('data-url')
-    expect(result!.mimeType).toBe('image/png')
-    expect(result!.ext).toBe('.png')
-    expect(result!.buffer.length).toBeGreaterThan(0)
+    expect(result?.source).toBe('data-url')
+    expect(result?.mimeType).toBe('image/png')
+    expect(result?.ext).toBe('.png')
+    expect(result?.buffer.length).toBeGreaterThan(0)
   })
 
   test('extracts data:application/pdf;base64 with PDF payload', () => {
-    const dataUrl = `data:application/pdf;base64,${LARGE_PDF_BASE64}`
-    const result = extractBase64Binary(dataUrl)
+    const dataURL = `data:application/pdf;base64,${LARGE_PDF_BASE64}`
+    const result = extractBase64Binary(dataURL)
     expect(result).not.toBeNull()
-    expect(result!.source).toBe('data-url')
-    expect(result!.mimeType).toBe('application/pdf')
-    expect(result!.ext).toBe('.pdf')
+    expect(result?.source).toBe('data-url')
+    expect(result?.mimeType).toBe('application/pdf')
+    expect(result?.ext).toBe('.pdf')
   })
 
   test('rejects data:text/plain;base64 (decoded is not binary)', () => {
     const textContent = 'Hello, this is plain text. '.repeat(20)
-    const dataUrl = `data:text/plain;base64,${Buffer.from(textContent).toString('base64')}`
-    const result = extractBase64Binary(dataUrl)
+    const dataURL = `data:text/plain;base64,${Buffer.from(textContent).toString('base64')}`
+    const result = extractBase64Binary(dataURL)
     expect(result).toBeNull()
   })
 
   test('rejects short data URL payload', () => {
-    const dataUrl = `data:image/png;base64,${SHORT_BASE64}`
-    const result = extractBase64Binary(dataUrl)
+    const dataURL = `data:image/png;base64,${SHORT_BASE64}`
+    const result = extractBase64Binary(dataURL)
     expect(result).toBeNull()
   })
 })
@@ -149,9 +149,9 @@ describe('extractBase64Binary (raw base64)', () => {
   test('extracts long raw base64 that decodes to binary (PDF)', () => {
     const result = extractBase64Binary(LARGE_PDF_BASE64)
     expect(result).not.toBeNull()
-    expect(result!.source).toBe('raw-base64')
-    expect(result!.mimeType).toBeNull()
-    expect(result!.ext).toBe('.pdf')
+    expect(result?.source).toBe('raw-base64')
+    expect(result?.mimeType).toBeNull()
+    expect(result?.ext).toBe('.pdf')
   })
 
   test('extracts long raw base64 that decodes to binary (PNG)', () => {
@@ -159,8 +159,8 @@ describe('extractBase64Binary (raw base64)', () => {
     expect(b64.length).toBeGreaterThan(256)
     const result = extractBase64Binary(b64)
     expect(result).not.toBeNull()
-    expect(result!.source).toBe('raw-base64')
-    expect(result!.ext).toBe('.png')
+    expect(result?.source).toBe('raw-base64')
+    expect(result?.ext).toBe('.png')
   })
 
   test('rejects base64-encoded plain text (decoded is not binary)', () => {
@@ -196,10 +196,10 @@ describe('extractBase64Binary (raw base64)', () => {
   })
 
   test('handles whitespace-padded base64 (line breaks every 76 chars)', () => {
-    const b64 = LARGE_PDF_BASE64.match(/.{1,76}/g)!.join('\n')
+    const b64 = (LARGE_PDF_BASE64.match(/.{1,76}/g) ?? []).join('\n')
     const result = extractBase64Binary(b64)
     expect(result).not.toBeNull()
-    expect(result!.source).toBe('raw-base64')
+    expect(result?.source).toBe('raw-base64')
   })
 })
 

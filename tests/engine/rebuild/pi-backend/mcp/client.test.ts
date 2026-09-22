@@ -1,5 +1,5 @@
 /**
- * In-process fixture tests for CraftMcpClient.
+ * In-process fixture tests for CraftMCPClient.
  *
  * Hard constraint: zero ports, zero subprocesses, zero public network — only the
  * real MCP protocol stack over InMemoryTransport. The SDK methods themselves
@@ -12,7 +12,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 
-import { CraftMcpClient, type HttpMcpClientConfig } from '@/app/ai/pi-backend/mcp/client'
+import { CraftMCPClient, type HttpMCPClientConfig } from '@/app/ai/pi-backend/mcp/client'
 
 const FIXTURE_SERVER_INFO = { name: 'fixture-server', version: '9.9.9-fixture' }
 
@@ -29,13 +29,13 @@ function makeServer() {
   return server
 }
 
-function dummyHttpConfig(): HttpMcpClientConfig {
+function dummyHttpConfig(): HttpMCPClientConfig {
   // Unreachable in production (tests never call .connect() against it without transportOverride).
   // A unique non-routable host keeps the test self-contained if anything accidentally tries to dial.
   return { transport: 'http', url: 'http://0.0.0.0:1' }
 }
 
-describe('CraftMcpClient (in-process fixture)', () => {
+describe('CraftMCPClient (in-process fixture)', () => {
   let server: McpServer
   let clientTransport: InMemoryTransport
   let serverTransport: InMemoryTransport
@@ -55,7 +55,7 @@ describe('CraftMcpClient (in-process fixture)', () => {
   })
 
   it('connects, lists tools, roundtrips callTool, exposes server info, and closes cleanly', async () => {
-    const client = new CraftMcpClient(dummyHttpConfig(), clientTransport)
+    const client = new CraftMCPClient(dummyHttpConfig(), clientTransport)
 
     try {
       await client.connect()
@@ -89,7 +89,7 @@ describe('CraftMcpClient (in-process fixture)', () => {
     await orphanServerHandle.connect(orphanServer)
     await orphanServerHandle.close()
 
-    const client = new CraftMcpClient(dummyHttpConfig(), orphanClient)
+    const client = new CraftMCPClient(dummyHttpConfig(), orphanClient)
 
     try {
       // Loose semantic match: either the wrapped health-check error or a raw SDK error

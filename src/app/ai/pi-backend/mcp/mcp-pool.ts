@@ -15,8 +15,8 @@ import {
   saveBinaryResponse
 } from './binary-detection.ts'
 import {
-  CraftMcpClient,
-  type McpClientConfig,
+  CraftMCPClient,
+  type MCPClientConfig,
   type PoolCallToolOptions,
   type PoolClient
 } from './client.ts'
@@ -26,7 +26,7 @@ import { proxyToolName } from './proxy-tool-name.ts'
  * MCP source configuration (subset of backend types inlined — phase 1 only
  * supports http and stdio; sse is dropped per the phase-1 scope cut).
  */
-export type SdkMcpServerConfig =
+export type SdkMCPServerConfig =
   | { type: 'http'; url: string; headers?: Record<string, string> }
   | { type: 'stdio'; command: string; args?: string[]; env?: Record<string, string> }
 
@@ -43,7 +43,7 @@ export interface ProxyToolDef {
 /**
  * Result of an MCP tool call, matching the subprocess protocol format.
  */
-export interface McpToolResult {
+export interface MCPToolResult {
   content: string
   isError: boolean
   /** Source slug for error attribution (set on failure) */
@@ -54,25 +54,26 @@ export interface McpToolResult {
 const LARGE_RESULT_THRESHOLD = 50_000
 
 /**
- * Convert SdkMcpServerConfig to CraftMcpClient config.
+ * Convert SdkMCPServerConfig to CraftMCPClient config.
  */
-function sdkConfigToClientConfig(config: SdkMcpServerConfig): McpClientConfig | null {
-  if (config.type === 'http') {
-    return {
-      transport: 'http',
-      url: config.url,
-      headers: config.headers
-    }
+function sdkConfigToClientConfig(config: SdkMCPServerConfig): MCPClientConfig | null {
+  switch (config.type) {
+    case 'http':
+      return {
+        transport: 'http',
+        url: config.url,
+        headers: config.headers
+      }
+    case 'stdio':
+      return {
+        transport: 'stdio',
+        command: config.command,
+        args: config.args,
+        env: config.env
+      }
+    default:
+      return null
   }
-  if (config.type === 'stdio') {
-    return {
-      transport: 'stdio',
-      command: config.command,
-      args: config.args,
-      env: config.env
-    }
-  }
-  return null
 }
 
 /**
@@ -80,7 +81,7 @@ function sdkConfigToClientConfig(config: SdkMcpServerConfig): McpClientConfig | 
  * Compares URL changes and auth header refresh. Ignores stdio sources since they
  * don't use OAuth tokens.
  */
-function mcpConfigChanged(oldConfig: SdkMcpServerConfig, newConfig: SdkMcpServerConfig): boolean {
+function mcpConfigChanged(oldConfig: SdkMCPServerConfig, newConfig: SdkMCPServerConfig): boolean {
   if (oldConfig.type !== newConfig.type) return true
 
   if (oldConfig.type === 'http' && newConfig.type === 'http') {
@@ -96,12 +97,12 @@ function mcpConfigChanged(oldConfig: SdkMcpServerConfig, newConfig: SdkMcpServer
 /** Default per-connection connect timeout in milliseconds. */
 const DEFAULT_CONNECT_TIMEOUT_MS = 15_000
 
-export class McpClientPool {
+export class MCPClientPool {
   /** Active MCP clients keyed by source slug */
   private clients = new Map<string, PoolClient>()
 
   /** Configs used for active MCP connections (for change detection during sync) */
-  protected activeConfigs = new Map<string, SdkMcpServerConfig>()
+  protected activeConfigs = new Map<string, SdkMCPServerConfig>()
 
   /** Cached tool lists keyed by source slug */
   private toolCache = new Map<string, Tool[]>()
@@ -132,7 +133,7 @@ export class McpClientPool {
   }
 
   private debug(msg: string): void {
-    this.debugFn?.(`[McpClientPool] ${msg}`)
+    this.debugFn?.(`[MCPClientPool] ${msg}`)
   }
 
   // ============================================================
@@ -144,7 +145,7 @@ export class McpClientPool {
    * Shared logic for MCP sources (phase 2 will extend with API sources).
    */
   protected async registerClient(slug: string, client: PoolClient): Promise<void> {
-    // listTools() triggers connect() internally for CraftMcpClient
+    // listTools() triggers connect() internally for CraftMCPClient
     const tools = await client.listTools()
     this.clients.set(slug, client)
     this.toolCache.set(slug, tools)
@@ -160,7 +161,7 @@ export class McpClientPool {
         // disambiguation (suffixing) is a possible follow-up if this ever hits
         // a real server. Warn loudly so a "missing" tool is diagnosable.
         console.warn(
-          `[McpClientPool] Proxy name collision on ${proxyName} (source ${slug}): keeping ${existing.originalName}, skipping ${tool.name} — the skipped tool will not be callable`
+          `[MCPClientPool] Proxy name collision on ${proxyName} (source ${slug}): keeping ${existing.originalName}, skipping ${tool.name} — the skipped tool will not be callable`
         )
         this.debug(
           `Proxy name collision on ${proxyName}: keeping ${existing.originalName}, skipping ${tool.name}`
@@ -177,14 +178,14 @@ export class McpClientPool {
    * Connect to an MCP source server (remote HTTP / stdio).
    * If already connected, this is a no-op.
    */
-  async connect(slug: string, config: SdkMcpServerConfig): Promise<void> {
+  async connect(slug: string, config: SdkMCPServerConfig): Promise<void> {
     if (this.clients.has(slug)) return
     const clientConfig = sdkConfigToClientConfig(config)
     if (!clientConfig) {
       this.debug(`Unknown MCP server type for ${slug}: ${(config as { type: string }).type}`)
       return
     }
-    await this.registerClient(slug, new CraftMcpClient(clientConfig))
+    await this.registerClient(slug, new CraftMCPClient(clientConfig))
     this.activeConfigs.set(slug, config)
   }
 
@@ -195,7 +196,7 @@ export class McpClientPool {
    *
    * @throws Error on connection failure (propagated from connect()).
    */
-  async ensureConnected(slug: string, config: SdkMcpServerConfig): Promise<void> {
+  async ensureConnected(slug: string, config: SdkMCPServerConfig): Promise<void> {
     if (this.clients.has(slug)) {
       const oldConfig = this.activeConfigs.get(slug)
       if (!oldConfig || !mcpConfigChanged(oldConfig, config)) return
@@ -212,7 +213,7 @@ export class McpClientPool {
   async disconnect(slug: string): Promise<void> {
     const client = this.clients.get(slug)
     if (client) {
-      await client.close().catch(() => {})
+      await client.close().catch(() => undefined)
       this.clients.delete(slug)
     }
 
@@ -229,7 +230,9 @@ export class McpClientPool {
    * Disconnect all sources and clear all state.
    */
   async disconnectAll(): Promise<void> {
-    const closePromises = Array.from(this.clients.values()).map((c) => c.close().catch(() => {}))
+    const closePromises = Array.from(this.clients.values()).map((c) =>
+      c.close().catch(() => undefined)
+    )
     await Promise.all(closePromises)
     this.clients.clear()
     this.toolCache.clear()
@@ -247,7 +250,7 @@ export class McpClientPool {
    * On timeout, rejects with a descriptive error; the caller (sync) catches
    * and records the slug in failures[] without propagating.
    */
-  private async connectWithTimeout(slug: string, config: SdkMcpServerConfig): Promise<void> {
+  private async connectWithTimeout(slug: string, config: SdkMCPServerConfig): Promise<void> {
     let timer: ReturnType<typeof setTimeout> | undefined
     const timeoutPromise = new Promise<never>((_, reject) => {
       timer = setTimeout(
@@ -276,7 +279,7 @@ export class McpClientPool {
    * @param mcpServers - Map of slug → config for desired MCP sources
    * @returns List of slugs that failed to connect
    */
-  async sync(mcpServers: Record<string, SdkMcpServerConfig>): Promise<string[]> {
+  async sync(mcpServers: Record<string, SdkMCPServerConfig>): Promise<string[]> {
     const desiredSlugs = new Set(Object.keys(mcpServers))
     const currentSlugs = new Set(this.clients.keys())
 
@@ -288,7 +291,7 @@ export class McpClientPool {
     }
 
     // Build work list: new sources to connect + existing sources whose config changed
-    type ConnectWork = { slug: string; config: SdkMcpServerConfig; reconnect: boolean }
+    type ConnectWork = { slug: string; config: SdkMCPServerConfig; reconnect: boolean }
     const work: ConnectWork[] = []
     for (const [slug, config] of Object.entries(mcpServers)) {
       if (!currentSlugs.has(slug)) {
@@ -366,7 +369,8 @@ export class McpClientPool {
         seen.add(name)
         // Strip $schema — AJV (Pi agent) fails on unregistered meta-schema URIs.
         // Same pattern as getToolDefsAsJsonSchema() in tool-defs.ts.
-        const { $schema, ...cleanSchema } = (tool.inputSchema as Record<string, unknown>) || {}
+        const cleanSchema: Record<string, unknown> = { ...tool.inputSchema }
+        delete cleanSchema.$schema
         defs.push({
           name,
           description: tool.description || `Tool from ${slug}`,
@@ -402,7 +406,7 @@ export class McpClientPool {
     proxyName: string,
     args: Record<string, unknown>,
     options?: PoolCallToolOptions
-  ): Promise<McpToolResult> {
+  ): Promise<MCPToolResult> {
     const info = this.proxyTools.get(proxyName)
     if (!info) {
       return {
