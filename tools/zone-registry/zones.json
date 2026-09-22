@@ -113,7 +113,8 @@
     "tests/engine/render/canvas/raster-budget.test.ts",
     "tests/engine/io/fig/export/thumbnail-fallback.test.ts",
     "src/components/canvas/RendererDeadBanner.vue",
-    "packages/core/src/canvas/renderer/dead.ts"
+    "packages/core/src/canvas/renderer/dead.ts",
+    "tests/engine/app/document/close/use.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -2206,6 +2207,20 @@
       "id": "P358",
       "file": "tests/engine/vue/canvas/render-loop.test.ts",
       "reason": "A-3 渲染崩溃检测：追加 describe 'renderer-dead ghost-loop guard'——验证 latch 翻后 scheduleFrame/markDirty 短路、renderNow 内 RuntimeError 被捕获后不再调度新帧",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P359",
+      "file": "src/app/document/close/exit.ts",
+      "reason": "仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 A-2：requestAppExit 按平台分流——Electron 走 /__dianjing/quit 回环端点（main 侧 app.quit），修掉旧实现 import Tauri 专属 @tauri-apps/plugin-process 在 Electron 上静默抛错的「意外后门」（批准后 approved 置 true 但窗关不掉）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P360",
+      "file": "src/app/document/close/use.ts",
+      "reason": "仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 A-2：Electron 分支注册 window.__dianjingHandleCloseRequest 供 main 经 executeJavaScript 调（走 confirmAppExit 共享 approval 单例）+ keydown 拦 Ctrl/Cmd+R 与 F5 硬刷变体（dirty 先确认再放行 reload）；handleCloseRequestImpl / matchesReloadKey / isMacPlatform 抽纯函数供单测",
       "disposition": "permanent",
       "lastReviewed": "2026-09-22"
     }
