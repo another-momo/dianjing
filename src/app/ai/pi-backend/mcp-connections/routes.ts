@@ -10,6 +10,8 @@
  *            失败不阻断保存：status='failed' + error 原因；
  *            成功：status='connected' + toolCount；
  *            保存后触发**会话驱逐**（详 service.ts 接入缝），下个 prompt 用新连接集。
+ *          headers / env 省略 = 保留旧值、显式 {} = 清空、非空 = 整体替换
+ *          （编辑不回显配套，语义详 store.ts upsert）。
  *   DELETE /api/pi/mcp/connections/:slug → 移除 + 触发会话驱逐
  *
  * 与 image-gen routes 的差异：PUT 路径带 :slug 段——slug 来自 URL，非 body；

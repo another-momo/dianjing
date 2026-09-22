@@ -102,7 +102,14 @@
     "src/components/fill-picker/rasterize-svg.ts",
     "tests/engine/app/toolbar-add-image.test.ts",
     "tests/engine/bytes/image-mime.test.ts",
-    "src/theme/settings/disclosure.ts"
+    "src/theme/settings/disclosure.ts",
+    "src/components/settings/mcp-connections/MCPConnectionsSection.vue",
+    "src/components/settings/mcp-connections/MCPConnectionEditor.vue",
+    "src/components/settings/mcp-connections/client.ts",
+    "src/components/settings/mcp-connections/types.ts",
+    "src/components/settings/mcp-connections/form.ts",
+    "src/components/settings/mcp-connections/use.ts",
+    "src/components/settings/mcp-connections/mutations.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -166,6 +173,18 @@
       "newPaths": ["tests/engine/app/bridge/"],
       "since": "bridge-path-separation (2026-09-14)",
       "note": "测试镜像随 src 改名随迁；两件 mcp 相关测试 patch 随文件转 ownedFiles 退役（T74/P142 历史见 git log）"
+    },
+    {
+      "oldPath": "src/components/settings/mcp/",
+      "newPaths": ["src/components/settings/mcp-connections/"],
+      "since": "mcp-api-adoption 阶段 1 (2026-09-22)",
+      "note": "第三方 MCP 连接设置面拷改 + 路径分离（提案 202609220955 §5.6）：旧路径保留 deletedPaths 墓碑不复活；上游继续演进旧路径时 RELOCATION_WATCH advisory 驱动移植评估"
+    },
+    {
+      "oldPath": "src/app/integrations/mcp/",
+      "newPaths": ["src/app/ai/pi-backend/mcp-connections/"],
+      "since": "mcp-api-adoption 阶段 1 (2026-09-22)",
+      "note": "数据层语义继承者 = 后端凭据 store + HTTP routes（上游 localStorage 方案弃用——凭据五件化落 agentDir + key-guard）；编排层（form/use/mutations）语义随迁 src/components/settings/mcp-connections/"
     }
   ],
   "patches": [
@@ -418,9 +437,9 @@
     {
       "id": "P44",
       "file": "src/components/settings/SettingsDialog.vue",
-      "reason": "壳层随上游 AppTabs 族回迁（2026-09-18 外观对齐批）；保留差异 = nav 板块集（fork 五板块 general/ai/media/fonts/storage，无 usage/diagnostics/mcp——437b931cb owner 拍板永不吸收）+ ai 区三件同流（T96/T87/ai-panel-ux-consolidation）+ footer 左侧 remember 凭据控件（PR713 吸收接线，上游无）｜ 2026-09-18 内容代吸收：media 段整取 v0.15.0 MediaSettingsPanel 钻取式（StockPhotoKeysSection/VectorizeSettingsSection 随删进 deletedPaths），media/general/storage 面板内容层与 v0.15.0 字节对齐 ｜ 2026-09-19 P2-a（路线 B）：ai 段挂 ChatSettingsSection（chat.reasoningDisplay 三态偏好设置项，语义位置对齐上游 ai 段紧随 ModelsPanel；新组件登记 ownedFiles）",
+      "reason": "壳层随上游 AppTabs 族回迁（2026-09-18 外观对齐批）；保留差异 = nav 板块集（fork 五板块 general/ai/media/fonts/storage，无 usage/diagnostics/mcp——437b931cb owner 拍板永不吸收）+ ai 区三件同流（T96/T87/ai-panel-ux-consolidation）+ footer 左侧 remember 凭据控件（PR713 吸收接线，上游无）｜ 2026-09-18 内容代吸收：media 段整取 v0.15.0 MediaSettingsPanel 钻取式（StockPhotoKeysSection/VectorizeSettingsSection 随删进 deletedPaths），media/general/storage 面板内容层与 v0.15.0 字节对齐 ｜ 2026-09-19 P2-a（路线 B）：ai 段挂 ChatSettingsSection（chat.reasoningDisplay 三态偏好设置项，语义位置对齐上游 ai 段紧随 ModelsPanel；新组件登记 ownedFiles）｜ 2026-09-22 mcp-api-adoption 阶段 1：ai 段 ImageGenKeysSection 与 AgentSettingsPanel 之间挂 McpConnectionsSection（新组件登记 ownedFiles，路径分离避开 settings/mcp 墓碑）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-18"
+      "lastReviewed": "2026-09-22"
     },
     {
       "id": "P45",

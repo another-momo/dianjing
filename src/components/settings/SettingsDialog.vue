@@ -13,6 +13,7 @@ import AgentSettingsPanel from '@/components/settings/agent/AgentSettingsPanel.v
 import ChatSettingsSection from '@/components/settings/chat/ChatSettingsSection.vue'
 import FontsSettingsPanel from '@/components/settings/fonts/FontsSettingsPanel.vue'
 import GeneralSettingsPanel from '@/components/settings/general/GeneralSettingsPanel.vue'
+import McpConnectionsSection from '@/components/settings/mcp-connections/MCPConnectionsSection.vue'
 import MediaSettingsPanel from '@/components/settings/media/MediaSettingsPanel.vue'
 import PiModelsPanel from '@/components/settings/models/PiModelsPanel.vue'
 import ImageGenKeysSection from '@/components/settings/provider/ImageGenKeysSection.vue'
@@ -114,6 +115,10 @@ const credentialBackendLabel = computed(() => {
                  （与 PiModelsPanel / AgentSettingsPanel 同流——三件 AI 相关） -->
             <ImageGenKeysSection />
             <!-- ai-panel-ux-consolidation：图像生成与 Agent 能力之间的视觉分隔 -->
+            <div class="border-t border-border" />
+            <!-- MCP 接入阶段 1：第三方 MCP 连接设置面（§5.6 拷改 + 路径分离，
+                 见 src/components/settings/mcp-connections/） -->
+            <McpConnectionsSection />
             <div class="border-t border-border" />
             <!-- T87：Agent 能力配置（T96：builtinTools 三档位 + agentSkills 开关） -->
             <AgentSettingsPanel />

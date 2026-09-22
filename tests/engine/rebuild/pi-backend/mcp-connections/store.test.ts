@@ -211,6 +211,35 @@ describe('mcp-connections store', () => {
     expect(again?.status).toBe('untested')
   })
 
+  test('凭据保留语义：编辑省略 headers/env → 保留旧值；显式 {} → 清空；非空 → 整体替换', () => {
+    const { store } = makeStore()
+    store.upsert('acme', HTTP_INPUT)
+    // 编辑改 url 不带 headers → 旧凭据保留
+    store.upsert('acme', { transport: 'http', url: 'https://mcp2.example.com/sse' })
+    const kept = store.get('acme')
+    expect(kept?.url).toBe('https://mcp2.example.com/sse')
+    expect(kept?.headers).toEqual({ authorization: 'Bearer super-secret-value' })
+    // 非空 headers → 整体替换
+    store.upsert('acme', {
+      transport: 'http',
+      url: 'https://mcp2.example.com/sse',
+      headers: { 'x-api-key': 'new-key' }
+    })
+    expect(store.get('acme')?.headers).toEqual({ 'x-api-key': 'new-key' })
+    // 显式 {} → 清空
+    store.upsert('acme', { transport: 'http', url: 'https://mcp2.example.com/sse', headers: {} })
+    expect(store.get('acme')?.headers).toBeUndefined()
+
+    // stdio env 同律
+    store.upsert('local', STDIO_INPUT)
+    store.upsert('local', { transport: 'stdio', command: 'npx', args: ['-y', '@acme/v2'] })
+    const keptEnv = store.get('local')
+    expect(keptEnv?.args).toEqual(['-y', '@acme/v2'])
+    expect(keptEnv?.env).toEqual({ ACME_TOKEN: 'env-secret-value' })
+    store.upsert('local', { transport: 'stdio', command: 'npx', env: {} })
+    expect(store.get('local')?.env).toBeUndefined()
+  })
+
   test('toSdkConfig 派生：http/stdio 形态 + headers/env 直通 pool 装配面', () => {
     const { store } = makeStore()
     store.upsert('acme', HTTP_INPUT)

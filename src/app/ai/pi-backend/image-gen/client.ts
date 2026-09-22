@@ -13,6 +13,7 @@
 
 import { ref } from 'vue'
 
+import { requestPiJSON } from '../request-json'
 import type { ImageGenProviderType } from './provider-types'
 
 export { DEFAULT_IMAGE_GEN_PROVIDER_TYPE, IMAGE_GEN_PROVIDER_TYPES } from './provider-types'
@@ -36,19 +37,11 @@ export const imageGenCredentialLoading = ref(false)
 // 图片本地留存设置状态：null = 未拉取过；非空 = 后端 GET 返回的最新值（含 dir）
 export const imageGenSettings = ref<ImageGenSettingsStatus | null>(null)
 
-async function requestJSON<T>(init?: RequestInit, path: string = API_PATH): Promise<T> {
-  const response = await fetch(path, init)
-  if (response.ok) return (await response.json()) as T
-  const envelope = (await response.json().catch(() => null)) as { error?: string } | null
-  const detail = envelope?.error?.trim() ? envelope.error : `HTTP ${response.status}`
-  throw new Error(detail)
-}
-
 export async function refreshImageGenCredentialStatus(): Promise<void> {
   imageGenCredentialLoading.value = true
   imageGenCredentialError.value = null
   try {
-    imageGenCredentialStatus.value = await requestJSON<ImageGenCredentialStatus>()
+    imageGenCredentialStatus.value = await requestPiJSON<ImageGenCredentialStatus>(API_PATH)
   } catch (error) {
     imageGenCredentialStatus.value = null
     imageGenCredentialError.value = error instanceof Error ? error.message : String(error)
@@ -60,7 +53,7 @@ export async function refreshImageGenCredentialStatus(): Promise<void> {
 /** 拉取最新设置（含 dir 字段）——失败时保留旧值，前端不显示 dir 行 */
 export async function refreshImageGenSettings(): Promise<void> {
   try {
-    imageGenSettings.value = await requestJSON<ImageGenSettingsStatus>(undefined, SETTINGS_PATH)
+    imageGenSettings.value = await requestPiJSON<ImageGenSettingsStatus>(SETTINGS_PATH)
   } catch (error) {
     // 失败保留旧值：设置面板照常渲染，dir 行仅在 imageGenSettings 非空时显示；
     // 同一根因（后端离线）已由凭证面 banner 承担用户告知，这里只留 console 痕迹
@@ -76,14 +69,11 @@ export async function refreshImageGenSettings(): Promise<void> {
  * 后续加字段时零前端改动）。
  */
 export async function setImageGenRetainLocal(value: boolean): Promise<void> {
-  await requestJSON<ImageGenSettingsStatus>(
-    {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ retainLocal: value })
-    },
-    SETTINGS_PATH
-  )
+  await requestPiJSON<ImageGenSettingsStatus>(SETTINGS_PATH, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ retainLocal: value })
+  })
   await refreshImageGenSettings()
 }
 
@@ -93,10 +83,9 @@ export async function setImageGenRetainLocal(value: boolean): Promise<void> {
  */
 export async function openImageGenFolder(): Promise<{ ok: boolean; error?: string }> {
   try {
-    return await requestJSON<{ ok: boolean; error?: string }>(
-      { method: 'POST' },
-      '/api/pi/open-image-gen-folder'
-    )
+    return await requestPiJSON<{ ok: boolean; error?: string }>('/api/pi/open-image-gen-folder', {
+      method: 'POST'
+    })
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -109,7 +98,7 @@ export async function setImageGenCredential(input: {
   model: string
   apiKey: string
 }): Promise<void> {
-  await requestJSON<{ ok: true }>({
+  await requestPiJSON<{ ok: true }>(API_PATH, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input)
@@ -118,6 +107,6 @@ export async function setImageGenCredential(input: {
 }
 
 export async function clearImageGenCredential(): Promise<void> {
-  await requestJSON<{ ok: true }>({ method: 'DELETE' })
+  await requestPiJSON<{ ok: true }>(API_PATH, { method: 'DELETE' })
   await refreshImageGenCredentialStatus()
 }

@@ -174,6 +174,9 @@ export interface MCPConnectionsStore {
    * 创建或替换单条连接（PUT 入参 = 整条配置；status 强制 untested，toolCount /
    * error 留待 routes 健康检查后用 updateStatus 覆盖）。
    * 入参形状由 Valibot v.parse 强制；坏 transport / 缺 url / 缺 command 等抛错。
+   * 凭据保留语义（编辑不回显配套）：headers / env 键**省略 = 保留该 slug 旧值**，
+   * 显式 {} = 清空，非空 = 整体替换——前端编辑面永不回显凭据原文，整条替换
+   * 会把用户没重填的密钥静默抹掉；url/command/args 等非凭据字段照常整条替换。
    */
   upsert(slug: string, input: MCPConnectionConfig): MCPConnection
   /**
@@ -251,17 +254,21 @@ export function createMCPConnectionsStore({ agentDir }: { agentDir: string }): M
   function upsert(slug: string, input: MCPConnectionConfig): MCPConnection {
     // Valibot 强制 transport 必填 + 分支匹配（http 必填 url / stdio 必填 command）
     const parsed = v.parse(mcpConnectionInputSchema, input)
+    const doc = load()
+    const existing = doc.connections[slug] as MCPConnection | undefined
     // 写入时 status 强制 untested——routes 健康检查另写
     const conn: MCPConnection = { slug, transport: parsed.transport, status: 'untested' }
     if (parsed.transport === 'http') {
       conn.url = parsed.url
-      if (parsed.headers) conn.headers = { ...parsed.headers }
+      // headers 省略 = 保留旧值（编辑不回显配套）；显式 {} = 清空；非空 = 整体替换
+      const headers = parsed.headers ?? existing?.headers
+      if (headers && Object.keys(headers).length > 0) conn.headers = { ...headers }
     } else {
       conn.command = parsed.command
       if (parsed.args) conn.args = [...parsed.args]
-      if (parsed.env) conn.env = { ...parsed.env }
+      const env = parsed.env ?? existing?.env
+      if (env && Object.keys(env).length > 0) conn.env = { ...env }
     }
-    const doc = load()
     doc.connections[slug] = conn
     writeToDisk(doc)
     cache = doc
