@@ -14,6 +14,8 @@ export { exportFigFile, parseFigFile, readFigFile, type ParseFigFileOptions } fr
 export { parsePenFile, readPenFile } from '@open-pencil/pen'
 export { sceneNodeToJSX, selectionToJSX, type JSXFormat } from './formats/jsx'
 export {
+  MAX_RASTER_BYTES,
+  RasterBudgetExceededError,
   computeContentBounds,
   renderNodesToImage,
   renderThumbnail,

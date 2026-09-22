@@ -99,18 +99,28 @@ async function renderFigThumbnail(
   renderHeadless = false
 ): Promise<Uint8Array> {
   if (!pageId) return THUMBNAIL_1X1
-  if (ck && renderer) {
+  // A-1（§4 逃生舱）：CanvasKit WASM 单例堆损坏后任何 ck.* 调用抛
+  // RuntimeError——保存链必须与之解耦，渲染失败时降级为 1×1 透明 PNG 占位，
+  // 字形/场景照常存盘。错误以 warn 暴露，不阻断存盘。
+  try {
+    if (ck && renderer) {
+      return (
+        renderThumbnail(ck, renderer, graph, pageId, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT) ??
+        THUMBNAIL_1X1
+      )
+    }
+    if (!renderHeadless || IS_BROWSER || IS_TAURI) return THUMBNAIL_1X1
+    const { headlessRenderThumbnail } = await import('#core/io/formats/raster')
     return (
-      renderThumbnail(ck, renderer, graph, pageId, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT) ??
+      (await headlessRenderThumbnail(graph, pageId, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)) ??
       THUMBNAIL_1X1
     )
+  } catch (err) {
+    console.warn(
+      `[export] thumbnail render failed, falling back to 1×1 placeholder: ${err instanceof Error ? err.message : String(err)}`
+    )
+    return THUMBNAIL_1X1
   }
-  if (!renderHeadless || IS_BROWSER || IS_TAURI) return THUMBNAIL_1X1
-  const { headlessRenderThumbnail } = await import('#core/io/formats/raster')
-  return (
-    (await headlessRenderThumbnail(graph, pageId, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)) ??
-    THUMBNAIL_1X1
-  )
 }
 
 function assignVariableGuid(
@@ -411,25 +421,34 @@ function appendInternalResources(context: InternalResourceContext): void {
   if (!internalCanvasGuid) return
   const sharedStyleNodes = [...graph.nodes.values()].filter((node) => node.sharedStyleType !== null)
   for (let index = 0; index < sharedStyleNodes.length; index++) {
-    nodeChanges.push(
-      ...sceneNodeToKiwi(
-        sharedStyleNodes[index],
-        internalCanvasGuid,
-        index,
-        context.localIdCounter,
-        graph,
-        context.blobs,
-        context.nodeIdToGuid,
-        context.fontDigestMap,
-        context.varIdToGuid,
-        context.glyphBlobMap,
-        context.blobIndexByHex,
-        context.assignedGuidValues,
-        context.componentPropertyDefinitionsById,
-        context.modeIdToGuid,
-        context.propertyIdToGuid
+    // A-1（§4 逃生舱）：见 renderFigThumbnail。sceneNodeToKiwi 内部按文本节点
+    // 走运行时字形度量（glyphBlobMap 链），堆损坏下可能抛 RuntimeError——降级为
+    // 跳过该节点的写入，保留其余节点；glyphBlobMap 保持半空，存盘照旧。
+    try {
+      nodeChanges.push(
+        ...sceneNodeToKiwi(
+          sharedStyleNodes[index],
+          internalCanvasGuid,
+          index,
+          context.localIdCounter,
+          graph,
+          context.blobs,
+          context.nodeIdToGuid,
+          context.fontDigestMap,
+          context.varIdToGuid,
+          context.glyphBlobMap,
+          context.blobIndexByHex,
+          context.assignedGuidValues,
+          context.componentPropertyDefinitionsById,
+          context.modeIdToGuid,
+          context.propertyIdToGuid
+        )
       )
-    )
+    } catch (err) {
+      console.warn(
+        `[export] skipping shared-style node ${sharedStyleNodes[index].id} after render failure: ${err instanceof Error ? err.message : String(err)}`
+      )
+    }
   }
   if (graph.variableCollections.size > 0) {
     appendVariableNodeChanges(
@@ -558,25 +577,33 @@ export async function exportFigFile(
   for (const { page, canvasGuid } of orderedCanvasEntries) {
     const children = graph.getChildren(page.id).filter((child) => !child.internalOnly)
     for (let i = 0; i < children.length; i++) {
-      nodeChanges.push(
-        ...sceneNodeToKiwi(
-          children[i],
-          canvasGuid,
-          i,
-          localIdCounter,
-          graph,
-          blobs,
-          nodeIdToGuid,
-          fontDigestMap,
-          varIdToGuid,
-          glyphBlobMap,
-          blobIndexByHex,
-          assignedGuidValues,
-          componentPropertyDefinitionsById,
-          modeIdToGuid,
-          propertyIdToGuid
+      // A-1（§4 逃生舱）：见 renderFigThumbnail。逐节点 try/catch 保证单个渲染
+      // 相关失败只丢该节点的 nodeChanges/字形 blob，文档其余部分照常存盘。
+      try {
+        nodeChanges.push(
+          ...sceneNodeToKiwi(
+            children[i],
+            canvasGuid,
+            i,
+            localIdCounter,
+            graph,
+            blobs,
+            nodeIdToGuid,
+            fontDigestMap,
+            varIdToGuid,
+            glyphBlobMap,
+            blobIndexByHex,
+            assignedGuidValues,
+            componentPropertyDefinitionsById,
+            modeIdToGuid,
+            propertyIdToGuid
+          )
         )
-      )
+      } catch (err) {
+        console.warn(
+          `[export] skipping node ${children[i].id} on page ${page.id} after render failure: ${err instanceof Error ? err.message : String(err)}`
+        )
+      }
     }
   }
 

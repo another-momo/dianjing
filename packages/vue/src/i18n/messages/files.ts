@@ -36,7 +36,10 @@ export const filesMessageDefaults = {
   noMatchingFiles: params('No files match “{query}”.'),
   saveAsPrompt: 'Save as:',
   browserFileAPINotSupported:
-    "Your browser doesn't support the local file API. Files will be downloaded instead of saved in place."
+    "Your browser doesn't support the local file API. Files will be downloaded instead of saved in place.",
+  exportTooLarge: params(
+    'Export is too large to render (selection is {contentW}×{contentH} px at {scale}× — would allocate more than 512 MB). Export at a smaller scale or crop the selection.'
+  )
 } as const
 
 export const filesMessages = i18n('files', filesMessageDefaults)
