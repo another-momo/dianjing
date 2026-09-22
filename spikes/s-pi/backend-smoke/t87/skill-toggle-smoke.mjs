@@ -144,7 +144,7 @@ if (!ready) {
 try {
   const token = readBackendToken(tempRoot)
 
-  // ── ① 缺省 DEFAULTS（2026-09-18 翻转 readonly+true）：agentSkills 缺省 ON，
+  // ── ① 缺省 DEFAULTS（2026-09-22 翻转 full+true）：agentSkills 缺省 ON，
   //    fixture skill 就位 → manifest.skills 即含 t87-demo；OFF 态由 ④ 显式关验证
   const m0 = await (
     await fetch(`${BASE}/api/pi/studio/manifest`, { headers: authHeaders(token) })
@@ -152,7 +152,7 @@ try {
   check(
     'T87 端到端①：缺省 capabilities ON → manifest.skills 含 fixture t87-demo',
     m0.capabilities?.agentSkills === true &&
-      m0.capabilities?.builtinTools === 'readonly' &&
+      m0.capabilities?.builtinTools === 'full' &&
       (m0.skills ?? []).some((s) => s.name === 't87-demo'),
     JSON.stringify({ capabilities: m0.capabilities, skills: m0.skills })
   )

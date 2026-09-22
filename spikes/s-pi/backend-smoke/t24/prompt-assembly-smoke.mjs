@@ -323,18 +323,18 @@ try {
   )
 
   // ── T87：capabilities 路由
-  // 缺省 DEFAULTS（首次请求 capabilities.json 不存在；2026-09-18 翻转 readonly+true）
+  // 缺省 DEFAULTS（首次请求 capabilities.json 不存在；2026-09-22 翻转 full+true）
   const capRes0 = await fetch(`${BASE}/api/pi/capabilities`, { headers: authHeaders(token) })
   const cap0 = await capRes0.json()
   check(
-    'T87 路由 capabilities：缺省 DEFAULTS（capabilities.json 不存在 → 兜底 readonly+true）',
-    capRes0.ok && cap0.builtinTools === 'readonly' && cap0.agentSkills === true,
+    'T87 路由 capabilities：缺省 DEFAULTS（capabilities.json 不存在 → 兜底 full+true）',
+    capRes0.ok && cap0.builtinTools === 'full' && cap0.agentSkills === true,
     JSON.stringify(cap0)
   )
   // manifest.skills 同步透传（缺省 ON 但 fixture 目录无 skill → []）
   check(
-    'T87 路由 manifest：capabilities 缺省 readonly+true + skills=[] 透传',
-    manifest.capabilities?.builtinTools === 'readonly' &&
+    'T87 路由 manifest：capabilities 缺省 full+true + skills=[] 透传',
+    manifest.capabilities?.builtinTools === 'full' &&
       manifest.capabilities?.agentSkills === true &&
       Array.isArray(manifest.skills) &&
       manifest.skills.length === 0,

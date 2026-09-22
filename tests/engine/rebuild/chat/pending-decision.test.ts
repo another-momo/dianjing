@@ -141,10 +141,9 @@ describe('parseAuthzRequestData 防御性归一', () => {
       files: ['SKILL.md', 'principles.md'],
       adapterSummary: 'files: 2\ndescription: A demo skill'
     })
-    // 判别收窄：装回 BashAuthzRequestData 形状断言 command 缺席
+    // 判别收窄：install_skill 变体断言 command 缺席（运行时键检，不用 suppression 注释）
     if (parsed && parsed.toolName === 'install_skill') {
-      // @ts-expect-error command 字段在 install_skill 变体不存（TS 收窄验证）
-      const _unused = parsed.command
+      expect('command' in parsed).toBe(false)
     }
   })
 
@@ -341,11 +340,10 @@ describe('collectPinnedDecisions（pinned dock 收集规则）', () => {
       mode: 'pending',
       request: { formId, toolName: 'install_skill', name: 'demo' }
     })
-    // 判别联合收窄：install_skill 视图 request 字段不含 command
+    // 判别联合收窄：install_skill 视图 request 字段不含 command（运行时键检）
     const view = views[0]
     if (view.kind === 'authz' && view.request.toolName === 'install_skill') {
-      // @ts-expect-error command 字段在 install_skill 变体不存（TS 收窄验证）
-      const _unused = view.request.command
+      expect('command' in view.request).toBe(false)
     }
   })
 

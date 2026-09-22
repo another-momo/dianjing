@@ -109,12 +109,60 @@ export async function postDecisionAnswer(
   }
 }
 
+/** bash 支校验：command 非空；cwd 缺省兜空串；matchedRule 空串归 undefined */
+function parseBashAuthzRequest(input: object, formId: string): BashAuthzRequestData | null {
+  if (!('command' in input) || typeof input.command !== 'string' || input.command === '') {
+    return null
+  }
+  const cwd = 'cwd' in input && typeof input.cwd === 'string' ? input.cwd : ''
+  const matchedRule =
+    'matchedRule' in input && typeof input.matchedRule === 'string' && input.matchedRule !== ''
+      ? input.matchedRule
+      : undefined
+  return {
+    formId,
+    kind: 'authz',
+    toolName: 'bash',
+    command: input.command,
+    cwd,
+    ...(matchedRule !== undefined ? { matchedRule } : {})
+  }
+}
+
+/** install_skill 支校验：sourceDir/name/files/overwrite/adapterSummary 五件齐备 */
+function parseInstallSkillAuthzRequest(
+  input: object,
+  formId: string
+): InstallSkillAuthzRequestData | null {
+  if (!('sourceDir' in input) || typeof input.sourceDir !== 'string' || input.sourceDir === '') {
+    return null
+  }
+  if (!('name' in input) || typeof input.name !== 'string' || input.name === '') return null
+  if (!('files' in input) || !Array.isArray(input.files)) return null
+  if (!('overwrite' in input) || typeof input.overwrite !== 'boolean') return null
+  if (!('adapterSummary' in input) || typeof input.adapterSummary !== 'string') return null
+  const files: string[] = []
+  for (const f of input.files) {
+    if (typeof f !== 'string') return null
+    files.push(f)
+  }
+  return {
+    formId,
+    kind: 'authz',
+    toolName: 'install_skill',
+    sourceDir: input.sourceDir,
+    name: input.name,
+    overwrite: input.overwrite,
+    files,
+    adapterSummary: input.adapterSummary
+  }
+}
+
 /** data part 载荷防御性归一（形状不符 → null，渲染层不崩不渲染）。
- *  按 toolName 分支校验：bash 支要求 command 非空；install_skill 支要求
- *  sourceDir/name/files/overwrite/adapterSummary 必填字段齐备。`in` 收窄
- *  逐字段取（parseSetActiveDesignProposed 先例），不做宽断言；未知 toolName 返
- *  null——前端不假装 fallback bash，避免 install_skill 之外的闸门载荷静默走
- *  bash 分支渲染命令框 */
+ *  按 toolName 分支校验（分支体检拆 helper——complexity 门禁上限 20）；
+ *  `in` 收窄逐字段取（parseSetActiveDesignProposed 先例），不做宽断言；
+ *  未知 toolName 返 null——前端不假装 fallback bash，避免 install_skill 之外
+ *  的闸门载荷静默走 bash 分支渲染命令框 */
 export function parseAuthzRequestData(input: unknown): AuthzRequestPartData | null {
   if (typeof input !== 'object' || input === null) return null
   if (!('kind' in input) || input.kind !== 'authz') return null
@@ -123,48 +171,8 @@ export function parseAuthzRequestData(input: unknown): AuthzRequestPartData | nu
     'toolName' in input && typeof input.toolName === 'string' && input.toolName !== ''
       ? input.toolName
       : 'bash'
-  if (toolName === 'bash') {
-    if (!('command' in input) || typeof input.command !== 'string' || input.command === '') {
-      return null
-    }
-    const cwd = 'cwd' in input && typeof input.cwd === 'string' ? input.cwd : ''
-    const matchedRule =
-      'matchedRule' in input && typeof input.matchedRule === 'string' && input.matchedRule !== ''
-        ? input.matchedRule
-        : undefined
-    return {
-      formId: input.formId,
-      kind: 'authz',
-      toolName: 'bash',
-      command: input.command,
-      cwd,
-      ...(matchedRule !== undefined ? { matchedRule } : {})
-    }
-  }
-  if (toolName === 'install_skill') {
-    if (!('sourceDir' in input) || typeof input.sourceDir !== 'string' || input.sourceDir === '') {
-      return null
-    }
-    if (!('name' in input) || typeof input.name !== 'string' || input.name === '') return null
-    if (!('files' in input) || !Array.isArray(input.files)) return null
-    if (!('overwrite' in input) || typeof input.overwrite !== 'boolean') return null
-    if (!('adapterSummary' in input) || typeof input.adapterSummary !== 'string') return null
-    const files: string[] = []
-    for (const f of input.files) {
-      if (typeof f !== 'string') return null
-      files.push(f)
-    }
-    return {
-      formId: input.formId,
-      kind: 'authz',
-      toolName: 'install_skill',
-      sourceDir: input.sourceDir,
-      name: input.name,
-      overwrite: input.overwrite,
-      files,
-      adapterSummary: input.adapterSummary
-    }
-  }
+  if (toolName === 'bash') return parseBashAuthzRequest(input, input.formId)
+  if (toolName === 'install_skill') return parseInstallSkillAuthzRequest(input, input.formId)
   return null
 }
 
