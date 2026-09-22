@@ -21,13 +21,6 @@ import {
   type RendererCrash
 } from '#core/canvas/renderer/dead'
 
-class WasmRuntimeError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'RuntimeError'
-  }
-}
-
 describe('renderer-dead latch', () => {
   beforeEach(() => {
     resetRendererDead()
@@ -121,7 +114,7 @@ describe('withCrashGuard', () => {
     const captures: RendererCrash[] = []
     const capture: CrashCapture = (crash) => captures.push(crash)
     const render = () => {
-      throw new WasmRuntimeError('table index is out of bounds')
+      throw new WebAssembly.RuntimeError('table index is out of bounds')
     }
     const safe = withCrashGuard(render, capture)
 
@@ -161,7 +154,7 @@ describe('withCrashGuard', () => {
   test('default capture flips the production latch', () => {
     // No capture argument — must wire to markRendererDead by default.
     const render = () => {
-      throw new WasmRuntimeError('table index is out of bounds')
+      throw new WebAssembly.RuntimeError('table index is out of bounds')
     }
     const safe = withCrashGuard(render)
 
