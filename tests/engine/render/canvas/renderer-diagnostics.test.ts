@@ -25,7 +25,9 @@ function fakeRenderer(): SkiaRenderer {
     dpr: 1.5,
     viewportWidth: 800,
     viewportHeight: 600,
-    worldViewport: { x: 1, y: 2, w: 300, h: 200 }
+    worldViewport: { x: 1, y: 2, w: 300, h: 200 },
+    sceneBacking: { width: 640, height: 480, dpr: 2 },
+    sceneBackingBuild: { width: 800, height: 600, dpr: 1, index: 2, childIds: ['a', 'b', 'c'] }
   } as SkiaRenderer
 }
 
@@ -63,6 +65,8 @@ describe('renderer crash diagnostics (B-5/B-7)', () => {
     const context = captureRendererDiagnostics(null)
     expect(context.imageCache).toEqual({ entries: 0, bytes: null })
     expect(context.scenePictureVersion).toBe(0)
+    expect(context.sceneBacking).toBeNull()
+    expect(context.sceneBackingBuild).toBeNull()
     expect(context.worldViewport).toBeNull()
     expect(Array.isArray(context.recentExports)).toBe(true)
   })
@@ -81,6 +85,14 @@ describe('renderer crash diagnostics (B-5/B-7)', () => {
     expect(context.dpr).toBe(1.5)
     expect(context.viewport).toEqual({ width: 800, height: 600 })
     expect(context.worldViewport).toEqual({ x: 1, y: 2, w: 300, h: 200 })
+    expect(context.sceneBacking).toEqual({ width: 640, height: 480, dpr: 2 })
+    expect(context.sceneBackingBuild).toEqual({
+      width: 800,
+      height: 600,
+      dpr: 1,
+      index: 2,
+      total: 3
+    })
     expect(context.recentExports.some((entry: RasterExportSample) => entry.at === 1042)).toBe(true)
   })
 

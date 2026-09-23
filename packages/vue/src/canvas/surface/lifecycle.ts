@@ -7,6 +7,7 @@ import {
   markRendererDead,
   SkiaRenderer
 } from '@open-pencil/core/canvas'
+import type { RendererCrashContext } from '@open-pencil/core/canvas'
 import type { Editor } from '@open-pencil/core/editor'
 
 import {
@@ -25,6 +26,15 @@ type SurfaceManagerState = {
   presentation: PresentationColorSpace | null
 }
 
+// dev 渲染侧内存水表（WASM 崩溃归因，配合 core 的 __DIANJING_FONT_PROBE__）：
+// watcher 经 CDP 周期读缓存水位；renderer 为 null 时 capture 返回零值快照。
+// 与 canvaskit.ts B-6 同款门控——仅 vite dev 浏览器形态挂载
+declare global {
+  interface Window {
+    __DIANJING_RENDER_PROBE__?: () => RendererCrashContext
+  }
+}
+
 export function createCanvasSurfaceManager({
   editor,
   canvasRef,
@@ -41,6 +51,9 @@ export function createCanvasSurfaceManager({
   shouldShowRulers: () => boolean
 }) {
   const state: SurfaceManagerState = { renderer: null, glContext: null, presentation: null }
+  if ('env' in import.meta && import.meta.env.DEV && !('Bun' in globalThis)) {
+    window.__DIANJING_RENDER_PROBE__ = () => captureRendererDiagnostics(state.renderer)
+  }
   let sceneBackingRenderTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearSceneBackingRenderTimer() {

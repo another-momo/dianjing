@@ -56,6 +56,16 @@ export interface RendererCrashContext {
   effectRasterCache: CacheWatermark
   nodePictureCache: CacheWatermark
   subtreePictureCache: CacheWatermark
+  /** 常驻场景底图几何（字节估值 = width×height×dpr²×4）；无则 null。 */
+  sceneBacking: { width: number; height: number; dpr: number } | null
+  /** 在途底图构建（进度 index/total）；无则 null。 */
+  sceneBackingBuild: {
+    width: number
+    height: number
+    dpr: number
+    index: number
+    total: number
+  } | null
   scenePictureVersion: number
   fontGeneration: number
   zoom: number
@@ -73,6 +83,8 @@ function emptyContext(): RendererCrashContext {
     effectRasterCache: { entries: 0, bytes: null },
     nodePictureCache: { entries: 0, bytes: null },
     subtreePictureCache: { entries: 0, bytes: null },
+    sceneBacking: null,
+    sceneBackingBuild: null,
     scenePictureVersion: 0,
     fontGeneration: 0,
     zoom: 1,
@@ -106,6 +118,22 @@ export function captureRendererDiagnostics(renderer: SkiaRenderer | null): Rende
       },
       nodePictureCache: { entries: renderer.nodePictureCache.size, bytes: null },
       subtreePictureCache: { entries: renderer.subtreePictureCache.size, bytes: null },
+      sceneBacking: renderer.sceneBacking
+        ? {
+            width: renderer.sceneBacking.width,
+            height: renderer.sceneBacking.height,
+            dpr: renderer.sceneBacking.dpr
+          }
+        : null,
+      sceneBackingBuild: renderer.sceneBackingBuild
+        ? {
+            width: renderer.sceneBackingBuild.width,
+            height: renderer.sceneBackingBuild.height,
+            dpr: renderer.sceneBackingBuild.dpr,
+            index: renderer.sceneBackingBuild.index,
+            total: renderer.sceneBackingBuild.childIds.length
+          }
+        : null,
       scenePictureVersion: renderer.scenePictureVersion,
       fontGeneration: renderer.fontGeneration,
       zoom: renderer.zoom,
