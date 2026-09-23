@@ -72,11 +72,26 @@ function wrapEmbind<T extends object>(obj: T, label: string): T {
       }
       const value = Reflect.get(target, prop, receiver)
       if (typeof value !== 'function') return value
-      // 方法调用结果若是 embind 对象（如 surface.makeImageSnapshot()）递归套代理
-      return (...args: unknown[]) => {
-        const result = (value as (...a: unknown[]) => unknown).apply(target, args)
-        return isEmbindInstance(result) ? wrapEmbind(result, `${label}.${String(prop)}()`) : result
-      }
+      // 方法包装必须是 apply+construct 双 trap 的 Proxy 而非裸箭头函数——
+      // 箭头函数会丢掉原函数的静态属性（embind 枚举命名空间如 ColorSpace.SRGB
+      // 挂在可调用对象上，丢失后传参变 undefined：dev 实证 'Cannot pass
+      // "undefined" as a sk_sp<ColorSpace>'），也让 new ck.Font() 这类构造器
+      // 退化成普通调用
+      return new Proxy(value, {
+        apply(fnTarget, _thisArg, args) {
+          const result = Reflect.apply(fnTarget as (...a: unknown[]) => unknown, target, args)
+          // 方法调用结果若是 embind 对象（如 surface.makeImageSnapshot()）递归套代理
+          return isEmbindInstance(result)
+            ? wrapEmbind(result as object, `${label}.${String(prop)}()`)
+            : result
+        },
+        construct(fnTarget, args) {
+          const result = Reflect.construct(fnTarget as new (...a: unknown[]) => object, args)
+          return isEmbindInstance(result)
+            ? wrapEmbind(result, `${label}.${String(prop)}()`)
+            : result
+        }
+      })
     }
   })
 }
@@ -87,12 +102,20 @@ export function wrapCanvasKitUseAfterDeleteGuard(ck: CanvasKit): CanvasKit {
     get(target, prop, receiver) {
       const value = Reflect.get(target, prop, receiver)
       if (typeof value !== 'function') return value
-      return (...args: unknown[]) => {
-        const result = (value as (...a: unknown[]) => unknown).apply(target, args)
-        return isEmbindInstance(result)
-          ? wrapEmbind(result as object, `ck.${String(prop)}()`)
-          : result
-      }
+      // 同 wrapEmbind：双 trap Proxy 保原函数静态属性（枚举命名空间穿透）
+      // 与构造器语义（new ck.Font()）
+      return new Proxy(value, {
+        apply(fnTarget, _thisArg, args) {
+          const result = Reflect.apply(fnTarget as (...a: unknown[]) => unknown, target, args)
+          return isEmbindInstance(result)
+            ? wrapEmbind(result as object, `ck.${String(prop)}()`)
+            : result
+        },
+        construct(fnTarget, args) {
+          const result = Reflect.construct(fnTarget as new (...a: unknown[]) => object, args)
+          return isEmbindInstance(result) ? wrapEmbind(result, `ck.${String(prop)}()`) : result
+        }
+      })
     }
   })
 }

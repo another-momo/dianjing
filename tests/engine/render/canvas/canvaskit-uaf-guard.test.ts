@@ -70,4 +70,41 @@ describe('CanvasKit use-after-delete guard (B-6)', () => {
     const result = wrapped.MakeImageFromEncoded(new Uint8Array(0))
     expect(result).toBe(plain)
   })
+
+  // 回归：箭头函数包装曾把 ColorSpace.SRGB 丢成 undefined，
+  // dev 实证 'Cannot pass "undefined" as a sk_sp<ColorSpace>'
+  test('callable namespaces keep their static properties (ColorSpace.SRGB)', () => {
+    const ColorSpace = Object.assign(
+      () => {
+        throw new Error('not meant to be called')
+      },
+      {
+        SRGB: { tag: 'srgb' },
+        DISPLAY_P3: { tag: 'p3' }
+      }
+    )
+    const ck = { ...fakeCk(), ColorSpace } as never
+    const wrapped = wrapCanvasKitUseAfterDeleteGuard(ck)
+    // 运行时 ColorSpace 是可调用命名空间，与 d.ts 的对象形态声明不一致——正是本例锚点
+    const colorSpace: unknown = wrapped.ColorSpace
+    expect((colorSpace as typeof ColorSpace).SRGB).toBe(ColorSpace.SRGB)
+    expect((colorSpace as typeof ColorSpace).DISPLAY_P3).toBe(ColorSpace.DISPLAY_P3)
+  })
+
+  test('new on a wrapped constructor still constructs a guarded embind object', () => {
+    function FakeFont(this: FakeEmbind) {
+      let deleted = false
+      this.delete = () => {
+        deleted = true
+      }
+      this.isDeleted = () => deleted
+      this.measureText = () => 42
+    }
+    const ck = { ...fakeCk(), Font: FakeFont } as never
+    const wrapped = wrapCanvasKitUseAfterDeleteGuard(ck)
+    const font = new wrapped.Font()
+    expect(font.measureText()).toBe(42)
+    font.delete()
+    expect(() => font.measureText()).toThrow(/ck\.Font\(\)\.measureText accessed after delete/)
+  })
 })
