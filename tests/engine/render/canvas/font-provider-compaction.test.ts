@@ -84,7 +84,7 @@ describe('font provider 压实（WASM 4GB 天花板防线）', () => {
     expect(second).toBe(first)
     expect(created).toHaveLength(1)
     manager.markLoaded('Inter', 'Regular', new ArrayBuffer(100))
-    expect((first as unknown as FakeProvider).families).toEqual(['Inter'])
+    expect(created[0].families).toEqual(['Inter'])
     expect(manager.providerRegisteredBytes()).toBe(100)
   })
 
@@ -92,7 +92,8 @@ describe('font provider 压实（WASM 4GB 天花板防线）', () => {
     const events: string[] = []
     const created: FakeProvider[] = []
     const manager = new FontManager()
-    const stale = manager.ensureSharedProvider(makeCk(created, events)) as unknown as FakeProvider
+    manager.ensureSharedProvider(makeCk(created, events))
+    const stale = created[0]
     manager.markLoaded('Inter', 'Regular', new ArrayBuffer(100))
     manager.markLoaded('Noto Sans SC', 'Regular', new ArrayBuffer(200))
     // 逐出只释放 JS 侧，旧 provider 里的死注册残留（泄漏语义，probe.test.ts 已钉扎）
@@ -144,7 +145,8 @@ describe('font provider 压实（WASM 4GB 天花板防线）', () => {
     const events: string[] = []
     const created: FakeProvider[] = []
     const manager = new FontManager()
-    const stale = manager.ensureSharedProvider(makeCk(created, events)) as unknown as FakeProvider
+    manager.ensureSharedProvider(makeCk(created, events))
+    const stale = created[0]
     manager.markLoaded('Inter', 'Regular', new ArrayBuffer(100))
 
     expect(maybeCompactFontProvider(liveRenderer, manager)).toBe(false)
@@ -157,7 +159,8 @@ describe('font provider 压实（WASM 4GB 天花板防线）', () => {
     const events: string[] = []
     const created: FakeProvider[] = []
     const manager = new FontManager()
-    const stale = manager.ensureSharedProvider(makeCk(created, events)) as unknown as FakeProvider
+    manager.ensureSharedProvider(makeCk(created, events))
+    const stale = created[0]
     manager.markLoaded('Inter', 'Regular', new ArrayBuffer(100))
     // registered=100 全存活（dead=0）；阈值 99 已破，但死副本不足 margin
     expect(maybeCompactFontProvider(liveRenderer, manager, 99, 50)).toBe(false)
@@ -169,7 +172,8 @@ describe('font provider 压实（WASM 4GB 天花板防线）', () => {
     const events: string[] = []
     const created: FakeProvider[] = []
     const manager = new FontManager()
-    const stale = manager.ensureSharedProvider(makeCk(created, events)) as unknown as FakeProvider
+    manager.ensureSharedProvider(makeCk(created, events))
+    const stale = created[0]
     manager.markLoaded('Inter', 'Regular', new ArrayBuffer(100))
     manager.markLoaded('Noto Sans SC', 'Regular', new ArrayBuffer(200))
     manager.evictFont('Inter', 'Regular')
@@ -187,7 +191,8 @@ describe('font provider 压实（WASM 4GB 天花板防线）', () => {
     const events: string[] = []
     const created: FakeProvider[] = []
     const manager = new FontManager()
-    const stale = manager.ensureSharedProvider(makeCk(created, events)) as unknown as FakeProvider
+    manager.ensureSharedProvider(makeCk(created, events))
+    const stale = created[0]
     manager.markLoaded('Inter', 'Regular', new ArrayBuffer(100))
     manager.markLoaded('Noto Sans SC', 'Regular', new ArrayBuffer(200))
     manager.evictFont('Inter', 'Regular')
@@ -196,7 +201,7 @@ describe('font provider 压实（WASM 4GB 天花板防线）', () => {
       prepareProviderSwap: () => {
         throw new Error('heap corrupt')
       },
-      acceptProvider: () => {}
+      acceptProvider: () => undefined
     }
     const unregister = manager.registerProviderHost(bad)
 
