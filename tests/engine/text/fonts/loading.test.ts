@@ -156,6 +156,52 @@ describe('FontManager loaded font cache', () => {
     expect(manager.provider()).toBeNull()
   })
 
+  test('逐出后重载同字节不再注册——内容哈希去重，WASM 零增长且台账不双计', () => {
+    const manager = new FontManager()
+    const recording = createRecordingProvider()
+    manager.attachProvider({} as CanvasKit, recording.provider)
+
+    const data = new Uint8Array(64).fill(7).buffer
+    manager.markLoaded('DedupFont', 'Regular', data)
+    expect(recording.registrations).toEqual([{ family: 'DedupFont', byteLength: 64 }])
+    expect(manager.providerRegisteredBytes()).toBe(64)
+
+    manager.evictFont('DedupFont', 'Regular')
+    // 逐出只释放 JS 侧（泄漏语义钉扎见 probe.test.ts），注册仍在册
+    expect(manager.providerRegisteredBytes()).toBe(64)
+
+    // 重载拿到新 ArrayBuffer 身份（同内容）——按 buffer 去重失效，按内容哈希命中复用
+    manager.markLoaded('DedupFont', 'Regular', data.slice(0))
+    expect(recording.registrations).toHaveLength(1)
+    expect(manager.providerRegisteredBytes()).toBe(64)
+  })
+
+  test('同族名不同字节仍照常注册——分片/补充片语义不受内容去重影响', () => {
+    const manager = new FontManager()
+    const recording = createRecordingProvider()
+    manager.attachProvider({} as CanvasKit, recording.provider)
+
+    manager.markLoaded('SliceFont', 'Regular', new Uint8Array(48).fill(1).buffer)
+    manager.markLoaded('SliceFont', 'Regular', new Uint8Array(48).fill(2).buffer)
+    expect(recording.registrations).toHaveLength(2)
+    expect(manager.providerRegisteredBytes()).toBe(96)
+  })
+
+  test('内容去重按 provider 隔离——attach 新 provider 照常回放存活集', () => {
+    const manager = new FontManager()
+    const first = createRecordingProvider()
+    const second = createRecordingProvider()
+    manager.attachProvider({} as CanvasKit, first.provider)
+    const data = new Uint8Array(32).fill(9).buffer
+    manager.markLoaded('IsolatedFont', 'Regular', data)
+    expect(first.registrations).toHaveLength(1)
+
+    manager.attachProvider({} as CanvasKit, second.provider)
+    expect(second.registrations).toEqual([{ family: 'IsolatedFont', byteLength: 32 }])
+    // 首 provider 不重复注册（同 buffer 走身份去重）
+    expect(first.registrations).toHaveLength(1)
+  })
+
   test('renders loaded faces under their source families', () => {
     const manager = new FontManager()
     const recording = createRecordingProvider()
