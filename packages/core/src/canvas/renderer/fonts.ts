@@ -10,6 +10,7 @@ import {
   SIZE_FONT_SIZE
 } from '#core/constants'
 import { fontManager } from '#core/text/fonts'
+import type { FontManager } from '#core/text/fonts'
 import { prepareGraphFonts } from '#core/text/prepare'
 import {
   fontCoverageDemand,
@@ -82,6 +83,60 @@ function settleFontDemand(
     r.textPictureGenerations.delete(nodeId)
     r.invalidateNodePicture(nodeId)
   }
+  maybeCompactFontProvider(r)
+}
+
+/**
+ * provider 压实阈值（WASM 侧注册字节）。TypefaceFontProvider 没有 unregister：
+ * 逐出/重载循环产生的死副本在 WASM 线性内存里单调累积，wasm32 天花板 4GB，
+ * 撞线即 RuntimeError 或渲染进程被杀（dev 轮 4 实测注册字节 4070MB 撞线）。
+ * 1536MB 触发压实，给 surface/glyph/picture 等非字体分配留 2.5GB 余量。
+ */
+export const PROVIDER_COMPACTION_THRESHOLD_BYTES = 1536 * 1024 * 1024
+
+type FontProviderHost = Pick<
+  SkiaRenderer,
+  'ck' | 'fontProvider' | 'fontGeneration' | 'isDestroyed' | 'invalidateAllPictures'
+>
+
+type FontProviderRegistrar = Pick<
+  FontManager,
+  'attachProvider' | 'detachProvider' | 'providerRegisteredBytes' | 'generation'
+>
+
+/**
+ * provider 压实：新建 TypefaceFontProvider 并回放存活字体集（attachProvider 的
+ * 全量重注册语义），旧 provider 整体 delete——其持有的全部 WASM 字体副本（含
+ * 已逐出字体的死注册）随 C++ 对象释放。两处 paragraph 缓存按 provider 同一性
+ * 自清（provider !== this.provider 分支），fontGeneration 跳变使 textPicture
+ * 失效重排，存活字形在下次排版时对新 provider 重建。
+ */
+export function compactFontProvider(
+  r: FontProviderHost,
+  manager: FontProviderRegistrar = fontManager
+): boolean {
+  if (r.isDestroyed() || !r.fontProvider) return false
+  const stale = r.fontProvider
+  r.fontProvider = r.ck.TypefaceFontProvider.Make()
+  manager.attachProvider(r.ck, r.fontProvider)
+  manager.detachProvider(stale)
+  stale.delete()
+  r.fontGeneration = manager.generation()
+  r.invalidateAllPictures()
+  return true
+}
+
+/**
+ * 注册字节超阈值才压实。压实后水位降到存活集大小——天然回差，不会在阈值线
+ * 上反复压实；存活集自身超阈值时压实退化为每次结算一次全量回放（正确性不变）。
+ */
+export function maybeCompactFontProvider(
+  r: FontProviderHost,
+  manager: FontProviderRegistrar = fontManager,
+  thresholdBytes = PROVIDER_COMPACTION_THRESHOLD_BYTES
+): boolean {
+  if (manager.providerRegisteredBytes() <= thresholdBytes) return false
+  return compactFontProvider(r, manager)
 }
 
 export function getFontProvider(r: SkiaRenderer) {

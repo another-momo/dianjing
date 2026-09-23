@@ -121,6 +121,7 @@
     "tests/engine/render/canvas/image-cache.test.ts",
     "packages/core/src/canvas/renderer/diagnostics.ts",
     "tests/engine/render/canvas/renderer-diagnostics.test.ts",
+    "tests/engine/render/canvas/font-provider-compaction.test.ts",
     "tests/engine/render/canvas/canvaskit-uaf-guard.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
@@ -607,7 +608,7 @@
     {
       "id": "P113",
       "file": "packages/core/src/text/fonts.ts",
-      "reason": "T40 内存治理（13 册 §3 策略 A）：FontMemoryLedger 入账/touch + 50MB 默认预算 LRU 逐出（loadedFamilies/supplementalFamilyData/remoteCoverage/loadedFamilySources 同步释放 + document.fonts.delete）+ 逐出联动 onFontEvicted 挂钩（防 resolver 残留 'loaded' 快照致永不重载）+ fontMemoryStats 指标；2026-09-23 延展：fontProbeStats 内存水表（loadedFamilies/supplemental/provider 注册三层计数——eviction 不卸 WASM 侧注册的判别位）+ dev window 钩子 __DIANJING_FONT_PROBE__（WASM 崩溃归因仪表，生产短路）；S4 cn-font 路由（loadCnFontSubset：注册表 cdn 家族走中文网字计划子集，失败回退 unifont 链 D-g；在线 provider 全关时 CDN 不触网不枚举）",
+      "reason": "T40 内存治理（13 册 §3 策略 A）：FontMemoryLedger 入账/touch + 50MB 默认预算 LRU 逐出（loadedFamilies/supplementalFamilyData/remoteCoverage/loadedFamilySources 同步释放 + document.fonts.delete）+ 逐出联动 onFontEvicted 挂钩（防 resolver 残留 'loaded' 快照致永不重载）+ fontMemoryStats 指标；2026-09-23 延展：fontProbeStats 内存水表（loadedFamilies/supplemental/provider 注册三层计数——eviction 不卸 WASM 侧注册的判别位）+ dev window 钩子 __DIANJING_FONT_PROBE__（WASM 崩溃归因仪表，生产短路）；S4 cn-font 路由（loadCnFontSubset：注册表 cdn 家族走中文网字计划子集，失败回退 unifont 链 D-g；在线 provider 全关时 CDN 不触网不枚举）；2026-09-23 延展②：providerRegisteredBytes()（跨 provider WASM 注册字节合计，压实触发判据）+ collectProviderRegistrationTotals 私有提取（fontProbeStats 共用）。",
       "disposition": "permanent",
       "lastReviewed": "2026-09-23"
     },
@@ -1196,9 +1197,9 @@
     {
       "id": "P208",
       "file": "packages/core/src/canvas/renderer/fonts.ts",
-      "reason": "T98（2026-09-06，场景 1 tofu 根治之一，P143  revoked 后的新分歧）：上游 loadFonts 只装 Inter，T88 启动期 CJK/Arabic 预加载随整文件回退丢失，且 label 无 trackFontDemand 需求入口（该链只挂 text 节点）——fontsLoaded/syncFontGeneration 终态前注入 fontManager.ensureFallbackPack()（bundled PuHuiTi + Noto Naskh Arabic 远端链），保证 paragraph-cache 见到的 generation 覆盖本次注册，CJK label 首渲染不豆腐。A2 NOTES §3 闸门 1 明示前提的落地。 ｜ 2026-09-18 PR699 后 byte diff 仍存（fontsLoaded/syncFontGeneration 区域外残差），保活待 L1 验证语义吸收度",
+      "reason": "T98（2026-09-06，场景 1 tofu 根治之一，P143  revoked 后的新分歧）：上游 loadFonts 只装 Inter，T88 启动期 CJK/Arabic 预加载随整文件回退丢失，且 label 无 trackFontDemand 需求入口（该链只挂 text 节点）——fontsLoaded/syncFontGeneration 终态前注入 fontManager.ensureFallbackPack()（bundled PuHuiTi + Noto Naskh Arabic 远端链），保证 paragraph-cache 见到的 generation 覆盖本次注册，CJK label 首渲染不豆腐。A2 NOTES §3 闸门 1 明示前提的落地。 ｜ 2026-09-18 PR699 后 byte diff 仍存（fontsLoaded/syncFontGeneration 区域外残差），保活待 L1 验证语义吸收度；2026-09-23 延展：provider 压实防线——TypefaceFontProvider 无 unregister，逐出/重载死副本在 WASM 线性内存单调累积撞 wasm32 4GB 天花板（dev 轮 4 实测 4070MB 抛 RuntimeError/进程被杀）；compactFontProvider 建新 provider 回放存活集+旧整体 delete，maybeCompactFontProvider 1536MB 阈值触发，挂 settleFontDemand 结算尾。",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-18"
+      "lastReviewed": "2026-09-23"
     },
     {
       "id": "P209",

@@ -213,6 +213,16 @@ export class FontManager {
   }
 
   /**
+   * WASM 侧注册字节合计（跨全部 provider）——provider 压实（compaction）的触发
+   * 判据。eviction 只释放 JS 侧引用，registerFont 进 TypefaceFontProvider 的字节
+   * 永不卸载，wasm32 线性内存天花板 4GB 撞线即 RuntimeError/进程被杀，渲染循环
+   * 以此值决定何时重建 provider 把死副本整体释放。
+   */
+  providerRegisteredBytes(): number {
+    return this.collectProviderRegistrationTotals().bytes
+  }
+
+  /**
    * 内存水表（WASM 崩溃归因诊断）：JS 侧缓存与 WASM 侧注册的分层计数。
    * 关键判别位是 registeredBytes——eviction 只释放 JS 侧（loadedFamilies /
    * document.fonts），provider 里的注册永不卸载，WASM 堆是否单调涨看这组数。
@@ -226,20 +236,7 @@ export class FontManager {
       supplementalPieces += pieces.length
       for (const data of pieces) supplementalBytes += data.byteLength
     }
-    let registeredFamilies = 0
-    let registeredPieces = 0
-    let registeredBytes = 0
-    for (const provider of this.fontProviders) {
-      const registrations = this.providerRegistrations.get(provider)
-      if (!registrations) continue
-      for (const dataSet of registrations.values()) {
-        registeredFamilies++
-        for (const data of dataSet) {
-          registeredPieces++
-          registeredBytes += data.byteLength
-        }
-      }
-    }
+    const totals = this.collectProviderRegistrationTotals()
     return {
       ...this.fontMemoryStats(),
       loadedFamilies: this.loadedFamilies.size,
@@ -247,11 +244,29 @@ export class FontManager {
       supplementalPieces,
       supplementalBytes,
       providers: this.fontProviders.size,
-      registeredFamilies,
-      registeredPieces,
-      registeredBytes,
+      registeredFamilies: totals.families,
+      registeredPieces: totals.pieces,
+      registeredBytes: totals.bytes,
       registrationGeneration: this.registrationGeneration
     }
+  }
+
+  private collectProviderRegistrationTotals(): { families: number; pieces: number; bytes: number } {
+    let families = 0
+    let pieces = 0
+    let bytes = 0
+    for (const provider of this.fontProviders) {
+      const registrations = this.providerRegistrations.get(provider)
+      if (!registrations) continue
+      for (const dataSet of registrations.values()) {
+        families++
+        for (const data of dataSet) {
+          pieces++
+          bytes += data.byteLength
+        }
+      }
+    }
+    return { families, pieces, bytes }
   }
 
   /** 手动逐出某家族字重（释放 JS 引用；下次引用时经 demand 链重载）。 */
