@@ -80,6 +80,22 @@ interface RenderAliasEntry {
   data: ArrayBuffer
 }
 
+export interface FontProbeStats extends FontMemoryStats {
+  /** loadedFamilies 条目数与数据字节合计（JS 侧） */
+  loadedFamilies: number
+  loadedDataBytes: number
+  /** 同族增补片（CDN 子集分片等）件数与字节合计 */
+  supplementalPieces: number
+  supplementalBytes: number
+  /** 存活 provider 数与其上的注册规模（WASM 侧驻留——eviction 不卸载） */
+  providers: number
+  registeredFamilies: number
+  registeredPieces: number
+  registeredBytes: number
+  /** 注册代次（churn 速率） */
+  registrationGeneration: number
+}
+
 export class FontManager {
   private loadedFamilies = new Map<string, ArrayBuffer>()
   private loadedFamilySources = new Map<string, FontLoadedSource>()
@@ -193,6 +209,48 @@ export class FontManager {
       entries: this.fontMemory.size(),
       evictions: this.fontEvictions,
       overBudgetKeys: this.fontMemory.overBudgetKeys(this.fontMemoryBudget)
+    }
+  }
+
+  /**
+   * 内存水表（WASM 崩溃归因诊断）：JS 侧缓存与 WASM 侧注册的分层计数。
+   * 关键判别位是 registeredBytes——eviction 只释放 JS 侧（loadedFamilies /
+   * document.fonts），provider 里的注册永不卸载，WASM 堆是否单调涨看这组数。
+   */
+  fontProbeStats(): FontProbeStats {
+    let loadedDataBytes = 0
+    for (const data of this.loadedFamilies.values()) loadedDataBytes += data.byteLength
+    let supplementalPieces = 0
+    let supplementalBytes = 0
+    for (const pieces of this.supplementalFamilyData.values()) {
+      supplementalPieces += pieces.length
+      for (const data of pieces) supplementalBytes += data.byteLength
+    }
+    let registeredFamilies = 0
+    let registeredPieces = 0
+    let registeredBytes = 0
+    for (const provider of this.fontProviders) {
+      const registrations = this.providerRegistrations.get(provider)
+      if (!registrations) continue
+      for (const dataSet of registrations.values()) {
+        registeredFamilies++
+        for (const data of dataSet) {
+          registeredPieces++
+          registeredBytes += data.byteLength
+        }
+      }
+    }
+    return {
+      ...this.fontMemoryStats(),
+      loadedFamilies: this.loadedFamilies.size,
+      loadedDataBytes,
+      supplementalPieces,
+      supplementalBytes,
+      providers: this.fontProviders.size,
+      registeredFamilies,
+      registeredPieces,
+      registeredBytes,
+      registrationGeneration: this.registrationGeneration
     }
   }
 
@@ -1117,3 +1175,14 @@ export class FontManager {
 }
 
 export const fontManager = new FontManager()
+
+// dev 内存水表（WASM 崩溃归因）：watcher 经 CDP 周期读取 fontProbeStats；
+// 与 canvaskit.ts B-6 同款门控——仅 vite dev 浏览器形态挂载，bun 测试与生产不挂
+declare global {
+  interface Window {
+    __DIANJING_FONT_PROBE__?: () => FontProbeStats
+  }
+}
+if ('env' in import.meta && import.meta.env.DEV && IS_BROWSER && !('Bun' in globalThis)) {
+  window.__DIANJING_FONT_PROBE__ = () => fontManager.fontProbeStats()
+}

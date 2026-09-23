@@ -63,6 +63,7 @@
     "packages/core/src/text/web-font/piece-cache.ts",
     "src/app/editor/fonts/idb-cache.ts",
     "tests/engine/text/fonts/memory.test.ts",
+    "tests/engine/text/fonts/probe.test.ts",
     "tests/engine/text/fonts/cn-fonts.test.ts",
     "tests/engine/text/fonts/piece-cache.test.ts",
     "packages/core/src/text/font/allowlist.ts",
@@ -606,9 +607,9 @@
     {
       "id": "P113",
       "file": "packages/core/src/text/fonts.ts",
-      "reason": "T40 内存治理（13 册 §3 策略 A）：FontMemoryLedger 入账/touch + 50MB 默认预算 LRU 逐出（loadedFamilies/supplementalFamilyData/remoteCoverage/loadedFamilySources 同步释放 + document.fonts.delete）+ 逐出联动 onFontEvicted 挂钩（防 resolver 残留 'loaded' 快照致永不重载）+ fontMemoryStats 指标；S4 cn-font 路由（loadCnFontSubset：注册表 cdn 家族走中文网字计划子集，失败回退 unifont 链 D-g；在线 provider 全关时 CDN 不触网不枚举）",
+      "reason": "T40 内存治理（13 册 §3 策略 A）：FontMemoryLedger 入账/touch + 50MB 默认预算 LRU 逐出（loadedFamilies/supplementalFamilyData/remoteCoverage/loadedFamilySources 同步释放 + document.fonts.delete）+ 逐出联动 onFontEvicted 挂钩（防 resolver 残留 'loaded' 快照致永不重载）+ fontMemoryStats 指标；2026-09-23 延展：fontProbeStats 内存水表（loadedFamilies/supplemental/provider 注册三层计数——eviction 不卸 WASM 侧注册的判别位）+ dev window 钩子 __DIANJING_FONT_PROBE__（WASM 崩溃归因仪表，生产短路）；S4 cn-font 路由（loadCnFontSubset：注册表 cdn 家族走中文网字计划子集，失败回退 unifont 链 D-g；在线 provider 全关时 CDN 不触网不枚举）",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-30"
+      "lastReviewed": "2026-09-23"
     },
     {
       "id": "P114",
