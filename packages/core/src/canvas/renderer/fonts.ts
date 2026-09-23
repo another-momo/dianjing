@@ -101,7 +101,11 @@ type FontProviderHost = Pick<
 
 type FontProviderRegistrar = Pick<
   FontManager,
-  'attachProvider' | 'detachProvider' | 'providerRegisteredBytes' | 'generation'
+  | 'attachProvider'
+  | 'detachProvider'
+  | 'providerRegisteredBytes'
+  | 'providerLiveRegistrationBytes'
+  | 'generation'
 >
 
 /**
@@ -118,29 +122,43 @@ export function compactFontProvider(
   if (r.isDestroyed() || !r.fontProvider) return false
   const beforeBytes = manager.providerRegisteredBytes()
   const stale = r.fontProvider
-  r.fontProvider = r.ck.TypefaceFontProvider.Make()
-  manager.attachProvider(r.ck, r.fontProvider)
+  const fresh = r.ck.TypefaceFontProvider.Make()
+  // 先删旧再回放：回放期旧 provider 仍在册会把 WASM 峰值抬到「存活集 ×2」——
+  // 存活集逾 1.5GB 时回放双峰直接撞 wasm32 4GB 天花板（复测轮 8 实证：两次空转
+  // 压实后 3 秒抛 RuntimeError）。全程同步无排版介入窗口，先删安全。
   manager.detachProvider(stale)
   stale.delete()
+  r.fontProvider = fresh
+  manager.attachProvider(r.ck, fresh)
   r.fontGeneration = manager.generation()
   r.invalidateAllPictures()
   // watcher 经 console 订阅对齐压实时刻与水表曲线（崩溃归因取证）
   console.debug(
-    `[font-provider] compacted WASM registrations: ${Math.round(beforeBytes / 1048576)}MB -> ${Math.round(manager.providerRegisteredBytes() / 1048576)}MB`
+    `[font-provider] compacted WASM registrations: ${Math.round(beforeBytes / 1048576)}MB -> ${Math.round(manager.providerRegisteredBytes() / 1048576)}MB (live ~${Math.round(manager.providerLiveRegistrationBytes() / 1048576)}MB)`
   )
   return true
 }
 
 /**
- * 注册字节超阈值才压实。压实后水位降到存活集大小——天然回差，不会在阈值线
- * 上反复压实；存活集自身超阈值时压实退化为每次结算一次全量回放（正确性不变）。
+ * 压实最小死副本量。死副本 = 注册总量 − 存活回放量；死副本太薄时压实是空转，
+ * 且存活集自身超阈值时会退化成「每次结算都压实」的死循环——回放本身的大额
+ * 分配反而把堆推向天花板（复测轮 8：死副本仅 ~26MB，连续两次空压后撞线）。
+ */
+export const PROVIDER_COMPACTION_MIN_DEAD_BYTES = 512 * 1024 * 1024
+
+/**
+ * 注册字节超阈值且死副本够厚才压实。压实后水位降到存活集大小；存活集自身
+ * 超阈值时压实无意义（死副本 ≈ 0），由 minDeadBytes 闸挡下。
  */
 export function maybeCompactFontProvider(
   r: FontProviderHost,
   manager: FontProviderRegistrar = fontManager,
-  thresholdBytes = PROVIDER_COMPACTION_THRESHOLD_BYTES
+  thresholdBytes = PROVIDER_COMPACTION_THRESHOLD_BYTES,
+  minDeadBytes = PROVIDER_COMPACTION_MIN_DEAD_BYTES
 ): boolean {
-  if (manager.providerRegisteredBytes() <= thresholdBytes) return false
+  const registered = manager.providerRegisteredBytes()
+  if (registered <= thresholdBytes) return false
+  if (registered - manager.providerLiveRegistrationBytes() <= minDeadBytes) return false
   return compactFontProvider(r, manager)
 }
 

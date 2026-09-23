@@ -223,6 +223,28 @@ export class FontManager {
   }
 
   /**
+   * 存活注册字节估值（= 压实回放后的水位）：每个存活键按 attachProvider 回放
+   * 口径计 primary + 分片（有 alias 片则只计 alias 片，否则计 supplemental 片），
+   * 乘 provider 数（每个 provider 各持一份注册）。死副本 = 注册总量 − 本值——
+   * 死副本太薄时压实只是空转，回放本身的大额分配反而危险。
+   */
+  providerLiveRegistrationBytes(): number {
+    let perProvider = 0
+    for (const [key, primary] of this.loadedFamilies) {
+      perProvider += primary.byteLength
+      const aliases = this.renderAliasFamilies.get(key)
+      if (aliases) {
+        for (const entry of aliases) perProvider += entry.data.byteLength
+      } else {
+        for (const supplemental of this.supplementalFamilyData.get(key) ?? []) {
+          perProvider += supplemental.byteLength
+        }
+      }
+    }
+    return perProvider * this.fontProviders.size
+  }
+
+  /**
    * 内存水表（WASM 崩溃归因诊断）：JS 侧缓存与 WASM 侧注册的分层计数。
    * 关键判别位是 registeredBytes——eviction 只释放 JS 侧（loadedFamilies /
    * document.fonts），provider 里的注册永不卸载，WASM 堆是否单调涨看这组数。
