@@ -94,6 +94,8 @@ export class SkiaRenderer {
   componentLabelFont: Font | null = null
   fontMgr: FontMgr | null = null
   fontProvider: TypefaceFontProvider | null = null
+  /** 共享 provider 宿主登记的注销函数（loadFonts 登记，destroy 注销） */
+  unregisterFontProviderHost: (() => void) | null = null
   fontsLoaded = false
   fontGeneration = 0
   onFontResolutionSettled:

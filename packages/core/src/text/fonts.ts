@@ -74,6 +74,18 @@ export const DEFAULT_FONT_MEMORY_BUDGET = 50 * 1024 * 1024
  */
 const CN_FONT_ALIAS_SEPARATOR = '\u001F'
 
+/**
+ * 共享 provider 宿主（每个 SkiaRenderer 画布层一个）：压实的顺序铁律由这两个
+ * 回调保证——prepareProviderSwap 清空持有旧 provider 派生对象的全部缓存
+ * （paragraph/picture 引用 provider 字体结构），acceptProvider 在旧 provider
+ * 删除后接入新 provider。
+ */
+export interface FontProviderHost {
+  isDestroyed(): boolean
+  prepareProviderSwap(): void
+  acceptProvider(provider: TypefaceFontProvider, generation: number): void
+}
+
 interface RenderAliasEntry {
   url: string
   alias: string
@@ -104,6 +116,9 @@ export class FontManager {
   private blockedNodeIds = new Set<string>()
   private fontProvider: TypefaceFontProvider | null = null
   private fontProviders = new Set<TypefaceFontProvider>()
+  private sharedProvider: TypefaceFontProvider | null = null
+  private sharedProviderCk: CanvasKit | null = null
+  private providerHosts = new Set<FontProviderHost>()
   private registrationGeneration = 0
   private providerRegistrations = new WeakMap<TypefaceFontProvider, Map<string, Set<ArrayBuffer>>>()
   private localFonts: FontInfo[] | null = null
@@ -166,6 +181,74 @@ export class FontManager {
 
   provider(): TypefaceFontProvider | null {
     return this.fontProvider
+  }
+
+  /**
+   * 共享 provider 宿主：持有 SkiaRenderer 侧 provider 引用的画布层。压实时
+   * prepareProviderSwap 必须清空一切持有旧 provider 派生对象的缓存（paragraph/
+   * picture 引用 provider 字体结构，先 delete 再清缓存 = UAF——复测轮 9 实证
+   * textPreparationCache.clear 内 paragraph.delete 抛 memory access out of
+   * bounds，堆随之腐败），acceptProvider 在回放完成、旧 provider 已 delete
+   * 后接入新 provider。
+   */
+  registerProviderHost(host: FontProviderHost): () => void {
+    this.providerHosts.add(host)
+    return () => {
+      this.providerHosts.delete(host)
+    }
+  }
+
+  /**
+   * 全部画布层共享的单例 provider（72dee43e4 的「每层一个 provider、字体注册
+   * 进所有 provider」方案的替代）：存活集只注册一份，WASM 字体内存不再乘层数；
+   * 任一渲染器的字体结算都能压实它——每层各自持 provider 时，无文字需求的层
+   * 永不结算，其死副本无人清扫（复测轮 9：overlay 层 provider 死副本涨至 ~1GB，
+   * 触发方的全局闸门读数含这份死角，压实只清自己的 ~20MB，退化成风暴）。
+   */
+  ensureSharedProvider(ck: CanvasKit): TypefaceFontProvider {
+    if (this.sharedProvider) return this.sharedProvider
+    const provider = ck.TypefaceFontProvider.Make()
+    this.sharedProvider = provider
+    this.sharedProviderCk = ck
+    this.attachProvider(ck, provider)
+    return provider
+  }
+
+  /**
+   * 压实共享 provider：回放存活字体集进新 provider，旧 provider 整体 delete
+   * 释放全部死副本。顺序铁律：先清所有宿主缓存（prepareProviderSwap）再删旧
+   * provider——paragraph/picture 缓存持有旧 provider 派生对象。回放先于删除
+   * （回放失败时旧 provider 未动、宿主仍持有它，渲染降级继续）；共享单例下
+   * 存活集峰值 ≈ 存活字节 ×2，远低于 wasm32 天花板。
+   */
+  compactSharedProvider(): boolean {
+    const stale = this.sharedProvider
+    const ck = this.sharedProviderCk
+    if (!stale || !ck) return false
+    const hosts = [...this.providerHosts].filter((host) => !host.isDestroyed())
+    for (const host of hosts) host.prepareProviderSwap()
+    const fresh = ck.TypefaceFontProvider.Make()
+    try {
+      this.attachProvider(ck, fresh)
+    } catch (error) {
+      this.detachProvider(fresh)
+      try {
+        fresh.delete()
+      } catch {
+        // 堆腐败期 delete 可能再抛——半成品随页面生命周期回收
+      }
+      throw error
+    }
+    this.sharedProvider = fresh
+    this.detachProvider(stale)
+    try {
+      stale.delete()
+    } catch (error) {
+      // delete 失败只泄漏不腐败——已 detach 出册，WASM 侧随页面生命周期回收
+      console.debug('[fonts] stale font provider delete failed after compaction', error)
+    }
+    for (const host of hosts) host.acceptProvider(fresh, this.generation())
+    return true
   }
 
   generation(): number {

@@ -22,6 +22,9 @@ export function clearSubtreePictureCache(r: SkiaRenderer): void {
 
 export function invalidateAllPictures(r: SkiaRenderer): void {
   r.textPreparationCache.clear()
+  // label 段落同样引用 provider 字体结构——压实删 provider 前必须同步清，
+  // 靠 use() 的同一性懒清会把 paragraph.delete 推迟到 provider 死后（UAF）
+  r.labelParagraphCache.clear()
   invalidateScenePicture(r)
   r.tiledScene.invalidateStructure()
   for (const pic of r.nodePictureCache.values()) pic?.delete()

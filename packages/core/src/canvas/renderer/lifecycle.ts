@@ -1,6 +1,5 @@
 import type { SkiaRenderer } from '#core/canvas/renderer'
 import { clearSubtreePictureCache } from '#core/canvas/renderer/state'
-import { fontManager } from '#core/text/fonts'
 
 function clearRetainedSceneState(r: SkiaRenderer): void {
   r.scenePicture?.delete()
@@ -48,11 +47,12 @@ export function destroyRenderer(r: SkiaRenderer): void {
   r.sectionTitleFont?.delete()
   r.componentLabelFont?.delete()
   r.fontMgr?.delete()
-  const fontProvider = r.fontProvider
-  fontProvider?.delete()
+  // 共享 provider 归 fontManager 所有、跨画布层复用——渲染器销毁只注销宿主
+  // 登记，不 delete provider（其他层仍在用；死副本由压实统一清扫）
+  r.unregisterFontProviderHost?.()
+  r.unregisterFontProviderHost = null
   r.fontProvider = null
   r.fontsLoaded = false
-  fontManager.detachProvider(fontProvider)
   r.rulerBgPaint.delete()
   r.rulerTickPaint.delete()
   r.rulerTextPaint.delete()

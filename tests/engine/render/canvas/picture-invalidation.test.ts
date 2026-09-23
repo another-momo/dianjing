@@ -16,8 +16,10 @@ test('full picture invalidation resets tiled font-dependent resources', () => {
   const subtreePicture = deletable()
   const textPreparationCache = new TextPreparationCache()
   textPreparationCache.clear = mock()
+  const labelParagraphCache = { clear: mock() }
   const renderer = {
     textPreparationCache,
+    labelParagraphCache,
     scenePicture,
     scenePictureVersion: 1,
     scenePictureFontGeneration: 1,
@@ -38,6 +40,7 @@ test('full picture invalidation resets tiled font-dependent resources', () => {
   invalidateAllPictures(renderer)
 
   expect(textPreparationCache.clear).toHaveBeenCalledTimes(1)
+  expect(labelParagraphCache.clear).toHaveBeenCalledTimes(1)
   expect(renderer.tiledScene.invalidateStructure).toHaveBeenCalledTimes(1)
   expect(scenePicture.delete).toHaveBeenCalledTimes(1)
   expect(backingImage.delete).toHaveBeenCalledTimes(1)

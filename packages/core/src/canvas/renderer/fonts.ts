@@ -94,44 +94,44 @@ function settleFontDemand(
  */
 export const PROVIDER_COMPACTION_THRESHOLD_BYTES = 1536 * 1024 * 1024
 
-type FontProviderHost = Pick<
-  SkiaRenderer,
-  'ck' | 'fontProvider' | 'fontGeneration' | 'isDestroyed' | 'invalidateAllPictures'
->
-
 type FontProviderRegistrar = Pick<
   FontManager,
-  | 'attachProvider'
-  | 'detachProvider'
   | 'providerRegisteredBytes'
   | 'providerLiveRegistrationBytes'
   | 'generation'
+  | 'compactSharedProvider'
 >
 
 /**
- * provider 压实：新建 TypefaceFontProvider 并回放存活字体集（attachProvider 的
- * 全量重注册语义），旧 provider 整体 delete——其持有的全部 WASM 字体副本（含
- * 已逐出字体的死注册）随 C++ 对象释放。两处 paragraph 缓存按 provider 同一性
- * 自清（provider !== this.provider 分支），fontGeneration 跳变使 textPicture
- * 失效重排，存活字形在下次排版时对新 provider 重建。
+ * 压实失败冷却：回放/清缓存抛错（堆已腐败的典型症状）后，冷却期内不再压实——
+ * 每次重试都是一遍存活集大额分配，在腐败堆上只会加速撞线。渲染循环的
+ * withCrashGuard 会在冷却期内把渲染器锁死，冷却只是兜底节流。
+ */
+export const PROVIDER_COMPACTION_FAILURE_COOLDOWN_MS = 30_000
+
+let providerCompactionCooldownUntil = 0
+
+export function resetProviderCompactionCooldown(): void {
+  providerCompactionCooldownUntil = 0
+}
+
+/**
+ * provider 压实：委托 fontManager 压实全部画布层共享的单例 provider（顺序
+ * 铁律与失败回滚见 compactSharedProvider）。存活集只注册一份，压实后水位
+ * 降到存活字节 ×1；fontGeneration 跳变驱动 textPicture 重排。
  */
 export function compactFontProvider(
-  r: FontProviderHost,
+  r: Pick<SkiaRenderer, 'isDestroyed'>,
   manager: FontProviderRegistrar = fontManager
 ): boolean {
-  if (r.isDestroyed() || !r.fontProvider) return false
+  if (r.isDestroyed()) return false
   const beforeBytes = manager.providerRegisteredBytes()
-  const stale = r.fontProvider
-  const fresh = r.ck.TypefaceFontProvider.Make()
-  // 先删旧再回放：回放期旧 provider 仍在册会把 WASM 峰值抬到「存活集 ×2」——
-  // 存活集逾 1.5GB 时回放双峰直接撞 wasm32 4GB 天花板（复测轮 8 实证：两次空转
-  // 压实后 3 秒抛 RuntimeError）。全程同步无排版介入窗口，先删安全。
-  manager.detachProvider(stale)
-  stale.delete()
-  r.fontProvider = fresh
-  manager.attachProvider(r.ck, fresh)
-  r.fontGeneration = manager.generation()
-  r.invalidateAllPictures()
+  try {
+    if (!manager.compactSharedProvider()) return false
+  } catch (error) {
+    providerCompactionCooldownUntil = Date.now() + PROVIDER_COMPACTION_FAILURE_COOLDOWN_MS
+    throw error
+  }
   // watcher 经 console 订阅对齐压实时刻与水表曲线（崩溃归因取证）
   console.debug(
     `[font-provider] compacted WASM registrations: ${Math.round(beforeBytes / 1048576)}MB -> ${Math.round(manager.providerRegisteredBytes() / 1048576)}MB (live ~${Math.round(manager.providerLiveRegistrationBytes() / 1048576)}MB)`
@@ -151,11 +151,12 @@ export const PROVIDER_COMPACTION_MIN_DEAD_BYTES = 512 * 1024 * 1024
  * 超阈值时压实无意义（死副本 ≈ 0），由 minDeadBytes 闸挡下。
  */
 export function maybeCompactFontProvider(
-  r: FontProviderHost,
+  r: Pick<SkiaRenderer, 'isDestroyed'>,
   manager: FontProviderRegistrar = fontManager,
   thresholdBytes = PROVIDER_COMPACTION_THRESHOLD_BYTES,
   minDeadBytes = PROVIDER_COMPACTION_MIN_DEAD_BYTES
 ): boolean {
+  if (Date.now() < providerCompactionCooldownUntil) return false
   const registered = manager.providerRegisteredBytes()
   if (registered <= thresholdBytes) return false
   if (registered - manager.providerLiveRegistrationBytes() <= minDeadBytes) return false
@@ -164,6 +165,23 @@ export function maybeCompactFontProvider(
 
 export function getFontProvider(r: SkiaRenderer) {
   return r.isDestroyed() || !r.fontProvider ? null : r.fontProvider
+}
+
+/**
+ * 把渲染器登记为共享 provider 宿主：压实时的顺序铁律由这两个回调执行——
+ * prepareProviderSwap 清空全部持有旧 provider 派生对象的缓存（先删 provider
+ * 再清缓存 = UAF，复测轮 9 实证堆腐败），acceptProvider 接入新 provider 并
+ * 同步 fontGeneration。destroy 时须调返回的注销函数。
+ */
+export function registerFontProviderHost(r: SkiaRenderer): () => void {
+  return fontManager.registerProviderHost({
+    isDestroyed: () => r.isDestroyed(),
+    prepareProviderSwap: () => r.invalidateAllPictures(),
+    acceptProvider: (provider, generation) => {
+      r.fontProvider = provider
+      r.fontGeneration = generation
+    }
+  })
 }
 
 export async function loadFonts(
@@ -176,10 +194,10 @@ export async function loadFonts(
     settleFontDemand(r, snapshot, nodeIds)
     onFallbackFontsLoaded?.()
   }
-  r.fontProvider?.delete()
-  r.fontProvider = r.ck.TypefaceFontProvider.Make()
-
-  fontManager.attachProvider(r.ck, r.fontProvider)
+  // 全部画布层共享同一 provider（ensureSharedProvider 的注释有方案沿革）——
+  // 渲染器不再各自 Make/delete provider，destroy 只注销宿主登记
+  r.unregisterFontProviderHost ??= registerFontProviderHost(r)
+  r.fontProvider = fontManager.ensureSharedProvider(r.ck)
   syncFontGeneration(r)
 
   const fontData = await fontManager.loadFont(DEFAULT_FONT_FAMILY, 'Regular')
