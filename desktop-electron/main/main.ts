@@ -33,7 +33,8 @@
  *         window-state.json（见 ./window-state.ts）；恢复时校验与当前显示器
  *         集合有交集——拔了外接屏窗口出屏是经典坑；无交集回退 1440x900 居中
  *     9.4 macOS 关窗不退出（dock 图标保留，activate 重建窗口）；其余平台全关
- *         即 quit；quit 时杀 sidecar 的既有逻辑（before-quit）保持不动
+ *         即 quit；quit 时杀 sidecar 的两段式 kill 挂 will-quit（窗口全关后），
+ *         不挡 close 守卫的 dirty 确认链
  *
  * token 三方对齐（不变量，spike 阶段由本文件单点维护）：
  *   pageToken === bridgeEnvToken（页面经 WS 连桥用的 token = 注入 index.html
@@ -131,11 +132,11 @@ let backendHandle: SidecarHandle | null = null
 let portFromState = 0
 let serverFromState: ReturnType<typeof createServer> | null = null
 // darwin 复活用：回环服务的 dist 解析基准（buildSidecars 平铺约定同款结果，由
-// startLoopbackWithSidecars 记录）；before-quit 只武装一次——复活 C 路径会重进
+// startLoopbackWithSidecars 记录）；will-quit 只武装一次——复活 C 路径会重进
 // startLoopbackWithSidecars，闭包重复注册叠加监听器，且 __opSidecarQuitting
 // 全局闸会让后到注册永远跳过 → 新 sidecar 漏杀
 let distDirFromState: string | null = null
-let beforeQuitArmed = false
+let willQuitArmed = false
 
 async function waitForHealth(
   child: UtilityProcess,
@@ -1303,13 +1304,20 @@ function buildSidecars(
   return { bridge, backend, distDir: packedDistDir }
 }
 
-// app quit 两段式 kill——注册到 before-quit 防止默认强杀孤儿。读模块态而非
-// 闭包：darwin 复活 C 路径会再走 startLoopbackWithSidecars 换新 server/handle，
-// 闭包捕获旧引用 + __opSidecarQuitting 全局闸挡后到注册 = 新 sidecar 漏杀
-function armBeforeQuitKill(): void {
-  if (beforeQuitArmed) return
-  beforeQuitArmed = true
-  app.on('before-quit', async (event) => {
+// app quit 两段式 kill——注册到 will-quit（不是 before-quit）：Electron 的 quit
+// 事件序是 before-quit → 逐窗 close → 全关后 will-quit → quit，挂 before-quit
+// 并 app.exit(0) 会短路掉全部窗口 close——close 守卫的 dirty 确认链
+// （attachWindowCloseGuard → __dianjingHandleCloseRequest）在 Cmd+Q / quit 端点
+// 路径上根本没机会跑。will-quit 在窗口全关后才 fire——用户在任一窗的确认
+// 对话框点取消都会中止 quit、will-quit 不 fire，确认链完整保留；渲染侧
+// requestAppExit 已批的场景 approval 单例短路、守卫直接放行无额外弹窗。
+// 读模块态而非闭包：darwin 复活 C 路径会再走 startLoopbackWithSidecars 换新
+// server/handle，闭包捕获旧引用 + __opSidecarQuitting 全局闸挡后到注册 =
+// 新 sidecar 漏杀
+function armWillQuitKill(): void {
+  if (willQuitArmed) return
+  willQuitArmed = true
+  app.on('will-quit', async (event) => {
     const globalScope = globalThis as { __opSidecarQuitting?: boolean }
     if (globalScope.__opSidecarQuitting) return
     globalScope.__opSidecarQuitting = true
@@ -1364,7 +1372,7 @@ async function startLoopbackWithSidecars(
 
   // 4. app quit 两段式 kill——武装一次（模块态读取；darwin 复活 C 路径重进
   // 本函数时不叠加注册）；dist 解析基准入模块态供复活 A 路径复听
-  armBeforeQuitKill()
+  armWillQuitKill()
   distDirFromState = resolvedDistDir
 
   return { server, port }
@@ -1552,7 +1560,7 @@ if (!readSmokeMode() && !readFullSmokeMode()) {
 // P1.9.4 darwin 复活主窗口——dev 形态：直接 new BrowserWindow + loadURL；
 // 默认形态（sidecar 全家桶）A+C fallback（2026-09-19 owner 拍板，方案稿
 // docs/202609182200 §4.3）：
-//   A 首选——关窗只 server.close() 不杀 sidecar（before-quit 才杀），bridge/
+//   A 首选——关窗只 server.close() 不杀 sidecar（will-quit 才杀），bridge/
 //     backend 进程仍在。复听同一 loopback 端口重建回环：bridge CORS origin
 //     在 fork 时锁定为旧 origin，换端口会让页面→bridge 跨源预检 401；同端口
 //     = origin 不变 = 既有 sidecar 原样直连（~100ms 无感复活）。
