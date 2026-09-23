@@ -2291,7 +2291,7 @@
     {
       "id": "P369",
       "file": "packages/vue/src/canvas/surface/lifecycle.ts",
-      "reason": "B-7：capture 接线——翻闸前 captureRendererDiagnostics(state.renderer) 采缓存水位/最近导出/场景版本挂 RendererCrash.context，并 console.error 落一份供重启前排障；2026-09-23 延展：dev 渲染侧水表钩子 __DIANJING_RENDER_PROBE__（watcher CDP 周期读缓存水位，崩溃归因仪表）",
+      "reason": "B-7：capture 接线——翻闸前 captureRendererDiagnostics(state.renderer) 采缓存水位/最近导出/场景版本挂 RendererCrash.context，并 console.error 落一份供重启前排障；2026-09-23 延展：dev 渲染侧水表钩子 __DIANJING_RENDER_PROBE__（watcher CDP 周期读缓存水位，崩溃归因仪表）；2026-09-23 延展②：__DIANJING_DEAD_PROBE__ 死闸探针（withCrashGuard 吞错后 lastCrash 唯一取道口）。",
       "disposition": "permanent",
       "lastReviewed": "2026-09-23"
     },

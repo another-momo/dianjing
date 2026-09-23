@@ -116,6 +116,7 @@ export function compactFontProvider(
   manager: FontProviderRegistrar = fontManager
 ): boolean {
   if (r.isDestroyed() || !r.fontProvider) return false
+  const beforeBytes = manager.providerRegisteredBytes()
   const stale = r.fontProvider
   r.fontProvider = r.ck.TypefaceFontProvider.Make()
   manager.attachProvider(r.ck, r.fontProvider)
@@ -123,6 +124,10 @@ export function compactFontProvider(
   stale.delete()
   r.fontGeneration = manager.generation()
   r.invalidateAllPictures()
+  // watcher 经 console 订阅对齐压实时刻与水表曲线（崩溃归因取证）
+  console.debug(
+    `[font-provider] compacted WASM registrations: ${Math.round(beforeBytes / 1048576)}MB -> ${Math.round(manager.providerRegisteredBytes() / 1048576)}MB`
+  )
   return true
 }
 

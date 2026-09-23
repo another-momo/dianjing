@@ -4,10 +4,11 @@ import type { Ref } from 'vue'
 
 import {
   captureRendererDiagnostics,
+  getRendererDeadState,
   markRendererDead,
   SkiaRenderer
 } from '@open-pencil/core/canvas'
-import type { RendererCrashContext } from '@open-pencil/core/canvas'
+import type { RendererCrashContext, RendererDeadSnapshot } from '@open-pencil/core/canvas'
 import type { Editor } from '@open-pencil/core/editor'
 
 import {
@@ -28,10 +29,13 @@ type SurfaceManagerState = {
 
 // dev 渲染侧内存水表（WASM 崩溃归因，配合 core 的 __DIANJING_FONT_PROBE__）：
 // watcher 经 CDP 周期读缓存水位；renderer 为 null 时 capture 返回零值快照。
+// __DIANJING_DEAD_PROBE__ 读 renderer-dead 锁存（withCrashGuard 吞错后错误本体
+// 只存在 lastCrash 里）——画布冻结时取首发 RuntimeError 消息与崩溃现场。
 // 与 canvaskit.ts B-6 同款门控——仅 vite dev 浏览器形态挂载
 declare global {
   interface Window {
     __DIANJING_RENDER_PROBE__?: () => RendererCrashContext
+    __DIANJING_DEAD_PROBE__?: () => RendererDeadSnapshot
   }
 }
 
@@ -53,6 +57,7 @@ export function createCanvasSurfaceManager({
   const state: SurfaceManagerState = { renderer: null, glContext: null, presentation: null }
   if ('env' in import.meta && import.meta.env.DEV && !('Bun' in globalThis)) {
     window.__DIANJING_RENDER_PROBE__ = () => captureRendererDiagnostics(state.renderer)
+    window.__DIANJING_DEAD_PROBE__ = () => getRendererDeadState()
   }
   let sceneBackingRenderTimer: ReturnType<typeof setTimeout> | null = null
 
