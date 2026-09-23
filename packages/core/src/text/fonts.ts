@@ -240,8 +240,12 @@ export class FontManager {
       this.detachProvider(fresh)
       try {
         fresh.delete()
-      } catch {
+      } catch (deleteError) {
         // 堆腐败期 delete 可能再抛——半成品随页面生命周期回收
+        console.debug(
+          '[fonts] partial font provider cleanup failed after replay error',
+          deleteError
+        )
       }
       throw error
     }
@@ -1285,9 +1289,9 @@ export class FontManager {
     const bytes = new Uint8Array(data)
     let h1 = 0x811c9dc5
     let h2 = 0x85ebca6b
-    for (let i = 0; i < bytes.length; i++) {
-      h1 = Math.imul(h1 ^ bytes[i], 0x01000193)
-      h2 = Math.imul(h2 ^ bytes[i], 0x27d4eb2f)
+    for (const byte of bytes) {
+      h1 = Math.imul(h1 ^ byte, 0x01000193)
+      h2 = Math.imul(h2 ^ byte, 0x27d4eb2f)
     }
     const hash = `${data.byteLength}:${(h1 >>> 0).toString(36)}-${(h2 >>> 0).toString(36)}`
     this.fontDataHashes.set(data, hash)
