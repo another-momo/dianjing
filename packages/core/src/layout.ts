@@ -51,9 +51,14 @@ function computeLayoutInternal(graph: SceneGraph, frameId: string): void {
     frame.layoutMode === 'GRID'
       ? buildGridTree(graph, frame, rootDirection)
       : buildYogaTree(graph, frame, rootDirection)
-  yogaRoot.calculateLayout(undefined, undefined, yogaDirection)
-  applyYogaLayout(graph, frame, yogaRoot, computeLayoutInternal)
-  freeYogaTree(yogaRoot)
+  // 释放必须在 finally：calculateLayout/measure 抛错时跳过释放会把整树 NodeImpl
+  // 留给 GC finalize——在 WASM 分配器复用下，孤儿 finalize 可能误释活节点
+  try {
+    yogaRoot.calculateLayout(undefined, undefined, yogaDirection)
+    applyYogaLayout(graph, frame, yogaRoot, computeLayoutInternal)
+  } finally {
+    freeYogaTree(yogaRoot)
+  }
 }
 function resolveComputedLayoutDirection(
   graph: SceneGraph,

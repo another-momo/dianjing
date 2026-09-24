@@ -1,0 +1,46 @@
+diff --git a/dist/src/wrapAssembly.js b/dist/src/wrapAssembly.js
+index 5bd4b0a69b7e34feccd4d8259e581e215f654095..36b0cc0b9bf9517a7af3b85de1d3f0c91b17b2c1 100644
+--- a/dist/src/wrapAssembly.js
++++ b/dist/src/wrapAssembly.js
+@@ -89,7 +89,16 @@ export default function wrapAssembly(lib) {
+   const configRegistry = new FinalizationRegistry(ptr => {
+     lib._YGConfigFree(ptr);
+   });
+-  const nodeRegistry = new FinalizationRegistry(ptr => {
++  // Liveness ledger: ptr -> owning wrapper id. The WASM allocator reuses freed
++  // pointers, so a bare pointer is not proof of ownership — a stale/orphaned
++  // wrapper finalizing by pointer alone can free memory a newer live node owns.
++  // Freeing is only allowed when the caller is the recorded owner; anything
++  // else degrades to a leak (recoverable) instead of a double-free (fatal).
++  const liveNodes = new Map();
++  let nextNodeWrapperId = 1;
++  const nodeRegistry = new FinalizationRegistry(({ ptr, wrapperId }) => {
++    if (liveNodes.get(ptr) !== wrapperId) return;
++    liveNodes.delete(ptr);
+     lib._yogaMeasureFuncs.delete(ptr);
+     lib._yogaDirtiedFuncs.delete(ptr);
+     lib._YGNodeFinalize(ptr);
+@@ -128,9 +137,11 @@ export default function wrapAssembly(lib) {
+   class NodeImpl {
+     constructor(ptr) {
+       this._ptr = ptr;
++      this._id = nextNodeWrapperId++;
+       this._children = [];
+       this._parent = null;
+-      nodeRegistry.register(this, ptr, this);
++      liveNodes.set(ptr, this._id);
++      nodeRegistry.register(this, { ptr, wrapperId: this._id }, this);
+     }
+ 
+     // --- Tree hierarchy ---
+@@ -162,6 +173,10 @@ export default function wrapAssembly(lib) {
+       nodeRegistry.unregister(this);
+       lib._yogaMeasureFuncs.delete(this._ptr);
+       lib._yogaDirtiedFuncs.delete(this._ptr);
++      // Idempotent + ownership-checked: a repeated free (or a free through a
++      // non-owning wrapper) must not double-free the WASM allocation.
++      if (liveNodes.get(this._ptr) !== this._id) return;
++      liveNodes.delete(this._ptr);
+       lib._YGNodeFinalize(this._ptr);
+     }
+     freeRecursive() {

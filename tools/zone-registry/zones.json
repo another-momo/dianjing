@@ -23,7 +23,8 @@
     "tools/git-rescue/",
     "desktop-electron/",
     "tools/design-jsx-doc/",
-    "build/"
+    "build/",
+    "patches/"
   ],
   "ownedFiles": [
     "src/app/shell/electron.ts",
@@ -124,7 +125,8 @@
     "tests/engine/render/canvas/font-provider-compaction.test.ts",
     "tests/engine/render/canvas/canvaskit-uaf-guard.test.ts",
     "packages/core/src/layout/yoga-probe.ts",
-    "tests/engine/editor/layout/yoga-probe.test.ts"
+    "tests/engine/editor/layout/yoga-probe.test.ts",
+    "tests/engine/layout/yoga-lifecycle.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -2349,7 +2351,7 @@
     {
       "id": "P377",
       "file": "packages/core/src/layout.ts",
-      "reason": "yoga-probe 接线——两处 setMeasureFunc 后埋 measure-set 探针事件（dev-only OOB 复现取证）",
+      "reason": "yoga-probe 接线——两处 setMeasureFunc 后埋 measure-set 探针事件（dev-only OOB 复现取证）；computeLayoutInternal 补 try/finally——calculateLayout/measure 抛错时 finally 保证整树释放（孤儿树是 GC finalize 误释活节点的供给源）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-24"
     },
@@ -2357,6 +2359,20 @@
       "id": "P378",
       "file": "packages/core/src/layout/yoga-helpers.ts",
       "reason": "yoga-probe 接线——createYogaNode/freeYogaTree 埋 create/free 探针事件 + 模块顶 installYogaOobCapture（dev-only）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-24"
+    },
+    {
+      "id": "P379",
+      "file": "package.json",
+      "reason": "patchedDependencies += yoga-layout 胶水加固：free() 幂等 + FinalizationRegistry 属主校验（ptr→wrapperId 台账），堵漏分配器复用下孤儿 finalize 误释活节点",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-24"
+    },
+    {
+      "id": "P380",
+      "file": "bun.lock",
+      "reason": "lockfile 随 patchedDependencies（yoga-layout 补丁）登记重生成（mechanical）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-24"
     }
