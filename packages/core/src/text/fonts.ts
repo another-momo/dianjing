@@ -61,11 +61,13 @@ for (const weight of FONT_REGISTRY.find((e) => e.family === 'Alibaba PuHuiTi')?.
 }
 
 /**
- * JS 侧字体字节默认预算（T40 S1，13 册 §3 策略 A）：超预算按 LRU 逐出 JS 引用。
- * CanvasKit 无法注销已注册 typeface，WASM 侧残留 2-10MB 属预期；逐出键会联动
- * fontResolver.reset（见 onFontEvicted），下次引用时经 demand 链重载。
+ * JS 侧字体字节默认预算：安全气囊式上限。日常用量远低于此值，
+ * 实际场景遇大量 CDN 子集/系统家族并发加载时偶发越界，预留充足冗余让逐出仅作
+ * 收割闲置键的兜底动作，不作常态治理；CanvasKit 无法注销已注册 typeface，
+ * WASM 侧残留 2-10MB 属预期；逐出键会联动 fontResolver.reset（见 onFontEvicted），
+ * 下次引用时经 demand 链重载（内容哈希去重让重载零 WASM 成本）。
  */
-export const DEFAULT_FONT_MEMORY_BUDGET = 50 * 1024 * 1024
+export const DEFAULT_FONT_MEMORY_BUDGET = 512 * 1024 * 1024
 
 /**
  * CDN 子集分片的渲染 alias 分隔符（T40 修复）：CanvasKit TypefaceFontProvider 对同一
