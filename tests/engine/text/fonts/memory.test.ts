@@ -38,15 +38,31 @@ describe('FontMemoryLedger', () => {
     expect(ledger.lruVictims(400, new Set(), 1000)).toEqual(['B|Regular', 'C|Regular'])
   })
 
-  test('skips excluded and over-budget keys when picking victims', () => {
+  test('whale keys (single entry larger than budget) participate in LRU eviction', () => {
+    // 钉扎 ①：鲸键（单键 > 预算）在超预算时入受害者清单且按 LRU 序
     const ledger = new FontMemoryLedger()
     ledger.set('A|Regular', 100)
     ledger.set('Huge|Regular', 5000)
+    ledger.touch('Huge|Regular')
 
-    expect(ledger.lruVictims(50, new Set(['A|Regular']), 1000)).toEqual([])
-    // 单条目超预算不逐（逐了也无法达标）
-    expect(ledger.lruVictims(4000, new Set(), 1000)).toEqual(['A|Regular'])
-    expect(ledger.overBudgetKeys(1000)).toEqual(['Huge|Regular'])
+    // 需释放 100：A 最久未用先逐；Huge 留（仍未达标）
+    expect(ledger.lruVictims(100, new Set(), 1000)).toEqual(['A|Regular'])
+    // 需释放 5100：A + Huge 都被卷入（无单条目豁免）
+    expect(ledger.lruVictims(5100, new Set(), 1000)).toEqual(['A|Regular', 'Huge|Regular'])
+
+    // 钉扎 ②：exclude 键仍豁免
+    expect(ledger.lruVictims(50, new Set(['A|Regular', 'Huge|Regular']), 1000)).toEqual([])
+
+    // 钉扎 ③：逐出后 totalBytes 降到预算内（含鲸键场景）
+    ledger.set('B|Regular', 200)
+    expect(ledger.totalBytes()).toBe(5300)
+    const victims = ledger.lruVictims(5300, new Set(), 1000)
+    for (const victim of victims) ledger.remove(victim)
+    expect(ledger.totalBytes()).toBe(0)
+
+    // 诊断快照语义：鲸键不再保留，但调用方可在需要时观察当前超预算键
+    ledger.set('Huge2|Regular', 4000)
+    expect(ledger.overBudgetKeys(1000)).toEqual(['Huge2|Regular'])
   })
 })
 
@@ -96,23 +112,27 @@ describe('FontManager memory governance (T40 S1)', () => {
     expect(manager.isStyleLoaded('MemG', 'Regular')).toBe(true)
   })
 
-  test('keeps a single entry larger than the budget and flags it', () => {
+  test('protect-via-exclude keeps a just-loaded whale key loaded while older siblings evict', () => {
+    // setFontMemoryBudget 在无新键时无 exclude，老键按 LRU 正常卷入；
+    // 鲸键豁免已移除——若超预算，无 exclude 守护的老鲸键也会被逐
     const manager = new FontManager()
     manager.markLoaded('MemH', 'Regular', new ArrayBuffer(100))
     manager.markLoaded('MemI', 'Regular', new ArrayBuffer(500))
 
     manager.setFontMemoryBudget(400)
-    // MemI 单条目超预算：保留并计入 overBudgetKeys；MemH 被逐以回血
-    expect(manager.isStyleLoaded('MemI', 'Regular')).toBe(true)
+    // 600 > 400，无 exclude：MemH (100) LRU 先逐，仍需 100 → MemI (500) 也被卷入
     expect(manager.isStyleLoaded('MemH', 'Regular')).toBe(false)
-    expect(manager.fontMemoryStats().overBudgetKeys).toEqual(['MemI|Regular'])
+    expect(manager.isStyleLoaded('MemI', 'Regular')).toBe(false)
+    expect(manager.fontMemoryStats().loadedBytes).toBe(0)
+    expect(manager.fontMemoryStats().evictions).toBe(2)
   })
 
-  test('never evicts the face that was just registered', () => {
+  test('markLoaded exclude protects the just-loaded whale key', () => {
     const manager = new FontManager()
-    manager.markLoaded('MemJ', 'Regular', new ArrayBuffer(300))
     manager.setFontMemoryBudget(200)
-    // 预算 200、新入账 300：逐出受害者只剩自己 → 豁免，记入 overBudgetKeys
+    manager.markLoaded('MemJ', 'Regular', new ArrayBuffer(300))
+    // 预算 200、新入账 300：markLoaded 经 enforce(exclude=本键) 守护，本键不被卷入，
+    // 留作 overBudgetKeys 诊断快照（鲸键豁免已删，此处存活靠 exclude 而非豁免）
     expect(manager.isStyleLoaded('MemJ', 'Regular')).toBe(true)
     expect(manager.fontMemoryStats().overBudgetKeys).toEqual(['MemJ|Regular'])
   })
@@ -126,8 +146,8 @@ describe('FontManager memory governance (T40 S1)', () => {
     expect(manager.fontMemoryStats().loadedBytes).toBe(0)
   })
 
-  test('default budget is the 50MB guardrail from the blueprint', () => {
-    expect(DEFAULT_FONT_MEMORY_BUDGET).toBe(50 * 1024 * 1024)
+  test('default budget is the 512MB safety-airbag ceiling', () => {
+    expect(DEFAULT_FONT_MEMORY_BUDGET).toBe(512 * 1024 * 1024)
     expect(new FontManager().fontMemoryStats().budgetBytes).toBe(DEFAULT_FONT_MEMORY_BUDGET)
   })
 })

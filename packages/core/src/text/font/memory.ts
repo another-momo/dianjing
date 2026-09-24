@@ -17,7 +17,7 @@ export interface FontMemoryStats {
   loadedBytes: number
   entries: number
   evictions: number
-  /** 单条目字节数即超预算的键（保留不逐，供诊断） */
+  /** 检查时点的超预算键快照（鲸键按 LRU 序参与逐出，本字段仅作诊断观察点） */
   overBudgetKeys: string[]
 }
 
@@ -62,13 +62,13 @@ export class FontMemoryLedger {
 
   /**
    * 按 LRU 序挑选受害者，直到累计释放 >= bytesToFree。exclude 中的键跳过
-   * （调用方刚入账的键不应立刻被逐出）；单条目即超预算的键同样跳过——
-   * 逐出它也无法让总账达标，留着并记入 overBudgetKeys。
+   * （调用方刚入账的键不应立刻被逐出）；无单条目豁免——鲸键豁免会把超预算键
+   * 永久留在账上累积（复测轮实证 sup 泄漏主因），鲸键按 LRU 序正常参与逐出。
    */
-  lruVictims(bytesToFree: number, exclude: ReadonlySet<string>, budgetBytes: number): string[] {
+  lruVictims(bytesToFree: number, exclude: ReadonlySet<string>, _budgetBytes: number): string[] {
     if (bytesToFree <= 0) return []
     const candidates = [...this.bytesByKey.entries()]
-      .filter(([key, bytes]) => !exclude.has(key) && bytes <= budgetBytes)
+      .filter(([key]) => !exclude.has(key))
       .sort((a, b) => (this.lastAccessByKey.get(a[0]) ?? 0) - (this.lastAccessByKey.get(b[0]) ?? 0))
     const victims: string[] = []
     let freed = 0
