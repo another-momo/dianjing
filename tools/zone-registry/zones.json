@@ -122,7 +122,9 @@
     "packages/core/src/canvas/renderer/diagnostics.ts",
     "tests/engine/render/canvas/renderer-diagnostics.test.ts",
     "tests/engine/render/canvas/font-provider-compaction.test.ts",
-    "tests/engine/render/canvas/canvaskit-uaf-guard.test.ts"
+    "tests/engine/render/canvas/canvaskit-uaf-guard.test.ts",
+    "packages/core/src/layout/yoga-probe.ts",
+    "tests/engine/editor/layout/yoga-probe.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -2343,6 +2345,20 @@
       "reason": "2026-09-23：内容哈希去重钉扎三例——逐出后重载同字节零注册（台账不双计）/同族名不同字节照常注册（分片语义不受影响）/去重按 provider 隔离（attach 新 provider 照常回放）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-23"
+    },
+    {
+      "id": "P377",
+      "file": "packages/core/src/layout.ts",
+      "reason": "yoga-probe 接线——两处 setMeasureFunc 后埋 measure-set 探针事件（dev-only OOB 复现取证）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-24"
+    },
+    {
+      "id": "P378",
+      "file": "packages/core/src/layout/yoga-helpers.ts",
+      "reason": "yoga-probe 接线——createYogaNode/freeYogaTree 埋 create/free 探针事件 + 模块顶 installYogaOobCapture（dev-only）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-24"
     }
   ],
   "deletedPaths": [

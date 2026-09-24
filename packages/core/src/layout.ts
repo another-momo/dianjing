@@ -15,6 +15,7 @@ import { applyYogaLayout } from './layout/apply'
 import { usesDetachedDerivedLayout } from './layout/derived'
 import { applyEffectiveGeneratedTextLayout } from './layout/effective-generated-text'
 import { buildGridTree, createGridChildNode } from './layout/grid'
+import { probeYogaEvent } from './layout/yoga-probe'
 import { resolveNodeLayoutDirection } from './text/direction'
 export {
   estimateTextSize,
@@ -491,6 +492,7 @@ function configureTextLeaf(
       cache.set(cacheKey, result)
       return result
     })
+    probeYogaEvent('measure-set', yogaChild, child.id)
   } else if (autoResize === 'HEIGHT') {
     const stretchesCross =
       child.layoutAlignSelf === 'STRETCH' ||
@@ -522,6 +524,7 @@ function configureTextLeaf(
       cache.set(cacheKey, result)
       return result
     })
+    probeYogaEvent('measure-set', yogaChild, child.id)
   }
 }
 

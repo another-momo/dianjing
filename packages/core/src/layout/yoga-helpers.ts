@@ -9,11 +9,17 @@ import Yoga, {
 
 import type { GridTrack, SceneNode } from '@open-pencil/scene-graph'
 
+import { installYogaOobCapture, probeYogaEvent } from './yoga-probe'
+
 const yogaConfig = Yoga.Config.create()
 yogaConfig.setPointScaleFactor(0)
 
+installYogaOobCapture()
+
 export function createYogaNode(): YogaNode {
-  return Yoga.Node.create(yogaConfig)
+  const node = Yoga.Node.create(yogaConfig)
+  probeYogaEvent('create', node)
+  return node
 }
 
 export function configureAbsoluteChild(yogaChild: YogaNode, child: SceneNode): void {
@@ -46,6 +52,7 @@ export function freeYogaTree(node: YogaNode): void {
   for (let i = node.getChildCount() - 1; i >= 0; i--) {
     freeYogaTree(node.getChild(i))
   }
+  probeYogaEvent('free', node)
   if ('free' in node) (node as { free(): void }).free()
 }
 
