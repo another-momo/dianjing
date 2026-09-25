@@ -74,6 +74,7 @@
     "tests/engine/text/fonts/cn-catalog.test.ts",
     "tests/engine/text/fonts/catalog-weight-merge.test.ts",
     "tests/engine/text/fonts/node-font-status.test.ts",
+    "tests/engine/editor/font-settle-relayout.test.ts",
     "src/app/editor/fonts/sanitize-legacy-catalog-families.ts",
     "tools/cn-font-catalog/src/merge.mjs",
     "tools/cn-font-catalog/src/merge-weight-families.mjs",
@@ -1397,9 +1398,9 @@
     {
       "id": "P236",
       "file": "packages/core/src/editor/create.ts",
-      "reason": "2026-09-14 合并后 L1 第二轮：默认 getViewportSize 的 IS_BROWSER 冻结守卫同上污染链——换 hasWindowGlobal 活探",
+      "reason": "2026-09-14 合并后 L1 第二轮：默认 getViewportSize 的 IS_BROWSER 冻结守卫同上污染链——换 hasWindowGlobal 活探；2026-09-25 字体 settle 追排：settled(loaded) 防抖触发页级文本 auto-resize 重测 + 整图 relayout（修换字体后宽高滞留回退度量）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-14"
+      "lastReviewed": "2026-09-25"
     },
     {
       "id": "P237",

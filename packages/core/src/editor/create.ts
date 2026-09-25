@@ -3,6 +3,7 @@ import { createNanoEvents } from 'nanoevents'
 import type { Emitter } from 'nanoevents'
 
 import { SceneGraph } from '@open-pencil/scene-graph'
+import type { SceneNode } from '@open-pencil/scene-graph'
 import { UndoManager } from '@open-pencil/scene-graph/undo'
 
 import type { SkiaRenderer } from '#core/canvas/renderer'
@@ -11,7 +12,7 @@ import { hasWindowGlobal } from '#core/constants'
 import { clearLazyFigImportContext } from '#core/kiwi/fig/lazy-import'
 import { releaseFigPopulationWorker } from '#core/kiwi/fig/population/client'
 import { releaseOriginalFigArchive } from '#core/kiwi/fig/session/original-archive'
-import { setTextMeasurer } from '#core/layout'
+import { computeAllLayouts, setTextMeasurer } from '#core/layout'
 import { emitNavigationTrace } from '#core/profiler'
 import { TextEditor } from '#core/text/editor'
 import { fontManager } from '#core/text/fonts'
@@ -37,6 +38,7 @@ import { createShapeActions } from './shapes'
 import { createDefaultEditorState } from './state'
 import { createStructureActions } from './structure'
 import { createTextActions } from './text'
+import { textAutoResizeChanges } from './text/auto-resize'
 import type {
   EditorContext,
   EditorEventName,
@@ -68,8 +70,44 @@ export function createEditor(options?: EditorOptions) {
   const interactiveEdits = new Set<symbol>()
   let _textEditor: TextEditor | null = null
   const events: Emitter<EditorEvents> = createNanoEvents()
+  // 字体异步装完后 layout 追排（2026-09-25）：settle 渲染链只刷新 picture（glyph
+  // 自愈），apply 时回退度量产的节点宽高须随真实度量重算，否则滞留到下次
+  // mutation。CDN 分片渐进加载会连发 settle，短防抖合批；整图重排覆盖跨页节点。
+  let fontSettleRelayoutTimer: ReturnType<typeof setTimeout> | null = null
+  const FONT_SETTLE_RELAYOUT_DEBOUNCE_MS = 50
+  const scheduleFontSettleRelayout = () => {
+    if (fontSettleRelayoutTimer !== null) return
+    fontSettleRelayoutTimer = setTimeout(() => {
+      fontSettleRelayoutTimer = null
+      reflowAutoResizeTextAfterFontSettle()
+      computeAllLayouts(_graph)
+      requestRender()
+    }, FONT_SETTLE_RELAYOUT_DEBOUNCE_MS)
+  }
+
+  // 页级文本的 auto-resize 不经 yoga（computeLayoutsBottomUp 只排 layoutMode≠'NONE'
+  // 的框）——按真实度量重测宽高，仅在实际变化时写回（避免 settle 噪声刷 node:updated）。
+  function reflowAutoResizeTextAfterFontSettle(): void {
+    for (const page of _graph.getPages()) reflowAutoResizeTextInSubtree(page.id)
+  }
+  function reflowAutoResizeTextInSubtree(rootId: string): void {
+    const node = _graph.getNode(rootId)
+    if (!node) return
+    if (
+      node.type === 'TEXT' &&
+      (node.textAutoResize === 'HEIGHT' || node.textAutoResize === 'WIDTH_AND_HEIGHT')
+    ) {
+      const resized = textAutoResizeChanges(node, { fontFamily: node.fontFamily })
+      const widthChanged = resized.width !== undefined && resized.width !== node.width
+      const heightChanged = resized.height !== undefined && resized.height !== node.height
+      if (widthChanged || heightChanged) nodes.updateNode(node.id, resized)
+    }
+    for (const childId of node.childIds) reflowAutoResizeTextInSubtree(childId)
+  }
+
   const stopFontResolutionEvents = fontResolver.subscribe((event, snapshot) => {
     events.emit('font:resolution-changed', event, snapshot)
+    if (event === 'settled' && snapshot.state === 'loaded') scheduleFontSettleRelayout()
   })
 
   void prefetchFigmaSchema()
@@ -280,6 +318,7 @@ export function createEditor(options?: EditorOptions) {
   function dispose() {
     nodes.cancelNodePreviews()
     interactiveEdits.clear()
+    if (fontSettleRelayoutTimer !== null) clearTimeout(fontSettleRelayoutTimer)
     stopFontResolutionEvents()
     unsubscribeFromGraph()
   }
