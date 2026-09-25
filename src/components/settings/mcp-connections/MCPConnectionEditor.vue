@@ -14,7 +14,6 @@ import { useAutomationMessages, useCommonMessages } from '@open-pencil/vue'
 import type { SettingsSaveResult } from '@/app/settings/save-result'
 import { focusInvalidField } from '@/components/settings/layout/focus'
 import SettingsGroup from '@/components/settings/layout/SettingsGroup.vue'
-import SettingsPage from '@/components/settings/layout/SettingsPage.vue'
 import SettingsRow from '@/components/settings/layout/SettingsRow.vue'
 import SettingsSaveFeedback from '@/components/settings/layout/SettingsSaveFeedback.vue'
 import SettingsSection from '@/components/settings/layout/SettingsSection.vue'
@@ -100,232 +99,231 @@ const envHintText = computed(() => {
 <template>
   <form
     ref="formElement"
-    class="flex min-h-0 min-w-0 flex-1 flex-col"
+    class="flex flex-col gap-4"
     :aria-busy="busy"
     novalidate
     @submit.prevent="$emit('save')"
   >
-    <SettingsPage>
-      <SettingsSection>
-        <template #title>{{
-          draft.id ? automation.editConnection : automation.addServerConnection
-        }}</template>
-        <template #description>{{ automation.connectionEditorDescription }}</template>
-        <fieldset :disabled="busy" class="flex min-w-0 flex-col gap-3">
-          <div class="flex items-center gap-2 text-xs" :class="statusTone()" role="status">
-            <icon-lucide-circle-dot class="size-3" />
-            <span>{{ statusLabel }}</span>
-            <span v-if="connectionStatus === 'failed' && statusError" class="text-muted"
-              >— {{ statusError }}</span
-            >
-          </div>
+    <!-- 在 AI 段流内联渲染——不套 SettingsPage（整页 tab 根容器，见列表态同注） -->
+    <SettingsSection>
+      <template #title>{{
+        draft.id ? automation.editConnection : automation.addServerConnection
+      }}</template>
+      <template #description>{{ automation.connectionEditorDescription }}</template>
+      <fieldset :disabled="busy" class="flex min-w-0 flex-col gap-3">
+        <div class="flex items-center gap-2 text-xs" :class="statusTone()" role="status">
+          <icon-lucide-circle-dot class="size-3" />
+          <span>{{ statusLabel }}</span>
+          <span v-if="connectionStatus === 'failed' && statusError" class="text-muted"
+            >— {{ statusError }}</span
+          >
+        </div>
 
+        <ProviderSettingsField
+          v-slot="{ control }"
+          :label="automation.connectionName"
+          :hint="automation.connectionNameHint"
+          :error="fieldErrors.name"
+          @blur="$emit('blurField', 'name')"
+        >
+          <AppInput
+            v-bind="control"
+            v-model="draft.name"
+            tone="panel"
+            :aria-label="automation.connectionName"
+            autocomplete="off"
+            :disabled="busy || draft.id !== null"
+          />
+        </ProviderSettingsField>
+
+        <SettingsGroup>
+          <SettingsRow :label="automation.transportHttp">
+            <AppSwitch
+              :model-value="draft.transport === 'http'"
+              :label="automation.transportHttp"
+              :disabled="busy"
+              @update:model-value="draft.transport = $event ? 'http' : 'stdio'"
+            />
+          </SettingsRow>
+        </SettingsGroup>
+
+        <template v-if="draft.transport === 'http'">
           <ProviderSettingsField
             v-slot="{ control }"
-            :label="automation.connectionName"
-            :hint="automation.connectionNameHint"
-            :error="fieldErrors.name"
-            @blur="$emit('blurField', 'name')"
+            :label="automation.serverURL"
+            :hint="automation.serverURLHint"
+            :error="fieldErrors.url"
+            @blur="$emit('blurField', 'url')"
           >
             <AppInput
               v-bind="control"
-              v-model="draft.name"
+              v-model="draft.url"
+              type="url"
               tone="panel"
-              :aria-label="automation.connectionName"
+              :aria-label="automation.serverURL"
+              placeholder="https://example.com/mcp"
               autocomplete="off"
-              :disabled="busy || draft.id !== null"
+              autocapitalize="off"
+              :spellcheck="false"
             />
           </ProviderSettingsField>
 
           <SettingsGroup>
-            <SettingsRow :label="automation.transportHttp">
-              <AppSwitch
-                :model-value="draft.transport === 'http'"
-                :label="automation.transportHttp"
+            <SettingsRow :label="automation.headersTitle" :description="headersHintText">
+              <AppButton
+                color="neutral"
+                variant="outline"
                 :disabled="busy"
-                @update:model-value="draft.transport = $event ? 'http' : 'stdio'"
-              />
+                @click="$emit('addHeader')"
+              >
+                <template #leading><icon-lucide-plus class="size-3.5" /></template>
+                {{ automation.addHeader }}
+              </AppButton>
+            </SettingsRow>
+            <SettingsRow
+              v-for="(entry, index) in draft.headers"
+              :key="`header-${index}`"
+              :label="entry.key || automation.headerKeyPlaceholder"
+            >
+              <div class="flex w-full items-center gap-2">
+                <AppInput
+                  :model-value="entry.key"
+                  :aria-label="`${automation.headersTitle} key ${index + 1}`"
+                  :placeholder="automation.headerKeyPlaceholder"
+                  :disabled="busy"
+                  @update:model-value="$emit('updateHeaderKey', index, String($event))"
+                />
+                <AppInput
+                  :model-value="entry.value"
+                  type="password"
+                  :aria-label="`${automation.headersTitle} value ${index + 1}`"
+                  :placeholder="automation.headerValuePlaceholder"
+                  :disabled="busy"
+                  autocomplete="off"
+                  @update:model-value="$emit('updateHeaderValue', index, String($event))"
+                />
+                <AppButton
+                  color="neutral"
+                  variant="ghost"
+                  :disabled="busy"
+                  :aria-label="common.clear"
+                  @click="$emit('removeHeader', index)"
+                >
+                  <icon-lucide-trash-2 class="size-3.5" />
+                </AppButton>
+              </div>
             </SettingsRow>
           </SettingsGroup>
+        </template>
 
-          <template v-if="draft.transport === 'http'">
-            <ProviderSettingsField
-              v-slot="{ control }"
-              :label="automation.serverURL"
-              :hint="automation.serverURLHint"
-              :error="fieldErrors.url"
-              @blur="$emit('blurField', 'url')"
+        <template v-else>
+          <div
+            class="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning"
+          >
+            <icon-lucide-terminal class="mr-1 inline size-3.5 align-text-bottom" />
+            {{ stdioWarning }}
+          </div>
+          <ProviderSettingsField
+            v-slot="{ control }"
+            :label="automation.commandLabel"
+            :hint="automation.commandHint"
+            :error="fieldErrors.command"
+            @blur="$emit('blurField', 'command')"
+          >
+            <AppInput
+              v-bind="control"
+              v-model="draft.command"
+              tone="panel"
+              :aria-label="automation.commandLabel"
+              placeholder="npx"
+              autocomplete="off"
+              autocapitalize="off"
+              :spellcheck="false"
+            />
+          </ProviderSettingsField>
+          <ProviderSettingsField
+            v-slot="{ control }"
+            :label="automation.argsLabel"
+            :hint="automation.argsHint"
+            :error="fieldErrors.args"
+            @blur="$emit('blurField', 'argsText')"
+          >
+            <AppInput
+              v-bind="control"
+              v-model="draft.argsText"
+              tone="panel"
+              :aria-label="automation.argsLabel"
+              placeholder="-y @modelcontextprotocol/server-filesystem /tmp"
+              autocomplete="off"
+              autocapitalize="off"
+              :spellcheck="false"
+            />
+          </ProviderSettingsField>
+
+          <SettingsGroup>
+            <SettingsRow :label="automation.envTitle" :description="envHintText">
+              <AppButton
+                color="neutral"
+                variant="outline"
+                :disabled="busy"
+                @click="$emit('addEnv')"
+              >
+                <template #leading><icon-lucide-plus class="size-3.5" /></template>
+                {{ automation.addEnv }}
+              </AppButton>
+            </SettingsRow>
+            <SettingsRow
+              v-for="(entry, index) in draft.env"
+              :key="`env-${index}`"
+              :label="entry.key || automation.envKeyPlaceholder"
             >
-              <AppInput
-                v-bind="control"
-                v-model="draft.url"
-                type="url"
-                tone="panel"
-                :aria-label="automation.serverURL"
-                placeholder="https://example.com/mcp"
-                autocomplete="off"
-                autocapitalize="off"
-                :spellcheck="false"
-              />
-            </ProviderSettingsField>
-
-            <SettingsGroup>
-              <SettingsRow :label="automation.headersTitle" :description="headersHintText">
+              <div class="flex w-full items-center gap-2">
+                <AppInput
+                  :model-value="entry.key"
+                  :aria-label="`${automation.envTitle} key ${index + 1}`"
+                  :placeholder="automation.envKeyPlaceholder"
+                  :disabled="busy"
+                  @update:model-value="$emit('updateEnvKey', index, String($event))"
+                />
+                <AppInput
+                  :model-value="entry.value"
+                  type="password"
+                  :aria-label="`${automation.envTitle} value ${index + 1}`"
+                  :placeholder="automation.envValuePlaceholder"
+                  :disabled="busy"
+                  autocomplete="off"
+                  @update:model-value="$emit('updateEnvValue', index, String($event))"
+                />
                 <AppButton
                   color="neutral"
-                  variant="outline"
+                  variant="ghost"
                   :disabled="busy"
-                  @click="$emit('addHeader')"
+                  :aria-label="common.clear"
+                  @click="$emit('removeEnv', index)"
                 >
-                  <template #leading><icon-lucide-plus class="size-3.5" /></template>
-                  {{ automation.addHeader }}
+                  <icon-lucide-trash-2 class="size-3.5" />
                 </AppButton>
-              </SettingsRow>
-              <SettingsRow
-                v-for="(entry, index) in draft.headers"
-                :key="`header-${index}`"
-                :label="entry.key || automation.headerKeyPlaceholder"
-              >
-                <div class="flex w-full items-center gap-2">
-                  <AppInput
-                    :model-value="entry.key"
-                    :aria-label="`${automation.headersTitle} key ${index + 1}`"
-                    :placeholder="automation.headerKeyPlaceholder"
-                    :disabled="busy"
-                    @update:model-value="$emit('updateHeaderKey', index, String($event))"
-                  />
-                  <AppInput
-                    :model-value="entry.value"
-                    type="password"
-                    :aria-label="`${automation.headersTitle} value ${index + 1}`"
-                    :placeholder="automation.headerValuePlaceholder"
-                    :disabled="busy"
-                    autocomplete="off"
-                    @update:model-value="$emit('updateHeaderValue', index, String($event))"
-                  />
-                  <AppButton
-                    color="neutral"
-                    variant="ghost"
-                    :disabled="busy"
-                    :aria-label="common.clear"
-                    @click="$emit('removeHeader', index)"
-                  >
-                    <icon-lucide-trash-2 class="size-3.5" />
-                  </AppButton>
-                </div>
-              </SettingsRow>
-            </SettingsGroup>
-          </template>
-
-          <template v-else>
-            <div
-              class="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning"
-            >
-              <icon-lucide-terminal class="mr-1 inline size-3.5 align-text-bottom" />
-              {{ stdioWarning }}
-            </div>
-            <ProviderSettingsField
-              v-slot="{ control }"
-              :label="automation.commandLabel"
-              :hint="automation.commandHint"
-              :error="fieldErrors.command"
-              @blur="$emit('blurField', 'command')"
-            >
-              <AppInput
-                v-bind="control"
-                v-model="draft.command"
-                tone="panel"
-                :aria-label="automation.commandLabel"
-                placeholder="npx"
-                autocomplete="off"
-                autocapitalize="off"
-                :spellcheck="false"
-              />
-            </ProviderSettingsField>
-            <ProviderSettingsField
-              v-slot="{ control }"
-              :label="automation.argsLabel"
-              :hint="automation.argsHint"
-              :error="fieldErrors.args"
-              @blur="$emit('blurField', 'argsText')"
-            >
-              <AppInput
-                v-bind="control"
-                v-model="draft.argsText"
-                tone="panel"
-                :aria-label="automation.argsLabel"
-                placeholder="-y @modelcontextprotocol/server-filesystem /tmp"
-                autocomplete="off"
-                autocapitalize="off"
-                :spellcheck="false"
-              />
-            </ProviderSettingsField>
-
-            <SettingsGroup>
-              <SettingsRow :label="automation.envTitle" :description="envHintText">
-                <AppButton
-                  color="neutral"
-                  variant="outline"
-                  :disabled="busy"
-                  @click="$emit('addEnv')"
-                >
-                  <template #leading><icon-lucide-plus class="size-3.5" /></template>
-                  {{ automation.addEnv }}
-                </AppButton>
-              </SettingsRow>
-              <SettingsRow
-                v-for="(entry, index) in draft.env"
-                :key="`env-${index}`"
-                :label="entry.key || automation.envKeyPlaceholder"
-              >
-                <div class="flex w-full items-center gap-2">
-                  <AppInput
-                    :model-value="entry.key"
-                    :aria-label="`${automation.envTitle} key ${index + 1}`"
-                    :placeholder="automation.envKeyPlaceholder"
-                    :disabled="busy"
-                    @update:model-value="$emit('updateEnvKey', index, String($event))"
-                  />
-                  <AppInput
-                    :model-value="entry.value"
-                    type="password"
-                    :aria-label="`${automation.envTitle} value ${index + 1}`"
-                    :placeholder="automation.envValuePlaceholder"
-                    :disabled="busy"
-                    autocomplete="off"
-                    @update:model-value="$emit('updateEnvValue', index, String($event))"
-                  />
-                  <AppButton
-                    color="neutral"
-                    variant="ghost"
-                    :disabled="busy"
-                    :aria-label="common.clear"
-                    @click="$emit('removeEnv', index)"
-                  >
-                    <icon-lucide-trash-2 class="size-3.5" />
-                  </AppButton>
-                </div>
-              </SettingsRow>
-            </SettingsGroup>
-          </template>
-        </fieldset>
-        <SettingsSaveFeedback :error="error" :result="saveResult" />
-      </SettingsSection>
-      <template #footer>
-        <AppButton
-          v-if="draft.id"
-          class="mr-auto"
-          color="error"
-          variant="link"
-          :disabled="busy"
-          @click="$emit('remove')"
-          >{{ automation.deleteConnection }}</AppButton
-        >
-        <AppButton :disabled="busy" @click="$emit('cancel')">{{ common.cancel }}</AppButton>
-        <AppButton type="submit" color="primary" variant="solid" :loading="busy">{{
-          common.save
-        }}</AppButton>
-      </template>
-    </SettingsPage>
+              </div>
+            </SettingsRow>
+          </SettingsGroup>
+        </template>
+      </fieldset>
+      <SettingsSaveFeedback :error="error" :result="saveResult" />
+    </SettingsSection>
+    <div class="flex items-center justify-end gap-2">
+      <AppButton
+        v-if="draft.id"
+        class="mr-auto"
+        color="error"
+        variant="link"
+        :disabled="busy"
+        @click="$emit('remove')"
+        >{{ automation.deleteConnection }}</AppButton
+      >
+      <AppButton :disabled="busy" @click="$emit('cancel')">{{ common.cancel }}</AppButton>
+      <AppButton type="submit" color="primary" variant="solid" :loading="busy">{{
+        common.save
+      }}</AppButton>
+    </div>
   </form>
 </template>

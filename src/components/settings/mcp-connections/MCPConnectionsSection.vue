@@ -15,7 +15,6 @@ import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useAutomationMessages, useCommonMessages, useSettingsMessages } from '@open-pencil/vue'
 
 import { useSettingsFormGuard } from '@/app/settings/navigation/use'
-import SettingsPage from '@/components/settings/layout/SettingsPage.vue'
 import SettingsSection from '@/components/settings/layout/SettingsSection.vue'
 import AppButton from '@/components/ui/button/AppButton.vue'
 import { AppAlertDialogRoot, AppDialogFooter, AppDialogHeader } from '@/components/ui/dialog'
@@ -255,34 +254,34 @@ const statusLabel = (item: (typeof mcpConnectionList.value)[number]): string => 
       @update-env-value="envValue"
     />
 
-    <SettingsPage v-else>
-      <SettingsSection :aria-busy="busy" data-mcp-connections>
-        <template #title>{{ automation.connections }}</template>
-        <template #description>{{ automation.connectionsDescription }}</template>
-        <AppButton class="self-start" variant="outline" :loading="busy" @click="startAdd">
-          <template #leading><icon-lucide-plus class="size-3.5" /></template>
-          {{ automation.addConnection }}
-        </AppButton>
-        <div v-if="mcpConnectionList.length" class="flex flex-col gap-1.5">
-          <AppActionRow
-            v-for="item in mcpConnectionList"
-            :key="item.slug"
-            :disabled="busy"
-            @click="startEdit(item.slug)"
-          >
-            <template #leading><icon-lucide-plug class="size-3.5" /></template>
-            {{ item.slug }}
-            <template #description>{{ transportLabel(item) }}</template>
-            <template #trailing>
-              <span class="text-xs">{{ statusLabel(item) }}</span>
-              <icon-lucide-chevron-right class="size-3.5" />
-            </template>
-          </AppActionRow>
-        </div>
-        <AppPlaceholder v-else-if="mcpConnectionListError" :label="mcpConnectionListError" />
-        <AppPlaceholder v-else :label="automation.noConnections" />
-      </SettingsSection>
-    </SettingsPage>
+    <!-- 本区块在 AI 段流内联渲染——不套 SettingsPage：那是整页 tab 根容器
+         （自带 AppDialogBody 内边距与滚动），嵌在流内会与兄弟区块双倍缩进 -->
+    <SettingsSection v-else :aria-busy="busy" data-mcp-connections>
+      <template #title>{{ automation.connections }}</template>
+      <template #description>{{ automation.connectionsDescription }}</template>
+      <AppButton class="self-start" variant="outline" :loading="busy" @click="startAdd">
+        <template #leading><icon-lucide-plus class="size-3.5" /></template>
+        {{ automation.addConnection }}
+      </AppButton>
+      <div v-if="mcpConnectionList.length" class="flex flex-col gap-1.5">
+        <AppActionRow
+          v-for="item in mcpConnectionList"
+          :key="item.slug"
+          :disabled="busy"
+          @click="startEdit(item.slug)"
+        >
+          <template #leading><icon-lucide-plug class="size-3.5" /></template>
+          {{ item.slug }}
+          <template #description>{{ transportLabel(item) }}</template>
+          <template #trailing>
+            <span class="text-xs">{{ statusLabel(item) }}</span>
+            <icon-lucide-chevron-right class="size-3.5" />
+          </template>
+        </AppActionRow>
+      </div>
+      <AppPlaceholder v-else-if="mcpConnectionListError" :label="mcpConnectionListError" />
+      <AppPlaceholder v-else :label="automation.noConnections" />
+    </SettingsSection>
 
     <AppAlertDialogRoot v-model:open="deleteOpen">
       <AppDialogHeader
