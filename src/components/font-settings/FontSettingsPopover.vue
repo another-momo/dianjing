@@ -2,17 +2,25 @@
 import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
 import { onMounted } from 'vue'
 
-import { WEB_FONT_PROVIDER_IDS, WEB_FONT_PROVIDER_LABELS } from '@open-pencil/core/text'
-import type { WebFontProviderId } from '@open-pencil/core/text'
 import { useI18n, useRetainedPopup } from '@open-pencil/vue'
 
-import { isTauri } from '@/app/tauri/env'
+import { onlineFontsEnabled } from '@/app/editor/fonts'
+import { openSettingsDialog } from '@/app/settings/dialog'
 import AppButton from '@/components/ui/button/AppButton.vue'
 import { usePopoverUI } from '@/components/ui/overlay/popover'
 import Tip from '@/components/ui/overlay/Tip.vue'
 
 import { useFontSettings } from './use'
 
+/**
+ * 字体设置 popover（统一批 A 后降级）：
+ * - 只读状态摘要（本地字体访问状态、当前字体选择与可用性指示）；
+ * - 本地「允许访问」按钮这一场景化动作（picker 旁即触即用，不绕远）；
+ * - 「打开字体设置」深链调用 openSettingsDialog('fonts') 迁入白名单面板
+ *   管理提供商、回退包、缓存。
+ *
+ * 排版区字体选择器旁的入口；详细管理在 SettingsDialog → 字体。
+ */
 const { fonts, common } = useI18n()
 const cls = usePopoverUI({ content: 'isolate z-[51] w-80 p-3' })
 const trigger = 'shrink-0'
@@ -26,27 +34,16 @@ const primaryButton = {
   variant: 'solid' as const,
   size: 'xs' as const
 }
-const showDownloadedFonts = isTauri()
-const webFontProviderIds = WEB_FONT_PROVIDER_IDS
 const { open: popoverOpen, portalActive } = useRetainedPopup()
 
 const {
   accessState,
   accessStateLabel,
   busyAction,
-  cacheCount,
-  cacheSize,
-  cacheUpdatedLabel,
   canRequestLocalFonts,
   status,
-  onlineFontsEnabled,
-  fontProviderSettings,
-  clearCache,
-  downloadFallbacks,
   refreshSummary,
-  requestAccess,
-  setFontProviderEnabled,
-  setOnlineFontsEnabled
+  requestAccess
 } = useFontSettings()
 
 function setPopoverOpen(value: boolean) {
@@ -54,14 +51,9 @@ function setPopoverOpen(value: boolean) {
   if (value) void refreshSummary()
 }
 
-function isProviderEnabled(provider: WebFontProviderId) {
-  return fontProviderSettings.value[provider]
-}
-
-function onProviderToggle(provider: WebFontProviderId, event: Event) {
-  const input = event.target
-  if (!(input instanceof HTMLInputElement)) return
-  setFontProviderEnabled(provider, input.checked)
+function openFullSettings() {
+  popoverOpen.value = false
+  openSettingsDialog('fonts')
 }
 
 onMounted(() => {
@@ -99,13 +91,11 @@ onMounted(() => {
               <icon-lucide-type class="size-4" />
             </div>
             <div>
-              <h3 class="text-[11px] font-semibold text-surface">{{ fonts.settingsTitle }}</h3>
+              <h3 class="text-[11px] font-semibold text-surface">
+                {{ fonts.popoverSummaryTitle }}
+              </h3>
               <p class="mt-0.5 text-[10px] leading-relaxed text-muted">
-                {{
-                  showDownloadedFonts
-                    ? fonts.settingsDesktopDescription
-                    : fonts.settingsBrowserDescription
-                }}
+                {{ fonts.popoverSummaryHint }}
               </p>
             </div>
           </div>
@@ -120,14 +110,6 @@ onMounted(() => {
               <span class="text-surface">{{
                 onlineFontsEnabled ? common.enabled : common.disabled
               }}</span>
-            </div>
-            <div v-if="showDownloadedFonts" class="flex justify-between gap-3 text-muted">
-              <span>{{ fonts.downloadedCache }}</span>
-              <span class="text-surface">{{ cacheCount }} fonts · {{ cacheSize }}</span>
-            </div>
-            <div v-if="showDownloadedFonts" class="flex justify-between gap-3 text-muted">
-              <span>{{ common.lastUpdated }}</span>
-              <span class="text-surface">{{ cacheUpdatedLabel }}</span>
             </div>
           </div>
 
@@ -156,94 +138,15 @@ onMounted(() => {
               </AppButton>
             </div>
 
-            <div class="grid gap-2 rounded border border-border p-2">
-              <div class="grid grid-cols-[1fr_auto] gap-2">
-                <div>
-                  <p class="text-[10px] font-medium text-surface">
-                    {{ fonts.onlineFontProviders }}
-                  </p>
-                  <p class="mt-0.5 text-[10px] leading-relaxed text-muted">
-                    {{ fonts.downloadMissingWebFonts }}
-                  </p>
-                </div>
-                <AppButton
-                  type="button"
-                  data-test-id="font-settings-toggle-online-fonts"
-                  :color="secondaryButton.color"
-                  :variant="secondaryButton.variant"
-                  :size="secondaryButton.size"
-                  :disabled="busyAction !== null"
-                  @click="setOnlineFontsEnabled(!onlineFontsEnabled)"
-                >
-                  {{ onlineFontsEnabled ? common.disable : common.enable }}
-                </AppButton>
-              </div>
-
-              <div class="grid gap-1 border-t border-border pt-2">
-                <label
-                  v-for="provider in webFontProviderIds"
-                  :key="provider"
-                  class="flex items-center justify-between gap-2 text-[10px] text-muted"
-                >
-                  <span>{{ WEB_FONT_PROVIDER_LABELS[provider] }}</span>
-                  <input
-                    type="checkbox"
-                    class="size-3 accent-accent disabled:opacity-50"
-                    :checked="isProviderEnabled(provider)"
-                    :disabled="busyAction !== null || !onlineFontsEnabled"
-                    :data-test-id="`font-settings-provider-${provider}`"
-                    @change="onProviderToggle(provider, $event)"
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div
-              v-if="showDownloadedFonts"
-              class="grid grid-cols-[1fr_auto] gap-2 rounded border border-border p-2"
-            >
-              <div>
-                <p class="text-[10px] font-medium text-surface">{{ fonts.fallbackPacks }}</p>
-                <p class="mt-0.5 text-[10px] leading-relaxed text-muted">
-                  {{ fonts.downloadFallbackPacksDescription }}
-                </p>
-              </div>
-              <AppButton
-                type="button"
-                data-test-id="font-settings-download-fallbacks"
-                :color="primaryButton.color"
-                :variant="primaryButton.variant"
-                :size="primaryButton.size"
-                :disabled="busyAction !== null"
-                @click="downloadFallbacks"
-              >
-                {{ busyAction === 'download' ? common.downloading : common.download }}
-              </AppButton>
-            </div>
-          </div>
-
-          <div v-if="showDownloadedFonts" class="grid grid-cols-2 gap-1.5">
             <AppButton
               type="button"
-              data-test-id="font-settings-refresh-cache"
-              :color="secondaryButton.color"
-              :variant="secondaryButton.variant"
-              :size="secondaryButton.size"
-              :disabled="busyAction !== null"
-              @click="refreshSummary"
+              data-test-id="font-settings-open-settings"
+              :color="primaryButton.color"
+              :variant="primaryButton.variant"
+              :size="primaryButton.size"
+              @click="openFullSettings"
             >
-              {{ common.refresh }}
-            </AppButton>
-            <AppButton
-              type="button"
-              data-test-id="font-settings-clear-cache"
-              :color="secondaryButton.color"
-              :variant="secondaryButton.variant"
-              :size="secondaryButton.size"
-              :disabled="busyAction !== null || cacheCount === 0"
-              @click="clearCache"
-            >
-              {{ fonts.clearCache }}
+              {{ fonts.openSettings }}
             </AppButton>
           </div>
 

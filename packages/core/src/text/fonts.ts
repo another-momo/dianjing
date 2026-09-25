@@ -113,6 +113,12 @@ export class FontManager {
   private variableWeightRanges = new Map<string, WeightRange | null>()
   /** T41 S4：白名单运行时管控（全来源；bundled 锁定恒开） */
   private readonly allowlist = new FontFamilyAllowlist()
+  /**
+   * 本地字体（系统字体）应用级开关：默认开。
+   * 关停 = picker 不枚举本地族 + 回退链不拼装本地段——与单族关停「视为未安装」对齐。
+   * 持久化键 `op-local-fonts-enabled` 由 src/app/editor/fonts/index.ts 接线。
+   */
+  private localFontsEnabled = true
 
   attachProvider(_canvasKit: CanvasKit, provider: TypefaceFontProvider): void {
     this.fontProviders.add(provider)
@@ -280,6 +286,17 @@ export class FontManager {
     return this.allowlist.getRevision()
   }
 
+  // —— 本地字体应用级开关（统一批 B）——
+
+  /** 关停时本地族不进 picker 也不进回退链；默认开。 */
+  setLocalFontsEnabled(enabled: boolean): void {
+    this.localFontsEnabled = enabled
+  }
+
+  isLocalFontsEnabled(): boolean {
+    return this.localFontsEnabled
+  }
+
   // —— T41 可变字体（D-b 收口）——
 
   /** 家族是否已加载可变字体（canvas/text 排版期 wght 轴注入的判定依据） */
@@ -376,7 +393,8 @@ export class FontManager {
     // 不隐式触发本地字体权限请求：'prompt' 状态下 queryLocalFonts 会一直挂起
     // （自动化/无头环境无人响应权限弹窗），bundled/web 家族列表会被一并卡住。
     // 本地字体由字体选择器的"允许访问"按钮显式调 requestLocalFontAccess 载入。
-    const fonts = this.localFonts ?? []
+    // 应用级开关关停时本地族视为未安装（统一批 B），与单族关停语义对齐。
+    const fonts = this.localFontsEnabled ? (this.localFonts ?? []) : []
     const webFontFamilies = await Promise.all(
       this.enabledOnlineFontProviders().map(async (provider) => ({
         provider,
@@ -750,19 +768,23 @@ export class FontManager {
     signal?.throwIfAborted()
     const manifest = fontFallbackEntry(script, this.fallbackUserAgent)
 
-    for (const family of manifest.localFamilies) {
-      signal?.throwIfAborted()
-      // T41 S4：白名单关停的家族连回退链也不可用（语义 = 视为未安装）
-      if (!this.allowlist.isEnabled(family)) continue
-      const buffer =
-        (await this.loadHostFont(family, 'Regular')) ??
-        (await this.findLocalFont(family, undefined))
-      if (
-        buffer &&
-        this.registerAndCache(family, 'Regular', buffer, 'fallback') &&
-        !targetFamilies.includes(family)
-      ) {
-        targetFamilies.push(family)
+    // 应用级开关关停时本地族不进回退链（统一批 B）——manifest.localFamilies
+    // 即 queryLocalFonts 枚举到的平台清单，与 listFamilyOptions 的本地段同一真源
+    if (this.localFontsEnabled) {
+      for (const family of manifest.localFamilies) {
+        signal?.throwIfAborted()
+        // T41 S4：白名单关停的家族连回退链也不可用（语义 = 视为未安装）
+        if (!this.allowlist.isEnabled(family)) continue
+        const buffer =
+          (await this.loadHostFont(family, 'Regular')) ??
+          (await this.findLocalFont(family, undefined))
+        if (
+          buffer &&
+          this.registerAndCache(family, 'Regular', buffer, 'fallback') &&
+          !targetFamilies.includes(family)
+        ) {
+          targetFamilies.push(family)
+        }
       }
     }
 

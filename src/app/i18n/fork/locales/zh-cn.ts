@@ -228,7 +228,28 @@ const zhCN = {
     fontsCnOffHint: '已停用——中文网字计划的家族从列表与字体选择器中隐藏。',
     fontsUnauditedLicense: '授权：{license}（以包内声明为准，未审计）',
     fontsCatalogHint:
-      '中文网字计划全量目录。默认关闭——启用的家族出现在字体选择器中，按字符集按需加载子集分片。'
+      '中文网字计划全量目录。默认关闭——启用的家族出现在字体选择器中，按字符集按需加载子集分片。',
+    // 统一批 A：面板扩管提供商单独开关（自 popover 迁入）
+    fontsProvidersTitle: '在线提供商',
+    fontsProvidersHint: '每个提供商独立开关。启用后其家族才会进入列表并按需加载。',
+    fontsProviderGoogleUnavailable: 'Google Fonts 仅桌面应用可用。请下载桌面应用来使用。',
+    // 统一批 A：回退包预下载（自 popover 迁入）
+    fontsFallbackTitle: '后备字体包',
+    fontsFallbackHint: '预下载 CJK 与阿拉伯语后备字体，使用它们的文件离线时也能渲染。',
+    fontsFallbackDownload: '下载后备字体',
+    fontsFallbackDownloading: '下载中…',
+    fontsFallbackDownloaded: '后备字体已下载。',
+    fontsFallbackDownloadFailed: '无法下载后备字体。',
+    // 统一批 A：缓存管理（自 popover 迁入）
+    fontsCacheTitle: '下载缓存',
+    fontsCacheSummary: '{count} 个字体 · {size}',
+    fontsCacheClear: '清除缓存',
+    fontsCacheCleared: '已清除下载的字体缓存。',
+    fontsCacheClearFailed: '无法清除下载的字体缓存。',
+    // 统一批 B：本地源应用级开关
+    fontsLocalMaster: '系统字体',
+    fontsLocalMasterHint: '允许应用枚举并加载本机已安装的字体。关闭后将系统字体视为未安装。',
+    fontsLocalOffHint: '已停用——系统字体从列表与字体选择器中隐藏；CJK 回退链也会跳过它们。'
   },
   pi: {
     providersTitle: '模型提供方',

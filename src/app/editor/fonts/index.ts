@@ -21,6 +21,7 @@ import {
   downloadedFontCacheSummary as tauriDownloadedFontCacheSummary
 } from '@/app/editor/fonts/cache'
 import { createCnFontPieceCache } from '@/app/editor/fonts/idb-cache'
+import { isElectron } from '@/app/shell/electron'
 import { isTauri } from '@/app/tauri/env'
 import { tauriFetch } from '@/app/tauri/http'
 import { IS_TAURI } from '@/constants'
@@ -36,6 +37,12 @@ export const fontProviderSettings = useLocalStorage<FontProviderSettings>(
   'op-font-providers',
   DEFAULT_WEB_FONT_PROVIDER_SETTINGS
 )
+/**
+ * 本地（系统）字体应用级开关（统一批 B）：默认开。
+ * 语义 = 开关管「要不要」、权限管「能不能」——关停时 picker 不枚举本地族、
+ * 回退链不拼装本地段（与单族关停「视为未安装」对齐）。
+ */
+export const localFontsEnabled = useLocalStorage('op-local-fonts-enabled', true)
 
 /**
  * T41 S4/S5：字体白名单运行时开关——存「被关停」清单（默认全启用，D-c），
@@ -68,18 +75,30 @@ watch(
 watch(
   [onlineFontsEnabled, fontProviderSettings],
   () => {
+    // Google Fonts 仅 Electron 形态放行（统一批 C）：上游 PR #593 的 isTauri()
+    // 守卫在 Tauri 已拆后失去意义——保留非 Electron 形态的保守选择（Web 仍
+    // 不开放 google），用 isElectron() 复刻原意图；不可达网络靠既有 6s 枚举
+    // 超时兜底，不卡 picker。
     fontManager.setOnlineFontProviders(
       onlineFontsEnabled.value
         ? Object.fromEntries(
             WEB_FONT_PROVIDER_IDS.map((provider) => [
               provider,
-              fontProviderSettings.value[provider] && (isTauri() || provider !== 'google')
+              fontProviderSettings.value[provider] && (isElectron() || provider !== 'google')
             ])
           )
         : {}
     )
   },
   { deep: true, immediate: true }
+)
+
+watch(
+  localFontsEnabled,
+  (enabled) => {
+    fontManager.setLocalFontsEnabled(enabled)
+  },
+  { immediate: true }
 )
 
 let tauriFontCacheConfigured = false
@@ -151,7 +170,17 @@ export function preloadFonts(): void {
 }
 
 export function localFontAccessState(): LocalFontAccessState {
+  // 应用级开关关停时与权限无关，呈现为「未启用」——面板据此隐藏授权按钮（统一批 B）
+  if (!localFontsEnabled.value) return 'unsupported'
   return isTauri() ? 'granted' : fontManager.localAccessState()
+}
+
+/**
+ * Google Fonts 运行时可用性（统一批 C）：仅 Electron 形态放行。
+ * Web 形态保留上游保守选择（PR #593）；面板据此禁用 google 勾选以修显示口径。
+ */
+export function isGoogleFontsAvailable(): boolean {
+  return isElectron()
 }
 
 export async function requestLocalFontAccess(): Promise<FontFamilyOption[]> {

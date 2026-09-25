@@ -14,34 +14,15 @@ export const fontsMessageDefaults = {
   noSubstitute: 'no substitute available',
   affectedLayer: '1 affected layer',
   affectedLayerCount: params('{count} affected layers'),
-  settingsDesktopDescription:
-    'Access system fonts, online providers, fallback packs, and cached downloads.',
-  settingsBrowserDescription:
-    'Allow browser access to local fonts and manage online font providers.',
   localFonts: 'Local fonts',
   onlineFonts: 'Online fonts',
-  downloadedCache: 'Downloaded cache',
   systemFontAccess: 'System font access',
   systemFontsAvailable: 'System fonts are available.',
   allowBrowserFontAccess: 'Allow browser font access when system fonts are missing.',
-  onlineFontProviders: 'Online font providers',
-  downloadMissingWebFonts: 'Download missing web fonts through enabled providers.',
-  webFontProvidersRequireDesktopApp:
-    'Online font provider catalogs are unavailable in the web app. Download the desktop app to browse and load provider fonts.',
-  fallbackPacks: 'Fallback packs',
-  downloadFallbackPacksDescription:
-    'Download CJK and Arabic fallbacks before opening files that need them.',
-  localFontAccessEnabled: 'Local font access enabled.',
-  localFontAccessNotGranted: 'Local font access was not granted.',
-  onlineFontProvidersEnabled: 'Online font providers enabled.',
-  onlineFontProvidersDisabled: 'Online font providers disabled.',
-  providerEnabled: params('Enabled {provider}.'),
-  providerDisabled: params('Disabled {provider}.'),
-  fallbackDownloaded: 'Fallback fonts downloaded.',
-  fallbackDownloadFailed: 'Could not download fallback fonts.',
-  downloadedFontCacheCleared: 'Downloaded font cache cleared.',
-  downloadedFontCacheClearFailed: 'Could not clear downloaded font cache.',
-  clearCache: 'Clear cache'
+  // popover 降级为只读摘要 + 深链「打开字体设置」（详细管理在设置对话框字体页）
+  popoverSummaryTitle: 'Font settings',
+  popoverSummaryHint: 'Open font settings to manage providers, fallback packs, and the cache.',
+  openSettings: 'Open font settings'
 } as const
 
 export const fontsMessages = i18n('fonts', fontsMessageDefaults)

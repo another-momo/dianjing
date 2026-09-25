@@ -319,7 +319,7 @@ export const confirmMessageDefaults = {
   chatStopped: 'Stopped'
 } as const
 
-/** T41：字体白名单设置面板（SettingsDialog fonts 分区）英文默认值；T42：来源开关 + 目录组 + 筛选/折叠/批量 */
+/** T41：字体白名单设置面板（SettingsDialog fonts 分区）英文默认值；T42：来源开关 + 目录组 + 筛选/折叠/批量；统一批：来源开关扩至本地源 + 提供商细分 + 回退/缓存 */
 export const fontsMessageDefaults = {
   settingsFonts: 'Fonts',
   fontsPanelTitle: 'Font allowlist',
@@ -354,7 +354,33 @@ export const fontsMessageDefaults = {
   fontsCnOffHint: 'Off — Chinese Fonts CDN families are hidden from the list and picker.',
   fontsUnauditedLicense: params('License: {license} (per package notice, unaudited)'),
   fontsCatalogHint:
-    'Full Chinese Fonts CDN catalog. Off by default — enabled families appear in the picker and load subset pieces on demand.'
+    'Full Chinese Fonts CDN catalog. Off by default — enabled families appear in the picker and load subset pieces on demand.',
+  // 统一批 A：面板扩管提供商单独开关（自 popover 迁入）
+  fontsProvidersTitle: 'Online providers',
+  fontsProvidersHint:
+    'Each provider is opt-in. Turn one on to list its families and load on demand.',
+  fontsProviderGoogleUnavailable:
+    'Google Fonts is only available in the desktop app. Download the desktop app to use it.',
+  // 统一批 A：回退包预下载（自 popover 迁入）
+  fontsFallbackTitle: 'Fallback packs',
+  fontsFallbackHint:
+    'Pre-download CJK and Arabic fallbacks so files using them render without network.',
+  fontsFallbackDownload: 'Download fallbacks',
+  fontsFallbackDownloading: 'Downloading…',
+  fontsFallbackDownloaded: 'Fallback fonts downloaded.',
+  fontsFallbackDownloadFailed: 'Could not download fallback fonts.',
+  // 统一批 A：缓存管理（自 popover 迁入）
+  fontsCacheTitle: 'Downloaded cache',
+  fontsCacheSummary: params('{count} fonts · {size}'),
+  fontsCacheClear: 'Clear cache',
+  fontsCacheCleared: 'Downloaded font cache cleared.',
+  fontsCacheClearFailed: 'Could not clear the downloaded font cache.',
+  // 统一批 B：本地源应用级开关
+  fontsLocalMaster: 'System fonts',
+  fontsLocalMasterHint:
+    'Allow the app to enumerate and load fonts installed on this device. Turn this off to treat system fonts as not installed.',
+  fontsLocalOffHint:
+    'Off — system fonts are hidden from the list and picker; CJK fallback chain will skip them.'
 } as const
 
 /** ux-polish⑤（2026-09-09）：画布工具条「添加图片」文案域（Toolbar 按钮 / useAddImage 失败 toast） */

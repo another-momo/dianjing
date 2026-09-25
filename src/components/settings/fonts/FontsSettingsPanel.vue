@@ -1,16 +1,28 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
-import { cnCatalogEntry, fontManager, fontRegistryEntry } from '@open-pencil/core/text'
-import type { FontFamilyOption } from '@open-pencil/core/text'
+import {
+  WEB_FONT_PROVIDER_IDS,
+  WEB_FONT_PROVIDER_LABELS,
+  cnCatalogEntry,
+  fontManager,
+  fontRegistryEntry
+} from '@open-pencil/core/text'
+import type { FontFamilyOption, WebFontProviderId } from '@open-pencil/core/text'
 
 import {
+  clearDownloadedFontCache,
   cnFontsEnabled,
   disabledFontFamilies,
+  downloadedFontCacheSummary,
   enabledCatalogFamilies,
+  fontProviderSettings,
+  isGoogleFontsAvailable,
   listAllFamilies,
   localFontAccessState,
+  localFontsEnabled,
   onlineFontsEnabled,
+  predownloadFallbackFonts,
   requestLocalFontAccess
 } from '@/app/editor/fonts'
 import { useForkFonts } from '@/app/i18n/fork'
@@ -28,6 +40,12 @@ import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
  * - catalog 组（中文网字计划全量目录 105 族）默认停用 opt-in（D-c）；
  * - 交互优化：状态筛选（全部/已启用/已停用）+ 分组折叠 + 长列表截断/显示更多
  *   + 组级批量启停（锁定族跳过）+ 搜索跨组过滤自动展开。
+ *
+ * 统一批（owner /goal）：
+ * - A. 面板统一管理面——popover 三家独有能力（提供商单独开关、回退包预下载、
+ *   缓存管理）迁入；提供商开关按 Electron 能力禁 google 勾选（修显示口径）；
+ * - B. 本地源应用级开关（默认开）——开关管「要不要」、权限管「能不能」；
+ * - C. google provider 门禁改走 Electron 形态判定（不可达网络靠 6s 兜底）。
  */
 const msgs = useForkFonts()
 
@@ -57,6 +75,75 @@ const renderLimits = reactive<Record<SourceGroup, number>>({
   online: RENDER_PAGE,
   local: RENDER_PAGE
 })
+
+/** 统一批 C：Google Fonts 仅 Electron 形态可用；面板据此禁用 google 勾选 */
+const googleAvailable = isGoogleFontsAvailable()
+
+/** 统一批 A：提供商单独开关（按 Electron 能力屏蔽 google） */
+function isProviderRuntimeAvailable(provider: WebFontProviderId): boolean {
+  return provider !== 'google' || googleAvailable
+}
+
+const providerEnabled = computed<Record<WebFontProviderId, boolean>>(() => {
+  const next = { ...fontProviderSettings.value }
+  for (const provider of WEB_FONT_PROVIDER_IDS) {
+    if (!isProviderRuntimeAvailable(provider)) next[provider] = false
+  }
+  return next
+})
+
+function setProviderEnabled(provider: WebFontProviderId, enabled: boolean) {
+  if (!isProviderRuntimeAvailable(provider)) return
+  fontProviderSettings.value = { ...fontProviderSettings.value, [provider]: enabled }
+}
+
+/** 统一批 A：缓存管理（自 popover 迁入） */
+const cacheCount = ref(0)
+const cacheByteLength = ref(0)
+const cacheBusy = ref(false)
+const cacheStatus = ref('')
+
+async function refreshCacheSummary() {
+  const summary = await downloadedFontCacheSummary()
+  cacheCount.value = summary.count
+  cacheByteLength.value = summary.byteLength
+}
+
+const cacheSizeLabel = computed(() => {
+  if (cacheByteLength.value === 0) return '0 MB'
+  return `${(cacheByteLength.value / 1024 / 1024).toFixed(1)} MB`
+})
+
+async function clearCache() {
+  cacheBusy.value = true
+  cacheStatus.value = ''
+  try {
+    await clearDownloadedFontCache()
+    await refreshCacheSummary()
+    cacheStatus.value = msgs.value.fontsCacheCleared
+  } catch {
+    cacheStatus.value = msgs.value.fontsCacheClearFailed
+  } finally {
+    cacheBusy.value = false
+  }
+}
+
+/** 统一批 A：回退包预下载（自 popover 迁入） */
+const fallbackBusy = ref(false)
+const fallbackStatus = ref('')
+
+async function downloadFallbacks() {
+  fallbackBusy.value = true
+  fallbackStatus.value = ''
+  try {
+    await predownloadFallbackFonts()
+    fallbackStatus.value = msgs.value.fontsFallbackDownloaded
+  } catch {
+    fallbackStatus.value = msgs.value.fontsFallbackDownloadFailed
+  } finally {
+    fallbackBusy.value = false
+  }
+}
 
 function groupOf(option: FontFamilyOption): SourceGroup {
   if (option.source === 'bundled') return 'bundled'
@@ -196,6 +283,7 @@ async function allowLocalFonts(): Promise<void> {
 onMounted(async () => {
   try {
     families.value = await listAllFamilies()
+    await refreshCacheSummary()
   } finally {
     loading.value = false
   }
@@ -203,8 +291,9 @@ onMounted(async () => {
 
 // 来源总开关变更 → 重拉枚举：core 按开关门禁 CDN/在线族（D-a），
 // 面板列表口径与 fontsOnlineOffHint / fontsCnOffHint 一致（关停来源的家族从列表消失）
-watch([cnFontsEnabled, onlineFontsEnabled], async () => {
+watch([cnFontsEnabled, onlineFontsEnabled, localFontsEnabled], async () => {
   families.value = await listAllFamilies()
+  localAccess.value = localFontAccessState()
 })
 </script>
 
@@ -219,7 +308,26 @@ watch([cnFontsEnabled, onlineFontsEnabled], async () => {
 
     <!-- T42：来源开关区（CDN 独立开关可见落点，与在线库总开关解耦） -->
     <div class="flex flex-col gap-2 rounded border border-border p-2" data-test-id="fonts-sources">
+      <!-- 统一批 B：本地源应用级开关（默认开）；关停时本地族从枚举与回退链消失 -->
       <div class="flex items-center justify-between gap-2">
+        <div class="min-w-0">
+          <span class="text-[10px] font-medium text-surface">{{ msgs.fontsLocalMaster }}</span>
+          <p class="text-[9px] leading-relaxed text-muted">{{ msgs.fontsLocalMasterHint }}</p>
+          <p
+            v-if="!localFontsEnabled"
+            class="text-[9px] leading-relaxed text-muted"
+            data-test-id="fonts-local-off-hint"
+          >
+            {{ msgs.fontsLocalOffHint }}
+          </p>
+        </div>
+        <AppSwitch
+          v-model="localFontsEnabled"
+          :label="msgs.fontsLocalMaster"
+          data-test-id="fonts-local-master"
+        />
+      </div>
+      <div class="flex items-center justify-between gap-2 border-t border-border pt-2">
         <div class="min-w-0">
           <span class="text-[10px] font-medium text-surface">{{ msgs.fontsOnlineMaster }}</span>
           <p class="text-[9px] leading-relaxed text-muted">{{ msgs.fontsOnlineMasterHint }}</p>
@@ -271,6 +379,101 @@ watch([cnFontsEnabled, onlineFontsEnabled], async () => {
           @click="allowLocalFonts"
         >
           {{ msgs.fontsLocalAllow }}
+        </AppButton>
+      </div>
+    </div>
+
+    <!-- 统一批 A：提供商单独开关（自 popover 迁入） -->
+    <div
+      class="flex flex-col gap-2 rounded border border-border p-2"
+      data-test-id="fonts-providers"
+    >
+      <div class="min-w-0">
+        <span class="text-[10px] font-medium text-surface">{{ msgs.fontsProvidersTitle }}</span>
+        <p class="text-[9px] leading-relaxed text-muted">{{ msgs.fontsProvidersHint }}</p>
+      </div>
+      <label
+        v-for="provider in WEB_FONT_PROVIDER_IDS"
+        :key="provider"
+        class="flex items-center justify-between gap-2 text-[10px]"
+      >
+        <span class="text-muted">{{ WEB_FONT_PROVIDER_LABELS[provider] }}</span>
+        <input
+          type="checkbox"
+          class="size-3 accent-accent disabled:opacity-50"
+          :checked="providerEnabled[provider]"
+          :disabled="!onlineFontsEnabled || !isProviderRuntimeAvailable(provider)"
+          :data-test-id="`fonts-provider-${provider}`"
+          @change="setProviderEnabled(provider, ($event.target as HTMLInputElement).checked)"
+        />
+      </label>
+      <p
+        v-if="!googleAvailable"
+        class="text-[9px] leading-relaxed text-muted"
+        data-test-id="fonts-google-unavailable-hint"
+      >
+        {{ msgs.fontsProviderGoogleUnavailable }}
+      </p>
+    </div>
+
+    <!-- 统一批 A：回退包预下载（自 popover 迁入） -->
+    <div
+      class="flex items-center justify-between gap-2 rounded border border-border p-2"
+      data-test-id="fonts-fallback"
+    >
+      <div class="min-w-0">
+        <span class="text-[10px] font-medium text-surface">{{ msgs.fontsFallbackTitle }}</span>
+        <p class="text-[9px] leading-relaxed text-muted">{{ msgs.fontsFallbackHint }}</p>
+        <p
+          v-if="fallbackStatus"
+          class="text-[9px] leading-relaxed text-muted"
+          data-test-id="fonts-fallback-status"
+        >
+          {{ fallbackStatus }}
+        </p>
+      </div>
+      <AppButton
+        type="button"
+        color="primary"
+        variant="solid"
+        size="xs"
+        :disabled="fallbackBusy"
+        data-test-id="fonts-fallback-download"
+        @click="downloadFallbacks"
+      >
+        {{ fallbackBusy ? msgs.fontsFallbackDownloading : msgs.fontsFallbackDownload }}
+      </AppButton>
+    </div>
+
+    <!-- 统一批 A：缓存管理（自 popover 迁入） -->
+    <div
+      class="flex items-center justify-between gap-2 rounded border border-border p-2"
+      data-test-id="fonts-cache"
+    >
+      <div class="min-w-0">
+        <span class="text-[10px] font-medium text-surface">{{ msgs.fontsCacheTitle }}</span>
+        <p class="text-[9px] leading-relaxed text-muted">
+          {{ msgs.fontsCacheSummary({ count: cacheCount, size: cacheSizeLabel }) }}
+        </p>
+        <p
+          v-if="cacheStatus"
+          class="text-[9px] leading-relaxed text-muted"
+          data-test-id="fonts-cache-status"
+        >
+          {{ cacheStatus }}
+        </p>
+      </div>
+      <div class="flex shrink-0 items-center gap-1">
+        <AppButton
+          type="button"
+          color="neutral"
+          variant="soft"
+          size="xs"
+          :disabled="cacheBusy"
+          data-test-id="fonts-cache-clear"
+          @click="clearCache"
+        >
+          {{ msgs.fontsCacheClear }}
         </AppButton>
       </div>
     </div>

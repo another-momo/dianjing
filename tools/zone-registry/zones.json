@@ -114,7 +114,8 @@
     "tests/engine/io/fig/export/thumbnail-fallback.test.ts",
     "src/components/canvas/RendererDeadBanner.vue",
     "packages/core/src/canvas/renderer/dead.ts",
-    "tests/engine/app/document/close/use.test.ts"
+    "tests/engine/app/document/close/use.test.ts",
+    "tests/engine/text/fonts/local-source-gate.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -2223,6 +2224,41 @@
       "reason": "仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 A-2：Electron 分支注册 window.__dianjingHandleCloseRequest 供 main 经 executeJavaScript 调（走 confirmAppExit 共享 approval 单例）+ keydown 拦 Ctrl/Cmd+R 与 F5 硬刷变体（dirty 先确认再放行 reload）；handleCloseRequestImpl / matchesReloadKey / isMacPlatform 抽纯函数供单测",
       "disposition": "permanent",
       "lastReviewed": "2026-09-22"
+    },
+    {
+      "id": "P361",
+      "file": "src/components/font-settings/FontSettingsPopover.vue",
+      "reason": "字体控管统一批（2026-09-25）：字体 popover 降级为只读状态摘要 + 本地授权按钮 + 设置深链（管理面迁白名单面板）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-25"
+    },
+    {
+      "id": "P362",
+      "file": "src/components/font-settings/use.ts",
+      "reason": "字体控管统一批（2026-09-25）：popover composable 同步瘦身——仅留本地字体访问状态与授权请求",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-25"
+    },
+    {
+      "id": "P363",
+      "file": "packages/vue/src/i18n/messages/fonts.ts",
+      "reason": "字体控管统一批（2026-09-25）：popover 降级：新增摘要/深链键并剪管理面遗留孤儿键",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-25"
+    },
+    {
+      "id": "P364",
+      "file": "packages/vue/src/i18n/locales/zh-cn/fonts.json",
+      "reason": "字体控管统一批（2026-09-25）：popover 降级中文配对（同 messages/fonts.ts）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-25"
+    },
+    {
+      "id": "P365",
+      "file": "tests/engine/app/settings/font.test.ts",
+      "reason": "字体控管统一批（2026-09-25）：popover composable 钉扎随瘦身改写（缓存/回退/提供商钉扎移除）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-25"
     }
   ],
   "deletedPaths": [
