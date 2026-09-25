@@ -487,6 +487,28 @@ async function handleAdminRequest(
 }
 
 /**
+ * 管理面 skill 路由收编（exact match 两件：全量清单 GET + 单件启停 PUT）：
+ * 从 createServer 回调抽出控制主请求分发函数复杂度（oxlint complexity 上限）。
+ * 返回是否已处理。必须在 /api/pi/ 管理面前缀之前匹配（调用方保证顺序）。
+ */
+function handleSkillsAdminRoutes(
+  service: ReturnType<typeof createPiChatService>,
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL
+): boolean {
+  if (url.pathname === '/api/pi/skills') {
+    void handleSkillsListRequest(service, req, res)
+    return true
+  }
+  if (url.pathname === '/api/pi/skills/disabled') {
+    void handleSkillsDisabledRequest(service, req, res)
+    return true
+  }
+  return false
+}
+
+/**
  * T27：只读 GET 路由（history/sessions/studio manifest）统一收编——
  * ① fs 读取异常不应打穿进程（500 而非崩溃/悬挂）；② 从 createServer 回调
  * 抽出控制复杂度（oxlint complexity 上限）。返回是否已处理。
@@ -610,16 +632,8 @@ export function createPiBackendServer({
       void handleCapabilitiesRequest(service, req, res)
       return
     }
-    // 管理面：skill 全量清单（须在 /api/pi/ 管理面前缀之前匹配）
-    if (url.pathname === '/api/pi/skills') {
-      void handleSkillsListRequest(service, req, res)
-      return
-    }
-    // 管理面：skill 单件启停——写被禁件清单（须在 /api/pi/ 管理面前缀之前匹配）
-    if (url.pathname === '/api/pi/skills/disabled') {
-      void handleSkillsDisabledRequest(service, req, res)
-      return
-    }
+    // 管理面：skill 全量清单 + 单件启停收编到 helper（须在 /api/pi/ 管理面前缀之前匹配）
+    if (handleSkillsAdminRoutes(service, req, res, url)) return
     if (url.pathname === '/api/pi/design-assignment') {
       // 与 capabilities 同款两形制——单行 return void 触发 consistent-return
       // （本函数其他分支无返回值，CI type-aware 实证）
