@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { WEB_FONT_PROVIDER_IDS } from '@open-pencil/core/text'
+import { WEB_FONT_PROVIDER_IDS, cnCatalogEntry } from '@open-pencil/core/text'
 import { FontPickerRoot, useI18n } from '@open-pencil/vue'
 import type { FontPickerUI } from '@open-pencil/vue'
 
@@ -52,6 +52,14 @@ function loadPreviewFont(family: string, source: string) {
   previewFontLoads.add(family)
   void loadFont(family)
 }
+
+function rowLabel(family: string, source: string): string {
+  if (source === 'cdn') {
+    const dn = cnCatalogEntry(family)?.displayName
+    if (dn) return dn
+  }
+  return family
+}
 </script>
 
 <template>
@@ -92,7 +100,7 @@ function loadPreviewFont(family: string, source: string) {
         <icon-lucide-check v-if="selected" class="size-3 shrink-0 text-accent" />
         <span v-else class="size-3 shrink-0" />
         <span class="truncate" :style="{ fontFamily: `'${family}', sans-serif` }">{{
-          family
+          rowLabel(family, source)
         }}</span>
         <span
           class="font-sans ml-auto shrink-0 rounded bg-input px-1.5 py-0.5 text-[9px] uppercase text-muted"

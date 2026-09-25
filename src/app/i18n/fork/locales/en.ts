@@ -352,13 +352,14 @@ export const fontsMessageDefaults = {
   fontsCnMaster: 'Chinese Fonts CDN (中文网字计划)',
   fontsCnMasterHint: 'Independent switch — not affected by the online font libraries toggle.',
   fontsCnOffHint: 'Off — Chinese Fonts CDN families are hidden from the list and picker.',
-  fontsUnauditedLicense: params('License: {license} (per package notice, unaudited)'),
+  fontsUnauditedLicense: params('License: unaudited (package declares {license})'),
   fontsCatalogHint:
     'Full Chinese Fonts CDN catalog. Off by default — enabled families appear in the picker and load subset pieces on demand.',
   // 统一批 A：面板扩管提供商单独开关（自 popover 迁入）
   fontsProvidersTitle: 'Online providers',
   fontsProvidersHint:
     'Each provider is opt-in. Turn one on to list its families and load on demand.',
+  fontsProvidersOptInHint: 'Turning a provider on lists thousands of online font families.',
   fontsProviderGoogleUnavailable:
     'Google Fonts is only available in the desktop app. Download the desktop app to use it.',
   // 统一批 A：回退包预下载（自 popover 迁入）

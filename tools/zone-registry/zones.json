@@ -116,7 +116,8 @@
     "packages/core/src/canvas/renderer/dead.ts",
     "tests/engine/app/document/close/use.test.ts",
     "tests/engine/text/fonts/local-source-gate.test.ts",
-    "tests/engine/text/fonts/fallback-pack-signal.test.ts"
+    "tests/engine/text/fonts/fallback-pack-signal.test.ts",
+    "tools/cn-font-catalog/src/backfill-display-names.mjs"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -2258,6 +2259,41 @@
       "id": "P365",
       "file": "tests/engine/app/settings/font.test.ts",
       "reason": "字体控管统一批（2026-09-25）：popover composable 钉扎随瘦身改写（缓存/回退/提供商钉扎移除）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-25"
+    },
+    {
+      "id": "P366",
+      "file": "packages/core/src/text/web-fonts.ts",
+      "reason": "字体扩 scope 批 D（2026-09-25）：DEFAULT_WEB_FONT_PROVIDER_SETTINGS 四 provider 默认全关（google/fontsource 由 true 翻 false；存量 localStorage 不动）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-25"
+    },
+    {
+      "id": "P367",
+      "file": "src/components/font-picker/FontPicker.vue",
+      "reason": "字体扩 scope 批 E1（2026-09-25）：#item slot 改用 cnCatalogEntry 行标签（displayName ?? family），catalog 行展示中文名但加载/启用/持久化仍键 css family",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-25"
+    },
+    {
+      "id": "P369",
+      "file": "src/app/i18n/fork/locales/en.ts",
+      "reason": "字体扩 scope 批 D+E2（2026-09-25）：fontsProvidersOptInHint 新增英文文案；fontsUnauditedLicense 词序降级为 'License: unaudited (package declares {license})'",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-25"
+    },
+    {
+      "id": "P370",
+      "file": "src/app/i18n/fork/locales/zh-cn.ts",
+      "reason": "字体扩 scope 批 D+E2（2026-09-25）：fontsProvidersOptInHint 新增中文文案；fontsUnauditedLicense 词序降级为 '授权：未审计（包内声明：{license}）'",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-25"
+    },
+    {
+      "id": "P371",
+      "file": "tools/cn-font-catalog/src/build.mjs",
+      "reason": "字体扩 scope 批 E1（2026-09-25）：probeFamilyDirs 增 dir→families 映射；probePackage 按四条规则采收 displayName（①dir 恰解 1 family；②该 family 仅来自此 dir；③dir 含 CJK；④dir ≠ family）；采收/跳过计数 stdout",
       "disposition": "permanent",
       "lastReviewed": "2026-09-25"
     }

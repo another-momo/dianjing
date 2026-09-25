@@ -226,12 +226,13 @@ const zhCN = {
     fontsCnMaster: '中文网字计划 CDN',
     fontsCnMasterHint: '独立开关——不受在线字体库总开关影响。',
     fontsCnOffHint: '已停用——中文网字计划的家族从列表与字体选择器中隐藏。',
-    fontsUnauditedLicense: '授权：{license}（以包内声明为准，未审计）',
+    fontsUnauditedLicense: '授权：未审计（包内声明：{license}）',
     fontsCatalogHint:
       '中文网字计划全量目录。默认关闭——启用的家族出现在字体选择器中，按字符集按需加载子集分片。',
     // 统一批 A：面板扩管提供商单独开关（自 popover 迁入）
     fontsProvidersTitle: '在线提供商',
     fontsProvidersHint: '每个提供商独立开关。启用后其家族才会进入列表并按需加载。',
+    fontsProvidersOptInHint: '开启后将枚举数千个在线字体族。',
     fontsProviderGoogleUnavailable: 'Google Fonts 仅桌面应用可用。请下载桌面应用来使用。',
     // 统一批 A：回退包预下载（自 popover 迁入）
     fontsFallbackTitle: '后备字体包',

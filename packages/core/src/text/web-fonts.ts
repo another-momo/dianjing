@@ -19,8 +19,8 @@ export const WEB_FONT_PROVIDER_LABELS: Record<WebFontProviderId, string> = {
 }
 
 export const DEFAULT_WEB_FONT_PROVIDER_SETTINGS: Record<WebFontProviderId, boolean> = {
-  google: true,
-  fontsource: true,
+  google: false,
+  fontsource: false,
   bunny: false,
   fontshare: false
 }

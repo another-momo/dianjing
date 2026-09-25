@@ -186,6 +186,10 @@ function licenseHint(option: FontFamilyOption): string | undefined {
   return msgs.value.fontsUnauditedLicense({ license: entry.license })
 }
 
+function displayNameOf(family: string): string | undefined {
+  return cnCatalogEntry(family)?.displayName
+}
+
 /** 开关经 core 写入（catalog/普通分流在 allowlist 内），再回写持久化 ref */
 function syncPersisted(): void {
   disabledFontFamilies.value = fontManager.disabledFontFamilies()
@@ -391,6 +395,7 @@ watch([cnFontsEnabled, onlineFontsEnabled, localFontsEnabled], async () => {
       <div class="min-w-0">
         <span class="text-[10px] font-medium text-surface">{{ msgs.fontsProvidersTitle }}</span>
         <p class="text-[9px] leading-relaxed text-muted">{{ msgs.fontsProvidersHint }}</p>
+        <p class="text-[9px] leading-relaxed text-muted">{{ msgs.fontsProvidersOptInHint }}</p>
       </div>
       <label
         v-for="provider in WEB_FONT_PROVIDER_IDS"
@@ -573,7 +578,15 @@ watch([cnFontsEnabled, onlineFontsEnabled, localFontsEnabled], async () => {
           data-test-id="font-allowlist-row"
           :data-family="option.family"
         >
-          <span class="min-w-0 flex-1 truncate text-xs text-surface">{{ option.family }}</span>
+          <span class="min-w-0 flex-1 truncate text-xs text-surface">{{
+            displayNameOf(option.family) ?? option.family
+          }}</span>
+          <span
+            v-if="displayNameOf(option.family) && option.catalog"
+            class="shrink-0 truncate text-[9px] text-muted"
+          >
+            {{ option.family }}
+          </span>
           <span
             v-if="isVariable(option.family)"
             class="shrink-0 rounded bg-input px-1 py-0.5 text-[9px] uppercase text-muted"

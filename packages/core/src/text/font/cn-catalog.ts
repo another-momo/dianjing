@@ -8,6 +8,8 @@
 
 export interface CnFontCatalogEntry {
   family: string
+  /** 中文显示名（采自 dist 子族目录名，四条全满足才填：①dir 恰解 1 family；②该 family 在本包仅来自此 dir；③dir 含 CJK；④dir ≠ family）。展示用，family 身份不变 */
+  displayName?: string
   package: string
   /** 构建时实解版本（钉扎可重现 + piece 缓存键稳定，D-g） */
   version: string
@@ -27,7 +29,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '2.0.0',
     license: 'MIT',
     variable: false,
-    weights: [500]
+    weights: [500],
+    displayName: '极影毁片文宋'
   },
   {
     family: '荆南俊俊体',
@@ -83,7 +86,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '2.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '白路棒棒手写体'
   },
   {
     family: 'BWCKKT',
@@ -115,7 +119,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '2.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '程荣光刻楷'
   },
   {
     family: 'Child Fun Sans Demo',
@@ -147,7 +152,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '斗鱼追光体'
   },
   {
     family: 'FlyFlowerSong',
@@ -155,7 +161,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '飞花宋体'
   },
   {
     family: 'FontQu Smile 常规',
@@ -163,7 +170,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '字制区喜脉喜欢体'
   },
   {
     family: 'GuanKiapTsingKhai',
@@ -259,7 +267,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '鸿雷行书简体'
   },
   {
     family: 'huangyinqi zhaopai',
@@ -267,7 +276,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '黄引齐招牌体'
   },
   {
     family: 'Huiwen-mincho',
@@ -275,7 +285,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '汇文明朝体'
   },
   {
     family: 'I.Ngaan',
@@ -291,7 +302,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '江西拙楷'
   },
   {
     family: 'LogoSC LongZhuTi',
@@ -299,7 +311,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '标小智龙珠体'
   },
   {
     family: 'Long Cang',
@@ -307,7 +320,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '有字库龙藏体'
   },
   {
     family: 'LXGW Bright',
@@ -379,7 +393,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '猫啃珠圆体'
   },
   {
     family: 'Maple Mono CN',
@@ -531,7 +546,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '庞门正道细线体'
   },
   {
     family: 'PING FANG GONG ZI TI',
@@ -539,7 +555,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '平方公子体'
   },
   {
     family: 'PING FANG MENG MNEG DA',
@@ -547,7 +564,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '平方萌萌哒'
   },
   {
     family: 'qiantubifengshouxieti',
@@ -555,7 +573,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '千图笔锋手写体'
   },
   {
     family: 'QIJIFALLBACK',
@@ -579,7 +598,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '摄图摩登小方体'
   },
   {
     family: 'Slidefu',
@@ -603,7 +623,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '装甲明朝体'
   },
   {
     family: 'Source Han Serif CN for Display',
@@ -611,7 +632,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '思源屏显臻宋'
   },
   {
     family: 'STDongGuanTi',
@@ -619,7 +641,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '2.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '上图东观体-常规'
   },
   {
     family: 'STDongGuanTi Bld',
@@ -627,7 +650,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '2.0.0',
     license: 'MIT',
     variable: false,
-    weights: [700]
+    weights: [700],
+    displayName: '上图东观体-粗体'
   },
   {
     family: 'STDongGuanTi Light',
@@ -635,7 +659,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '2.0.0',
     license: 'MIT',
     variable: false,
-    weights: [300]
+    weights: [300],
+    displayName: '上图东观体-细体'
   },
   {
     family: 'SuCaiJiShi-SheHuiTi',
@@ -643,7 +668,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '素材集市社会体'
   },
   {
     family: 'The Peak Font 隨峰體 Beta',
@@ -651,7 +677,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '随峰体'
   },
   {
     family: 'ToneOZ-Pinyin-Kai-Simplified',
@@ -739,7 +766,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '仓耳周珂正大榜书'
   },
   {
     family: 'Xiaohe Simplify Sans VF',
@@ -763,7 +791,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '站酷小薇LOGO体_猫啃网'
   },
   {
     family: 'XuandongKaishu',
@@ -779,7 +808,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '也字工厂小石头'
   },
   {
     family: 'YouSheBiaoTiHei',
@@ -787,7 +817,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '优设标题黑'
   },
   {
     family: 'YouSheShaYuFeiTeJianKangTi',
@@ -795,7 +826,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '优设鲨鱼菲特健康体'
   },
   {
     family: 'YuFanXinYu',
@@ -835,7 +867,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '钟齐志莽行书'
   },
   {
     family: 'Zhuque Fangsong (technical preview)',
@@ -851,7 +884,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '字魂扁桃体'
   },
   {
     family: 'ZoomlaMengyas-A080',
@@ -859,7 +893,8 @@ export const CN_FONT_CATALOG: CnFontCatalogEntry[] = [
     version: '3.0.0',
     license: 'MIT',
     variable: false,
-    weights: [400]
+    weights: [400],
+    displayName: '逐浪萌芽字'
   }
 ]
 

@@ -281,6 +281,8 @@ describe('FontManager cn-font routing (T40 S4 / T42 D-a 独立开关)', () => {
     manager.setWebFontFetch(mock.fetcher)
     // 隔离应用侧 P117 接线可能装进单例 resolver 的磁盘缓存：网络行为断言只认 mock
     manager.setCnFontPieceCache(null)
+    // 在线 provider 默认全关（opt-in 默认值）：显式开 google/fontsource 让回退链可触
+    manager.setOnlineFontProviders({ google: true, fontsource: true })
 
     const buffer = await manager.loadRemoteFont('LXGW WenKai', 'Regular', '你')
     expect(buffer).toBeNull()

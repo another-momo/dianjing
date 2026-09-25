@@ -13,6 +13,11 @@
  *    家族名与注册表/前序条目冲突者；
  * 4. 产出 packages/core/src/text/font/cn-catalog.ts（generated）+ excluded.json。
  *
+ * displayName 采收规则（四条全满足才填，避免歧义/错配）：
+ * ① 该 dir 恰解析出 1 个 family；② 该 family 在本包内只来自这 1 个 dir；
+ * ③ dir 名含 CJK 字符（/[\u4e00-\u9fff]/）；④ dir ≠ family。
+ * 同 family 多候选取先见者。采收/跳过计数 stdout 打印。
+ *
  * 已知边界：npm search 只覆盖搜索可见面的包（排名遗漏不进目录）。
  */
 
@@ -128,9 +133,13 @@ function parseResultCSSFamilies(css) {
  * 逐目录探针：仅 jsdelivr（2026-09-06 复测其已支持非 ASCII 路径，unpkg
  * 回退探针移除；目录名按运行时同款原样拼接，不做 encodeURIComponent）。
  * bases 记账保留给未来可能的回退场景；当前 base 恒 undefined。
+ *
+ * 返回 families（family 聚合）+ dirToFamilies（dir → 该 dir 解析出的 family 集合，
+ * 用于 displayName 采收：①dir 恰解 1 family 时候选）。
  */
 async function probeFamilyDirs(name, version, dirs) {
   const families = new Map() // family → { weights:Set, variable, bases:Set }
+  const dirToFamilies = new Map() // dir → Set<family>
   const dirFailures = []
   for (const dir of dirs) {
     const css = await fetchText(`${JSDELIVR}/${name}@${version}/dist/${dir}/result.css`)
@@ -139,7 +148,9 @@ async function probeFamilyDirs(name, version, dirs) {
       dirFailures.push(dir)
       continue
     }
+    const dirFamilies = new Set()
     for (const [family, info] of parseResultCSSFamilies(css)) {
+      dirFamilies.add(family)
       const entry = families.get(family) ?? {
         weights: new Set(),
         variable: false,
@@ -150,8 +161,9 @@ async function probeFamilyDirs(name, version, dirs) {
       entry.bases.add(base)
       families.set(family, entry)
     }
+    dirToFamilies.set(dir, dirFamilies)
   }
-  return { families, dirFailures }
+  return { families, dirToFamilies, dirFailures }
 }
 
 async function probePackage(name) {
@@ -169,7 +181,7 @@ async function probePackage(name) {
     return { excluded: 'dist/index.json 不可达或非法' }
   }
 
-  const { families, dirFailures } = await probeFamilyDirs(name, version, dirs)
+  const { families, dirToFamilies, dirFailures } = await probeFamilyDirs(name, version, dirs)
   if (families.size === 0) {
     return {
       excluded:
@@ -178,7 +190,30 @@ async function probePackage(name) {
           : 'result.css 未解析出 font-family'
     }
   }
-  return { version, license, families, dirFailures }
+  // displayName 采收（见头注释规则）
+  const familyToDirs = new Map() // family → Set<dir>
+  for (const [dir, dirFamilies] of dirToFamilies) {
+    for (const family of dirFamilies) {
+      let set = familyToDirs.get(family)
+      if (!set) {
+        set = new Set()
+        familyToDirs.set(family, set)
+      }
+      set.add(dir)
+    }
+  }
+  const displayNames = new Map() // family → displayName
+  for (const [dir, dirFamilies] of dirToFamilies) {
+    if (dirFamilies.size !== 1) continue
+    if (!/[\u4e00-\u9fff]/.test(dir)) continue
+    const family = [...dirFamilies][0]
+    if (dir === family) continue
+    const allDirs = familyToDirs.get(family)
+    if (!allDirs || allDirs.size !== 1) continue
+    if (displayNames.has(family)) continue // 先见者优先
+    displayNames.set(family, dir)
+  }
+  return { version, license, families, dirFailures, displayNames }
 }
 
 async function mapPool(items, worker) {
@@ -203,6 +238,7 @@ console.log(`[cn-catalog] ${packages.length} packages discovered`)
 const excluded = {}
 const entries = []
 const seenFamilies = new Set(REGISTRY_FAMILIES)
+let displayNameAdopted = 0
 const probed = await mapPool(
   packages.filter((name) => !REGISTRY_PACKAGES.has(name)),
   probePackage
@@ -224,15 +260,19 @@ for (const [name, result] of [...probed.entries()].sort()) {
     }
     seenFamilies.add(family)
     const base = [...info.bases][0]
-    entries.push({
+    const displayName = result.displayNames?.get(family)
+    if (displayName) displayNameAdopted++
+    const entry = {
       family,
       package: name,
       version: result.version,
       license: result.license,
       variable: info.variable,
-      weights: [...info.weights].sort((a, b) => a - b),
-      ...(base ? { base } : {})
-    })
+      weights: [...info.weights].sort((a, b) => a - b)
+    }
+    if (displayName) entry.displayName = displayName
+    if (base) entry.base = base
+    entries.push(entry)
   }
   if (result.dirFailures?.length > 0) {
     excluded[`${name}（部分目录）`] =
@@ -252,6 +292,8 @@ const ts = `/**
 
 export interface CnFontCatalogEntry {
   family: string
+  /** 中文显示名（采自 dist 子族目录名，四条全满足才填：①dir 恰解 1 family；②该 family 在本包仅来自此 dir；③dir 含 CJK；④dir ≠ family）。展示用，family 身份不变 */
+  displayName?: string
   package: string
   /** 构建时实解版本（钉扎可重现 + piece 缓存键稳定，D-g） */
   version: string
@@ -281,3 +323,6 @@ writeFileSync(OUT_TS, ts)
 writeFileSync(OUT_EXCLUDED, JSON.stringify(excluded, null, 2) + '\n')
 console.log(`[cn-catalog] ${entries.length} families → ${OUT_TS}`)
 console.log(`[cn-catalog] ${Object.keys(excluded).length} exclusions → ${OUT_EXCLUDED}`)
+console.log(
+  `[cn-catalog] displayName 采收 ${displayNameAdopted}/${entries.length}（跳过 ${entries.length - displayNameAdopted}）`
+)

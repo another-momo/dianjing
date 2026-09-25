@@ -75,4 +75,13 @@ describe('CN_FONT_CATALOG 结构契约（T42 S1 生成物）', () => {
       expect(entry.weights[0]).toBeLessThan(entry.weights[1])
     }
   })
+
+  test('displayName：凡带 displayName 的条目，displayName 非空、含 CJK、且不等于 family', () => {
+    for (const entry of CN_FONT_CATALOG) {
+      if (entry.displayName === undefined) continue
+      expect(entry.displayName.length).toBeGreaterThan(0)
+      expect(/[\u4e00-\u9fff]/.test(entry.displayName)).toBe(true)
+      expect(entry.displayName).not.toBe(entry.family)
+    }
+  })
 })
