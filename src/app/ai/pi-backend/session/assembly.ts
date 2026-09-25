@@ -14,6 +14,7 @@ import { dirname, join } from 'node:path'
 import {
   createAgentSession,
   DefaultResourceLoader,
+  formatSkillsForPrompt,
   SessionManager,
   SettingsManager,
   type AgentSession,
@@ -264,17 +265,46 @@ export async function assembleSession(
     ...buildProxyCustomTools(mcpPool)
   ]
 
+  // T20：'all' 会连 custom 工具一起禁；'builtin' 只禁内建（read/bash/edit/write）
+  // 保留我们的设计工具（sdk.d.ts 语义实证，见 T20-self-check §2.1-1）
+  // T96：capabilities.builtinTools 三档位门控（与 agentSkills 解耦）——
+  // off 显式禁内建（与 T87 前基线一致）；readonly 用 tools 白名单限内建
+  // 只读四件（read/grep/find/ls，SDK createReadOnlyTools 同集，预研
+  // §2.1/§2.3）——**白名单必须带上全部 customTools 名**：SDK 语义是
+  // 「tools 给了就只激活名单内工具」（sdk.js allowedToolNames 过滤
+  // customTools，owner 实测 readonly 档设计工具全丢实证）；full 省略
+  // 字段 → SDK 默认允许全部内建工具（read/bash/edit/write）。
+  // 提前至此：assembly 钩子要按档位判定拼不拼 skills 段（关闭 builtins 档
+  // 不拼，与 SDK 自定义 prompt 分支 hasRead 判定一致）。
+  const builtinToolsMode = capabilitiesStore.get().builtinTools
+  // 提前声明：装配链下方 SettingsManager 之后才会赋值；assembly factory
+  // 闭包捕获，钩子触发（reload 之后）时一定已赋值。延迟 let 是为了把 assembly
+  // 钩子注册保持在最前——SDK runner 按注册序串行调 handler，钩子替换
+  // systemPrompt 必须先跑，后续 guard 不受影响。
+  let resourceLoader: DefaultResourceLoader
   // T60：每回合组装 = active-design-host prepareTurn 产出的
   // { systemPrompt, contextLines }；本钩子只做搬运（systemPrompt per-run 替换，
   // contextLines 经 result.message custom 通道进 context——convertToLlm 转
   // user role 进模型上下文，不进 UI 流/历史回填）。runner 链式语义：run 后
   // 回基底（agent-session.js emitBeforeAgentStart / else 分支复位）。
+  // 整段替换导致 SDK buildSystemPrompt 拼出的 <available_skills> 段被吞——
+  // 模型从未收到 skills 清单，自动触发失效。手动按 SDK 同口径
+  // （formatSkillsForPrompt + 仅工具集含 read 时拼）拼回尾段；数据源 =
+  // resourceLoader.getSkills().skills（skillsOverride 已按 baseDir 白名单过滤，
+  // disable-model-invocation 由 formatSkillsForPrompt 内部剔除）。
   const assembly: InlineExtension = (pi) => {
     pi.on('before_agent_start', () => {
       const turn = host.turnAssembly()
       if (!turn) return undefined
+      let systemPrompt = turn.systemPrompt
+      if (builtinToolsMode !== 'off') {
+        const skillsSection = formatSkillsForPrompt(resourceLoader.getSkills().skills)
+        if (skillsSection.length > 0) {
+          systemPrompt = `${systemPrompt}${skillsSection}`
+        }
+      }
       return {
-        systemPrompt: turn.systemPrompt,
+        systemPrompt,
         ...(turn.contextLines.length > 0
           ? {
               message: {
@@ -327,16 +357,6 @@ export async function assembleSession(
     })
   }
 
-  // T20：'all' 会连 custom 工具一起禁；'builtin' 只禁内建（read/bash/edit/write）
-  // 保留我们的设计工具（sdk.d.ts 语义实证，见 T20-self-check §2.1-1）
-  // T96：capabilities.builtinTools 三档位门控（与 agentSkills 解耦）——
-  // off 显式禁内建（与 T87 前基线一致）；readonly 用 tools 白名单限内建
-  // 只读四件（read/grep/find/ls，SDK createReadOnlyTools 同集，预研
-  // §2.1/§2.3）——**白名单必须带上全部 customTools 名**：SDK 语义是
-  // 「tools 给了就只激活名单内工具」（sdk.js allowedToolNames 过滤
-  // customTools，owner 实测 readonly 档设计工具全丢实证）；full 省略
-  // 字段 → SDK 默认允许全部内建工具（read/bash/edit/write）。
-  const builtinToolsMode = capabilitiesStore.get().builtinTools
   // 2026-09-16 pi agent 行为控管层 1：自构 SettingsManager 双注——
   // SDK 默认 projectTrusted=true（settings-manager.js:150 `?? true`），
   // 等于 cwd/.pi 全域（settings/extensions/skills/prompts/APPEND_SYSTEM/SYSTEM
@@ -367,7 +387,7 @@ export async function assembleSession(
   if (builtinStudioDir) {
     allowedSkillBaseDirs.add(resolveBuiltinSkillsDir(builtinStudioDir))
   }
-  const resourceLoader = new DefaultResourceLoader({
+  resourceLoader = new DefaultResourceLoader({
     cwd: workspaceDir,
     agentDir,
     // T21：静态 system prompt 经 resourceLoader 烘焙（T60：烘焙 studio base

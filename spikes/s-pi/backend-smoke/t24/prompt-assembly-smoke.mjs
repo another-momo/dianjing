@@ -51,7 +51,8 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  rmSync
+  rmSync,
+  writeFileSync
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -526,6 +527,78 @@ try {
   )
   const noBaseProbe = probeText(emptyAssetsRoot)
   check('无资产后端：base 缺失 → 探针为空串（不崩溃、不混入旧基底）', noBaseProbe === '')
+
+  // ── C4：skills 清单拼回钉扎——before_agent_start 钩子 per-run 整段替换曾把
+  // SDK 拼好的 <available_skills> 段吞掉（模型从未收到清单，自动触发失效）；
+  // 修复后按 SDK 同口径拼回（formatSkillsForPrompt + 仅工具集含 read 时拼）。
+  // fixture skill 落在用户层单源目录（rootDir/workspace/.agents/skills/<名>/SKILL.md），
+  // 新 sessionId → 新会话装配时 resourceLoader.reload() 现读现见。
+  const skillDir = join(tempRoot, 'workspace', '.agents', 'skills', 't24-probe-skill')
+  mkdirSync(skillDir, { recursive: true })
+  writeFileSync(
+    join(skillDir, 'SKILL.md'),
+    [
+      '---',
+      'name: t24-probe-skill',
+      'description: 探针 skill——钉扎 available_skills 清单拼回',
+      '---',
+      '',
+      '# t24 probe skill',
+      ''
+    ].join('\n')
+  )
+  const capPutSkillsOn = await fetch(`${BASE}/api/pi/capabilities`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', ...authHeaders(token) },
+    body: JSON.stringify({ agentSkills: true })
+  })
+  check('C4 前置：capabilities PUT agentSkills ON', capPutSkillsOn.ok)
+  await sendPrompt(
+    BASE,
+    {
+      sessionId: 't60-probe-skills',
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' },
+      messages: userMessage('探针')
+    },
+    token
+  )
+  const skillsProbe = probeText(tempRoot)
+  // 注：断言行不能盯 '<available_skills>' 字面——base.md 正文 Skills 节提过一次
+  // 该字符串（条件句指令），恒真。钉 SDK 产物的独有标记：fixture skill 的
+  // <name> 元素与 <location> 路径。
+  check(
+    'C4：有 skill 时探针含清单条目 <name>（C1 无 skill 档 byte 级不变由上文钉扎）',
+    (skillsProbe ?? '').includes('<name>t24-probe-skill</name>'),
+    `len ${(skillsProbe ?? '').length}`
+  )
+  check(
+    'C4：清单含 fixture skill 的 location（SKILL.md 路径）',
+    (skillsProbe ?? '').includes('t24-probe-skill') &&
+      (skillsProbe ?? '').includes('SKILL.md</location>')
+  )
+  // 负向：builtinTools=off 档工具集无 read → 不拼（SDK hasRead 判定同口径）
+  const capPutBuiltinOff = await fetch(`${BASE}/api/pi/capabilities`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', ...authHeaders(token) },
+    body: JSON.stringify({ agentSkills: true, builtinTools: 'off' })
+  })
+  check('C4 前置：capabilities PUT builtinTools=off', capPutBuiltinOff.ok)
+  // 探针文件每 run 覆写——负向轮先删再发，残留旧探针（上一轮含清单）会造成假失败
+  rmSync(join(tempRoot, 'probe', 'last-system-prompt.md'), { force: true })
+  await sendPrompt(
+    BASE,
+    {
+      sessionId: 't60-probe-skills-off',
+      model: { providerId: 'openrouter', modelId: 'openrouter/free' },
+      messages: userMessage('探针')
+    },
+    token
+  )
+  const builtinOffProbe = probeText(tempRoot)
+  check(
+    'C4 负向：builtinTools=off 档不拼 skills 段（工具集无 read；以清单条目 <name> 为准）',
+    builtinOffProbe !== null && !builtinOffProbe.includes('<name>t24-probe-skill</name>')
+  )
 } finally {
   // Windows 清理纪律：bun run 是 wrapper + 孙进程两段——SIGTERM 只杀 wrapper
   // （信号致死 exitCode 恒 null，「exitCode===null 再升级」判据事后失效），
