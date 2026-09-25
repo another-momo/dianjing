@@ -14,19 +14,11 @@ import { describe, expect, test } from 'bun:test'
 import { FontManager } from '@open-pencil/core/text'
 
 import { fontFallbackEntry } from '#core/text/fallbacks'
-
-interface LocalFontRecord {
-  family: string
-  fullName: string
-  style: string
-  postscriptName: string
-}
-
-type LocalAccessState = 'unsupported' | 'prompt' | 'granted' | 'denied'
+import type { FontInfo, LocalFontAccessState } from '#core/text/font/sources'
 
 interface FontManagerProbe {
-  localFonts: LocalFontRecord[]
-  localFontAccessState: LocalAccessState
+  localFonts: FontInfo[]
+  localFontAccessState: LocalFontAccessState
 }
 
 describe('FontManager 本地字体应用级开关（统一批 B）', () => {
