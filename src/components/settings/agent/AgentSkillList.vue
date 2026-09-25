@@ -148,7 +148,7 @@ async function toggleSkill(skill: ManagedSkillEntry, next: boolean): Promise<voi
             "
             :disabled="saving"
             :data-test-id="`settings-agent-skill-switch-${skill.name}`"
-            @update:model-value="(next) => toggleSkill(skill, next)"
+            @update:model-value="(next: boolean) => toggleSkill(skill, next)"
           />
         </div>
         <div
