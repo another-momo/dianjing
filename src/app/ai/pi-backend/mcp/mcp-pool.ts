@@ -78,13 +78,16 @@ function sdkConfigToClientConfig(config: SdkMCPServerConfig): MCPClientConfig | 
 
 /** Sort a record's keys and return a fresh object so equality is order-independent. */
 function sortedRecord(record: Record<string, string> | undefined): Record<string, string> {
-  const out: Record<string, string> = {}
-  if (!record) return out
-  for (const key of Object.keys(record).sort()) {
-    const value = record[key]
-    if (value !== undefined) out[key] = value
-  }
-  return out
+  return Object.fromEntries(
+    Object.entries(record ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+  )
+}
+
+/** Shallow equality on two sorted string records (keys + values). */
+function recordEquals(a: Record<string, string>, b: Record<string, string>): boolean {
+  const aKeys = Object.keys(a)
+  const bKeys = Object.keys(b)
+  return aKeys.length === bKeys.length && aKeys.every((key) => a[key] === b[key])
 }
 
 /**
@@ -104,36 +107,24 @@ export function mcpConfigChanged(
 ): boolean {
   if (oldConfig.type !== newConfig.type) return true
 
-  if (oldConfig.type === 'http') {
+  // 判别联合两分支各自独立窄化（不依赖跨变量关联窄化——oxlint type-check 不支持）
+  if (oldConfig.type === 'http' && newConfig.type === 'http') {
     if (oldConfig.url !== newConfig.url) return true
-    const oldHeaders = sortedRecord(oldConfig.headers)
-    const newHeaders = sortedRecord(newConfig.headers)
-    const oldKeys = Object.keys(oldHeaders)
-    const newKeys = Object.keys(newHeaders)
-    if (oldKeys.length !== newKeys.length) return true
-    for (const key of oldKeys) {
-      if (oldHeaders[key] !== newHeaders[key]) return true
-    }
-    return false
+    return !recordEquals(sortedRecord(oldConfig.headers), sortedRecord(newConfig.headers))
   }
 
-  // stdio
-  if (oldConfig.command !== newConfig.command) return true
-  const oldArgs = oldConfig.args ?? []
-  const newArgs = newConfig.args ?? []
-  if (oldArgs.length !== newArgs.length) return true
-  for (let i = 0; i < oldArgs.length; i++) {
-    if (oldArgs[i] !== newArgs[i]) return true
+  if (oldConfig.type === 'stdio' && newConfig.type === 'stdio') {
+    if (oldConfig.command !== newConfig.command) return true
+    const oldArgs = oldConfig.args ?? []
+    const newArgs = newConfig.args ?? []
+    if (oldArgs.length !== newArgs.length) return true
+    for (let i = 0; i < oldArgs.length; i++) {
+      if (oldArgs[i] !== newArgs[i]) return true
+    }
+    return !recordEquals(sortedRecord(oldConfig.env), sortedRecord(newConfig.env))
   }
-  const oldEnv = sortedRecord(oldConfig.env)
-  const newEnv = sortedRecord(newConfig.env)
-  const oldEnvKeys = Object.keys(oldEnv)
-  const newEnvKeys = Object.keys(newEnv)
-  if (oldEnvKeys.length !== newEnvKeys.length) return true
-  for (const key of oldEnvKeys) {
-    if (oldEnv[key] !== newEnv[key]) return true
-  }
-  return false
+
+  return true
 }
 
 /** Default per-connection connect timeout in milliseconds. */
