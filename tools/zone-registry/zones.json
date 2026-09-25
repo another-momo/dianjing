@@ -76,7 +76,7 @@
     "src/app/editor/fonts/sanitize-legacy-catalog-families.ts",
     "tools/cn-font-catalog/src/merge.mjs",
     "tools/cn-font-catalog/src/merge-weight-families.mjs",
-    "tools/cn-font-catalog/src/prune-risk-packages.mjs",
+    "tools/cn-font-catalog/src/prune-catalog-packages.mjs",
     "tests/engine/text/fonts/cjk-fallback.test.ts",
     "packages/core/src/bytes/image-mime.ts",
     "src/components/settings/provider/ImageGenKeysSection.vue",

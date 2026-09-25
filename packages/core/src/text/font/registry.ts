@@ -88,6 +88,8 @@ export const FONT_REGISTRY: FontRegistryEntry[] = [
   // - syst（思源宋体 CN VF）T41 收录（D-b 收口）：dist/index.json 单目录 ["SourceHanSerifCN"]，
   //   result.css `font-weight:250 900` 区间形态 + font-family "Source Han Serif CN VF"，OFL-1.1；
   // - sypxzs（思源屏显臻宋）因子族目录为中文名、jsdelivr 对非 ASCII 路径 404 而剔除。
+  // 2026-09-25 精选扩录：zqfs/zqzmxs/cubic 补仿宋/行书/点阵缺位（家族名采自目录构建产物，
+  // 授权逐包一手核仓 OFL-1.1）；mksjh/hcqyt 同款核查由 T1 纠正为 T0。
   {
     family: 'Source Han Serif CN VF',
     tier: 'T0',
@@ -95,7 +97,8 @@ export const FONT_REGISTRY: FontRegistryEntry[] = [
     source: 'cdn',
     variable: true,
     weights: [],
-    cdn: { package: '@chinese-fonts/syst' }
+    cdn: { package: '@chinese-fonts/syst' },
+    note: 'OFL-1.1 附保留字体名（RFN "Source"）：修改版再分发须改名；原样子集引用不受影响'
   },
   {
     family: 'LXGW WenKai',
@@ -123,21 +126,48 @@ export const FONT_REGISTRY: FontRegistryEntry[] = [
   },
   {
     family: 'MaokenAssortedSans',
-    tier: 'T1',
-    license: '猫啃免费商用声明（非 OFL，授权以包内声明为准）',
+    tier: 'T0',
+    license: 'OFL-1.1',
     source: 'cdn',
     weights: ['Regular'],
     cdn: { package: '@chinese-fonts/mksjh' },
-    note: 'T1：厂商免费商用声明，授权存档属治理层（15 册 D.5）'
+    note: '仓库 LICENSE 为 OFL-1.1（2026-09-25 一手核查，原 T1 误标纠正）'
   },
   {
     family: '寒蝉全圆体',
-    tier: 'T1',
-    license: '寒蝉免费商用声明（非 OFL，授权以包内声明为准）',
+    tier: 'T0',
+    license: 'OFL-1.1',
     source: 'cdn',
     weights: ['Regular', 'Bold'],
     cdn: { package: '@chinese-fonts/hcqyt' },
-    note: 'T1：厂商免费商用声明，授权存档属治理层（15 册 D.5）'
+    note: '仓库 LICENSE 为 OFL-1.1（2026-09-25 一手核查，原 T1 误标纠正）；上游 Kosugi Maru 为 Apache-2.0 混源'
+  },
+  {
+    family: 'Zhuque Fangsong (technical preview)',
+    tier: 'T0',
+    license: 'OFL-1.1',
+    source: 'cdn',
+    weights: ['Regular'],
+    cdn: { package: '@chinese-fonts/zqfs' },
+    note: '朱雀仿宋：OFL-1.1 无保留字体名，官方明确允许再分发与嵌入'
+  },
+  {
+    family: 'Zhi Mang Xing',
+    tier: 'T0',
+    license: 'OFL-1.1',
+    source: 'cdn',
+    weights: ['Regular'],
+    cdn: { package: '@chinese-fonts/zqzmxs' },
+    note: '钟齐志莽行书：OFL-1.1 无保留字体名'
+  },
+  {
+    family: 'Cubic 11',
+    tier: 'T0',
+    license: 'OFL-1.1',
+    source: 'cdn',
+    weights: ['Regular'],
+    cdn: { package: '@chinese-fonts/cubic' },
+    note: '俐方体11号（点阵风格）'
   }
 ]
 

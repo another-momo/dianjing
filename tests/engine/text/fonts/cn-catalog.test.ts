@@ -47,7 +47,7 @@ describe('CN_FONT_CATALOG 结构契约（T42 S1 生成物）', () => {
     expect(isCnCatalogFamily('不存在的字体')).toBe(false)
   })
 
-  test('registry 精选 6 包的家族不入 catalog（精选层优先，D-b 分层）', () => {
+  test('registry 精选包的家族不入 catalog（精选层优先，D-b 分层）', () => {
     const registryPackages = new Set(
       FONT_REGISTRY.filter((entry) => entry.source === 'cdn').map((entry) => entry.cdn?.package)
     )

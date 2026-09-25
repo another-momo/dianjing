@@ -43,7 +43,7 @@ describe('isBundledFamilyAllowed', () => {
 })
 
 describe('CDN 家族注册（T40 S4）', () => {
-  test('registers the six verified cn-font families with descriptors', () => {
+  test('registers the nine verified cn-font families with descriptors', () => {
     const cdnFamilies = FONT_REGISTRY.filter((entry) => entry.source === 'cdn').map(
       (entry) => entry.family
     )
@@ -53,7 +53,10 @@ describe('CDN 家族注册（T40 S4）', () => {
       'Xiaolai SC',
       'Yozai',
       'MaokenAssortedSans',
-      '寒蝉全圆体'
+      '寒蝉全圆体',
+      'Zhuque Fangsong (technical preview)',
+      'Zhi Mang Xing',
+      'Cubic 11'
     ])
     for (const entry of FONT_REGISTRY.filter((entry) => entry.source === 'cdn')) {
       expect(entry.cdn?.package).toMatch(/^@chinese-fonts\//)
