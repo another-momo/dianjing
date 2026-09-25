@@ -519,7 +519,8 @@ const curatedCraftAgents = {
   files: [
     'src/app/ai/pi-backend/mcp/proxy-tool-name.ts',
     'src/app/ai/pi-backend/mcp/binary-detection.ts',
-    'src/app/ai/pi-backend/mcp/client.ts'
+    'src/app/ai/pi-backend/mcp/client.ts',
+    'src/app/ai/pi-backend/mcp/mcp-pool.ts'
   ],
   copyright: 'Copyright 2026 Craft Docs Ltd.',
   url: 'https://craft.do',

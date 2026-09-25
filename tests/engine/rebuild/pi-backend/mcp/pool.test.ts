@@ -26,7 +26,11 @@ import { join } from 'node:path'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 
 import type { PoolCallToolOptions, PoolClient } from '@/app/ai/pi-backend/mcp/client'
-import { MCPClientPool, type SdkMCPServerConfig } from '@/app/ai/pi-backend/mcp/mcp-pool'
+import {
+  MCPClientPool,
+  mcpConfigChanged,
+  type SdkMCPServerConfig
+} from '@/app/ai/pi-backend/mcp/mcp-pool'
 
 // ============================================================
 // Fake PoolClient — exercises registerClient seam without real MCP
@@ -405,5 +409,185 @@ describe('MCPClientPool.ensureConnected', () => {
     await countingPool.ensureConnected('stable', HTTP_CONFIG)
 
     expect(connectCalls).toBe(1)
+  })
+})
+
+describe('mcpConfigChanged (full normalized deep comparison)', () => {
+  it('returns false for identical http configs', () => {
+    const a: SdkMCPServerConfig = {
+      type: 'http',
+      url: 'http://0.0.0.0:1',
+      headers: { Authorization: 'Bearer x', 'X-Custom': '1' }
+    }
+    const b: SdkMCPServerConfig = {
+      type: 'http',
+      url: 'http://0.0.0.0:1',
+      headers: { Authorization: 'Bearer x', 'X-Custom': '1' }
+    }
+    expect(mcpConfigChanged(a, b)).toBe(false)
+  })
+
+  it('returns false for identical stdio configs', () => {
+    const a: SdkMCPServerConfig = {
+      type: 'stdio',
+      command: 'foo',
+      args: ['--x', '--y'],
+      env: { FOO: '1', BAR: '2' }
+    }
+    const b: SdkMCPServerConfig = {
+      type: 'stdio',
+      command: 'foo',
+      args: ['--x', '--y'],
+      env: { FOO: '1', BAR: '2' }
+    }
+    expect(mcpConfigChanged(a, b)).toBe(false)
+  })
+
+  it('detects transport type changes', () => {
+    const a: SdkMCPServerConfig = { type: 'stdio', command: 'foo' }
+    const b: SdkMCPServerConfig = { type: 'http', url: 'http://0.0.0.0:1' }
+    expect(mcpConfigChanged(a, b)).toBe(true)
+  })
+
+  it('detects http url changes', () => {
+    const a: SdkMCPServerConfig = { type: 'http', url: 'http://old' }
+    const b: SdkMCPServerConfig = { type: 'http', url: 'http://new' }
+    expect(mcpConfigChanged(a, b)).toBe(true)
+  })
+
+  it('detects Authorization header refresh', () => {
+    const a: SdkMCPServerConfig = {
+      type: 'http',
+      url: 'http://0.0.0.0:1',
+      headers: { Authorization: 'Bearer old' }
+    }
+    const b: SdkMCPServerConfig = {
+      type: 'http',
+      url: 'http://0.0.0.0:1',
+      headers: { Authorization: 'Bearer new' }
+    }
+    expect(mcpConfigChanged(a, b)).toBe(true)
+  })
+
+  it('detects http non-Authorization header changes', () => {
+    const a: SdkMCPServerConfig = {
+      type: 'http',
+      url: 'http://0.0.0.0:1',
+      headers: { 'X-Custom': '1' }
+    }
+    const b: SdkMCPServerConfig = {
+      type: 'http',
+      url: 'http://0.0.0.0:1',
+      headers: { 'X-Custom': '2' }
+    }
+    expect(mcpConfigChanged(a, b)).toBe(true)
+  })
+
+  it('detects http header added', () => {
+    const a: SdkMCPServerConfig = {
+      type: 'http',
+      url: 'http://0.0.0.0:1',
+      headers: { 'X-A': '1' }
+    }
+    const b: SdkMCPServerConfig = {
+      type: 'http',
+      url: 'http://0.0.0.0:1',
+      headers: { 'X-A': '1', 'X-B': '2' }
+    }
+    expect(mcpConfigChanged(a, b)).toBe(true)
+  })
+
+  it('detects http header removed', () => {
+    const a: SdkMCPServerConfig = {
+      type: 'http',
+      url: 'http://0.0.0.0:1',
+      headers: { 'X-A': '1', 'X-B': '2' }
+    }
+    const b: SdkMCPServerConfig = {
+      type: 'http',
+      url: 'http://0.0.0.0:1',
+      headers: { 'X-A': '1' }
+    }
+    expect(mcpConfigChanged(a, b)).toBe(true)
+  })
+
+  it('treats header key-order difference as unchanged', () => {
+    const a: SdkMCPServerConfig = {
+      type: 'http',
+      url: 'http://0.0.0.0:1',
+      headers: { 'X-A': '1', 'X-B': '2', Authorization: 'Bearer x' }
+    }
+    const b: SdkMCPServerConfig = {
+      type: 'http',
+      url: 'http://0.0.0.0:1',
+      headers: { Authorization: 'Bearer x', 'X-B': '2', 'X-A': '1' }
+    }
+    expect(mcpConfigChanged(a, b)).toBe(false)
+  })
+
+  it('treats undefined headers as equivalent to empty object (http)', () => {
+    const a: SdkMCPServerConfig = { type: 'http', url: 'http://0.0.0.0:1' }
+    const b: SdkMCPServerConfig = {
+      type: 'http',
+      url: 'http://0.0.0.0:1',
+      headers: {}
+    }
+    expect(mcpConfigChanged(a, b)).toBe(false)
+  })
+
+  it('detects stdio command changes', () => {
+    const a: SdkMCPServerConfig = { type: 'stdio', command: 'foo' }
+    const b: SdkMCPServerConfig = { type: 'stdio', command: 'bar' }
+    expect(mcpConfigChanged(a, b)).toBe(true)
+  })
+
+  it('detects stdio args changes (single element)', () => {
+    const a: SdkMCPServerConfig = { type: 'stdio', command: 'foo', args: ['--a'] }
+    const b: SdkMCPServerConfig = { type: 'stdio', command: 'foo', args: ['--b'] }
+    expect(mcpConfigChanged(a, b)).toBe(true)
+  })
+
+  it('detects stdio args changes (length)', () => {
+    const a: SdkMCPServerConfig = { type: 'stdio', command: 'foo', args: ['--a'] }
+    const b: SdkMCPServerConfig = { type: 'stdio', command: 'foo', args: ['--a', '--b'] }
+    expect(mcpConfigChanged(a, b)).toBe(true)
+  })
+
+  it('detects stdio env changes (value)', () => {
+    const a: SdkMCPServerConfig = { type: 'stdio', command: 'foo', env: { FOO: '1' } }
+    const b: SdkMCPServerConfig = { type: 'stdio', command: 'foo', env: { FOO: '2' } }
+    expect(mcpConfigChanged(a, b)).toBe(true)
+  })
+
+  it('detects stdio env changes (key added)', () => {
+    const a: SdkMCPServerConfig = { type: 'stdio', command: 'foo', env: { FOO: '1' } }
+    const b: SdkMCPServerConfig = { type: 'stdio', command: 'foo', env: { FOO: '1', BAR: '2' } }
+    expect(mcpConfigChanged(a, b)).toBe(true)
+  })
+
+  it('treats stdio env key-order difference as unchanged', () => {
+    const a: SdkMCPServerConfig = {
+      type: 'stdio',
+      command: 'foo',
+      env: { FOO: '1', BAR: '2', BAZ: '3' }
+    }
+    const b: SdkMCPServerConfig = {
+      type: 'stdio',
+      command: 'foo',
+      env: { BAZ: '3', FOO: '1', BAR: '2' }
+    }
+    expect(mcpConfigChanged(a, b)).toBe(false)
+  })
+
+  it('treats undefined stdio args as equivalent to empty array', () => {
+    const a: SdkMCPServerConfig = { type: 'stdio', command: 'foo' }
+    const b: SdkMCPServerConfig = { type: 'stdio', command: 'foo', args: [] }
+    expect(mcpConfigChanged(a, b)).toBe(false)
+  })
+
+  it('treats undefined stdio env as equivalent to empty object', () => {
+    const a: SdkMCPServerConfig = { type: 'stdio', command: 'foo' }
+    const b: SdkMCPServerConfig = { type: 'stdio', command: 'foo', env: {} }
+    expect(mcpConfigChanged(a, b)).toBe(false)
   })
 })

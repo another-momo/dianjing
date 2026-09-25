@@ -76,21 +76,59 @@ function sdkConfigToClientConfig(config: SdkMCPServerConfig): MCPClientConfig | 
   }
 }
 
+/** Sort a record's keys and return a fresh object so equality is order-independent. */
+function sortedRecord(record: Record<string, string> | undefined): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const key of Object.keys(record ?? {}).sort()) out[key] = record![key]!
+  return out
+}
+
 /**
  * Check if an MCP source's config has changed in a way that requires reconnection.
- * Compares URL changes and auth header refresh. Ignores stdio sources since they
- * don't use OAuth tokens.
+ *
+ * Compares each transport's full normalized view: type, url (http), every
+ * header key/value (http), and command/args/env (stdio). Header and env
+ * ordering is ignored; missing fields default to empty so `{}` and `undefined`
+ * compare equal.
+ *
+ * Exported for direct unit testing — the pool's reconnect logic depends on
+ * this detecting every field the user can edit in the settings UI.
  */
-function mcpConfigChanged(oldConfig: SdkMCPServerConfig, newConfig: SdkMCPServerConfig): boolean {
+export function mcpConfigChanged(
+  oldConfig: SdkMCPServerConfig,
+  newConfig: SdkMCPServerConfig
+): boolean {
   if (oldConfig.type !== newConfig.type) return true
 
-  if (oldConfig.type === 'http' && newConfig.type === 'http') {
+  if (oldConfig.type === 'http') {
     if (oldConfig.url !== newConfig.url) return true
-    const oldAuth = oldConfig.headers?.['Authorization']
-    const newAuth = newConfig.headers?.['Authorization']
-    if (oldAuth !== newAuth) return true
+    const oldHeaders = sortedRecord(oldConfig.headers)
+    const newHeaders = sortedRecord(newConfig.headers)
+    const oldKeys = Object.keys(oldHeaders)
+    const newKeys = Object.keys(newHeaders)
+    if (oldKeys.length !== newKeys.length) return true
+    for (const key of oldKeys) {
+      if (oldHeaders[key] !== newHeaders[key]) return true
+    }
+    return false
   }
 
+  // stdio
+  if (oldConfig.command !== newConfig.command) return true
+  const oldArgs = oldConfig.args ?? []
+  const newArgs = newConfig.args ?? []
+  if (oldArgs.length !== newArgs.length) return true
+  for (let i = 0; i < oldArgs.length; i++) {
+    if (oldArgs[i] !== newArgs[i]) return true
+  }
+  const oldEnv = sortedRecord(oldConfig.env)
+  const newEnv = sortedRecord(newConfig.env)
+  const oldEnvKeys = Object.keys(oldEnv)
+  const newEnvKeys = Object.keys(newEnv)
+  if (oldEnvKeys.length !== newEnvKeys.length) return true
+  for (const key of oldEnvKeys) {
+    if (oldEnv[key] !== newEnv[key]) return true
+  }
   return false
 }
 

@@ -30,6 +30,7 @@ import {
   type ImageGenProviderType
 } from '@/app/ai/pi-backend/image-gen/client'
 import { useForkImageGen } from '@/app/i18n/fork'
+import SettingsSection from '@/components/settings/layout/SettingsSection.vue'
 import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
 
 const msgs = useForkImageGen()
@@ -149,8 +150,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="flex flex-col gap-1.5" data-test-id="image-gen-keys-section">
-    <h3 class="text-xs font-semibold text-surface">{{ msgs.imageGenTitle }}</h3>
+  <SettingsSection data-test-id="image-gen-keys-section">
+    <template #title>{{ msgs.imageGenTitle }}</template>
 
     <p
       v-if="imageGenCredentialError"
@@ -285,5 +286,5 @@ onMounted(() => {
         {{ actionError }}
       </p>
     </div>
-  </section>
+  </SettingsSection>
 </template>
