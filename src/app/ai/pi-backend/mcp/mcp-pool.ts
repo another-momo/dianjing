@@ -79,7 +79,11 @@ function sdkConfigToClientConfig(config: SdkMCPServerConfig): MCPClientConfig | 
 /** Sort a record's keys and return a fresh object so equality is order-independent. */
 function sortedRecord(record: Record<string, string> | undefined): Record<string, string> {
   const out: Record<string, string> = {}
-  for (const key of Object.keys(record ?? {}).sort()) out[key] = record![key]!
+  if (!record) return out
+  for (const key of Object.keys(record).sort()) {
+    const value = record[key]
+    if (value !== undefined) out[key] = value
+  }
   return out
 }
 

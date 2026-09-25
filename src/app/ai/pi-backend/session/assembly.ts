@@ -281,6 +281,7 @@ export async function assembleSession(
   // 闭包捕获，钩子触发（reload 之后）时一定已赋值。延迟 let 是为了把 assembly
   // 钩子注册保持在最前——SDK runner 按注册序串行调 handler，钩子替换
   // systemPrompt 必须先跑，后续 guard 不受影响。
+  // oxlint-disable-next-line prefer-const -- 延迟赋值：声明须先于钩子注册，赋值在下方构造点
   let resourceLoader: DefaultResourceLoader
   // T60：每回合组装 = active-design-host prepareTurn 产出的
   // { systemPrompt, contextLines }；本钩子只做搬运（systemPrompt per-run 替换，
