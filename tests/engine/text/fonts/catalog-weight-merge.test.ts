@@ -1,5 +1,5 @@
 /**
- * 字重聚合地面真值单测：钉住 10 组合并 base / 成员旧名 / 别名表键值 / 合并 weights，
+ * 字重聚合地面真值单测：钉住 8 组合并 base / 成员旧名 / 别名表键值 / 合并 weights，
  * 防 build.mjs / merge.mjs 规则漂移（长词优先、displayName 优先级、简繁独立等）。
  */
 import { describe, expect, test } from 'bun:test'
@@ -18,13 +18,8 @@ interface MergeGroup {
   legacyNames: string[]
 }
 
-/** 10 组地面真值（base / weights 并集 / 组成员旧名）——与现役目录实跑分组一致。 */
+/** 8 组地面真值（base / weights 并集 / 组成员旧名）——与现役目录实跑分组一致。 */
 const MERGE_GROUPS: MergeGroup[] = [
-  {
-    base: '极影毁片文宋',
-    weights: [500],
-    legacyNames: ['极影毁片文宋 Medium']
-  },
   {
     base: 'LXGW Bright',
     weights: [300, 400, 500],
@@ -63,11 +58,6 @@ const MERGE_GROUPS: MergeGroup[] = [
     legacyNames: ['Moon Stars Kai T HW Light']
   },
   {
-    base: 'STDongGuanTi',
-    weights: [300, 400],
-    legacyNames: ['STDongGuanTi Light']
-  },
-  {
     base: 'ToneOZ-Pinyin-WenKai',
     weights: [300, 400, 500],
     legacyNames: [
@@ -84,7 +74,7 @@ const MERGE_GROUPS: MergeGroup[] = [
 ]
 
 describe('字重聚合地面真值', () => {
-  test('10 组 base 全部在目录里、成员旧名全部不在目录', () => {
+  test('8 组 base 全部在目录里、成员旧名全部不在目录', () => {
     const families = new Set(CN_FONT_CATALOG.map((entry) => entry.family))
     for (const group of MERGE_GROUPS) {
       expect(families.has(group.base)).toBe(true)
@@ -117,7 +107,7 @@ describe('字重聚合地面真值', () => {
     }
   })
 
-  test('别名表完整覆盖（条数 == 地面真值 legacyNames 总和 = 19）', () => {
+  test('别名表完整覆盖（条数 == 地面真值 legacyNames 总和 = 17）', () => {
     const expected = MERGE_GROUPS.reduce((sum, group) => sum + group.legacyNames.length, 0)
     expect(Object.keys(LEGACY_CN_FAMILY_ALIAS)).toHaveLength(expected)
   })
@@ -131,16 +121,6 @@ describe('字重聚合地面真值', () => {
         expect(isCnCatalogFamily(legacy)).toBe(true)
       }
     }
-  })
-
-  test('极影毁片文宋 纯改名组：family 与原 displayName 同字 → 丢弃冗余 displayName', () => {
-    const entry = cnCatalogEntry('极影毁片文宋')
-    expect(entry?.displayName).toBeUndefined()
-  })
-
-  test('STDongGuanTi 合并后 displayName = 原 plain 成员（即 base 自有）', () => {
-    const entry = cnCatalogEntry('STDongGuanTi')
-    expect(entry?.displayName).toBe('上图东观体-常规')
   })
 })
 
@@ -167,12 +147,12 @@ describe('sanitizeLegacyCatalogFamilies（picker 持久化迁移纯函数）', (
     const input = [
       'Maple Mono CN Light',
       'LXGW Bright Medium',
-      'STDongGuanTi Light',
+      'Moon Stars Kai Light',
       'YuFanXinYu-Medium',
       'YuFanXinYu-Light'
     ]
     const out = sanitizeLegacyCatalogFamilies(input)
-    expect(out).toEqual(['Maple Mono CN', 'LXGW Bright', 'STDongGuanTi', 'YuFanXinYu'])
+    expect(out).toEqual(['Maple Mono CN', 'LXGW Bright', 'Moon Stars Kai', 'YuFanXinYu'])
   })
 
   test('现役 base 名原样保留', () => {

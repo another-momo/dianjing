@@ -63,7 +63,7 @@ export function mergeWeightFamilies(entries) {
     if (group.members.length === 1) {
       const only = group.members[0]
       if (only.family !== group.base) {
-        // 改名组（极影毁片文宋 Medium → 极影毁片文宋）：displayName 若与新 family 同字则丢弃冗余。
+        // 单成员改名组（family ≠ base）：displayName 若与新 family 同字则丢弃冗余。
         const renamed = { ...only, family: group.base }
         if (renamed.displayName === group.base) delete renamed.displayName
         allEntries.push(renamed)

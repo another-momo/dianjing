@@ -76,6 +76,7 @@
     "src/app/editor/fonts/sanitize-legacy-catalog-families.ts",
     "tools/cn-font-catalog/src/merge.mjs",
     "tools/cn-font-catalog/src/merge-weight-families.mjs",
+    "tools/cn-font-catalog/src/prune-risk-packages.mjs",
     "tests/engine/text/fonts/cjk-fallback.test.ts",
     "packages/core/src/bytes/image-mime.ts",
     "src/components/settings/provider/ImageGenKeysSection.vue",
@@ -2299,7 +2300,7 @@
     {
       "id": "P371",
       "file": "tools/cn-font-catalog/src/build.mjs",
-      "reason": "字体扩 scope 批 E1（2026-09-25）：probeFamilyDirs 增 dir→families 映射；probePackage 按四条规则采收 displayName（①dir 恰解 1 family；②该 family 仅来自此 dir；③dir 含 CJK；④dir ≠ family）；采收/跳过计数 stdout",
+      "reason": "字体扩 scope 批 E1（2026-09-25）：probeFamilyDirs 增 dir→families 映射；probePackage 按四条规则采收 displayName（①dir 恰解 1 family；②该 family 仅来自此 dir；③dir 含 CJK；④dir ≠ family）；采收/跳过计数 stdout。授权剔除批（2026-09-25）：PRUNE_PACKAGES 永久排除清单（授权口径与 CDN 再分发冲突/存疑 6 包）随过滤链生效",
       "disposition": "permanent",
       "lastReviewed": "2026-09-25"
     },
