@@ -1,11 +1,16 @@
 /**
  * T42 S1 生成目录契约单测：cn-catalog.ts 是 tools/cn-font-catalog/src/build.mjs 的
- * 提交产物（运行时零枚举，D-b）。钉住结构契约，防手改/再生成漂移；
- * 重跑管线更新目录后本文件断言须同步复核。
+ * 提交产物（运行时零枚举，D-b）。钉住结构契约 + 字重聚合契约（LEGACY 别名表 + 两函数
+ * 别名兜底 + 简繁/直排变体独立），防手改/再生成漂移；重跑管线更新目录后本文件断言须同步复核。
  */
 import { describe, expect, test } from 'bun:test'
 
-import { CN_FONT_CATALOG, cnCatalogEntry, isCnCatalogFamily } from '#core/text/font/cn-catalog'
+import {
+  CN_FONT_CATALOG,
+  LEGACY_CN_FAMILY_ALIAS,
+  cnCatalogEntry,
+  isCnCatalogFamily
+} from '#core/text/font/cn-catalog'
 import { FONT_REGISTRY } from '#core/text/font/registry'
 
 describe('CN_FONT_CATALOG 结构契约（T42 S1 生成物）', () => {
@@ -82,6 +87,58 @@ describe('CN_FONT_CATALOG 结构契约（T42 S1 生成物）', () => {
       expect(entry.displayName.length).toBeGreaterThan(0)
       expect(/[\u4e00-\u9fff]/.test(entry.displayName)).toBe(true)
       expect(entry.displayName).not.toBe(entry.family)
+    }
+  })
+})
+
+describe('LEGACY_CN_FAMILY_ALIAS（字重聚合）', () => {
+  test('别名表存在且每个值都指向现役族名', () => {
+    const families = new Set(CN_FONT_CATALOG.map((entry) => entry.family))
+    for (const [legacy, target] of Object.entries(LEGACY_CN_FAMILY_ALIAS)) {
+      expect(families.has(target)).toBe(true)
+      expect(legacy).not.toBe(target)
+    }
+  })
+
+  test('别名键不在现役目录里（旧名真的从 CN_FONT_CATALOG 退出）', () => {
+    const families = new Set(CN_FONT_CATALOG.map((entry) => entry.family))
+    for (const legacy of Object.keys(LEGACY_CN_FAMILY_ALIAS)) {
+      expect(families.has(legacy)).toBe(false)
+    }
+  })
+
+  test('合并条目 weights 升序且无重复', () => {
+    for (const entry of CN_FONT_CATALOG) {
+      const deduped = [...new Set(entry.weights)]
+      expect(entry.weights).toEqual(deduped)
+      expect(entry.weights).toEqual([...entry.weights].sort((a, b) => a - b))
+    }
+  })
+
+  test('GuanKiapTsingKhai 10 个简繁/直排变体俱在且独立（契约：字重聚合不收）', () => {
+    const gtkk = CN_FONT_CATALOG.filter((entry) => entry.family.startsWith('GuanKiapTsingKhai'))
+    const expected = [
+      'GuanKiapTsingKhai',
+      'GuanKiapTsingKhai-90',
+      'GuanKiapTsingKhai-S',
+      'GuanKiapTsingKhai-S-90',
+      'GuanKiapTsingKhai-T',
+      'GuanKiapTsingKhai-T-90',
+      'GuanKiapTsingKhai-TW',
+      'GuanKiapTsingKhai-TW-90',
+      'GuanKiapTsingKhai-W',
+      'GuanKiapTsingKhai-W-90'
+    ]
+    expect(gtkk.map((entry) => entry.family).sort()).toEqual([...expected].sort())
+    expect(new Set(gtkk.map((entry) => entry.family)).size).toBe(expected.length)
+  })
+
+  test('cnCatalogEntry/isCnCatalogFamily 命中旧名跳别名指向合并条目', () => {
+    for (const [legacy, target] of Object.entries(LEGACY_CN_FAMILY_ALIAS)) {
+      const targetEntry = cnCatalogEntry(target)
+      expect(targetEntry).toBeDefined()
+      expect(cnCatalogEntry(legacy)).toBe(targetEntry)
+      expect(isCnCatalogFamily(legacy)).toBe(true)
     }
   })
 })

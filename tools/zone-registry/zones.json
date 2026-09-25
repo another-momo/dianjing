@@ -72,6 +72,10 @@
     "tests/engine/text/fonts/variable-fonts.test.ts",
     "packages/core/src/text/font/cn-catalog.ts",
     "tests/engine/text/fonts/cn-catalog.test.ts",
+    "tests/engine/text/fonts/catalog-weight-merge.test.ts",
+    "src/app/editor/fonts/sanitize-legacy-catalog-families.ts",
+    "tools/cn-font-catalog/src/merge.mjs",
+    "tools/cn-font-catalog/src/merge-weight-families.mjs",
     "tests/engine/text/fonts/cjk-fallback.test.ts",
     "packages/core/src/bytes/image-mime.ts",
     "src/components/settings/provider/ImageGenKeysSection.vue",
@@ -2303,6 +2307,13 @@
       "id": "P372",
       "file": "packages/vue/src/primitives/FontPicker/FontPickerRoot.vue",
       "reason": "picker 中文搜索补洞（2026-09-25）：FontPickerRoot 增 filterOption prop 透传 useFontPicker——宿主可扩展搜索匹配面（catalog 中文显示名），缺省 family 子串不变",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-25"
+    },
+    {
+      "id": "P373",
+      "file": "src/app/editor/fonts/index.ts",
+      "reason": "字体扩 scope 批字重聚合（2026-09-25）：enabledCatalogFamilies 启动时一次性 sanitize 迁移（LEGACY_CN_FAMILY_ALIAS 旧名 → base 并去重），写回 localStorage 防 picker 关停分支反向漏合并；sanitize 纯函数抽至 sanitize-legacy-catalog-families.ts 便于单测",
       "disposition": "permanent",
       "lastReviewed": "2026-09-25"
     }

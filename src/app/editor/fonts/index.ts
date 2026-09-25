@@ -21,6 +21,7 @@ import {
   downloadedFontCacheSummary as tauriDownloadedFontCacheSummary
 } from '@/app/editor/fonts/cache'
 import { createCnFontPieceCache } from '@/app/editor/fonts/idb-cache'
+import { sanitizeLegacyCatalogFamilies } from '@/app/editor/fonts/sanitize-legacy-catalog-families'
 import { isElectron } from '@/app/shell/electron'
 import { isTauri } from '@/app/tauri/env'
 import { tauriFetch } from '@/app/tauri/http'
@@ -50,11 +51,25 @@ export const localFontsEnabled = useLocalStorage('op-local-fonts-enabled', true)
  * fontListRevision 是 picker 一次性缓存的失效信号（D-h：FontPicker.vue 以 :key 重挂载）。
  * T42：catalog 族（中文网字计划全量目录）默认停用（opt-in）——存「已启用」清单；
  * cnFontsEnabled 是 CDN 独立总开关（D-a，与四家在线 provider 解耦）。
+ *
+ * 字重聚合：持久化清单若含字重拆族旧名（如 `LXGW Bright Light`），启动时一次性
+ * 映射到合并后的 base（`LXGW Bright`）并去重，避免旧名经 picker 关停分支反向漏合并。
  */
 export const disabledFontFamilies = useLocalStorage<string[]>('op-font-disabled-families:v1', [])
 export const enabledCatalogFamilies = useLocalStorage<string[]>('op-font-enabled-catalog:v1', [])
 export const cnFontsEnabled = useLocalStorage('op-cn-fonts-enabled', true)
 export const fontListRevision = ref(0)
+
+function legacyCatalogMigration(): void {
+  const current = enabledCatalogFamilies.value
+  const sanitized = sanitizeLegacyCatalogFamilies(current)
+  const changed =
+    sanitized.length !== current.length ||
+    sanitized.some((family, index) => family !== current[index])
+  if (changed) enabledCatalogFamilies.value = sanitized
+}
+
+legacyCatalogMigration()
 
 // CDN 主开关不经 allowlist revision（枚举门禁在 fonts.ts 而不在白名单），
 // picker 失效信号需叠加本地 epoch 手动 bump
