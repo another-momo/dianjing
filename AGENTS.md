@@ -7,7 +7,7 @@
 ## 1. 项目与分支拓扑
 
 - AI 设计编辑器：Vue 3 + CanvasKit(Skia) 渲染 + pi-backend AI 后端 + 自动化桥（browser-rpc）。
-- 集成分支 `rebuild/mode-arch`；与上游保持定期合并，文件所有权由 zone 登记制机器化管理（§3）。
+- 施工线分支 `rebuild/mode-arch-lite`（`rebuild/mode-arch` 冻结保留）；与上游保持定期合并，文件所有权由 zone 登记制机器化管理（§3）。
 - monorepo：bun workspaces；`packages/*` 为库，`src/` 为应用。
 
 ## 2. 协作摘要（最低限度规则）
