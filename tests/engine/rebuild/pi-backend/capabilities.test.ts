@@ -31,7 +31,7 @@ afterEach(() => {
 
 test('T87 缺省：capabilities.json 不存在 → DEFAULTS（2026-09-22 翻转 full+true）', () => {
   const store = createCapabilitiesStore({ agentDir, rootDir })
-  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true })
+  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
   expect(store.listSkills()).toEqual([])
   // 未触发写入（缺省走读 fail-safe，不应副作用生成 capabilities.json）
   expect(existsSync(join(agentDir, 'capabilities.json'))).toBe(false)
@@ -41,16 +41,16 @@ test('T87 写读往返：set ON → get ON；文件落盘 0o600 含 version+buil
   const store = createCapabilitiesStore({ agentDir, rootDir })
   const next = store.set({ agentSkills: true })
   // T96：builtinTools 缺省保留旧值（缺省 'full'）——set 只写 agentSkills 的兼容面
-  expect(next).toEqual({ builtinTools: 'full', agentSkills: true })
-  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true })
+  expect(next).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
+  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
 
   // 重新构造读面（验落盘而非仅内存缓存）
   const reread = createCapabilitiesStore({ agentDir, rootDir })
-  expect(reread.get()).toEqual({ builtinTools: 'full', agentSkills: true })
+  expect(reread.get()).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
 
-  // 文件结构钉扎（T96：写盘恒 version:2）
+  // 文件结构钉扎（T96：写盘恒 version:3）
   const raw = JSON.parse(readFileSync(join(agentDir, 'capabilities.json'), 'utf8')) as unknown
-  expect((raw as { version: number }).version).toBe(2)
+  expect((raw as { version: number }).version).toBe(3)
   expect((raw as { builtinTools: string }).builtinTools).toBe('full')
   expect((raw as { agentSkills: boolean }).agentSkills).toBe(true)
 })
@@ -59,27 +59,29 @@ test('T96 写读往返：三档位 builtinTools 落盘回读', () => {
   const store = createCapabilitiesStore({ agentDir, rootDir })
   expect(store.set({ agentSkills: false, builtinTools: 'readonly' })).toEqual({
     builtinTools: 'readonly',
-    agentSkills: false
+    agentSkills: false,
+    disabledSkills: []
   })
   expect(store.set({ agentSkills: true, builtinTools: 'full' })).toEqual({
     builtinTools: 'full',
-    agentSkills: true
+    agentSkills: true,
+    disabledSkills: []
   })
   const reread = createCapabilitiesStore({ agentDir, rootDir })
-  expect(reread.get()).toEqual({ builtinTools: 'full', agentSkills: true })
+  expect(reread.get()).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
 })
 
 test('T87 坏 JSON 降级：写入非 JSON 内容 → 下次构造读 DEFAULTS', () => {
   writeFileSync(join(agentDir, 'capabilities.json'), '{not-json}', 'utf8')
   const store = createCapabilitiesStore({ agentDir, rootDir })
-  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true })
+  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
   expect(store.listSkills()).toEqual([])
 })
 
 test('T87 缺字段降级：写入空对象 → DEFAULTS', () => {
   writeFileSync(join(agentDir, 'capabilities.json'), '{}', 'utf8')
   const store = createCapabilitiesStore({ agentDir, rootDir })
-  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true })
+  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
 })
 
 test('T96 v1→v2 迁移：version:1 + agentSkills:true → builtinTools full（旧同闸语义）', () => {
@@ -89,7 +91,7 @@ test('T96 v1→v2 迁移：version:1 + agentSkills:true → builtinTools full（
     'utf8'
   )
   const store = createCapabilitiesStore({ agentDir, rootDir })
-  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true })
+  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
 })
 
 test('T96 v1→v2 迁移：version:1 + agentSkills:false → builtinTools off', () => {
@@ -99,13 +101,13 @@ test('T96 v1→v2 迁移：version:1 + agentSkills:false → builtinTools off', 
     'utf8'
   )
   const store = createCapabilitiesStore({ agentDir, rootDir })
-  expect(store.get()).toEqual({ builtinTools: 'off', agentSkills: false })
-  // 迁移后的首次写盘升级文件形状到 v2
+  expect(store.get()).toEqual({ builtinTools: 'off', agentSkills: false, disabledSkills: [] })
+  // 迁移后的首次写盘升级文件形状到 v3
   store.set({ agentSkills: false })
   const raw = JSON.parse(readFileSync(join(agentDir, 'capabilities.json'), 'utf8')) as {
     version: number
   }
-  expect(raw.version).toBe(2)
+  expect(raw.version).toBe(3)
 })
 
 test('T96 v2 非法 builtinTools → 降级 DEFAULTS（坏档位不残留）', () => {
@@ -115,7 +117,7 @@ test('T96 v2 非法 builtinTools → 降级 DEFAULTS（坏档位不残留）', (
     'utf8'
   )
   const store = createCapabilitiesStore({ agentDir, rootDir })
-  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true })
+  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
 })
 
 test('T87 set 校验：agentSkills 非布尔 → 抛错且不写盘', () => {
@@ -139,7 +141,7 @@ test('T96 set 缺省 builtinTools → 保留旧值（部分更新语义）', () 
   const store = createCapabilitiesStore({ agentDir, rootDir })
   store.set({ agentSkills: true, builtinTools: 'readonly' })
   const next = store.set({ agentSkills: false })
-  expect(next).toEqual({ builtinTools: 'readonly', agentSkills: false })
+  expect(next).toEqual({ builtinTools: 'readonly', agentSkills: false, disabledSkills: [] })
 })
 
 test('T87 listSkills：OFF 时空集（不泄露已扫到 skill 存在性）', () => {
@@ -363,4 +365,169 @@ test('内置层 OFF 兜底：agentSkills OFF 时内置 skill 不进清单、不�
   store.set({ agentSkills: false })
   expect(store.listSkills()).toEqual([])
   expect(store.expandSkillText('/skill:layer-splitting 拆图')).toBe('/skill:layer-splitting 拆图')
+})
+
+// ── 负向 override：v3 disabledSkills（只记被关闭的 skill 名） ─────────────
+
+test('v3 写盘：setDisabledSkills 后文件含 disabledSkills 字段、落盘恒 version:3', () => {
+  const store = createCapabilitiesStore({ agentDir, rootDir })
+  store.setDisabledSkills(['demo', 'other'])
+  const raw = JSON.parse(readFileSync(join(agentDir, 'capabilities.json'), 'utf8')) as unknown
+  expect((raw as { version: number }).version).toBe(3)
+  expect((raw as { disabledSkills: string[] }).disabledSkills).toEqual(['demo', 'other'])
+})
+
+test('v3 落盘 roundtrip：写 → 新实例读', () => {
+  const store = createCapabilitiesStore({ agentDir, rootDir })
+  store.set({ agentSkills: true, builtinTools: 'full' })
+  store.setDisabledSkills(['demo'])
+  const reread = createCapabilitiesStore({ agentDir, rootDir })
+  expect(reread.get()).toEqual({
+    builtinTools: 'full',
+    agentSkills: true,
+    disabledSkills: ['demo']
+  })
+})
+
+test('v2 旧文件读：disabledSkills 缺省 []（v3 形状补全）', () => {
+  writeFileSync(
+    join(agentDir, 'capabilities.json'),
+    JSON.stringify({ version: 2, builtinTools: 'full', agentSkills: true }),
+    'utf8'
+  )
+  const store = createCapabilitiesStore({ agentDir, rootDir })
+  expect(store.get().disabledSkills).toEqual([])
+})
+
+test('v3 disabledSkills 非数组 → 字段降级 []（其余字段照常解析，不整文件降级）', () => {
+  writeFileSync(
+    join(agentDir, 'capabilities.json'),
+    JSON.stringify({
+      version: 3,
+      builtinTools: 'full',
+      agentSkills: true,
+      disabledSkills: 'not-an-array'
+    }),
+    'utf8'
+  )
+  const store = createCapabilitiesStore({ agentDir, rootDir })
+  // 字段降级而非整文件降级——其余字段仍按 v3 解析
+  expect(store.get()).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
+})
+
+test('v3 disabledSkills 含非字符串元素 → 过滤为字符串子集（其余字段照常解析）', () => {
+  writeFileSync(
+    join(agentDir, 'capabilities.json'),
+    JSON.stringify({
+      version: 3,
+      builtinTools: 'readonly',
+      agentSkills: false,
+      // 类型混合——数字/对象/字符串三种：字符串保留，其余过滤
+      disabledSkills: ['demo', 42, null, 'other', { bad: true }]
+    }),
+    'utf8'
+  )
+  const store = createCapabilitiesStore({ agentDir, rootDir })
+  expect(store.get()).toEqual({
+    builtinTools: 'readonly',
+    agentSkills: false,
+    disabledSkills: ['demo', 'other']
+  })
+})
+
+test('setDisabledSkills 去重保序归一', () => {
+  const store = createCapabilitiesStore({ agentDir, rootDir })
+  const result = store.setDisabledSkills(['b', 'a', 'b', 'c', 'a'])
+  expect(result).toEqual(['b', 'a', 'c'])
+})
+
+test('setDisabledSkills 非 string[] → TypeError 且不写盘', () => {
+  const store = createCapabilitiesStore({ agentDir, rootDir })
+  expect(() => store.setDisabledSkills('not-array')).toThrow(/array/)
+  expect(() => store.setDisabledSkills(null)).toThrow(/array/)
+  expect(() => store.setDisabledSkills(42)).toThrow(/array/)
+  expect(existsSync(join(agentDir, 'capabilities.json'))).toBe(false)
+})
+
+test('setDisabledSkills 不校验名字存在性（被禁名对应 skill 卸载后再装回保持禁用）', () => {
+  const store = createCapabilitiesStore({ agentDir, rootDir })
+  // 不存在的 skill 名也能写入——负向韧性
+  expect(store.setDisabledSkills(['never-installed-skill'])).toEqual(['never-installed-skill'])
+  expect(store.get().disabledSkills).toEqual(['never-installed-skill'])
+})
+
+test('set 不动 disabledSkills：builtinTools 缺省保留旧值的同模式', () => {
+  const store = createCapabilitiesStore({ agentDir, rootDir })
+  store.setDisabledSkills(['existing'])
+  store.set({ agentSkills: true, builtinTools: 'readonly' })
+  expect(store.get().disabledSkills).toEqual(['existing'])
+  // 再次只写 agentSkills 也不动 disabledSkills
+  store.set({ agentSkills: false })
+  expect(store.get()).toEqual({
+    builtinTools: 'readonly',
+    agentSkills: false,
+    disabledSkills: ['existing']
+  })
+})
+
+test('listSkills 过滤 disabledSkills（被禁件不进 chips/manifest）', () => {
+  writeSkill('a', 'A 描述')
+  writeSkill('b', 'B 描述')
+  writeSkill('c', 'C 描述')
+  const store = createCapabilitiesStore({ agentDir, rootDir })
+  store.set({ agentSkills: true })
+  store.setDisabledSkills(['b'])
+  const skills = store.listSkills()
+  expect(skills.map((s) => s.name).sort()).toEqual(['a', 'c'])
+})
+
+test('expandSkillText 跳过 disabledSkills：被禁件按未知名透传（与 SDK noSkills 同语义）', () => {
+  writeSkill('enabled', '启用正文')
+  writeSkill('disabled', '被禁正文')
+  const store = createCapabilitiesStore({ agentDir, rootDir })
+  store.set({ agentSkills: true })
+  store.setDisabledSkills(['disabled'])
+  const out = store.expandSkillText('/skill:enabled 和 /skill:disabled')
+  expect(out).toContain('<skill name="enabled"')
+  expect(out).toContain('启用正文')
+  // 被禁件按未知名透传
+  expect(out).not.toContain('<skill name="disabled"')
+  expect(out).toContain('/skill:disabled')
+})
+
+test('listSkillsForManagement：全量清单含被禁件、shape 带 source + enabled', () => {
+  writeSkill('user-skill', '用户侧描述')
+  const builtinSkillsDir = join(rootDir, 'builtin-studio', 'skills')
+  writeBuiltinSkill(builtinSkillsDir, 'builtin-skill', '内置描述')
+  const store = createCapabilitiesStore({ agentDir, rootDir, builtinSkillsDir })
+  store.set({ agentSkills: true })
+  store.setDisabledSkills(['user-skill'])
+
+  const managed = store.listSkillsForManagement()
+  // 不受 agentSkills 总闸影响——即便总闸 OFF 也会返回（规格要求）
+  store.set({ agentSkills: false })
+  const managedWhenOff = store.listSkillsForManagement()
+
+  for (const entry of [...managed, ...managedWhenOff]) {
+    expect(Object.keys(entry).sort()).toEqual(['description', 'enabled', 'name', 'source'])
+  }
+  // source 标记赢家层
+  const userEntry = managed.find((e) => e.name === 'user-skill')
+  const builtinEntry = managed.find((e) => e.name === 'builtin-skill')
+  expect(userEntry?.source).toBe('user')
+  expect(builtinEntry?.source).toBe('builtin')
+  // enabled 反映 disabledSkills
+  expect(userEntry?.enabled).toBe(false)
+  expect(builtinEntry?.enabled).toBe(true)
+})
+
+test('listSkillsForManagement 同名冲突时 source 标记用户层（合并赢家层归属）', () => {
+  const builtinSkillsDir = join(rootDir, 'builtin-studio', 'skills')
+  writeSkill('demo', '用户侧正文')
+  writeBuiltinSkill(builtinSkillsDir, 'demo', '内置侧正文')
+  const store = createCapabilitiesStore({ agentDir, rootDir, builtinSkillsDir })
+  store.set({ agentSkills: true })
+  const managed = store.listSkillsForManagement()
+  const demo = managed.find((e) => e.name === 'demo')
+  expect(demo?.source).toBe('user')
 })

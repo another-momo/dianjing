@@ -94,7 +94,7 @@ afterAll(async () => {
   await teardown()
 })
 
-type CapabilitiesBody = { builtinTools: string; agentSkills: boolean }
+type CapabilitiesBody = { builtinTools: string; agentSkills: boolean; disabledSkills: string[] }
 
 async function getCapabilities(): Promise<{ status: number; body: CapabilitiesBody }> {
   const res = await fetch(`${baseURL}/api/pi/capabilities`, {
@@ -120,16 +120,16 @@ describe('GET/PUT /api/pi/capabilities（T87）', () => {
   test('GET 缺省 DEFAULTS（2026-09-22 翻转 full+true）', async () => {
     const r = await getCapabilities()
     expect(r.status).toBe(200)
-    expect(r.body).toEqual({ builtinTools: 'full', agentSkills: true })
+    expect(r.body).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
   })
 
   test('PUT ON → 落盘 + 后续 GET 返 ON（同实例）', async () => {
     const put = await putCapabilities({ agentSkills: true, builtinTools: 'full' })
     expect(put.status).toBe(200)
-    expect(put.body).toEqual({ builtinTools: 'full', agentSkills: true })
+    expect(put.body).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
 
     const get1 = await getCapabilities()
-    expect(get1.body).toEqual({ builtinTools: 'full', agentSkills: true })
+    expect(get1.body).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
 
     // 验证文件持久化：关闭 server，新 server 实例（同一 rootDir）应能读到 ON
     if (server) {
@@ -148,7 +148,7 @@ describe('GET/PUT /api/pi/capabilities（T87）', () => {
     baseURL = `http://127.0.0.1:${address.port}`
 
     const get2 = await getCapabilities()
-    expect(get2.body).toEqual({ builtinTools: 'full', agentSkills: true })
+    expect(get2.body).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
   })
 
   test('PUT 非布尔 → 400（不动落盘）', async () => {
@@ -157,7 +157,7 @@ describe('GET/PUT /api/pi/capabilities（T87）', () => {
     const put2 = await putCapabilities({ agentSkills: 1 })
     expect(put2.status).toBe(400)
     const get = await getCapabilities()
-    expect(get.body).toEqual({ builtinTools: 'full', agentSkills: true })
+    expect(get.body).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
   })
 
   test('T96 PUT 非法 builtinTools → 400（不动落盘）', async () => {
@@ -166,7 +166,7 @@ describe('GET/PUT /api/pi/capabilities（T87）', () => {
     const put2 = await putCapabilities({ agentSkills: true, builtinTools: 1 })
     expect(put2.status).toBe(400)
     const get = await getCapabilities()
-    expect(get.body).toEqual({ builtinTools: 'full', agentSkills: true })
+    expect(get.body).toEqual({ builtinTools: 'full', agentSkills: true, disabledSkills: [] })
   })
 
   test('T96 PUT 只给 agentSkills → builtinTools 保留旧值（部分更新）', async () => {
@@ -174,16 +174,16 @@ describe('GET/PUT /api/pi/capabilities（T87）', () => {
     expect(put1.status).toBe(200)
     const put2 = await putCapabilities({ agentSkills: false })
     expect(put2.status).toBe(200)
-    expect(put2.body).toEqual({ builtinTools: 'readonly', agentSkills: false })
+    expect(put2.body).toEqual({ builtinTools: 'readonly', agentSkills: false, disabledSkills: [] })
     const get = await getCapabilities()
-    expect(get.body).toEqual({ builtinTools: 'readonly', agentSkills: false })
+    expect(get.body).toEqual({ builtinTools: 'readonly', agentSkills: false, disabledSkills: [] })
   })
 
   test('PUT OFF → 关闭后 skills=[]（listSkills 守门）', async () => {
     await putCapabilities({ agentSkills: false })
     const get = await getCapabilities()
     // builtinTools 缺省保留旧值（缺省 'full'）；agentSkills 显式 false
-    expect(get.body).toEqual({ builtinTools: 'full', agentSkills: false })
+    expect(get.body).toEqual({ builtinTools: 'full', agentSkills: false, disabledSkills: [] })
   })
 
   test('POST/DELETE → 405（方法白名单）', async () => {
@@ -228,5 +228,245 @@ describe('GET/PUT /api/pi/capabilities（T87）', () => {
     const body = (await res.json()) as { capabilities?: unknown; skills?: unknown }
     expect(body.capabilities).toEqual({ builtinTools: 'full', agentSkills: true })
     expect(body.skills).toEqual([])
+  })
+})
+
+describe('GET /api/pi/skills（管理面全量清单）', () => {
+  beforeEach(async () => {
+    await boot()
+  })
+
+  test('GET 形状：{ skills: ManagedSkillEntry[] }，含 source + enabled 字段', async () => {
+    // 在 rootDir/workspace/.agents/skills/<name>/SKILL.md 造一个 skill
+    const skillDir = join(rootDir, 'workspace', '.agents', 'skills', 'route-skill')
+    mkdirSync(skillDir, { recursive: true })
+    const { writeFileSync } = await import('node:fs')
+    writeFileSync(
+      join(skillDir, 'SKILL.md'),
+      `---\nname: route-skill\ndescription: 路由测试用\n---\n\n正文\n`,
+      'utf8'
+    )
+
+    const res = await fetch(`${baseURL}/api/pi/skills`, {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      skills: Array<{ name: string; description: string; source: string; enabled: boolean }>
+    }
+    const found = body.skills.find((s) => s.name === 'route-skill')
+    expect(found).toBeDefined()
+    expect(found?.source).toBe('user')
+    expect(found?.enabled).toBe(true)
+    // 脱敏：仅 name + description + source + enabled（无 filePath / baseDir）
+    expect(Object.keys(found ?? {}).sort()).toEqual(['description', 'enabled', 'name', 'source'])
+  })
+
+  test('GET 不受 agentSkills 总闸影响（总闸 OFF 时仍返全量含被禁件）', async () => {
+    const skillDir = join(rootDir, 'workspace', '.agents', 'skills', 'off-skill')
+    mkdirSync(skillDir, { recursive: true })
+    const { writeFileSync } = await import('node:fs')
+    writeFileSync(
+      join(skillDir, 'SKILL.md'),
+      `---\nname: off-skill\ndescription: 总闸测试\n---\n\n正文\n`,
+      'utf8'
+    )
+
+    // 关闭 agentSkills 总闸
+    await fetch(`${baseURL}/api/pi/capabilities`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ agentSkills: false })
+    })
+
+    const res = await fetch(`${baseURL}/api/pi/skills`, {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { skills: Array<{ name: string }> }
+    // 管理面不受总闸影响——off-skill 仍可见
+    expect(body.skills.find((s) => s.name === 'off-skill')).toBeDefined()
+  })
+
+  test('GET 含被禁件（enabled=false 反映 disabledSkills）', async () => {
+    const skillDir = join(rootDir, 'workspace', '.agents', 'skills', 'to-disable')
+    mkdirSync(skillDir, { recursive: true })
+    const { writeFileSync } = await import('node:fs')
+    writeFileSync(
+      join(skillDir, 'SKILL.md'),
+      `---\nname: to-disable\ndescription: 将被禁\n---\n\n正文\n`,
+      'utf8'
+    )
+
+    // 写 disabledSkills
+    await fetch(`${baseURL}/api/pi/skills/disabled`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ disabled: ['to-disable'] })
+    })
+
+    const res = await fetch(`${baseURL}/api/pi/skills`, {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    const body = (await res.json()) as {
+      skills: Array<{ name: string; enabled: boolean }>
+    }
+    const found = body.skills.find((s) => s.name === 'to-disable')
+    expect(found?.enabled).toBe(false)
+  })
+
+  test('GET POST/DELETE → 405（方法白名单）', async () => {
+    const post = await fetch(`${baseURL}/api/pi/skills`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    expect(post.status).toBe(405)
+    const del = await fetch(`${baseURL}/api/pi/skills`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    expect(del.status).toBe(405)
+  })
+
+  test('GET 无 token → 401', async () => {
+    const res = await fetch(`${baseURL}/api/pi/skills`)
+    expect(res.status).toBe(401)
+  })
+})
+
+describe('PUT /api/pi/skills/disabled（管理面单件启停）', () => {
+  beforeEach(async () => {
+    await boot()
+  })
+
+  test('PUT roundtrip：写 → GET 返新集合；持久化层跟随', async () => {
+    const put1 = await fetch(`${baseURL}/api/pi/skills/disabled`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ disabled: ['alpha', 'beta'] })
+    })
+    expect(put1.status).toBe(200)
+    expect((await put1.json()) as { disabled: string[] }).toEqual({
+      disabled: ['alpha', 'beta']
+    })
+
+    const get = await fetch(`${baseURL}/api/pi/skills`, {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    expect((await get.json()) as { skills: Array<{ name: string }> }).toEqual({ skills: [] })
+
+    // 验证文件持久化：关闭 server，新 server 实例应能恢复 disabled 集合
+    if (server) {
+      const s = server
+      await new Promise<void>((resolve) => {
+        s.close(() => resolve())
+      })
+    }
+    const next = createPiBackendServer({ rootDir, authToken: TOKEN })
+    await new Promise<void>((resolve) => {
+      next.listen(0, '127.0.0.1', resolve)
+    })
+    const address = next.address()
+    server = next
+    if (!address || typeof address === 'string') throw new Error('no ephemeral port')
+    baseURL = `http://127.0.0.1:${address.port}`
+
+    // capabilities GET 应反映 disabledSkills（v3 形状落盘）
+    const capGet = await fetch(`${baseURL}/api/pi/capabilities`, {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    expect((await capGet.json()) as { disabledSkills: string[] }).toEqual({
+      builtinTools: 'full',
+      agentSkills: true,
+      disabledSkills: ['alpha', 'beta']
+    })
+  })
+
+  test('PUT 非数组 → 400（不动落盘）', async () => {
+    const put1 = await fetch(`${baseURL}/api/pi/skills/disabled`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ disabled: 'not-array' })
+    })
+    expect(put1.status).toBe(400)
+    const put2 = await fetch(`${baseURL}/api/pi/skills/disabled`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ disabled: null })
+    })
+    expect(put2.status).toBe(400)
+  })
+
+  test('PUT 后端归一去重保序', async () => {
+    const put = await fetch(`${baseURL}/api/pi/skills/disabled`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ disabled: ['b', 'a', 'b', 'c', 'a'] })
+    })
+    expect(put.status).toBe(200)
+    expect((await put.json()) as { disabled: string[] }).toEqual({
+      disabled: ['b', 'a', 'c']
+    })
+  })
+
+  test('PUT 不校验名字存在性（负向韧性：被禁名对应 skill 卸载后再装回保持禁用）', async () => {
+    const put = await fetch(`${baseURL}/api/pi/skills/disabled`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ disabled: ['never-installed-skill'] })
+    })
+    expect(put.status).toBe(200)
+    expect((await put.json()) as { disabled: string[] }).toEqual({
+      disabled: ['never-installed-skill']
+    })
+  })
+
+  test('PUT 不影响 builtinTools / agentSkills', async () => {
+    // 先写非默认档位
+    await fetch(`${baseURL}/api/pi/capabilities`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ agentSkills: true, builtinTools: 'readonly' })
+    })
+    // 再写 disabledSkills
+    await fetch(`${baseURL}/api/pi/skills/disabled`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ disabled: ['a'] })
+    })
+    // capabilities 应保留 readonly 档位
+    const get = await fetch(`${baseURL}/api/pi/capabilities`, {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    expect((await get.json()) as { builtinTools: string; disabledSkills: string[] }).toEqual({
+      builtinTools: 'readonly',
+      agentSkills: true,
+      disabledSkills: ['a']
+    })
+  })
+
+  test('GET → 405（方法白名单）', async () => {
+    const res = await fetch(`${baseURL}/api/pi/skills/disabled`, {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    expect(res.status).toBe(405)
+  })
+
+  test('PUT 无 token → 401', async () => {
+    const res = await fetch(`${baseURL}/api/pi/skills/disabled`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ disabled: [] })
+    })
+    expect(res.status).toBe(401)
+  })
+
+  test('PUT 坏 JSON → 400', async () => {
+    const res = await fetch(`${baseURL}/api/pi/skills/disabled`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: '{not-json'
+    })
+    expect(res.status).toBe(400)
   })
 })

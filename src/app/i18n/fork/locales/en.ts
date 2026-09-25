@@ -194,6 +194,14 @@ export const agentCapabilitiesMessageDefaults = {
   agentSkillsDescription: 'Enable AI to use specialized skills',
   agentCapabilitiesSaving: 'Saving…',
   agentCapabilitiesError: params('Failed to save: {message}'),
+  // 管理面：已安装 skill 列表分组（单件启停）
+  installedSkillsTitle: 'Installed skills',
+  installedSkillsDescription: 'Skills detected in user folder and built-in assets',
+  installedSkillsEmpty: 'No skills installed yet',
+  installedSkillsSourceUser: 'User',
+  installedSkillsSourceBuiltin: 'Built-in',
+  installedSkillsEnabledLabel: params('Enable {name}'),
+  installedSkillsDisabledLabel: params('Disable {name}'),
   // ai-panel-ux-consolidation：自定义拓展（workflow / profile / skill 资产根目录入口）
   customExtensionsTitle: 'Custom extensions',
   customExtensionsDescription:

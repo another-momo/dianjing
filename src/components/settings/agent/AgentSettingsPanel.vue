@@ -12,6 +12,7 @@ import { CAPABILITIES_DEFAULTS } from '@/app/ai/pi-backend/capabilities-defaults
 import { fetchStudioFolderPath, openPiStudioFolder } from '@/app/ai/pi-backend/client'
 import { applyPiCapabilities, piCapabilities } from '@/app/ai/pi-backend/mode-selection'
 import { useForkAgentCapabilities } from '@/app/i18n/fork'
+import AgentSkillList from '@/components/settings/agent/AgentSkillList.vue'
 import SettingsGroup from '@/components/settings/layout/SettingsGroup.vue'
 import SettingsSectionHeader from '@/components/settings/layout/SettingsSectionHeader.vue'
 import Tip from '@/components/ui/overlay/Tip.vue'
@@ -211,6 +212,9 @@ const openStatusDisabled = computed(() => openStatus.value !== 'idle')
         />
       </label>
     </div>
+
+    <!-- 管理面：已安装 skill 列表（单件启停）——独立子组件挂载 -->
+    <AgentSkillList />
 
     <p v-if="saving" class="text-[10px] text-muted" data-test-id="settings-agent-saving">
       {{ msgs.agentCapabilitiesSaving }}

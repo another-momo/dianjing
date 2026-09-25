@@ -56,6 +56,13 @@ const zhCN = {
     agentSkillsDescription: '启用 AI 使用专业技能',
     agentCapabilitiesSaving: '保存中…',
     agentCapabilitiesError: '保存失败：{message}',
+    installedSkillsTitle: '已安装技能',
+    installedSkillsDescription: '检测到用户目录与内置资产下的技能',
+    installedSkillsEmpty: '暂未安装任何技能',
+    installedSkillsSourceUser: '用户',
+    installedSkillsSourceBuiltin: '内置',
+    installedSkillsEnabledLabel: '启用{name}',
+    installedSkillsDisabledLabel: '停用{name}',
     customExtensionsTitle: '自定义拓展',
     customExtensionsDescription:
       '自定义 agent mode workflow / style profile / agent skill 的存放目录——照着 `_example` 改名改写即可，完整说明见文件夹内 README。',

@@ -66,7 +66,7 @@ import {
   type SetActiveDesignResult
 } from './active-design-host'
 import type { AuthzNoticeSink } from './authz-guard'
-import { type Capabilities, createCapabilitiesStore } from './capabilities'
+import { type Capabilities, type ManagedSkillEntry, createCapabilitiesStore } from './capabilities'
 import { type PiModelSpec, createDesignAssignmentStore } from './design-assignment'
 import { readPiHistoryFile } from './history'
 import type { ImageGenCredentialStore } from './image-gen/credentials'
@@ -131,6 +131,10 @@ export type PiChatService = {
   /** T87：写 capabilities（settings 面板 PUT 用；非法值抛错并被 server.ts 转 400）；
    *  T96：builtinTools 可选——给了就必须是三档字面量，缺省保留旧值 */
   setCapabilities(input: { agentSkills: unknown; builtinTools?: unknown }): Capabilities
+  /** 管理面：管理面板「已安装 skill」全量清单（含被禁件，不受 agentSkills 总闸影响） */
+  listSkillsForManagement(): ManagedSkillEntry[]
+  /** 管理面：写被禁件清单；非法值抛错并被 server.ts 转 400；返回新集合 */
+  setDisabledSkills(input: unknown): string[]
   /** 2026-09-16：指派后端化——读 design 模型指派（GET /api/pi/design-assignment） */
   getDesignAssignment(): PiModelSpec | null
   /** 2026-09-16：指派后端化——写 design 模型指派（PUT /api/pi/design-assignment）；
@@ -549,6 +553,14 @@ export function createPiChatService({
     return capabilitiesStore.set(input)
   }
 
+  function listSkillsForManagement(): ManagedSkillEntry[] {
+    return capabilitiesStore.listSkillsForManagement()
+  }
+
+  function setDisabledSkills(input: unknown): string[] {
+    return capabilitiesStore.setDisabledSkills(input)
+  }
+
   function getDesignAssignment(): PiModelSpec | null {
     return designAssignmentStore.get()
   }
@@ -652,6 +664,8 @@ export function createPiChatService({
     getStudioManifest,
     getCapabilities,
     setCapabilities,
+    listSkillsForManagement,
+    setDisabledSkills,
     getDesignAssignment,
     setDesignAssignment,
     setActiveDesign,

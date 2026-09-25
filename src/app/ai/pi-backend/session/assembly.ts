@@ -419,9 +419,13 @@ export async function assembleSession(
       // skill.baseDir 语义 = SKILL.md 所在目录（<skills源目录>/<skill名>），
       // 白名单装的是源目录本身——比对须取 dirname 上溯一层（2026-09-16 CI
       // t87 端到端④实证：直比 baseDir 全员滤空，/skill: 展开失效）
-      skills: result.skills.filter((skill: Skill) =>
-        allowedSkillBaseDirs.has(dirname(skill.baseDir))
-      )
+      skills: result.skills.filter((skill: Skill) => {
+        if (!allowedSkillBaseDirs.has(dirname(skill.baseDir))) return false
+        // 负向 override：被禁件按未知名透传（与 SDK noSkills 查无 skill 同语义）—
+        // 不进 <available_skills>、不可被 /skill:name 调用
+        if (capabilitiesStore.get().disabledSkills.includes(skill.name)) return false
+        return true
+      })
     }),
     extensionFactories
   })

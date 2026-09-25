@@ -6,4 +6,9 @@
  */
 import { type Capabilities } from './capabilities'
 
-export const CAPABILITIES_DEFAULTS: Capabilities = { builtinTools: 'full', agentSkills: true }
+export const CAPABILITIES_DEFAULTS: Capabilities = {
+  builtinTools: 'full',
+  agentSkills: true,
+  // 负向 override：只记被关闭的 skill 名；缺省/缺失 = [] = 全启用
+  disabledSkills: []
+}

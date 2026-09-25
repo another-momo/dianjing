@@ -8,6 +8,8 @@
  *   POST   /api/pi/providers          CustomProviderInput
  *   DELETE /api/pi/providers/{id}     （T100 C1：仅自定义 provider）
  *   POST   /api/pi/credentials/verify {providerId} （T100 B1：最小 chat 验真）
+ *   GET    /api/pi/skills                       → PiSkillsList（管理面全量，含被禁件）
+ *   PUT    /api/pi/skills/disabled  {disabled}  → PiDisabledSkills（全量替换语义）
  *
  * 凭据只进不出：catalog 里只有 configured/type/source，绝不回传 key 本体。
  * catalog DTO 单源在 ./catalog（T27：纯类型契约模块，type-only import 构建期
@@ -17,9 +19,10 @@
 
 import { ref } from 'vue'
 
+import type { ManagedSkillEntry } from './capabilities'
 import type { PiCatalog, PiCatalogModel, PiCatalogProvider } from './catalog'
 
-export type { PiCatalog, PiCatalogModel, PiCatalogProvider }
+export type { ManagedSkillEntry, PiCatalog, PiCatalogModel, PiCatalogProvider }
 
 export type PiThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
 
@@ -130,4 +133,26 @@ export type StudioFolderPath = { dir: string }
 
 export async function fetchStudioFolderPath(): Promise<StudioFolderPath> {
   return requestJSON<StudioFolderPath>('/studio-folder')
+}
+
+/**
+ * 管理面：全量 skill 清单——含被禁件、不受 agentSkills 总闸影响；
+ * 数据源 = 后端 capabilities.listSkillsForManagement 投影（脱敏：
+ * 仅 name/description/source/enabled）。
+ */
+export type PiSkillsList = { skills: ManagedSkillEntry[] }
+
+export async function fetchPiSkills(): Promise<PiSkillsList> {
+  return requestJSON<PiSkillsList>('/skills')
+}
+
+/** 管理面：写被禁件清单——后端会做去重保序归一；非 string[] 由后端 400 */
+export type PiDisabledSkills = { disabled: string[] }
+
+export async function setPiDisabledSkills(disabled: string[]): Promise<PiDisabledSkills> {
+  // jsonBody 默认 POST；本端点语义 = 全量替换，服务端只收 PUT（405 实证）
+  return requestJSON<PiDisabledSkills>('/skills/disabled', {
+    ...jsonBody({ disabled }),
+    method: 'PUT'
+  })
 }

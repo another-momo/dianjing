@@ -9,7 +9,7 @@
  * 禁用）/ full→两键全省略，及 noSkills 由 agentSkills 独控（与 builtinTools 解耦）。
  */
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -87,7 +87,11 @@ describe('pi-backend service.ts capabilities seam（T87）', () => {
 
   test('getCapabilities：缺省 DEFAULTS（capabilities.json 不存在 → 失败安全兜底）', () => {
     const svc = makeService(rootDir)
-    expect(svc.getCapabilities()).toEqual({ builtinTools: 'full', agentSkills: true })
+    expect(svc.getCapabilities()).toEqual({
+      builtinTools: 'full',
+      agentSkills: true,
+      disabledSkills: []
+    })
   })
 
   test('setCapabilities → getCapabilities 往返：与 capabilitiesStore 实例共享', () => {
@@ -95,13 +99,22 @@ describe('pi-backend service.ts capabilities seam（T87）', () => {
     // T96：set 只给 agentSkills 时 builtinTools 保留旧值（缺省 'full'）
     expect(svc.setCapabilities({ agentSkills: true })).toEqual({
       builtinTools: 'full',
-      agentSkills: true
+      agentSkills: true,
+      disabledSkills: []
     })
-    expect(svc.getCapabilities()).toEqual({ builtinTools: 'full', agentSkills: true })
+    expect(svc.getCapabilities()).toEqual({
+      builtinTools: 'full',
+      agentSkills: true,
+      disabledSkills: []
+    })
 
     // 落盘后可被新实例读出（验证持久化层一致）
     const svc2 = makeService(rootDir)
-    expect(svc2.getCapabilities()).toEqual({ builtinTools: 'full', agentSkills: true })
+    expect(svc2.getCapabilities()).toEqual({
+      builtinTools: 'full',
+      agentSkills: true,
+      disabledSkills: []
+    })
   })
 
   test('setCapabilities 非布尔 → 抛错', () => {
@@ -120,6 +133,8 @@ describe('pi-backend service.ts capabilities seam（T87）', () => {
     const svc = makeService(rootDir)
     const manifest = svc.getStudioManifest()
     // 缺省 agentSkills=true——manifest.capabilities 随 DEFAULTS（2026-09-22 翻转 full）
+    // 注意：manifest 仅透传 builtinTools + agentSkills 两键——disabledSkills 走
+    // 独立 /api/pi/skills 端点，本批 scope 不动 toStudioManifest 投影。
     expect(manifest.capabilities).toEqual({ builtinTools: 'full', agentSkills: true })
     expect(manifest.skills).toEqual([])
   })
@@ -234,5 +249,54 @@ description: x
     })
     expect(capturedLoaderOptions.at(-1)?.noSkills).toBe(false)
     expect(capturedSessionOptions.at(-1)?.noTools).toBe('builtin')
+  })
+
+  // ── 管理面 seam：listSkillsForManagement + setDisabledSkills ─────────────
+
+  test('listSkillsForManagement：全量清单含被禁件、不受 agentSkills 总闸影响', async () => {
+    const skillDir = join(rootDir, 'workspace', '.agents', 'skills', 'mgmt-svc')
+    mkdirSync(skillDir, { recursive: true })
+    writeFileSync(
+      join(skillDir, 'SKILL.md'),
+      `---\nname: mgmt-svc\ndescription: 管理面 seam 测试\n---\n\n正文\n`,
+      'utf8'
+    )
+    const svc = makeService(rootDir)
+    svc.setCapabilities({ agentSkills: true })
+    svc.setDisabledSkills(['mgmt-svc'])
+    const managed = svc.listSkillsForManagement()
+    const found = managed.find((m) => m.name === 'mgmt-svc')
+    expect(found).toBeDefined()
+    expect(found?.source).toBe('user')
+    expect(found?.enabled).toBe(false)
+
+    // agentSkills OFF 也仍返全量（管理面不受总闸影响）
+    svc.setCapabilities({ agentSkills: false })
+    expect(svc.listSkillsForManagement().find((m) => m.name === 'mgmt-svc')).toBeDefined()
+  })
+
+  test('setDisabledSkills 校验非数组 → 抛错且不落盘', () => {
+    const svc = makeService(rootDir)
+    expect(() => svc.setDisabledSkills('not-array')).toThrow(/array/)
+    // capabilities.json 不应被副作用生成
+    expect(existsSync(join(rootDir, 'pi-agent', 'capabilities.json'))).toBe(false)
+  })
+
+  test('setDisabledSkills 与 setCapabilities 正交：各自只动自己管的面', () => {
+    const svc = makeService(rootDir)
+    svc.setCapabilities({ agentSkills: true, builtinTools: 'readonly' })
+    svc.setDisabledSkills(['a', 'b'])
+    expect(svc.getCapabilities()).toEqual({
+      builtinTools: 'readonly',
+      agentSkills: true,
+      disabledSkills: ['a', 'b']
+    })
+    // 再 setCapabilities（只写 agentSkills）不动 disabledSkills
+    svc.setCapabilities({ agentSkills: false })
+    expect(svc.getCapabilities()).toEqual({
+      builtinTools: 'readonly',
+      agentSkills: false,
+      disabledSkills: ['a', 'b']
+    })
   })
 })

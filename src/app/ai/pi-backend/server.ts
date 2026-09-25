@@ -325,6 +325,56 @@ async function handleCapabilitiesRequest(
   }
 }
 
+/**
+ * 管理面 skill 单件启停：
+ *  - GET /api/pi/skills → { skills: ManagedSkillEntry[] }（含被禁件，不受 agentSkills 总闸影响）
+ *  - PUT /api/pi/skills/disabled body { disabled: unknown } → { disabled: string[] }
+ *
+ * 校验失败 400（PUT body.disabled 非数组即拒），位置纪律同 capabilities 端点
+ * （须在 /api/pi/ 管理面前缀之前匹配）。
+ */
+async function handleSkillsListRequest(
+  service: ReturnType<typeof createPiChatService>,
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  if (req.method !== 'GET') {
+    res.writeHead(405).end('Method Not Allowed')
+    return
+  }
+  sendJSON(res, 200, { skills: service.listSkillsForManagement() })
+}
+
+async function handleSkillsDisabledRequest(
+  service: ReturnType<typeof createPiChatService>,
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  if (req.method !== 'PUT') {
+    res.writeHead(405).end('Method Not Allowed')
+    return
+  }
+  let body: { disabled?: unknown }
+  try {
+    body = JSON.parse(await readBody(req)) as { disabled?: unknown }
+  } catch (error) {
+    if (error instanceof PayloadTooLargeError) {
+      sendPayloadTooLarge(req, res)
+      return
+    }
+    res.writeHead(400).end('Bad Request: invalid JSON')
+    return
+  }
+  try {
+    const disabled = service.setDisabledSkills(body.disabled)
+    sendJSON(res, 200, { disabled })
+  } catch (error) {
+    sendJSON(res, 400, {
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
+}
+
 /** T100 C1：DELETE /api/pi/providers/{providerId}——只删自定义 provider，内建 400。 */
 async function handleDeleteProviderRequest(
   admin: ReturnType<typeof createProviderAdmin>,
@@ -558,6 +608,16 @@ export function createPiBackendServer({
     // T87：capabilities 单开关读写端点（须在 /api/pi/ 管理面前缀之前匹配）
     if (url.pathname === '/api/pi/capabilities') {
       void handleCapabilitiesRequest(service, req, res)
+      return
+    }
+    // 管理面：skill 全量清单（须在 /api/pi/ 管理面前缀之前匹配）
+    if (url.pathname === '/api/pi/skills') {
+      void handleSkillsListRequest(service, req, res)
+      return
+    }
+    // 管理面：skill 单件启停——写被禁件清单（须在 /api/pi/ 管理面前缀之前匹配）
+    if (url.pathname === '/api/pi/skills/disabled') {
+      void handleSkillsDisabledRequest(service, req, res)
       return
     }
     if (url.pathname === '/api/pi/design-assignment') {
