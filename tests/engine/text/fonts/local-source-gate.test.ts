@@ -15,6 +15,20 @@ import { FontManager } from '@open-pencil/core/text'
 
 import { fontFallbackEntry } from '#core/text/fallbacks'
 
+interface LocalFontRecord {
+  family: string
+  fullName: string
+  style: string
+  postscriptName: string
+}
+
+type LocalAccessState = 'unsupported' | 'prompt' | 'granted' | 'denied'
+
+interface FontManagerProbe {
+  localFonts: LocalFontRecord[]
+  localFontAccessState: LocalAccessState
+}
+
 describe('FontManager 本地字体应用级开关（统一批 B）', () => {
   test('默认开', () => {
     const manager = new FontManager()
@@ -34,7 +48,8 @@ describe('FontManager 本地字体应用级开关（统一批 B）', () => {
     // 在线 provider 枚举超时改极小值——避免默认 6s 兜底拖慢单测
     manager.setWebFontListTimeout(1)
     // 直接写入已授权的本地字体表（避开权限门禁）——本测试只验开关过滤行为
-    ;(manager as unknown as { localFonts: unknown[] }).localFonts = [
+    const probe = manager as FontManagerProbe
+    probe.localFonts = [
       {
         family: 'Local Sans',
         fullName: 'Local Sans Regular',
@@ -43,8 +58,7 @@ describe('FontManager 本地字体应用级开关（统一批 B）', () => {
       }
     ]
     // 模拟 grant 状态
-    ;(manager as unknown as { localFontAccessState: 'granted' | 'prompt' }).localFontAccessState =
-      'granted'
+    probe.localFontAccessState = 'granted'
 
     manager.setLocalFontsEnabled(false)
 

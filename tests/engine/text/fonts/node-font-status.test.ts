@@ -3,14 +3,15 @@ import { expect, test } from 'bun:test'
 import { effectScope } from 'vue'
 
 import { fontFaceDemand, fontManager, fontResolver } from '@open-pencil/core/text'
-import type { SceneNode } from '@open-pencil/scene-graph'
+import { generateId, type SceneNode } from '@open-pencil/scene-graph'
+import { createDefaultNode } from '@open-pencil/scene-graph/node-defaults'
 import { useNodeFontStatus } from '@open-pencil/vue'
 
 const FAMILY = 'NodeFontStatus Probe Family'
 const EVICT_FAMILY = 'NodeFontStatus Evict Probe Family'
 
 function textNode(family: string): SceneNode {
-  return { type: 'TEXT', fontFamily: family, styleRuns: [] } as unknown as SceneNode
+  return createDefaultNode(generateId, 'TEXT', { fontFamily: family })
 }
 
 test('字体加载结算后 missing 徽标自动消除（非响应式 fontManager 经 resolver 事件驱动重算）', async () => {

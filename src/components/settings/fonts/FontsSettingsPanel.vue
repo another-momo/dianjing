@@ -17,7 +17,6 @@ import {
   downloadedFontCacheSummary,
   enabledCatalogFamilies,
   fontProviderSettings,
-  isGoogleFontsAvailable,
   listAllFamilies,
   localFontAccessState,
   localFontsEnabled,
@@ -26,6 +25,7 @@ import {
   requestLocalFontAccess
 } from '@/app/editor/fonts'
 import { useForkFonts } from '@/app/i18n/fork'
+import { isElectron } from '@/app/shell/electron'
 import AppButton from '@/components/ui/button/AppButton.vue'
 import Tip from '@/components/ui/overlay/Tip.vue'
 import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
@@ -77,7 +77,7 @@ const renderLimits = reactive<Record<SourceGroup, number>>({
 })
 
 /** 统一批 C：Google Fonts 仅 Electron 形态可用；面板据此禁用 google 勾选 */
-const googleAvailable = isGoogleFontsAvailable()
+const googleAvailable = isElectron()
 
 /** 统一批 A：提供商单独开关（按 Electron 能力屏蔽 google） */
 function isProviderRuntimeAvailable(provider: WebFontProviderId): boolean {

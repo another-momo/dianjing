@@ -10,7 +10,9 @@ const FAMILY = 'SettleRelayout Probe Family'
 const SETTLE_WAIT_MS = 150
 
 function settleWait(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, SETTLE_WAIT_MS))
+  return new Promise((resolve) => {
+    setTimeout(resolve, SETTLE_WAIT_MS)
+  })
 }
 
 afterEach(() => {

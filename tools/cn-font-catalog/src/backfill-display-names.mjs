@@ -92,8 +92,9 @@ async function probePackageDirs(name, version, dirs) {
           const dirFamilies = new Set()
           for (const [family] of parseResultCSSFamilies(css)) dirFamilies.add(family)
           dirToFamilies.set(dir, dirFamilies)
-        } catch {
+        } catch (error) {
           // dir 不可达：本族 displayName 无法采收，跳过
+          console.warn(`[backfill] dir ${name}@${version}/${dir} 跳过：${error.message ?? error}`)
         }
       }
     })

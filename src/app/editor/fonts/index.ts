@@ -190,14 +190,6 @@ export function localFontAccessState(): LocalFontAccessState {
   return isTauri() ? 'granted' : fontManager.localAccessState()
 }
 
-/**
- * Google Fonts 运行时可用性（统一批 C）：仅 Electron 形态放行。
- * Web 形态保留上游保守选择（PR #593）；面板据此禁用 google 勾选以修显示口径。
- */
-export function isGoogleFontsAvailable(): boolean {
-  return isElectron()
-}
-
 export async function requestLocalFontAccess(): Promise<FontFamilyOption[]> {
   if (isTauri()) return listFamilies()
   await fontManager.requestLocalFontAccess()

@@ -61,49 +61,9 @@ export function mergeWeightFamilies(entries) {
   const aliases = new Map()
   for (const group of groups.values()) {
     if (group.members.length === 1) {
-      const only = group.members[0]
-      if (only.family !== group.base) {
-        // 单成员改名组（family ≠ base）：displayName 若与新 family 同字则丢弃冗余。
-        const renamed = { ...only, family: group.base }
-        if (renamed.displayName === group.base) delete renamed.displayName
-        allEntries.push(renamed)
-        aliases.set(only.family, group.base)
-      } else {
-        allEntries.push(only)
-      }
-      continue
-    }
-    const allWeights = new Set()
-    let variable = false
-    let displayName
-    for (const m of group.members) {
-      for (const w of m.weights) allWeights.add(w)
-      if (m.variable) variable = true
-    }
-    const baseMember = group.members.find((m) => m.family === group.base)
-    if (baseMember?.displayName) displayName = baseMember.displayName
-    if (!displayName) {
-      for (const m of group.members) {
-        if (m.displayName) {
-          displayName = m.displayName
-          break
-        }
-      }
-    }
-    const seed = baseMember ?? group.members[0]
-    const merged = {
-      family: group.base,
-      package: seed.package,
-      version: seed.version,
-      license: seed.license,
-      variable,
-      weights: [...allWeights].sort((a, b) => a - b)
-    }
-    if (displayName && displayName !== group.base) merged.displayName = displayName
-    if (seed.base) merged.base = seed.base
-    allEntries.push(merged)
-    for (const m of group.members) {
-      if (m.family !== group.base) aliases.set(m.family, group.base)
+      addSingleMemberGroup(allEntries, aliases, group)
+    } else {
+      addMultiMemberGroup(allEntries, aliases, group)
     }
   }
 
@@ -112,6 +72,54 @@ export function mergeWeightFamilies(entries) {
     [...aliases.entries()].sort((a, b) => a[0].localeCompare(b[0]))
   )
   return { entries: allEntries, aliases: orderedAliases }
+}
+
+/** 单成员组（family == base 直接收下；family != base 改名并登记别名，displayName 同字则丢冗余） */
+function addSingleMemberGroup(allEntries, aliases, group) {
+  const only = group.members[0]
+  if (only.family !== group.base) {
+    const renamed = { ...only, family: group.base }
+    if (renamed.displayName === group.base) delete renamed.displayName
+    allEntries.push(renamed)
+    aliases.set(only.family, group.base)
+  } else {
+    allEntries.push(only)
+  }
+}
+
+/** 多成员组：合并字重 + variable，displayName 取 base 成员自有的、再兜底首个有 displayName 的成员 */
+function addMultiMemberGroup(allEntries, aliases, group) {
+  const allWeights = new Set()
+  let variable = false
+  for (const m of group.members) {
+    for (const w of m.weights) allWeights.add(w)
+    if (m.variable) variable = true
+  }
+  const baseMember = group.members.find((m) => m.family === group.base)
+  const displayName = pickGroupDisplayName(baseMember, group.members)
+  const seed = baseMember ?? group.members[0]
+  const merged = {
+    family: group.base,
+    package: seed.package,
+    version: seed.version,
+    license: seed.license,
+    variable,
+    weights: [...allWeights].sort((a, b) => a - b)
+  }
+  if (displayName && displayName !== group.base) merged.displayName = displayName
+  if (seed.base) merged.base = seed.base
+  allEntries.push(merged)
+  for (const m of group.members) {
+    if (m.family !== group.base) aliases.set(m.family, group.base)
+  }
+}
+
+function pickGroupDisplayName(baseMember, members) {
+  if (baseMember?.displayName) return baseMember.displayName
+  for (const m of members) {
+    if (m.displayName) return m.displayName
+  }
+  return undefined
 }
 
 /** TS 单引号字面量转义。 */

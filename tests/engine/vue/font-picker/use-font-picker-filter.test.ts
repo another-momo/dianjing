@@ -19,7 +19,9 @@ const BUNDLED_OPTION: FontFamilyOption = { family: 'Inter', source: 'bundled' }
 async function openAndLoad(picker: ReturnType<typeof useFontPicker>): Promise<void> {
   picker.open.value = true
   await nextTick()
-  await new Promise((resolve) => setTimeout(resolve, 0))
+  await new Promise((resolve) => {
+    setTimeout(resolve, 0)
+  })
   await nextTick()
 }
 

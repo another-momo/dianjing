@@ -204,14 +204,22 @@ async function probePackage(name) {
 
   const { families, dirToFamilies, dirFailures } = await probeFamilyDirs(name, version, dirs)
   if (families.size === 0) {
-    return {
-      excluded:
-        dirFailures.length > 0
-          ? `全部子族目录 result.css 在 jsdelivr 均不可达（${dirFailures.length}/${dirs.length} 目录 404）`
-          : 'result.css 未解析出 font-family'
-    }
+    return { excluded: describeUnreachableFamilies(dirFailures, dirs.length) }
   }
-  // displayName 采收（见头注释规则）
+  const displayNames = collectDisplayNames(dirToFamilies)
+  return { version, license, families, dirFailures, displayNames }
+}
+
+/** 全部子族目录 result.css 不可达时，区分「全 404」与「未解析出 family」两种排除文案 */
+function describeUnreachableFamilies(dirFailures, totalDirs) {
+  if (dirFailures.length > 0) {
+    return `全部子族目录 result.css 在 jsdelivr 均不可达（${dirFailures.length}/${totalDirs} 目录 404）`
+  }
+  return 'result.css 未解析出 font-family'
+}
+
+/** displayName 采收（见 build.mjs 头注释规则）；dirToFamilies = dir → 该 dir 解析出的 family 集合 */
+function collectDisplayNames(dirToFamilies) {
   const familyToDirs = new Map() // family → Set<dir>
   for (const [dir, dirFamilies] of dirToFamilies) {
     for (const family of dirFamilies) {
@@ -234,7 +242,7 @@ async function probePackage(name) {
     if (displayNames.has(family)) continue // 先见者优先
     displayNames.set(family, dir)
   }
-  return { version, license, families, dirFailures, displayNames }
+  return displayNames
 }
 
 async function mapPool(items, worker) {
