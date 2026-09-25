@@ -78,9 +78,7 @@ function sdkConfigToClientConfig(config: SdkMCPServerConfig): MCPClientConfig | 
 
 /** Sort a record's keys and return a fresh object so equality is order-independent. */
 function sortedRecord(record: Record<string, string> | undefined): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(record ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-  )
+  return Object.fromEntries(Object.entries(record ?? {}).sort(([a], [b]) => a.localeCompare(b)))
 }
 
 /** Shallow equality on two sorted string records (keys + values). */
