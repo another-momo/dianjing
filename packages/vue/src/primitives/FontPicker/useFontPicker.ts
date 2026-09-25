@@ -24,6 +24,8 @@ export interface UseFontPickerOptions {
   listFamilies: () => Promise<string[] | FontFamilyOption[]>
   /** Host-provided local-font permission controller. */
   localFontAccess?: FontAccessController
+  /** Custom search matcher (e.g. also matching catalog display names). Defaults to case-insensitive family substring. */
+  filterOption?: (option: FontFamilyOption, searchTerm: string) => boolean
   /** Optional callback fired after a family is selected. */
   onSelect?: (family: string) => void
 }
@@ -61,7 +63,11 @@ export function useFontPicker(options: UseFontPickerOptions) {
   const { contains } = useFilter({ sensitivity: 'base' })
   const filtered = computed(() => {
     if (!searchTerm.value) return families.value
-    return families.value.filter((option) => contains(option.family, searchTerm.value))
+    return families.value.filter((option) =>
+      options.filterOption
+        ? options.filterOption(option, searchTerm.value)
+        : contains(option.family, searchTerm.value)
+    )
   })
 
   async function loadFamilies() {

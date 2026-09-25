@@ -12,6 +12,7 @@ import {
   localFontAccessState,
   requestLocalFontAccess
 } from '@/app/editor/fonts'
+import { matchFontFamilyOrDisplayName } from '@/components/font-picker/font-option-filter'
 import { usePopoverUI } from '@/components/ui/overlay/popover'
 import { useSelectUI } from '@/components/ui/select/select'
 
@@ -72,6 +73,7 @@ function rowLabel(family: string, source: string): string {
     data-test-id="font-picker-root"
     :list-families="listFamilies"
     :local-font-access="localFontAccess"
+    :filter-option="matchFontFamilyOrDisplayName"
     :ui="ui"
     :search-placeholder="panels.searchFonts"
     :empty-search-text="panels.noFontsFound"

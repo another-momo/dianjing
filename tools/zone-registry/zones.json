@@ -117,7 +117,9 @@
     "tests/engine/app/document/close/use.test.ts",
     "tests/engine/text/fonts/local-source-gate.test.ts",
     "tests/engine/text/fonts/fallback-pack-signal.test.ts",
-    "tools/cn-font-catalog/src/backfill-display-names.mjs"
+    "tools/cn-font-catalog/src/backfill-display-names.mjs",
+    "src/components/font-picker/font-option-filter.ts",
+    "tests/engine/vue/font-picker/use-font-picker-filter.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -2294,6 +2296,13 @@
       "id": "P371",
       "file": "tools/cn-font-catalog/src/build.mjs",
       "reason": "字体扩 scope 批 E1（2026-09-25）：probeFamilyDirs 增 dir→families 映射；probePackage 按四条规则采收 displayName（①dir 恰解 1 family；②该 family 仅来自此 dir；③dir 含 CJK；④dir ≠ family）；采收/跳过计数 stdout",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-25"
+    },
+    {
+      "id": "P372",
+      "file": "packages/vue/src/primitives/FontPicker/FontPickerRoot.vue",
+      "reason": "picker 中文搜索补洞（2026-09-25）：FontPickerRoot 增 filterOption prop 透传 useFontPicker——宿主可扩展搜索匹配面（catalog 中文显示名），缺省 family 子串不变",
       "disposition": "permanent",
       "lastReviewed": "2026-09-25"
     }

@@ -23,15 +23,23 @@ import {
   type FontFamilyOption
 } from '#vue/primitives/FontPicker/useFontPicker'
 
-const { listFamilies, localFontAccess, ui, emptySearchText, emptyFontsText, emptyFontsHint } =
-  defineProps<{
-    listFamilies: () => Promise<string[] | FontFamilyOption[]>
-    localFontAccess?: FontAccessController
-    ui?: FontPickerUI
-    emptySearchText?: string
-    emptyFontsText?: string
-    emptyFontsHint?: string
-  }>()
+const {
+  listFamilies,
+  localFontAccess,
+  filterOption,
+  ui,
+  emptySearchText,
+  emptyFontsText,
+  emptyFontsHint
+} = defineProps<{
+  listFamilies: () => Promise<string[] | FontFamilyOption[]>
+  localFontAccess?: FontAccessController
+  filterOption?: (option: FontFamilyOption, searchTerm: string) => boolean
+  ui?: FontPickerUI
+  emptySearchText?: string
+  emptyFontsText?: string
+  emptyFontsHint?: string
+}>()
 
 const modelValue = defineModel<string>({ required: true })
 const emit = defineEmits<{ select: [family: string] }>()
@@ -50,6 +58,7 @@ const { searchTerm, open, filtered, loading, accessState, requestAccess, select 
   modelValue,
   listFamilies,
   localFontAccess,
+  filterOption,
   onSelect: (family) => emit('select', family)
 })
 const { portalActive } = useRetainedPopup(open)
