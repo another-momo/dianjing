@@ -115,7 +115,8 @@
     "src/components/canvas/RendererDeadBanner.vue",
     "packages/core/src/canvas/renderer/dead.ts",
     "tests/engine/app/document/close/use.test.ts",
-    "tests/engine/text/fonts/local-source-gate.test.ts"
+    "tests/engine/text/fonts/local-source-gate.test.ts",
+    "tests/engine/text/fonts/fallback-pack-signal.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],

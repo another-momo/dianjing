@@ -719,6 +719,9 @@ export class FontManager {
           // 上游 PR：有 signal 时跳过专用 cjk/arabic 快路径缓存——直走通用路径
           // 让 signal 全程穿透（专用路径内部仍会调 ensureFallbackFamilies，
           // 但无 signal 注入会丢取消语义）
+          // cjk 同走 bundled 前插（与下方直调路径口径一致）——signal 路径若先
+          // 填充共享链而绕过前插，bundled 在回退链的优先级失守
+          if (script === 'cjk') await this.prependBundledCJK(target)
           result[script] = await this.ensureFallbackFamilies(script, target, characters, signal)
         } else if (script === 'arabic' && !characters) {
           result[script] = await this.ensureArabicFallback()
