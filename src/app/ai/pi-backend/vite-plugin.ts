@@ -160,15 +160,11 @@ export function piBackendPlugin(options: PiBackendPluginOptions = {}): Plugin {
       // child 已被 stopChild 置 null = 主动回收（buildEnd/重启 vite），不复活
       if (child !== spawned) return
       child = null
-      // 信号杀（taskkill //T 换码重启等）Windows 下 code 恒为 null——
-      // 只判 code 会把信号杀误当正常退出，scheduleRestart 永不触发
-      if (signal) {
-        console.error(`[pi-backend] 后端进程被信号终止，signal=${signal}`)
-        scheduleRestart()
-        return
-      }
-      if (!code || code === 0) return // 正常退出不复活
-      console.error(`[pi-backend] 后端进程退出，code=${code}`)
+      // 仅「无信号 + code 0」算正常退出。信号杀（taskkill //T 换码重启等）
+      // Windows 下 code 恒为 null——只判 code 会把信号杀误当正常退出，
+      // scheduleRestart 永不触发；null code 一律按异常兜底
+      if (!signal && code === 0) return
+      console.error(`[pi-backend] 后端进程退出，code=${code} signal=${signal}`)
       scheduleRestart()
     })
 
