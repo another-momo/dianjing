@@ -38,6 +38,7 @@ import { join } from 'node:path'
 
 import { type Skill, loadSkillsFromDir } from '@earendil-works/pi-coding-agent'
 
+import { CAPABILITIES_DEFAULTS } from './capabilities-defaults'
 import { resolveSkillsDir } from './paths'
 
 /**
@@ -58,7 +59,8 @@ const BUILTIN_TOOLS_LEVELS: readonly BuiltinToolsLevel[] = ['off', 'readonly', '
 
 // 2026-09-22 owner 拍板翻转：builtinTools readonly→full（内测期考验安全机制）。
 // DEFAULTS 只兜新装/文件缺失/坏文件降级，存量显式值不跟随。
-const DEFAULTS: CapabilitiesFile = { version: 2, builtinTools: 'full', agentSkills: true }
+// 字面量单源在 capabilities-defaults.ts（前端设置面板瞬态初值同源共用）。
+const DEFAULTS: CapabilitiesFile = { version: 2, ...CAPABILITIES_DEFAULTS }
 
 export type Capabilities = {
   /** 内建工具档位；service.ts 装配据此切换 noTools/tools */

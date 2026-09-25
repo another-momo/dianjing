@@ -8,6 +8,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
+import { CAPABILITIES_DEFAULTS } from '@/app/ai/pi-backend/capabilities-defaults'
 import { fetchStudioFolderPath, openPiStudioFolder } from '@/app/ai/pi-backend/client'
 import { applyPiCapabilities, piCapabilities } from '@/app/ai/pi-backend/mode-selection'
 import { useForkAgentCapabilities } from '@/app/i18n/fork'
@@ -20,8 +21,8 @@ const msgs = useForkAgentCapabilities()
 type LocalCapabilities = NonNullable<typeof piCapabilities.value>
 
 const localCapabilities = ref<LocalCapabilities>(
-  // 瞬态初值与 capabilities.ts DEFAULTS 对齐（manifest 拉取到达前的首帧）
-  piCapabilities.value ?? { builtinTools: 'readonly', agentSkills: true }
+  // 瞬态初值与 capabilities 缺省值同源（manifest 拉取到达前的首帧）
+  piCapabilities.value ?? { ...CAPABILITIES_DEFAULTS }
 )
 const saving = ref(false)
 const errorText = ref<string | null>(null)
