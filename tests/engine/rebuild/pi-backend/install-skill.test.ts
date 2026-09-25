@@ -35,6 +35,7 @@ import {
   type InstallSkillAuthzRequest
 } from '@/app/ai/pi-backend/authz-guard'
 import {
+  cleanStaleStaging,
   createInstallSkillTool,
   type InstallSkillDetails,
   listBuiltinSkillNames,
@@ -362,6 +363,10 @@ describe('runInstall 直装成功', () => {
     expect(existsSync(join(skillsDir, 'demo-skill', 'SKILL.md'))).toBe(true)
     expect(existsSync(join(skillsDir, 'demo-skill', 'references.md'))).toBe(true)
 
+    // 装成功即删：staging 目录整体移除（父目录保留）
+    expect(existsSync(staging)).toBe(false)
+    expect(existsSync(stagingRoot)).toBe(true)
+
     // 闸门轨迹：一次 request + 一次 decision
     const req = requestNotices()
     expect(req).toHaveLength(1)
@@ -380,6 +385,26 @@ describe('runInstall 直装成功', () => {
     expect(decisionNotices()).toEqual([
       { formId: 'install-skill-fixed-form-id', kind: 'authz', decision: 'allow-once' }
     ])
+  })
+})
+
+// ── 启动清扫（设计稿 §10 裁决 1：装成功即删，残留 = 失败/中断残次）──
+
+describe('cleanStaleStaging 启动清扫', () => {
+  test('残次条目（目录 + 散文件）全清、父目录保留、返回条目名清单', () => {
+    makeStaging('broken-a', (dir) => writeFileSync(join(dir, 'SKILL.md'), 'partial'))
+    makeStaging('broken-b')
+    writeFileSync(join(stagingRoot, 'orphan-file.txt'), 'x')
+    const removed = cleanStaleStaging(rootDir)
+    expect(removed.sort()).toEqual(['broken-a', 'broken-b', 'orphan-file.txt'])
+    expect(existsSync(stagingRoot)).toBe(true)
+    expect(readdirSync(stagingRoot)).toEqual([])
+  })
+
+  test('staging 父目录不存在 → 空清单、不建目录、不抛错', () => {
+    rmSync(stagingRoot, { recursive: true, force: true })
+    expect(cleanStaleStaging(rootDir)).toEqual([])
+    expect(existsSync(stagingRoot)).toBe(false)
   })
 })
 

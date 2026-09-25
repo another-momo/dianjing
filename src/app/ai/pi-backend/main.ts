@@ -30,6 +30,7 @@ import { registerBunOAuthFlows } from '@earendil-works/pi-ai/bun-oauth'
 
 import { readPiAuthToken, readPiBackendPort, readRootDir } from '@/app/orchestration/env'
 
+import { cleanStaleStaging } from './install-skill'
 import {
   PI_BACKEND_TOKEN_FILENAME,
   resolveKeyEnvPath,
@@ -76,6 +77,21 @@ function injectKeyEnv(): void {
 }
 
 injectKeyEnv()
+
+// staging 残次启动清扫（skill-installer 设计稿 §10 裁决 1：装成功即删，
+// 残留 = 失败/中断，下次运行时先清再开）。进程入口调一次——此时无 session
+// 在途，无并发 staging 竞态；清扫失败不阻断启动。
+try {
+  const removed = cleanStaleStaging(rootDir)
+  if (removed.length > 0) {
+    console.error(`[pi-backend] staging 残次已清 ${removed.length} 项：${removed.join(', ')}`)
+  }
+} catch (error) {
+  console.error(
+    `[pi-backend] staging 残次清扫失败（不阻断启动）：` +
+      `${error instanceof Error ? error.message : String(error)}`
+  )
+}
 
 // T28：鉴权 token 解析——env 注入（vite 插件 spawn）优先；standalone 自生成落盘。
 // token 卫生：只写文件/传参，永不打印本体（控制台只给文件路径）。

@@ -96,7 +96,7 @@ Validation (all hard rejects; errors enumerate every violation):
   - no collision with a built-in skill of the same \`name\`
   - same-name in the user layer requires \`overwrite: true\` (existing dir is moved to backup first; ≤3 backups retained, oldest pruned)
 
-After install the skill loads in the NEXT session (the front-end manifest refreshes on combobox open / new session). Invoke via \`/skill:<name>\` or set \`disable-model-invocation: true\` for explicit-only. The source \`source_dir\` is not modified.`
+After install the skill loads in the NEXT session (the front-end manifest refreshes on combobox open / new session). Invoke via \`/skill:<name>\` or set \`disable-model-invocation: true\` for explicit-only. On success the staging directory is deleted automatically (all content has been copied into the install target); leftovers from failed or interrupted installs are swept at backend startup.`
 
 export interface InstallSkillToolDeps {
   rootDir: string
@@ -408,6 +408,31 @@ function pruneBackups(backupRoot: string, name: string): void {
 /** runInstall 分段校验的失败面（details 直返调用方） */
 type ValidationFailure = { ok: false; details: InstallSkillDetails }
 
+/**
+ * 启动清扫（设计稿 §10 裁决 1：装成功即删，残留 = 失败/中断残次，下次运行时
+ * 先清再开）。在后端进程入口调用一次——此时无任何 session 在途，无并发
+ * staging 竞态。返回被清除的条目名清单（留痕用）；父目录本身保留。
+ */
+export function cleanStaleStaging(rootDir: string): string[] {
+  const stagingRoot = join(resolveWorkspaceDir(rootDir), STAGING_PARENT)
+  if (!existsSync(stagingRoot)) return []
+  const removed: string[] = []
+  for (const entry of readdirSync(stagingRoot)) {
+    try {
+      rmSync(join(stagingRoot, entry), { recursive: true, force: true })
+      removed.push(entry)
+    } catch (error) {
+      // 单条失败不阻断启动，也不影响其余条目清理——但禁静默吞
+      console.warn(
+        '[install-skill] staging 残次清理失败（不阻断启动）',
+        entry,
+        toErrorMessage(error)
+      )
+    }
+  }
+  return removed
+}
+
 /** 步骤 2-3：路径判定（read facet）+ staging 根下限定（归一化前缀比对，禁平台路径 API） */
 function resolveStagingDir(
   sourceDir: string,
@@ -639,6 +664,18 @@ export async function runInstall(args: {
     mkdirSync(dirname(toAbs), { recursive: true })
     const data = readFileSync(fromAbs, 'utf-8')
     writeFileSync(toAbs, data)
+  }
+
+  // 装成功即删（设计稿 §10 裁决 1——审计已随 MIGRATION.md 进安装件）。
+  // 删除失败不翻转已成功的安装：留痕 + 下次启动清扫兜底。
+  try {
+    rmSync(stagingAbs, { recursive: true, force: true })
+  } catch (error) {
+    console.warn(
+      '[install-skill] staging 装后删除失败（安装已完成，待启动清扫兜底）',
+      stagingAbs,
+      toErrorMessage(error)
+    )
   }
 
   return {
