@@ -73,6 +73,7 @@
     "packages/core/src/text/font/cn-catalog.ts",
     "tests/engine/text/fonts/cn-catalog.test.ts",
     "tests/engine/text/fonts/catalog-weight-merge.test.ts",
+    "tests/engine/text/fonts/node-font-status.test.ts",
     "src/app/editor/fonts/sanitize-legacy-catalog-families.ts",
     "tools/cn-font-catalog/src/merge.mjs",
     "tools/cn-font-catalog/src/merge-weight-families.mjs",
@@ -2315,6 +2316,13 @@
       "id": "P373",
       "file": "src/app/editor/fonts/index.ts",
       "reason": "字体扩 scope 批字重聚合（2026-09-25）：enabledCatalogFamilies 启动时一次性 sanitize 迁移（LEGACY_CN_FAMILY_ALIAS 旧名 → base 并去重），写回 localStorage 防 picker 关停分支反向漏合并；sanitize 纯函数抽至 sanitize-legacy-catalog-families.ts 便于单测",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-25"
+    },
+    {
+      "id": "P374",
+      "file": "packages/vue/src/shared/font-status/use.ts",
+      "reason": "Missing font 徽标滞留修复（2026-09-25）：fontManager 本体非响应式，改以 fontResolver.subscribe 事件驱动 resolutionRevision 重算——settled 后徽标自动消、逐出联动 reset 后重现（修复前面板 ⚠ 需触碰节点才刷新）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-25"
     }
