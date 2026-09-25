@@ -87,10 +87,8 @@ try {
     console.error(`[pi-backend] staging 残次已清 ${removed.length} 项：${removed.join(', ')}`)
   }
 } catch (error) {
-  console.error(
-    `[pi-backend] staging 残次清扫失败（不阻断启动）：` +
-      `${error instanceof Error ? error.message : String(error)}`
-  )
+  const detail = error instanceof Error ? error.message : String(error)
+  console.error(`[pi-backend] staging 残次清扫失败（不阻断启动）：${detail}`)
 }
 
 // T28：鉴权 token 解析——env 注入（vite 插件 spawn）优先；standalone 自生成落盘。

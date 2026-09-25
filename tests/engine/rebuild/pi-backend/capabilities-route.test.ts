@@ -226,7 +226,11 @@ describe('GET/PUT /api/pi/capabilities（T87）', () => {
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { capabilities?: unknown; skills?: unknown }
-    expect(body.capabilities).toEqual({ builtinTools: 'full', agentSkills: true })
+    expect(body.capabilities).toEqual({
+      builtinTools: 'full',
+      agentSkills: true,
+      disabledSkills: []
+    })
     expect(body.skills).toEqual([])
   })
 })

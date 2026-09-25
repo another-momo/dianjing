@@ -85,7 +85,7 @@ export function toStudioManifest(
   }))
   const caps: Capabilities = capabilities
     ? capabilities.get()
-    : { builtinTools: 'off', agentSkills: false }
+    : { builtinTools: 'off', agentSkills: false, disabledSkills: [] }
   // 脱敏兜底：白名单取 name/description，不依赖 store 投影的诚信
   // （T45 §信任边界同源约束——filePath/baseDir/sourceInfo 永不跨出后端进程）
   const rawSkills = capabilities ? capabilities.listSkills() : []
@@ -97,7 +97,11 @@ export function toStudioManifest(
     modes,
     profiles,
     failures,
-    capabilities: { builtinTools: caps.builtinTools, agentSkills: caps.agentSkills },
+    capabilities: {
+      builtinTools: caps.builtinTools,
+      agentSkills: caps.agentSkills,
+      disabledSkills: caps.disabledSkills
+    },
     skills
   }
 }

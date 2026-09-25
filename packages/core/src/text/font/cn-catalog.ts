@@ -713,5 +713,5 @@ export function cnCatalogEntry(family: string): CnFontCatalogEntry | undefined {
 export function isCnCatalogFamily(family: string): boolean {
   if (catalogByFamily.has(family)) return true
   const aliased = LEGACY_CN_FAMILY_ALIAS[family]
-  return aliased !== undefined && catalogByFamily.has(aliased)
+  return aliased ? catalogByFamily.has(aliased) : false
 }

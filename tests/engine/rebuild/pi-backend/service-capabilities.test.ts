@@ -133,9 +133,12 @@ describe('pi-backend service.ts capabilities seam（T87）', () => {
     const svc = makeService(rootDir)
     const manifest = svc.getStudioManifest()
     // 缺省 agentSkills=true——manifest.capabilities 随 DEFAULTS（2026-09-22 翻转 full）
-    // 注意：manifest 仅透传 builtinTools + agentSkills 两键——disabledSkills 走
-    // 独立 /api/pi/skills 端点，本批 scope 不动 toStudioManifest 投影。
-    expect(manifest.capabilities).toEqual({ builtinTools: 'full', agentSkills: true })
+    // disabledSkills 随 DEFAULTS=[] 透传（Capabilities 类型补齐后的 manifest 投影同型）
+    expect(manifest.capabilities).toEqual({
+      builtinTools: 'full',
+      agentSkills: true,
+      disabledSkills: []
+    })
     expect(manifest.skills).toEqual([])
   })
 
@@ -158,7 +161,11 @@ description: service 装配 seam 测试
     const svc = makeService(rootDir)
     svc.setCapabilities({ agentSkills: true, builtinTools: 'full' })
     const manifest = svc.getStudioManifest()
-    expect(manifest.capabilities).toEqual({ builtinTools: 'full', agentSkills: true })
+    expect(manifest.capabilities).toEqual({
+      builtinTools: 'full',
+      agentSkills: true,
+      disabledSkills: []
+    })
     expect(manifest.skills).toEqual([{ name: 'svc-test', description: 'service 装配 seam 测试' }])
   })
 
