@@ -27,12 +27,15 @@ import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { LICENSE_OVERRIDES } from './license-overrides.mjs'
 import { formatArray, formatEntry, formatRecord, mergeWeightFamilies } from './merge.mjs'
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const OUT_TS = join(REPO_ROOT, 'packages', 'core', 'src', 'text', 'font', 'cn-catalog.ts')
 const OUT_EXCLUDED = join(REPO_ROOT, 'tools', 'cn-font-catalog', 'excluded.json')
 
+// 注册表精选包/家族：重跑管线时从目录剔除（精选↔目录互斥，契约测试兜底）。
+// 纪律：registry.ts 晋升新族必须同批同步本两处清单——漏同步则重跑回流、契约测试红。
 const REGISTRY_PACKAGES = new Set([
   '@chinese-fonts/syst',
   '@chinese-fonts/lxgwwenkai',
@@ -42,7 +45,15 @@ const REGISTRY_PACKAGES = new Set([
   '@chinese-fonts/hcqyt',
   '@chinese-fonts/zqfs',
   '@chinese-fonts/zqzmxs',
-  '@chinese-fonts/cubic'
+  '@chinese-fonts/cubic',
+  // 2026-09-26 策展批晋升（registry.ts 新增 7 族）
+  '@chinese-fonts/dyh',
+  '@chinese-fonts/lxgwmanhei',
+  '@chinese-fonts/moon-stars-kai',
+  '@chinese-fonts/yfxy',
+  '@chinese-fonts/hwmct',
+  '@chinese-fonts/ysbth',
+  '@chinese-fonts/ysyrxk'
 ])
 // 注册表精选家族名：catalog 条目与之冲突时注册表优先
 const REGISTRY_FAMILIES = new Set([
@@ -54,7 +65,15 @@ const REGISTRY_FAMILIES = new Set([
   '寒蝉全圆体',
   'Zhuque Fangsong (technical preview)',
   'Zhi Mang Xing',
-  'Cubic 11'
+  'Cubic 11',
+  // 2026-09-26 策展批晋升
+  'Smiley Sans Oblique',
+  'LXGW Marker Gothic',
+  'Moon Stars Kai',
+  'YuFanXinYu',
+  'Huiwen-mincho',
+  'YouSheBiaoTiHei',
+  'slideyouran'
 ])
 
 // 授权风险永久剔除：官方口径限非商用（stdgt）、再分发权保留（hqzmt/qtbfsxt）、
@@ -297,7 +316,7 @@ for (const [name, result] of [...probed.entries()].sort()) {
       family,
       package: name,
       version: result.version,
-      license: result.license,
+      license: LICENSE_OVERRIDES.get(name) ?? result.license,
       variable: info.variable,
       weights: [...info.weights].sort((a, b) => a - b)
     }
@@ -322,7 +341,8 @@ const ts = `/**
  * 构建日期：${today} | 目录规模：${packages.length} 包探针 → 合并后 ${mergedEntries.length} 族收录 / ${aliasEntries.length} 条字重拆族别名
  *
  * T42 S1：中文网字计划全量目录（registry 精选之外的 @chinese-fonts/* 包）。
- * catalog 族白名单语义 = 默认停用（opt-in，D-c）；授权以包内 license 原文为准，未审计（D-d）。
+ * catalog 族白名单语义 = 默认停用（opt-in，D-c）；授权以包内 license 原文为准，未审计（D-d；
+ * LICENSE_OVERRIDES 一手核条目为上游真值）。
  *
  * 字重聚合：同包内、族名仅差一个词表字重后缀（空格/连字符分隔；词表 =
  * extralight/ultralight/semibold/demibold/extrabold/ultrabold/thin/light/regular
@@ -338,7 +358,7 @@ export interface CnFontCatalogEntry {
   package: string
   /** 构建时实解版本（钉扎可重现 + piece 缓存键稳定，D-g） */
   version: string
-  /** npm 包内 license 字段原文（未审计，展示用） */
+  /** license 标注（展示用）：npm 包内字段原文（未审计）；LICENSE_OVERRIDES 一手核条目为上游真值 */
   license: string
   variable: boolean
   /** result.css 实见字重（静态档集合；VF 为区间端点） */

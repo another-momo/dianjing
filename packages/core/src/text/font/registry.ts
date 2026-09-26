@@ -110,12 +110,13 @@ export const FONT_REGISTRY: FontRegistryEntry[] = [
     license: 'OFL-1.1',
     source: 'cdn',
     weights: ['Light', 'Regular', 'Medium'],
-    cdn: { package: '@chinese-fonts/lxgwwenkai' }
+    cdn: { package: '@chinese-fonts/lxgwwenkai' },
+    note: 'OFL-1.1 附保留字体名（RFN 霞鹜/霞鶩/落霞孤鹜/落霞孤鶩/LXGW）+ ADDITIONAL PERMISSION：子集/WOFF 仅作 web 投递、不作为可安装桌面字体发布时 RFN 限制不触发——本仓按需子集切片正命中此例'
   },
   {
     family: 'Xiaolai SC',
     tier: 'T0',
-    license: 'OFL-1.1（思源宋体衍生）',
+    license: 'OFL-1.1（濑户字体/SetoFont 衍生）',
     source: 'cdn',
     weights: ['Regular'],
     cdn: { package: '@chinese-fonts/xiaolai' }
@@ -123,10 +124,11 @@ export const FONT_REGISTRY: FontRegistryEntry[] = [
   {
     family: 'Yozai',
     tier: 'T0',
-    license: 'OFL-1.1（思源黑体衍生）',
+    license: 'OFL-1.1（Y.OzFont/YozFont 衍生）',
     source: 'cdn',
     weights: ['Light', 'Regular', 'Medium', 'Bold'],
-    cdn: { package: '@chinese-fonts/yozai' }
+    cdn: { package: '@chinese-fonts/yozai' },
+    note: 'OFL.txt 法定 RFN "Y.Oz"/"YOz"（上游 Y.OzVox 权利声明）；上游 README 另口头声明保留「悠哉/Yozai」'
   },
   {
     family: 'MaokenAssortedSans',
@@ -135,7 +137,7 @@ export const FONT_REGISTRY: FontRegistryEntry[] = [
     source: 'cdn',
     weights: ['Regular'],
     cdn: { package: '@chinese-fonts/mksjh' },
-    note: '仓库 LICENSE 为 OFL-1.1（2026-09-25 一手核查，原 T1 误标纠正）'
+    note: '仓库 LICENSE 为 OFL-1.1（2026-09-25 一手核查，原 T1 误标纠正）；RFN "Assorted"/"什锦"（衍生字体不可含此名）'
   },
   {
     family: '寒蝉全圆体',
@@ -144,7 +146,7 @@ export const FONT_REGISTRY: FontRegistryEntry[] = [
     source: 'cdn',
     weights: ['Regular', 'Bold'],
     cdn: { package: '@chinese-fonts/hcqyt' },
-    note: '仓库 LICENSE 为 OFL-1.1（2026-09-25 一手核查，原 T1 误标纠正）；上游 Kosugi Maru 为 Apache-2.0 混源'
+    note: '仓库 LICENSE 为 OFL-1.1（2026-09-25 一手核查，原 T1 误标纠正）；上游 Kosugi Maru 为 Apache-2.0 混源；RFN "ChillRoundF"/"ChillRoundM"'
   },
   {
     family: 'Zhuque Fangsong (technical preview)',
@@ -171,7 +173,7 @@ export const FONT_REGISTRY: FontRegistryEntry[] = [
     source: 'cdn',
     weights: ['Regular'],
     cdn: { package: '@chinese-fonts/cubic' },
-    note: '俐方体11号（点阵风格）'
+    note: '俐方体11号（点阵风格）；OFL.txt 无 RFN 条款（上游 README 口头保留声明不具 OFL 效力）'
   },
 
   // —— 2026-09-26 策展扩充（参考 chinese-font-selector 场景矩阵补位：标题黑/活泼标题/
@@ -188,7 +190,7 @@ export const FONT_REGISTRY: FontRegistryEntry[] = [
     source: 'cdn',
     weights: ['Regular'],
     cdn: { package: '@chinese-fonts/dyh', version: '3.0.0' },
-    note: '上游 atelier-anchor/smiley-sans 仓 OFL-1.1（2026-09-26 一手核查）；包装层 MIT 不替换上游授权'
+    note: '上游 atelier-anchor/smiley-sans 仓 OFL-1.1（2026-09-26 一手核查）；包装层 MIT 不替换上游授权；RFN "Smiley"/"得意黑"（衍生字体不可含此名）'
   },
   {
     family: 'LXGW Marker Gothic',
@@ -198,7 +200,7 @@ export const FONT_REGISTRY: FontRegistryEntry[] = [
     source: 'cdn',
     weights: ['Regular'],
     cdn: { package: '@chinese-fonts/lxgwmanhei', version: '3.0.0' },
-    note: '上游 lxgw/LxgwMarkerGothic README 声明 SIL OFL-1.1（2026-09-26 一手核查）'
+    note: '上游 lxgw/LxgwMarkerGothic 仓 OFL.txt 原文即 SIL OFL-1.1（2026-09-26 一手核查，证据等级由 README 声明升级为 LICENSE 文件本体）'
   },
   {
     family: 'Moon Stars Kai',

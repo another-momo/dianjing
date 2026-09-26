@@ -119,7 +119,8 @@ const ts = `/**
  * 构建日期：${today} | 目录规模：合并后 ${entries.length} 族收录 / ${aliasEntries.length} 条字重拆族别名
  *
  * T42 S1：中文网字计划全量目录（registry 精选之外的 @chinese-fonts/* 包）。
- * catalog 族白名单语义 = 默认停用（opt-in，D-c）；授权以包内 license 原文为准，未审计（D-d）。
+ * catalog 族白名单语义 = 默认停用（opt-in，D-c）；授权以包内 license 原文为准，未审计（D-d；
+ * LICENSE_OVERRIDES 一手核条目为上游真值）。
  *
  * 字重聚合：同包内、族名仅差一个词表字重后缀（空格/连字符分隔；词表 =
  * extralight/ultralight/semibold/demibold/extrabold/ultrabold/thin/light/regular
@@ -135,7 +136,7 @@ export interface CnFontCatalogEntry {
   package: string
   /** 构建时实解版本（钉扎可重现 + piece 缓存键稳定，D-g） */
   version: string
-  /** npm 包内 license 字段原文（未审计，展示用） */
+  /** license 标注（展示用）：npm 包内字段原文（未审计）；LICENSE_OVERRIDES 一手核条目为上游真值 */
   license: string
   variable: boolean
   /** result.css 实见字重（静态档集合；VF 为区间端点） */
