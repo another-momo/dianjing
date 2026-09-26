@@ -16,7 +16,7 @@
 
 import { decodeBase64 } from '@open-pencil/core/bytes'
 
-export interface FetchImageFromUrlOptions {
+export interface FetchImageFromURLOptions {
   /** 字节上限（必填；生产调用点显式传 LOAD_IMAGE_MAX_BYTES，模块内不复制常量） */
   maxBytes: number
   /** 整链（含重定向跳）总预算 ms——缺省 30000 */
@@ -92,8 +92,8 @@ function extractFileName(url: URL): string {
 
 const DATA_URL_RE = /^data:([^;,]+);base64,(.*)$/s
 
-function fetchDataUrl(rawUrl: string, maxBytes: number): FetchImageResult {
-  const m = DATA_URL_RE.exec(rawUrl)
+function fetchDataURL(rawURL: string, maxBytes: number): FetchImageResult {
+  const m = DATA_URL_RE.exec(rawURL)
   if (!m) {
     return {
       ok: false,
@@ -179,9 +179,55 @@ async function streamWithCap(
   return { ok: true, bytes: merged }
 }
 
-export async function fetchImageFromUrl(
-  rawUrl: string,
-  options: FetchImageFromUrlOptions
+/** 重定向环产出：终态响应 + 终态 URL（fileName 取此处） */
+interface ResolvedResponse {
+  response: Response
+  finalURL: URL
+}
+
+/** 重定向环（manual，最多 MAX_REDIRECTS 跳；每跳 fetch 前都查 SSRF 名单） */
+async function resolveFinalResponse(
+  start: URL,
+  fetchImpl: typeof fetch,
+  signal: AbortSignal
+): Promise<ResolvedResponse | { error: string }> {
+  let current = start
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    if (isDeniedHost(current.hostname)) {
+      return {
+        error: `Refusing to fetch ${current.hostname}: loopback, link-local or private network addresses are not allowed.`
+      }
+    }
+    let response: Response
+    try {
+      response = await fetchImpl(current, { signal, redirect: 'manual' })
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      return { error: `Failed to fetch ${current}: ${reason}` }
+    }
+    if (REDIRECT_STATUSES.has(response.status)) {
+      const location = response.headers.get('location')
+      if (!location) {
+        return { error: `Redirect from ${current} missing Location header.` }
+      }
+      try {
+        current = new URL(location, current)
+      } catch {
+        return { error: `Invalid redirect Location: ${location}` }
+      }
+      continue
+    }
+    if (response.status < 200 || response.status >= 300) {
+      return { error: `HTTP ${response.status} while fetching ${current}.` }
+    }
+    return { response, finalURL: current }
+  }
+  return { error: `Too many redirects (>${MAX_REDIRECTS} hops).` }
+}
+
+export async function fetchImageFromURL(
+  rawURL: string,
+  options: FetchImageFromURLOptions
 ): Promise<FetchImageResult> {
   const { maxBytes } = options
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
@@ -190,9 +236,9 @@ export async function fetchImageFromUrl(
   // 1. 解析 + scheme 闸
   let url: URL
   try {
-    url = new URL(rawUrl)
+    url = new URL(rawURL)
   } catch {
-    return { ok: false, error: `Invalid URL: ${rawUrl}` }
+    return { ok: false, error: `Invalid URL: ${rawURL}` }
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:' && url.protocol !== 'data:') {
     return { ok: false, error: `Unsupported URL scheme: ${url.protocol.replace(':', '')}.` }
@@ -200,75 +246,43 @@ export async function fetchImageFromUrl(
 
   // 2. data: 分支（不进网络，直接解码）
   if (url.protocol === 'data:') {
-    return fetchDataUrl(rawUrl, maxBytes)
+    return fetchDataURL(rawURL, maxBytes)
   }
 
-  // 3. 整链 AbortController + setTimeout（每跳共用）
+  // 3. 整链 AbortController + setTimeout（总预算封顶，含全部重定向跳）
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    // 4. 重定向环（最多 5 跳；每跳 fetch 前都查 SSRF）
-    let currentUrl = url
-    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    // 4. 重定向环取终态响应
+    const resolved = await resolveFinalResponse(url, fetchImpl, controller.signal)
+    if ('error' in resolved) {
+      // abort 触发的 fetch 失败统一落超时文案
       if (controller.signal.aborted) {
         return { ok: false, error: `Request timed out after ${timeoutMs}ms.` }
       }
-      if (isDeniedHost(currentUrl.hostname)) {
-        return {
-          ok: false,
-          error: `Refusing to fetch ${currentUrl.hostname}: loopback, link-local or private network addresses are not allowed.`
-        }
-      }
-      let response: Response
+      return { ok: false, error: resolved.error }
+    }
+    const { response, finalURL } = resolved
+
+    // 5. 字节上限：Content-Length 预检 + 流式累计双闸
+    const declared = parseContentLength(response.headers)
+    if (declared !== null && declared > maxBytes) {
       try {
-        response = await fetchImpl(currentUrl, {
-          signal: controller.signal,
-          redirect: 'manual'
-        })
-      } catch (error) {
-        if (controller.signal.aborted) {
-          return { ok: false, error: `Request timed out after ${timeoutMs}ms.` }
-        }
-        const reason = error instanceof Error ? error.message : String(error)
-        return { ok: false, error: `Failed to fetch ${currentUrl}: ${reason}` }
-      }
-      if (REDIRECT_STATUSES.has(response.status)) {
-        const location = response.headers.get('location')
-        if (!location) {
-          return { ok: false, error: `Redirect from ${currentUrl} missing Location header.` }
-        }
-        let next: URL
-        try {
-          next = new URL(location, currentUrl)
-        } catch {
-          return { ok: false, error: `Invalid redirect Location: ${location}` }
-        }
-        currentUrl = next
-        continue
-      }
-      if (response.status < 200 || response.status >= 300) {
-        return { ok: false, error: `HTTP ${response.status} while fetching ${currentUrl}.` }
-      }
-      const declared = parseContentLength(response.headers)
-      if (declared !== null && declared > maxBytes) {
-        try {
-          await response.body?.cancel()
-        } catch {
-          // 取消失败非致命——字节本就在响应头已拒
-          return { ok: false, error: sizeError(declared, maxBytes) }
-        }
+        await response.body?.cancel()
+      } catch {
+        // 取消失败非致命——字节本就在响应头已拒
         return { ok: false, error: sizeError(declared, maxBytes) }
       }
-      const streamed = await streamWithCap(response, maxBytes, controller.signal)
-      if (!streamed.ok) return streamed
-      return {
-        ok: true,
-        bytes: streamed.bytes,
-        fileName: extractFileName(currentUrl),
-        contentType: response.headers.get('content-type')
-      }
+      return { ok: false, error: sizeError(declared, maxBytes) }
     }
-    return { ok: false, error: `Too many redirects (>${MAX_REDIRECTS} hops).` }
+    const streamed = await streamWithCap(response, maxBytes, controller.signal)
+    if (!streamed.ok) return streamed
+    return {
+      ok: true,
+      bytes: streamed.bytes,
+      fileName: extractFileName(finalURL),
+      contentType: response.headers.get('content-type')
+    }
   } finally {
     clearTimeout(timer)
   }

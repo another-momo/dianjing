@@ -37,7 +37,7 @@ import { Type } from 'typebox'
 
 import { encodeBase64 } from '@open-pencil/core/bytes'
 
-import { fetchImageFromUrl } from './fetch-image-url'
+import { fetchImageFromURL } from './fetch-image-url'
 import {
   createBridgeCaller,
   type BridgeCaller,
@@ -265,6 +265,34 @@ async function placeViaBridge(
   }
 }
 
+/** URL 分支：fetch 取字节 → 声称格式收敛 → 嗅探 → 桥（与本地分支同管线） */
+async function loadFromURL(
+  deps: LoadImageToolDeps,
+  url: string,
+  placement: LoadImagePlacement
+): Promise<AgentToolResult<Record<string, unknown>>> {
+  const fetched = await fetchImageFromURL(url, { maxBytes: LOAD_IMAGE_MAX_BYTES })
+  if (!fetched.ok) return toToolResult({ error: fetched.error })
+  // claimExt 优先 content-type（MIME_TO_EXT 反查），退 fileName 扩展名
+  // （EXT_TO_FORMAT 认可才算），两者皆无 → null（magic-first 入口）
+  const ctMain = fetched.contentType?.split(';', 1)[0]?.trim().toLowerCase() ?? ''
+  let claimExt: string | null = null
+  if (ctMain && ctMain in MIME_TO_EXT) {
+    claimExt = MIME_TO_EXT[ctMain] ?? null
+  } else {
+    const fileExt = extractExtFromName(fetched.fileName)
+    if (fileExt && fileExt in EXT_TO_FORMAT) {
+      claimExt = fileExt
+    }
+  }
+  const sniffed = sniffImageFormat(fetched.bytes, fetched.fileName, { claimExt })
+  if (!sniffed.ok) return toToolResult({ error: sniffed.error })
+  return placeViaBridge(
+    deps,
+    buildBridgeArgs(fetched.fileName, fetched.bytes, sniffed.mime, placement)
+  )
+}
+
 export function createLoadImageTool(deps: LoadImageToolDeps) {
   return defineTool({
     name: 'load_image',
@@ -303,28 +331,7 @@ export function createLoadImageTool(deps: LoadImageToolDeps) {
       }
 
       // URL 分支
-      if (url !== undefined) {
-        const fetched = await fetchImageFromUrl(url, { maxBytes: LOAD_IMAGE_MAX_BYTES })
-        if (!fetched.ok) return toToolResult({ error: fetched.error })
-        // claimExt 优先 content-type（MIME_TO_EXT 反查），退 fileName 扩展名
-        // （EXT_TO_FORMAT 认可才算），两者皆无 → null（magic-first 入口）
-        const ctMain = fetched.contentType?.split(';', 1)[0]?.trim().toLowerCase() ?? ''
-        let claimExt: string | null = null
-        if (ctMain && ctMain in MIME_TO_EXT) {
-          claimExt = MIME_TO_EXT[ctMain] ?? null
-        } else {
-          const fileExt = extractExtFromName(fetched.fileName)
-          if (fileExt && fileExt in EXT_TO_FORMAT) {
-            claimExt = fileExt
-          }
-        }
-        const sniffed = sniffImageFormat(fetched.bytes, fetched.fileName, { claimExt })
-        if (!sniffed.ok) return toToolResult({ error: sniffed.error })
-        return placeViaBridge(
-          deps,
-          buildBridgeArgs(fetched.fileName, fetched.bytes, sniffed.mime, params)
-        )
-      }
+      if (url !== undefined) return loadFromURL(deps, url, params)
 
       // 本地路径分支（双缺在此拒：url 缺席且 filePath 缺席 = 违反恰给其一）
       if (filePath === undefined) {

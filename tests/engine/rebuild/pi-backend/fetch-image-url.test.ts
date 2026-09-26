@@ -23,7 +23,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { fetchImageFromUrl } from '@/app/ai/pi-backend/fetch-image-url'
+import { fetchImageFromURL } from '@/app/ai/pi-backend/fetch-image-url'
 
 // ── 测试桩形态 ──
 
@@ -32,7 +32,7 @@ type FetchStub = typeof fetch
 
 /** 测试桩取 URL 字符串：fetchImpl 接 string/URL/Request 三种入参，
  *  我们关注字符串形式 URL——URL/Request 都抽 href/url 字段。 */
-function inputUrl(input: unknown): string {
+function inputURL(input: unknown): string {
   if (typeof input === 'string') return input
   if (input instanceof URL) return input.href
   if (input && typeof input === 'object' && 'url' in input) {
@@ -72,7 +72,7 @@ describe('happy path', () => {
   test('https URL → bytes / fileName / contentType 正确', async () => {
     const stub: FetchStub = async () =>
       simpleResponse(200, { 'content-type': 'image/png' }, Buffer.from(PNG_BYTES))
-    const result = await fetchImageFromUrl('https://cdn.example.test/photo.png', {
+    const result = await fetchImageFromURL('https://cdn.example.test/photo.png', {
       maxBytes: 1024,
       fetchImpl: stub
     })
@@ -85,7 +85,7 @@ describe('happy path', () => {
   })
 
   test('data:image/png;base64,... → 解码正确、contentType 正确', async () => {
-    const result = await fetchImageFromUrl(`data:image/png;base64,${PNG_B64}`, {
+    const result = await fetchImageFromURL(`data:image/png;base64,${PNG_B64}`, {
       maxBytes: 1024
     })
     expect(result.ok).toBe(true)
@@ -99,7 +99,7 @@ describe('happy path', () => {
   test('URL 含百分号编码路径段 → fileName decode 正确', async () => {
     const stub: FetchStub = async () =>
       simpleResponse(200, { 'content-type': 'image/png' }, Buffer.from(PNG_BYTES))
-    const result = await fetchImageFromUrl('https://cdn.example.test/hei%C3%A9.png', {
+    const result = await fetchImageFromURL('https://cdn.example.test/hei%C3%A9.png', {
       maxBytes: 1024,
       fetchImpl: stub
     })
@@ -112,7 +112,7 @@ describe('happy path', () => {
 
 describe('data: URL 错误面', () => {
   test('非 base64 data: URL → error', async () => {
-    const result = await fetchImageFromUrl('data:image/png;charset=utf-8,%3Csvg%3E', {
+    const result = await fetchImageFromURL('data:image/png;charset=utf-8,%3Csvg%3E', {
       maxBytes: 1024
     })
     expect(result.ok).toBe(false)
@@ -123,7 +123,7 @@ describe('data: URL 错误面', () => {
     // 100 字节 PNG 假装（base64 串长 ≈ 136 字符；设 maxBytes = 50 即拒）
     const fake = new Uint8Array(100)
     const b64 = Buffer.from(fake).toString('base64')
-    const result = await fetchImageFromUrl(`data:image/png;base64,${b64}`, {
+    const result = await fetchImageFromURL(`data:image/png;base64,${b64}`, {
       maxBytes: 50
     })
     expect(result.ok).toBe(false)
@@ -145,7 +145,7 @@ describe('scheme 闸', () => {
         calls++
         return simpleResponse(200, {})
       }
-      const result = await fetchImageFromUrl(url, { maxBytes: 1024, fetchImpl: stub })
+      const result = await fetchImageFromURL(url, { maxBytes: 1024, fetchImpl: stub })
       expect(result.ok).toBe(false)
       if (!result.ok) expect(result.error).toContain('Unsupported URL scheme')
       expect(calls).toBe(0)
@@ -158,7 +158,7 @@ describe('scheme 闸', () => {
       calls++
       return simpleResponse(200, {})
     }
-    const result = await fetchImageFromUrl('not a url at all', {
+    const result = await fetchImageFromURL('not a url at all', {
       maxBytes: 1024,
       fetchImpl: stub
     })
@@ -190,7 +190,7 @@ describe('SSRF 主机名单', () => {
       calls++
       return simpleResponse(200, {})
     }
-    const result = await fetchImageFromUrl(url, { maxBytes: 1024, fetchImpl: stub })
+    const result = await fetchImageFromURL(url, { maxBytes: 1024, fetchImpl: stub })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toContain('loopback, link-local or private network')
     expect(calls).toBe(0)
@@ -199,7 +199,7 @@ describe('SSRF 主机名单', () => {
   test('公网主机放行（sanity：避免名单误伤）', async () => {
     const stub: FetchStub = async () =>
       simpleResponse(200, { 'content-type': 'image/png' }, Buffer.from(PNG_BYTES))
-    const result = await fetchImageFromUrl('https://cdn.example.test/x.png', {
+    const result = await fetchImageFromURL('https://cdn.example.test/x.png', {
       maxBytes: 1024,
       fetchImpl: stub
     })
@@ -213,7 +213,7 @@ describe('重定向', () => {
   test('302 → 最终 200 跟随成功，fileName 取最终 URL', async () => {
     const calls: string[] = []
     const stub: FetchStub = async (input) => {
-      const url = inputUrl(input)
+      const url = inputURL(input)
       calls.push(url)
       if (url === 'https://cdn.example.test/start') {
         return new Response(null, {
@@ -223,7 +223,7 @@ describe('重定向', () => {
       }
       return simpleResponse(200, { 'content-type': 'image/png' }, Buffer.from(PNG_BYTES))
     }
-    const result = await fetchImageFromUrl('https://cdn.example.test/start', {
+    const result = await fetchImageFromURL('https://cdn.example.test/start', {
       maxBytes: 1024,
       fetchImpl: stub
     })
@@ -241,14 +241,14 @@ describe('重定向', () => {
   test('重定向到被禁主机 → error 且不发起内网 fetch', async () => {
     let calls: string[] = []
     const stub: FetchStub = async (input) => {
-      const url = inputUrl(input)
+      const url = inputURL(input)
       calls.push(url)
       if (url === 'https://cdn.example.test/start') {
         return new Response(null, { status: 302, headers: { location: 'http://127.0.0.1:7600/x' } })
       }
       return simpleResponse(200, {})
     }
-    const result = await fetchImageFromUrl('https://cdn.example.test/start', {
+    const result = await fetchImageFromURL('https://cdn.example.test/start', {
       maxBytes: 1024,
       fetchImpl: stub
     })
@@ -260,7 +260,7 @@ describe('重定向', () => {
 
   test('重定向 Location 缺失 → error', async () => {
     const stub: FetchStub = async () => new Response(null, { status: 302, headers: {} })
-    const result = await fetchImageFromUrl('https://cdn.example.test/start', {
+    const result = await fetchImageFromURL('https://cdn.example.test/start', {
       maxBytes: 1024,
       fetchImpl: stub
     })
@@ -277,7 +277,7 @@ describe('重定向', () => {
         headers: { location: 'https://cdn.example.test/loop' }
       })
     }
-    const result = await fetchImageFromUrl('https://cdn.example.test/loop', {
+    const result = await fetchImageFromURL('https://cdn.example.test/loop', {
       maxBytes: 1024,
       fetchImpl: stub
     })
@@ -304,7 +304,7 @@ describe('字节上限', () => {
         status: 200,
         headers: { 'content-type': 'image/png', 'content-length': '5000' }
       })
-    const result = await fetchImageFromUrl('https://cdn.example.test/x.png', {
+    const result = await fetchImageFromURL('https://cdn.example.test/x.png', {
       maxBytes: 1000,
       fetchImpl: stub
     })
@@ -321,7 +321,7 @@ describe('字节上限', () => {
         new Uint8Array(100),
         new Uint8Array(100)
       ])
-    const result = await fetchImageFromUrl('https://cdn.example.test/x.png', {
+    const result = await fetchImageFromURL('https://cdn.example.test/x.png', {
       maxBytes: 150,
       fetchImpl: stub
     })
@@ -339,7 +339,7 @@ describe('字节上限', () => {
         new Uint8Array(150),
         new Uint8Array(150)
       ])
-    const result = await fetchImageFromUrl('https://cdn.example.test/x.png', {
+    const result = await fetchImageFromURL('https://cdn.example.test/x.png', {
       maxBytes: 200,
       fetchImpl: stub
     })
@@ -353,7 +353,7 @@ describe('字节上限', () => {
 describe('HTTP 错误面', () => {
   test('404 → error 含状态码', async () => {
     const stub: FetchStub = async () => simpleResponse(404, {})
-    const result = await fetchImageFromUrl('https://cdn.example.test/missing.png', {
+    const result = await fetchImageFromURL('https://cdn.example.test/missing.png', {
       maxBytes: 1024,
       fetchImpl: stub
     })
@@ -366,7 +366,7 @@ describe('HTTP 错误面', () => {
 
   test('500 → error 含状态码', async () => {
     const stub: FetchStub = async () => simpleResponse(500, {})
-    const result = await fetchImageFromUrl('https://cdn.example.test/x.png', {
+    const result = await fetchImageFromURL('https://cdn.example.test/x.png', {
       maxBytes: 1024,
       fetchImpl: stub
     })
@@ -378,7 +378,7 @@ describe('HTTP 错误面', () => {
     const stub: FetchStub = async () => {
       throw new Error('ECONNREFUSED')
     }
-    const result = await fetchImageFromUrl('https://cdn.example.test/x.png', {
+    const result = await fetchImageFromURL('https://cdn.example.test/x.png', {
       maxBytes: 1024,
       fetchImpl: stub
     })
@@ -405,7 +405,7 @@ describe('超时', () => {
         }
       })
     }) as FetchStub
-    const result = await fetchImageFromUrl('https://cdn.example.test/x.png', {
+    const result = await fetchImageFromURL('https://cdn.example.test/x.png', {
       maxBytes: 1024,
       fetchImpl: stub,
       timeoutMs: 20
