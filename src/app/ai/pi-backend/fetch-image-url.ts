@@ -10,7 +10,9 @@
  *  - data: URL 仅 base64 形态——URL-encoded 形态解码后仍要走同一套
  *    嗅探闸，无增益，简化拒。
  *  - 整链总超时 AbortController 而非每跳独立——总预算封顶，恶意慢吐
- *    无法靠重定向续命。
+ *    无法靠重定向续命（含流读阶段，超时统一落 timeout 文案）。
+ *  - 重定向目标仅放行 http/https（data: 等不得借 3xx 进入取字节通路）；
+ *    https→http 降级放行——防误用闸不做协议升降裁决。
  *  - Content-Length 预检 + 流式累计双闸——前者挡诚实大头、后者挡说谎头。
  */
 
@@ -44,11 +46,10 @@ function stripIPv6Brackets(host: string): string {
 function isDeniedIPv4Literal(host: string): boolean {
   if (!/^\d+\.\d+\.\d+\.\d+$/.test(host)) return false
   const parts = host.split('.').map(Number)
-  if (parts.length !== 4) return false
   if (parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return false
   const [a, b] = parts
   if (a === 0 || a === 127 || a === 10) return true
-  if (a === 172 && b !== undefined && b >= 16 && b <= 31) return true
+  if (a === 172 && b >= 16 && b <= 31) return true
   if (a === 192 && b === 168) return true
   if (a === 169 && b === 254) return true
   return false
@@ -60,8 +61,8 @@ function isDeniedIPv6Literal(host: string): boolean {
   if (host === '::1' || host === '::') return true
   if (/^f[cd][0-9a-f]{2}:/i.test(host)) return true
   if (/^fe[89ab][0-9a-f]?:/i.test(host)) return true
-  const mapped = host.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i)
-  if (mapped && mapped[1]) return isDeniedIPv4Literal(mapped[1])
+  const mappedV4 = host.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i)?.[1]
+  if (mappedV4) return isDeniedIPv4Literal(mappedV4)
   return false
 }
 
@@ -82,10 +83,17 @@ function extractFileName(url: URL): string {
   const last = segs[segs.length - 1]
   if (!last) return 'image'
   try {
-    return decodeURIComponent(last)
+    // 解码后再取一次 basename——%2F/%5C 解码回路径分隔符，不入节点名
+    const base = decodeURIComponent(last).split(/[\\/]/).pop()
+    return base || 'image'
   } catch {
     return last
   }
+}
+
+/** 错误文案用 URL 形态——只留 origin+pathname，userinfo/query 不进文案 */
+function displayURL(url: URL): string {
+  return `${url.origin}${url.pathname}`
 }
 
 // ── data: URL 分支 ──
@@ -104,6 +112,11 @@ function fetchDataURL(rawURL: string, maxBytes: number): FetchImageResult {
   const payload = m[2] ?? ''
   if (!mime || !payload) {
     return { ok: false, error: 'Invalid data: URL — missing MIME or payload.' }
+  }
+  // base64 按 4/3 膨胀率解码前早拒（对齐流路径「读前预检」哲学）
+  const approxBytes = Math.ceil((payload.length * 3) / 4)
+  if (approxBytes > maxBytes) {
+    return { ok: false, error: sizeError(approxBytes, maxBytes) }
   }
   let bytes: Uint8Array
   try {
@@ -153,7 +166,6 @@ async function streamWithCap(
       const { value, done } = await reader.read()
       if (done) break
       if (signal.aborted) return { ok: false, error: 'Fetch aborted.' }
-      if (!value) continue
       total += value.byteLength
       if (total > maxBytes) {
         try {
@@ -193,6 +205,10 @@ async function resolveFinalResponse(
 ): Promise<ResolvedResponse | { error: string }> {
   let current = start
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    // 每跳复查（重定向目标也在内）：scheme 只放行 http/https + SSRF 主机名单
+    if (current.protocol !== 'http:' && current.protocol !== 'https:') {
+      return { error: `Redirect to unsupported URL scheme: ${current.protocol.replace(':', '')}.` }
+    }
     if (isDeniedHost(current.hostname)) {
       return {
         error: `Refusing to fetch ${current.hostname}: loopback, link-local or private network addresses are not allowed.`
@@ -203,22 +219,25 @@ async function resolveFinalResponse(
       response = await fetchImpl(current, { signal, redirect: 'manual' })
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
-      return { error: `Failed to fetch ${current}: ${reason}` }
+      return { error: `Failed to fetch ${displayURL(current)}: ${reason}` }
     }
     if (REDIRECT_STATUSES.has(response.status)) {
       const location = response.headers.get('location')
       if (!location) {
-        return { error: `Redirect from ${current} missing Location header.` }
+        return { error: `Redirect from ${displayURL(current)} missing Location header.` }
       }
       try {
         current = new URL(location, current)
       } catch {
         return { error: `Invalid redirect Location: ${location}` }
       }
+      // 中间响应体丢弃前显式取消（连接不留 GC 兜底）
+      await response.body?.cancel().catch(() => undefined)
       continue
     }
     if (response.status < 200 || response.status >= 300) {
-      return { error: `HTTP ${response.status} while fetching ${current}.` }
+      await response.body?.cancel().catch(() => undefined)
+      return { error: `HTTP ${response.status} while fetching ${displayURL(current)}.` }
     }
     return { response, finalURL: current }
   }
@@ -276,12 +295,18 @@ export async function fetchImageFromURL(
       return { ok: false, error: sizeError(declared, maxBytes) }
     }
     const streamed = await streamWithCap(response, maxBytes, controller.signal)
-    if (!streamed.ok) return streamed
+    if (!streamed.ok) {
+      // 流阶段 abort 同样落超时文案——总预算含流读，诊断不断点
+      if (controller.signal.aborted) {
+        return { ok: false, error: `Request timed out after ${timeoutMs}ms.` }
+      }
+      return streamed
+    }
     return {
       ok: true,
       bytes: streamed.bytes,
       fileName: extractFileName(finalURL),
-      contentType: response.headers.get('content-type')
+      contentType: response.headers.get('content-type')?.toLowerCase() ?? null
     }
   } finally {
     clearTimeout(timer)

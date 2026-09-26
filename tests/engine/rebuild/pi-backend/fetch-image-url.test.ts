@@ -268,6 +268,17 @@ describe('重定向', () => {
     if (!result.ok) expect(result.error).toContain('missing Location')
   })
 
+  test('重定向到 data: URL → scheme 复查拒绝', async () => {
+    const stub: FetchStub = async () =>
+      new Response(null, { status: 302, headers: { location: 'data:image/png;base64,aGk=' } })
+    const result = await fetchImageFromURL('https://cdn.example.test/start', {
+      maxBytes: 1024,
+      fetchImpl: stub
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toContain('Redirect to unsupported URL scheme')
+  })
+
   test('重定向超 5 跳 → error', async () => {
     let calls = 0
     const stub: FetchStub = async () => {
@@ -406,6 +417,29 @@ describe('超时', () => {
       })
     }) as FetchStub
     const result = await fetchImageFromURL('https://cdn.example.test/x.png', {
+      maxBytes: 1024,
+      fetchImpl: stub,
+      timeoutMs: 20
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).toContain('timed out')
+      expect(result.error).toContain('20ms')
+    }
+  })
+
+  test('流阶段超时 → 同落 Request timed out 文案（总预算含流读）', async () => {
+    // body 首块后挂起，abort 时 error 流——reader.read() reject → 超时映射
+    const stub = (async (_input: unknown, init?: RequestInit): Promise<Response> => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(10))
+          init?.signal?.addEventListener('abort', () => controller.error(new Error('aborted')))
+        }
+      })
+      return new Response(body, { status: 200, headers: { 'content-type': 'image/png' } })
+    }) as FetchStub
+    const result = await fetchImageFromURL('https://cdn.example.test/slow.png', {
       maxBytes: 1024,
       fetchImpl: stub,
       timeoutMs: 20

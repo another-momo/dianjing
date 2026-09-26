@@ -173,8 +173,10 @@ function sniffByExt(bytes: Uint8Array, ext: string): SniffedImage {
       ? { ok: true, format: 'svg', mime: FORMAT_TO_MIME.svg }
       : { ok: false, error: 'File is corrupted or not a valid image.' }
   }
+  if (!(ext in EXT_TO_FORMAT)) {
+    return { ok: false, error: unsupportedFormatError(ext) }
+  }
   const claimed = EXT_TO_FORMAT[ext]
-  if (!claimed) return { ok: false, error: unsupportedFormatError(ext) }
   if (!matchesMagic(claimed, bytes)) {
     return { ok: false, error: 'File is corrupted or not a valid image.' }
   }
@@ -273,18 +275,10 @@ async function loadFromURL(
 ): Promise<AgentToolResult<Record<string, unknown>>> {
   const fetched = await fetchImageFromURL(url, { maxBytes: LOAD_IMAGE_MAX_BYTES })
   if (!fetched.ok) return toToolResult({ error: fetched.error })
-  // claimExt 优先 content-type（MIME_TO_EXT 反查），退 fileName 扩展名
-  // （EXT_TO_FORMAT 认可才算），两者皆无 → null（magic-first 入口）
+  // claimExt 只认 content-type 反查（MIME_TO_EXT 单源）；fileName 扩展名与
+  // magic-first 兜底由 sniffImageFormat 的 URL 模式内部接管（链序见其 JSDoc）
   const ctMain = fetched.contentType?.split(';', 1)[0]?.trim().toLowerCase() ?? ''
-  let claimExt: string | null = null
-  if (ctMain && ctMain in MIME_TO_EXT) {
-    claimExt = MIME_TO_EXT[ctMain] ?? null
-  } else {
-    const fileExt = extractExtFromName(fetched.fileName)
-    if (fileExt && fileExt in EXT_TO_FORMAT) {
-      claimExt = fileExt
-    }
-  }
+  const claimExt = ctMain in MIME_TO_EXT ? (MIME_TO_EXT[ctMain] ?? null) : null
   const sniffed = sniffImageFormat(fetched.bytes, fetched.fileName, { claimExt })
   if (!sniffed.ok) return toToolResult({ error: sniffed.error })
   return placeViaBridge(

@@ -26,7 +26,6 @@ import { join } from 'node:path'
 import {
   createLoadImageTool,
   LOAD_IMAGE_MAX_BYTES,
-  MIME_TO_EXT,
   sniffImageFormat
 } from '@/app/ai/pi-backend/load-image'
 
@@ -409,6 +408,43 @@ describe('URL 分支', () => {
     const d = await details(makeTool(stub), { url: 'https://cdn.example.test/icon.png' })
     expect(d.error).toBeUndefined()
     expect(stub.calls[0]?.args.mime).toBe('image/png')
+  })
+
+  test('Content-Type 带参数（; charset=…）→ 参数剥离后反查命中', async () => {
+    globalThis.fetch = (async () =>
+      new Response(Buffer.from(PNG_BYTES), {
+        status: 200,
+        headers: { 'content-type': 'image/png; charset=utf-8' }
+      })) as typeof fetch
+    const stub = bridgeStub()
+    const d = await details(makeTool(stub), { url: 'https://cdn.example.test/photo' })
+    expect(d.error).toBeUndefined()
+    expect(stub.calls[0]?.args.mime).toBe('image/png')
+  })
+
+  test('无扩展名 + 无声称 Content-Type → magic-first 扫描兜底', async () => {
+    globalThis.fetch = (async () =>
+      new Response(Buffer.from(PNG_BYTES), {
+        status: 200,
+        headers: { 'content-type': 'application/octet-stream' }
+      })) as typeof fetch
+    const stub = bridgeStub()
+    const d = await details(makeTool(stub), { url: 'https://cdn.example.test/download/12345' })
+    expect(d.error).toBeUndefined()
+    expect(stub.calls[0]?.args.name).toBe('12345')
+    expect(stub.calls[0]?.args.mime).toBe('image/png')
+  })
+
+  test('声称与字节冲突（CT 声称 png、body 是 JPEG）→ corrupted', async () => {
+    globalThis.fetch = (async () =>
+      new Response(Buffer.from(JPEG_BYTES), {
+        status: 200,
+        headers: { 'content-type': 'image/png' }
+      })) as typeof fetch
+    const stub = bridgeStub()
+    const d = await details(makeTool(stub), { url: 'https://cdn.example.test/mislabeled.png' })
+    expect(String(d.error)).toContain('corrupted')
+    expect(stub.calls).toHaveLength(0)
   })
 
   test('SSRF URL（localhost）→ error 且 fetch 未被调用', async () => {
