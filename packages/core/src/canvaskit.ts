@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import CanvasKitInit, { type CanvasKit } from 'canvaskit-wasm'
+import CanvasKitInit from 'canvaskit-wasm'
 
 import { hasWindowGlobal } from './constants'
 import { memoizeAsync } from './memoize-async'
