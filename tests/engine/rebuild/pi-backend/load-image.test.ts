@@ -332,6 +332,13 @@ describe('桥缝', () => {
 // 级 afterEach 只在首个 import 者生效——2026-09-17 app shard 40 红实证，
 // 本文件自管最稳）。
 
+/** fetch 入参抽字符串 URL（string/URL/Request 三形态，生产传 URL 对象） */
+function fetchInputURL(input: unknown): string {
+  if (typeof input === 'string') return input
+  if (input instanceof URL) return input.href
+  return String((input as Request).url ?? input)
+}
+
 const realFetch = globalThis.fetch
 
 afterEach(() => {
@@ -351,14 +358,7 @@ describe('URL 分支', () => {
     let fetchCalls = 0
     globalThis.fetch = (async (input: unknown) => {
       fetchCalls++
-      // fetch 接 string/URL/Request 三种入参——抽字符串 URL
-      const url =
-        typeof input === 'string'
-          ? input
-          : input instanceof URL
-            ? input.href
-            : String((input as Request).url ?? input)
-      expect(url).toBe('https://cdn.example.test/photo.png')
+      expect(fetchInputURL(input)).toBe('https://cdn.example.test/photo.png')
       return pngResponse()
     }) as typeof fetch
 

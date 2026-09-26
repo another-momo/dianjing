@@ -239,7 +239,7 @@ describe('重定向', () => {
   })
 
   test('重定向到被禁主机 → error 且不发起内网 fetch', async () => {
-    let calls: string[] = []
+    const calls: string[] = []
     const stub: FetchStub = async (input) => {
       const url = inputURL(input)
       calls.push(url)
