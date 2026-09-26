@@ -228,8 +228,8 @@ const zhCN = {
     fontsEmpty: '没有匹配的字体。',
     fontsEnabledSummary: '已启用 {enabled}/{total} 个家族',
     fontsSourceBundled: '内置',
-    fontsSourceCdn: 'CDN 精选',
-    fontsSourceCatalog: 'CDN 目录',
+    fontsSourceCdn: '中文网字计划 CDN 精选字体',
+    fontsSourceCatalog: '中文网字计划 CDN 更多字体',
     fontsSourceLocal: '系统',
     fontsSourceOnline: '在线',
     fontsLockedHint: '内置字体始终启用——它们是渲染兜底。',
@@ -256,7 +256,6 @@ const zhCN = {
     fontsProvidersTitle: '在线提供商',
     fontsProvidersHint: '每个提供商独立开关。启用后其家族才会进入列表并按需加载。',
     fontsProvidersOptInHint: '开启后将枚举数千个在线字体族。',
-    fontsProviderGoogleUnavailable: 'Google Fonts 仅桌面应用可用。请下载桌面应用来使用。',
     // 统一批 A：回退包预下载（自 popover 迁入）
     fontsFallbackTitle: '后备字体包',
     fontsFallbackHint: '预下载 CJK 与阿拉伯语后备字体，使用它们的文件离线时也能渲染。',

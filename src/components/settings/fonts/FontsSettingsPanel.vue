@@ -5,6 +5,7 @@ import {
   WEB_FONT_PROVIDER_IDS,
   WEB_FONT_PROVIDER_LABELS,
   cnCatalogEntry,
+  fontFamilyDisplayName,
   fontManager,
   fontRegistryEntry
 } from '@open-pencil/core/text'
@@ -25,7 +26,7 @@ import {
   requestLocalFontAccess
 } from '@/app/editor/fonts'
 import { useForkFonts } from '@/app/i18n/fork'
-import { isElectron } from '@/app/shell/electron'
+import { matchFontFamilyOrDisplayName } from '@/components/font-picker/font-option-filter'
 import AppButton from '@/components/ui/button/AppButton.vue'
 import Tip from '@/components/ui/overlay/Tip.vue'
 import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
@@ -43,9 +44,11 @@ import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
  *
  * 统一批（owner /goal）：
  * - A. 面板统一管理面——popover 三家独有能力（提供商单独开关、回退包预下载、
- *   缓存管理）迁入；提供商开关按 Electron 能力禁 google 勾选（修显示口径）；
+ *   缓存管理）迁入；
  * - B. 本地源应用级开关（默认开）——开关管「要不要」、权限管「能不能」；
- * - C. google provider 门禁改走 Electron 形态判定（不可达网络靠 6s 兜底）。
+ * - C. google provider 全形态放行（2026-09-26 起：上游桌面限定失去意义——
+ *   Google Fonts 静态资源自带 CORS，浏览器形态可用；默认仍关，不可达网络靠
+ *   既有 6s 枚举超时兜底，不卡 picker）。
  */
 const msgs = useForkFonts()
 
@@ -76,24 +79,11 @@ const renderLimits = reactive<Record<SourceGroup, number>>({
   local: RENDER_PAGE
 })
 
-/** 统一批 C：Google Fonts 仅 Electron 形态可用；面板据此禁用 google 勾选 */
-const googleAvailable = isElectron()
-
-/** 统一批 A：提供商单独开关（按 Electron 能力屏蔽 google） */
-function isProviderRuntimeAvailable(provider: WebFontProviderId): boolean {
-  return provider !== 'google' || googleAvailable
-}
-
-const providerEnabled = computed<Record<WebFontProviderId, boolean>>(() => {
-  const next = { ...fontProviderSettings.value }
-  for (const provider of WEB_FONT_PROVIDER_IDS) {
-    if (!isProviderRuntimeAvailable(provider)) next[provider] = false
-  }
-  return next
-})
+const providerEnabled = computed<Record<WebFontProviderId, boolean>>(() => ({
+  ...fontProviderSettings.value
+}))
 
 function setProviderEnabled(provider: WebFontProviderId, enabled: boolean) {
-  if (!isProviderRuntimeAvailable(provider)) return
   fontProviderSettings.value = { ...fontProviderSettings.value, [provider]: enabled }
 }
 
@@ -187,7 +177,7 @@ function licenseHint(option: FontFamilyOption): string | undefined {
 }
 
 function displayNameOf(family: string): string | undefined {
-  return cnCatalogEntry(family)?.displayName
+  return fontFamilyDisplayName(family)
 }
 
 /** 开关经 core 写入（catalog/普通分流在 allowlist 内），再回写持久化 ref */
@@ -217,9 +207,10 @@ const stateFiltered = computed(() => {
 })
 
 const searched = computed(() => {
-  const term = search.value.trim().toLowerCase()
+  const term = search.value.trim()
   if (!term) return stateFiltered.value
-  return stateFiltered.value.filter((option) => option.family.toLowerCase().includes(term))
+  // 与字体选择器同谓词：family 与中文显示名都可检索
+  return stateFiltered.value.filter((option) => matchFontFamilyOrDisplayName(option, term))
 })
 
 const searching = computed(() => search.value.trim().length > 0)
@@ -407,18 +398,11 @@ watch([cnFontsEnabled, onlineFontsEnabled, localFontsEnabled], async () => {
           type="checkbox"
           class="size-3 accent-accent disabled:opacity-50"
           :checked="providerEnabled[provider]"
-          :disabled="!onlineFontsEnabled || !isProviderRuntimeAvailable(provider)"
+          :disabled="!onlineFontsEnabled"
           :data-test-id="`fonts-provider-${provider}`"
           @change="setProviderEnabled(provider, ($event.target as HTMLInputElement).checked)"
         />
       </label>
-      <p
-        v-if="!googleAvailable"
-        class="text-[9px] leading-relaxed text-muted"
-        data-test-id="fonts-google-unavailable-hint"
-      >
-        {{ msgs.fontsProviderGoogleUnavailable }}
-      </p>
     </div>
 
     <!-- 统一批 A：回退包预下载（自 popover 迁入） -->

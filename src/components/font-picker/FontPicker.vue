@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { WEB_FONT_PROVIDER_IDS, cnCatalogEntry } from '@open-pencil/core/text'
+import { WEB_FONT_PROVIDER_IDS, fontFamilyDisplayName } from '@open-pencil/core/text'
 import { FontPickerRoot, useI18n } from '@open-pencil/vue'
 import type { FontPickerUI } from '@open-pencil/vue'
 
@@ -55,8 +55,8 @@ function loadPreviewFont(family: string, source: string) {
 }
 
 function rowLabel(family: string, source: string): string {
-  if (source === 'cdn') {
-    const dn = cnCatalogEntry(family)?.displayName
+  if (source === 'cdn' || source === 'catalog') {
+    const dn = fontFamilyDisplayName(family)
     if (dn) return dn
   }
   return family

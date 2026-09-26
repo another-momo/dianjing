@@ -26,7 +26,7 @@ export * from '#core/text/font/sources'
 export * from '#core/text/font/style'
 export * from '#core/text/font/memory'
 export * from '#core/text/font/variable'
-export { fontRegistryEntry } from '#core/text/font/registry'
+export { fontFamilyDisplayName, fontRegistryEntry } from '#core/text/font/registry'
 import { fontFallbackEntry } from '#core/text/fallbacks'
 import type { FontFallbackScript } from '#core/text/fallbacks'
 import type {

@@ -362,8 +362,8 @@ export const fontsMessageDefaults = {
   fontsEmpty: 'No fonts match your search.',
   fontsEnabledSummary: params('{enabled} of {total} families enabled'),
   fontsSourceBundled: 'Built-in',
-  fontsSourceCdn: 'CDN featured',
-  fontsSourceCatalog: 'CDN catalog',
+  fontsSourceCdn: 'Chinese Fonts CDN featured',
+  fontsSourceCatalog: 'Chinese Fonts CDN more fonts',
   fontsSourceLocal: 'System',
   fontsSourceOnline: 'Online',
   fontsLockedHint: 'Built-in fonts stay always on — they are the rendering fallback.',
@@ -392,8 +392,6 @@ export const fontsMessageDefaults = {
   fontsProvidersHint:
     'Each provider is opt-in. Turn one on to list its families and load on demand.',
   fontsProvidersOptInHint: 'Turning a provider on lists thousands of online font families.',
-  fontsProviderGoogleUnavailable:
-    'Google Fonts is only available in the desktop app. Download the desktop app to use it.',
   // 统一批 A：回退包预下载（自 popover 迁入）
   fontsFallbackTitle: 'Fallback packs',
   fontsFallbackHint:

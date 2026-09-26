@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   cdnFontEntry,
   FONT_REGISTRY,
+  fontFamilyDisplayName,
   fontRegistryEntry,
   isBundledFamilyAllowed,
   isProviderFamilyVisible
@@ -43,7 +44,7 @@ describe('isBundledFamilyAllowed', () => {
 })
 
 describe('CDN 家族注册（T40 S4）', () => {
-  test('registers the nine verified cn-font families with descriptors', () => {
+  test('registers the verified cn-font families with descriptors', () => {
     const cdnFamilies = FONT_REGISTRY.filter((entry) => entry.source === 'cdn').map(
       (entry) => entry.family
     )
@@ -56,7 +57,15 @@ describe('CDN 家族注册（T40 S4）', () => {
       '寒蝉全圆体',
       'Zhuque Fangsong (technical preview)',
       'Zhi Mang Xing',
-      'Cubic 11'
+      'Cubic 11',
+      // 2026-09-26 策展扩充（授权逐件一手核上游，见 registry 条目 note）
+      'Smiley Sans Oblique',
+      'LXGW Marker Gothic',
+      'Moon Stars Kai',
+      'YuFanXinYu',
+      'Huiwen-mincho',
+      'YouSheBiaoTiHei',
+      'slideyouran'
     ])
     for (const entry of FONT_REGISTRY.filter((entry) => entry.source === 'cdn')) {
       expect(entry.cdn?.package).toMatch(/^@chinese-fonts\//)
@@ -96,5 +105,17 @@ describe('CDN 家族注册（T40 S4）', () => {
 describe('isProviderFamilyVisible', () => {
   test('keeps online provider families visible (generic capability)', () => {
     expect(isProviderFamilyVisible('Any Web Font')).toBe(true)
+  })
+})
+
+describe('fontFamilyDisplayName（2026-09-26 策展批）', () => {
+  test('registry 精选 displayName 优先，catalog 兜底，皆无则 undefined', () => {
+    // registry 精选命中
+    expect(fontFamilyDisplayName('Smiley Sans Oblique')).toBe('得意黑')
+    expect(fontFamilyDisplayName('slideyouran')).toBe('演示悠然小楷')
+    // catalog 兜底（目录族未被 registry 收编时取其 displayName）
+    expect(fontFamilyDisplayName('Huiwen-mincho')).toBe('汇文明朝体')
+    // 无显示名的家族回退 undefined（调用方显示 family 原文）
+    expect(fontFamilyDisplayName('Inter')).toBeUndefined()
   })
 })

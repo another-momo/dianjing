@@ -10,6 +10,8 @@
  * - T2 = 慎用/禁用（不入注册表）。
  */
 
+import { cnCatalogEntry } from '#core/text/font/cn-catalog'
+
 export type FontLicenseTier = 'T0' | 'T1' | 'T2'
 
 /**
@@ -36,6 +38,8 @@ export interface CnFontCdnDescriptor {
 
 export interface FontRegistryEntry {
   family: string
+  /** 中文显示名（2026-09-26 策展批）：family 为拼音/英文时的可读名。展示用，family 身份不变 */
+  displayName?: string
   tier: FontLicenseTier
   license: string
   source: string
@@ -168,6 +172,83 @@ export const FONT_REGISTRY: FontRegistryEntry[] = [
     weights: ['Regular'],
     cdn: { package: '@chinese-fonts/cubic' },
     note: '俐方体11号（点阵风格）'
+  },
+
+  // —— 2026-09-26 策展扩充（参考 chinese-font-selector 场景矩阵补位：标题黑/活泼标题/
+  // 屏显漫黑/复古明朝/多字重创意/书法小楷/文艺楷）——
+  // T0 四件一手核上游原文：得意黑 atelier-anchor/smiley-sans OFL-1.1、霞鹜漫黑
+  // lxgw/LxgwMarkerGothic OFL-1.1、月星楷包内 LICENSE 原文即 OFL-1.1、余繁新语
+  // chilingg/yufanxinyu MIT（作者声明仅保留署名权）；T1 三件为作者/厂商免费商用声明。
+  // 晋升后原 catalog 条目已由 prune-catalog-packages 归位剔除（精选层优先，D-b）。
+  {
+    family: 'Smiley Sans Oblique',
+    displayName: '得意黑',
+    tier: 'T0',
+    license: 'OFL-1.1',
+    source: 'cdn',
+    weights: ['Regular'],
+    cdn: { package: '@chinese-fonts/dyh', version: '3.0.0' },
+    note: '上游 atelier-anchor/smiley-sans 仓 OFL-1.1（2026-09-26 一手核查）；包装层 MIT 不替换上游授权'
+  },
+  {
+    family: 'LXGW Marker Gothic',
+    displayName: '霞鹜漫黑',
+    tier: 'T0',
+    license: 'OFL-1.1',
+    source: 'cdn',
+    weights: ['Regular'],
+    cdn: { package: '@chinese-fonts/lxgwmanhei', version: '3.0.0' },
+    note: '上游 lxgw/LxgwMarkerGothic README 声明 SIL OFL-1.1（2026-09-26 一手核查）'
+  },
+  {
+    family: 'Moon Stars Kai',
+    displayName: '月星楷',
+    tier: 'T0',
+    license: 'OFL-1.1',
+    source: 'cdn',
+    weights: ['Light', 'Regular', 'Bold'],
+    cdn: { package: '@chinese-fonts/moon-stars-kai', version: '2.0.0' },
+    note: '包内 LICENSE 原文即 SIL OFL-1.1（2026-09-26 核查；package.json 误标 MIT）；仅简中基族入精选，HW/T 变体随目录剔除退出'
+  },
+  {
+    family: 'YuFanXinYu',
+    displayName: '余繁新语',
+    tier: 'T0',
+    license: 'MIT',
+    source: 'cdn',
+    weights: ['Light', 'Regular', 'Medium', 'Bold'],
+    cdn: { package: '@chinese-fonts/yfxy', version: '3.0.0' },
+    note: '上游 chilingg/yufanxinyu 仓 MIT + 作者声明仅保留署名权（2026-09-26 一手核查）'
+  },
+  {
+    family: 'Huiwen-mincho',
+    displayName: '汇文明朝体',
+    tier: 'T1',
+    license: '作者声明免费商用（特里王，禁单独转售字库）',
+    source: 'cdn',
+    weights: ['Regular'],
+    cdn: { package: '@chinese-fonts/hwmct', version: '3.0.0' },
+    note: '非标 OSI 授权——作者知乎声明免费商用（2026-09-26 核查授权出处）；fonts-database 曾推定 OFL，纠正为 T1'
+  },
+  {
+    family: 'YouSheBiaoTiHei',
+    displayName: '优设标题黑',
+    tier: 'T1',
+    license: '优设官方声明免费商用',
+    source: 'cdn',
+    weights: ['Regular'],
+    cdn: { package: '@chinese-fonts/ysbth', version: '3.0.0' },
+    note: 'T1：厂商保留收回免费授权的权利，授权声明需存档'
+  },
+  {
+    family: 'slideyouran',
+    displayName: '演示悠然小楷',
+    tier: 'T1',
+    license: '演示字体官方声明免费商用',
+    source: 'cdn',
+    weights: ['Regular'],
+    cdn: { package: '@chinese-fonts/ysyrxk', version: '3.0.0' },
+    note: '目录未收（全量目录构建时未含此包）——精选层直录；family 为包内 @font-face 字面'
   }
 ]
 
@@ -177,6 +258,14 @@ const bundledAllowlist = new Set(
 
 export function fontRegistryEntry(family: string): FontRegistryEntry | undefined {
   return FONT_REGISTRY.find((entry) => entry.family === family)
+}
+
+/**
+ * 家族显示名（2026-09-26 策展批）：registry 精选 displayName 优先，catalog
+ * displayName 兜底——picker 与字体白名单面板共用。family 身份不变，仅展示层。
+ */
+export function fontFamilyDisplayName(family: string): string | undefined {
+  return fontRegistryEntry(family)?.displayName ?? cnCatalogEntry(family)?.displayName
 }
 
 /** CDN 家族注册条目（T40 S4）：命中即由 cn-font 子集解析器承担加载 */

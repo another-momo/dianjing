@@ -22,7 +22,6 @@ import {
 } from '@/app/editor/fonts/cache'
 import { createCnFontPieceCache } from '@/app/editor/fonts/idb-cache'
 import { sanitizeLegacyCatalogFamilies } from '@/app/editor/fonts/sanitize-legacy-catalog-families'
-import { isElectron } from '@/app/shell/electron'
 import { isTauri } from '@/app/tauri/env'
 import { tauriFetch } from '@/app/tauri/http'
 import { IS_TAURI } from '@/constants'
@@ -90,16 +89,16 @@ watch(
 watch(
   [onlineFontsEnabled, fontProviderSettings],
   () => {
-    // Google Fonts 仅 Electron 形态放行（统一批 C）：上游 PR #593 的 isTauri()
-    // 守卫在 Tauri 已拆后失去意义——保留非 Electron 形态的保守选择（Web 仍
-    // 不开放 google），用 isElectron() 复刻原意图；不可达网络靠既有 6s 枚举
-    // 超时兜底，不卡 picker。
+    // Google Fonts 全形态放行（2026-09-26 起）：上游 PR #593 的桌面限定（isTauri
+    // 守卫）在 Tauri 已拆后失去意义——Google Fonts 的 css/woff2 静态资源自带
+    // CORS 头，浏览器形态同样可取字节；默认仍关（opt-in），不可达网络靠既有
+    // 6s 枚举超时兜底，不卡 picker。
     fontManager.setOnlineFontProviders(
       onlineFontsEnabled.value
         ? Object.fromEntries(
             WEB_FONT_PROVIDER_IDS.map((provider) => [
               provider,
-              fontProviderSettings.value[provider] && (isElectron() || provider !== 'google')
+              fontProviderSettings.value[provider]
             ])
           )
         : {}
