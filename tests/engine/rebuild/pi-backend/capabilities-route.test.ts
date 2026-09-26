@@ -479,6 +479,12 @@ describe('PUT /api/pi/skills/disabled（管理面单件启停）', () => {
 })
 
 describe('GET /api/pi/skills diagnostics 字段（批 B）', () => {
+  // 批 B 响应 shape（lint：禁内联 unknown 对象字面量断言，须具名领域类型）
+  type SkillsListBody = {
+    skills: unknown[]
+    diagnostics: Array<{ code: string; skillName?: string }>
+  }
+
   beforeEach(async () => {
     await boot()
   })
@@ -488,10 +494,7 @@ describe('GET /api/pi/skills diagnostics 字段（批 B）', () => {
       headers: { authorization: `Bearer ${TOKEN}` }
     })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as {
-      skills: unknown[]
-      diagnostics: Array<{ code: string }>
-    }
+    const body = (await res.json()) as SkillsListBody
     expect(Array.isArray(body.diagnostics)).toBe(true)
     expect(body.diagnostics).toEqual([])
   })
@@ -516,7 +519,7 @@ describe('GET /api/pi/skills diagnostics 字段（批 B）', () => {
     const res = await fetch(`${baseURL}/api/pi/skills`, {
       headers: { authorization: `Bearer ${TOKEN}` }
     })
-    const body = (await res.json()) as { skills: unknown[]; diagnostics: unknown[] }
+    const body = (await res.json()) as SkillsListBody
     expect(Object.keys(body).sort()).toEqual(['diagnostics', 'skills'])
   })
 })
