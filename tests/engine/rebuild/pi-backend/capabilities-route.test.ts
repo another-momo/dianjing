@@ -507,9 +507,9 @@ describe('GET /api/pi/skills diagnostics 字段（批 B）', () => {
     const body = (await res.json()) as {
       diagnostics: Array<{ code: string; skillName?: string }>
     }
-    expect(body.diagnostics.some((d) => d.code === 'parse-failed' && d.skillName === 'broken-skill')).toBe(
-      true
-    )
+    expect(
+      body.diagnostics.some((d) => d.code === 'parse-failed' && d.skillName === 'broken-skill')
+    ).toBe(true)
   })
 
   test('diagnostics 字段为可空数组（与既有 shape 测试兼容：skills 字段不变）', async () => {

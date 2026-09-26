@@ -52,10 +52,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 
 import { isAuthorized } from './auth'
-import {
-  SkillBuiltinProtectedError,
-  SkillNotFoundError
-} from './capabilities'
+import { SkillBuiltinProtectedError, SkillNotFoundError } from './capabilities'
 import { PI_BACKEND_DEFAULT_PORT } from './config'
 import { handleDecisionAnswerRequest } from './decision-answer-route'
 import { handleDesignAssignmentRequest } from './design-assignment-route'

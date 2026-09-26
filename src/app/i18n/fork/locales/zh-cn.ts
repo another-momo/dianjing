@@ -71,10 +71,14 @@ const zhCN = {
     installedSkillsDeleteConfirmCancel: '取消',
     installedSkillsDeleteFailed: '删除{name}失败：{message}',
     installedSkillsDiagnosticsTitle: '部分技能需要处理',
-    installedSkillsDiagnosticParseFailed: '{skillName}：未能加载，请检查 SKILL.md 是否存在且 frontmatter 合法。',
-    installedSkillsDiagnosticNameInvalid: '{skillName}：name 不符合命名规则（仅小写字母、数字与单个连字符）。',
-    installedSkillsDiagnosticNoDescription: '{skillName}：frontmatter 的 description 缺失或为空，未加载。',
-    installedSkillsDiagnosticShadowedByUser: '{skillName}：内置版本被同名用户件覆盖，因此不在清单中。',
+    installedSkillsDiagnosticParseFailed:
+      '{skillName}：未能加载，请检查 SKILL.md 是否存在且 frontmatter 合法。',
+    installedSkillsDiagnosticNameInvalid:
+      '{skillName}：name 不符合命名规则（仅小写字母、数字与单个连字符）。',
+    installedSkillsDiagnosticNoDescription:
+      '{skillName}：frontmatter 的 description 缺失或为空，未加载。',
+    installedSkillsDiagnosticShadowedByUser:
+      '{skillName}：内置版本被同名用户件覆盖，因此不在清单中。',
     customExtensionsTitle: '自定义拓展',
     customExtensionsDescription:
       '自定义 agent mode workflow / style profile / agent skill 的存放目录——照着 `_example` 改名改写即可，完整说明见文件夹内 README。',

@@ -45,10 +45,7 @@ import { type Skill, loadSkillsFromDir } from '@earendil-works/pi-coding-agent'
 
 import { CAPABILITIES_DEFAULTS } from './capabilities-defaults'
 import { resolveSkillsDir } from './paths'
-import {
-  type SkillDiagnosticEntry,
-  collectSkillDiagnostics
-} from './skill-diagnostics'
+import { type SkillDiagnosticEntry, collectSkillDiagnostics } from './skill-diagnostics'
 
 /**
  * 持久化形状：版本号字段防升级期旧文件残留。布尔外不留用户可调字段——
