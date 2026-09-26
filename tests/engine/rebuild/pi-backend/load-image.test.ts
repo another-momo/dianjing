@@ -26,6 +26,7 @@ import { join } from 'node:path'
 import {
   createLoadImageTool,
   LOAD_IMAGE_MAX_BYTES,
+  MIME_TO_EXT,
   sniffImageFormat
 } from '@/app/ai/pi-backend/load-image'
 
@@ -320,5 +321,106 @@ describe('桥缝', () => {
     const stub = bridgeStub()
     const d = await details(makeTool(stub), { file_path: file })
     expect(d).toMatchObject({ id: '1:2', width: 800, height: 600, imageHash: 'hash-x' })
+  })
+})
+
+// ── URL 分支（file_path / url 互斥 + fetch 路径） ──
+//
+// 2026-09-26 load_image 增 URL 支持（fetch-image-url.ts）：globalThis.fetch
+// 走真实网络不可控，URL 分支测试用假主机 *.example.test + 注入桩模拟
+// 响应。还原钩子写在本测试文件自身（bun 模块缓存令共享 helpers 的模块
+// 级 afterEach 只在首个 import 者生效——2026-09-17 app shard 40 红实证，
+// 本文件自管最稳）。
+
+const realFetch = globalThis.fetch
+
+afterEach(() => {
+  globalThis.fetch = realFetch
+})
+
+describe('URL 分支', () => {
+  /** 一字节 PNG 响应（带 Content-Type），生产路径走 globalThis.fetch */
+  function pngResponse(): Response {
+    return new Response(Buffer.from(PNG_BYTES), {
+      status: 200,
+      headers: { 'content-type': 'image/png' }
+    })
+  }
+
+  test('url 参数接线：globalThis.fetch 桩返回 PNG → 桥收到正确 base64/mime/name', async () => {
+    let fetchCalls = 0
+    globalThis.fetch = (async (input: unknown) => {
+      fetchCalls++
+      // fetch 接 string/URL/Request 三种入参——抽字符串 URL
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.href
+            : String((input as Request).url ?? input)
+      expect(url).toBe('https://cdn.example.test/photo.png')
+      return pngResponse()
+    }) as typeof fetch
+
+    const stub = bridgeStub()
+    const d = await details(makeTool(stub), { url: 'https://cdn.example.test/photo.png' })
+    expect(d.error).toBeUndefined()
+    expect(fetchCalls).toBe(1)
+    expect(stub.calls).toHaveLength(1)
+    expect(stub.calls[0]?.args.name).toBe('photo.png')
+    expect(stub.calls[0]?.args.mime).toBe('image/png')
+    expect(Buffer.from(String(stub.calls[0]?.args.image_data), 'base64')).toEqual(
+      Buffer.from(PNG_BYTES)
+    )
+  })
+
+  test('file_path 与 url 双给 → 互斥拒绝', async () => {
+    const file = writeFixture('logo.png', PNG_BYTES)
+    const stub = bridgeStub()
+    const d = await details(makeTool(stub), { file_path: file, url: 'https://x.test/y.png' })
+    expect(String(d.error)).toContain('Provide exactly one')
+    expect(stub.calls).toHaveLength(0)
+  })
+
+  test('file_path 与 url 双缺 → 互斥拒绝', async () => {
+    const stub = bridgeStub()
+    const d = await details(makeTool(stub), {})
+    expect(String(d.error)).toContain('Provide exactly one')
+    expect(stub.calls).toHaveLength(0)
+  })
+
+  test('无扩展名 URL + Content-Type 声称 → 桥收到正确 mime（MIME_TO_EXT 命中）', async () => {
+    globalThis.fetch = (async () => pngResponse()) as typeof fetch
+    const stub = bridgeStub()
+    const d = await details(makeTool(stub), { url: 'https://cdn.example.test/photo' })
+    expect(d.error).toBeUndefined()
+    expect(stub.calls[0]?.args.name).toBe('photo')
+    expect(stub.calls[0]?.args.mime).toBe('image/png')
+  })
+
+  test('Content-Type 非标（MIME_TO_EXT 未命中）→ 退 fileName 扩展名 sniff', async () => {
+    // server 返回非标 MIME（如 image/x-foo），但 URL 路径有 .png 扩展名——fall back
+    globalThis.fetch = (async () =>
+      new Response(Buffer.from(PNG_BYTES), {
+        status: 200,
+        headers: { 'content-type': 'image/x-foo' }
+      })) as typeof fetch
+    const stub = bridgeStub()
+    const d = await details(makeTool(stub), { url: 'https://cdn.example.test/icon.png' })
+    expect(d.error).toBeUndefined()
+    expect(stub.calls[0]?.args.mime).toBe('image/png')
+  })
+
+  test('SSRF URL（localhost）→ error 且 fetch 未被调用', async () => {
+    let fetchCalls = 0
+    globalThis.fetch = (async () => {
+      fetchCalls++
+      return pngResponse()
+    }) as typeof fetch
+    const stub = bridgeStub()
+    const d = await details(makeTool(stub), { url: 'http://localhost/x.png' })
+    expect(String(d.error)).toContain('loopback, link-local or private network')
+    expect(fetchCalls).toBe(0)
+    expect(stub.calls).toHaveLength(0)
   })
 })
