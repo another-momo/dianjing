@@ -46,7 +46,7 @@ function parseFrontmatterLight(content: string): {
   hasFrontmatter: boolean
 } {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/)
-  if (!match || !match[1]) return { hasFrontmatter: false }
+  if (!match?.[1]) return { hasFrontmatter: false }
   const body = match[1]
   const get = (key: string): string | undefined => {
     const m = body.match(new RegExp(`^${key}:\\s*(.*)$`, 'm'))

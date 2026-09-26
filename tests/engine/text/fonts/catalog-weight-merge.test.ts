@@ -1,6 +1,7 @@
 /**
- * 字重聚合地面真值单测：钉住 8 组合并 base / 成员旧名 / 别名表键值 / 合并 weights，
+ * 字重聚合地面真值单测：钉住 3 组合并 base / 成员旧名 / 别名表键值 / 合并 weights，
  * 防 build.mjs / merge.mjs 规则漂移（长词优先、displayName 优先级、简繁独立等）。
+ * （2026-09-26 策展批：Moon Stars Kai 4 组与 YuFanXinYu 组晋升精选离目录，真值组 8→3。）
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -18,7 +19,7 @@ interface MergeGroup {
   legacyNames: string[]
 }
 
-/** 8 组地面真值（base / weights 并集 / 组成员旧名）——与现役目录实跑分组一致。 */
+/** 3 组地面真值（base / weights 并集 / 组成员旧名）——与现役目录实跑分组一致。 */
 const MERGE_GROUPS: MergeGroup[] = [
   {
     base: 'LXGW Bright',
@@ -38,26 +39,6 @@ const MERGE_GROUPS: MergeGroup[] = [
     ]
   },
   {
-    base: 'Moon Stars Kai',
-    weights: [300, 400, 700],
-    legacyNames: ['Moon Stars Kai Light']
-  },
-  {
-    base: 'Moon Stars Kai HW',
-    weights: [300, 400, 700],
-    legacyNames: ['Moon Stars Kai HW Light']
-  },
-  {
-    base: 'Moon Stars Kai T',
-    weights: [300, 400, 700],
-    legacyNames: ['Moon Stars Kai T Light']
-  },
-  {
-    base: 'Moon Stars Kai T HW',
-    weights: [300, 400, 700],
-    legacyNames: ['Moon Stars Kai T HW Light']
-  },
-  {
     base: 'ToneOZ-Pinyin-WenKai',
     weights: [300, 400, 500],
     legacyNames: [
@@ -65,16 +46,11 @@ const MERGE_GROUPS: MergeGroup[] = [
       'ToneOZ-Pinyin-WenKai-Light',
       'ToneOZ-Pinyin-WenKai-Medium'
     ]
-  },
-  {
-    base: 'YuFanXinYu',
-    weights: [300, 400, 500, 700],
-    legacyNames: ['YuFanXinYu-Light', 'YuFanXinYu-Medium']
   }
 ]
 
 describe('字重聚合地面真值', () => {
-  test('8 组 base 全部在目录里、成员旧名全部不在目录', () => {
+  test('3 组 base 全部在目录里、成员旧名全部不在目录', () => {
     const families = new Set(CN_FONT_CATALOG.map((entry) => entry.family))
     for (const group of MERGE_GROUPS) {
       expect(families.has(group.base)).toBe(true)
@@ -107,7 +83,7 @@ describe('字重聚合地面真值', () => {
     }
   })
 
-  test('别名表完整覆盖（条数 == 地面真值 legacyNames 总和 = 17）', () => {
+  test('别名表完整覆盖（条数 == 地面真值 legacyNames 总和 = 11）', () => {
     const expected = MERGE_GROUPS.reduce((sum, group) => sum + group.legacyNames.length, 0)
     expect(Object.keys(LEGACY_CN_FAMILY_ALIAS)).toHaveLength(expected)
   })
@@ -147,12 +123,11 @@ describe('sanitizeLegacyCatalogFamilies（picker 持久化迁移纯函数）', (
     const input = [
       'Maple Mono CN Light',
       'LXGW Bright Medium',
-      'Moon Stars Kai Light',
-      'YuFanXinYu-Medium',
-      'YuFanXinYu-Light'
+      'ToneOZ-Pinyin-WenKai-Regular',
+      'ToneOZ-Pinyin-WenKai-Light'
     ]
     const out = sanitizeLegacyCatalogFamilies(input)
-    expect(out).toEqual(['Maple Mono CN', 'LXGW Bright', 'Moon Stars Kai', 'YuFanXinYu'])
+    expect(out).toEqual(['Maple Mono CN', 'LXGW Bright', 'ToneOZ-Pinyin-WenKai'])
   })
 
   test('现役 base 名原样保留', () => {
