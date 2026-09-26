@@ -9,7 +9,7 @@ import { renderNodesToImage, renderThumbnail, type ExportFormat } from './render
 
 // ck/renderer 双层缓存均走 in-flight 记忆化：并发导出不得双开 WASM 实例、
 // 双建 renderer（重复 loadFonts）；失败清零允许下次导出重试。
-const initOnce = memoizeAsync(async (): Promise<CanvasKit> => {
+export const initCanvasKit = memoizeAsync(async (): Promise<CanvasKit> => {
   const CanvasKitInit = (await import('canvaskit-wasm/full')).default
   const ckPath = import.meta.resolve('canvaskit-wasm/full')
   // T91c 要 fileURLToPath 语义但不能 import node:url——本模块经 io barrel
@@ -18,10 +18,6 @@ const initOnce = memoizeAsync(async (): Promise<CanvasKit> => {
   const binDir = decodeURIComponent(new URL('.', ckPath).pathname).replace(/^\/(?=[A-Za-z]:\/)/, '')
   return CanvasKitInit({ locateFile: (file: string) => binDir + file })
 })
-
-export function initCanvasKit(): Promise<CanvasKit> {
-  return initOnce()
-}
 
 const getRenderer = memoizeAsync(async (): Promise<{ ck: CanvasKit; renderer: SkiaRenderer }> => {
   const ck = await initCanvasKit()

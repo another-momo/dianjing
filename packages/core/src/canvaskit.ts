@@ -25,10 +25,6 @@ const defaultLocate = (file: string) => {
 // in-flight 记忆化（语义见 memoize-async.ts）：EditorCanvas 同 tick 挂载
 // scene/overlay 双 surface 并发调本函数，裸单例必开第二个 WASM 实例。
 // options 仅首次调用生效（现役调用点均无参）。
-const initOnce = memoizeAsync((options?: CanvasKitOptions) =>
+export const getCanvasKit = memoizeAsync((options?: CanvasKitOptions) =>
   CanvasKitInit({ locateFile: options?.locateFile ?? defaultLocate })
 )
-
-export function getCanvasKit(options?: CanvasKitOptions): Promise<CanvasKit> {
-  return initOnce(options)
-}
