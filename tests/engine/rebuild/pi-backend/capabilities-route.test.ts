@@ -8,7 +8,7 @@
  * 鉴权（无 token 401）。
  */
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -357,7 +357,10 @@ describe('PUT /api/pi/skills/disabled（管理面单件启停）', () => {
     const get = await fetch(`${baseURL}/api/pi/skills`, {
       headers: { authorization: `Bearer ${TOKEN}` }
     })
-    expect((await get.json()) as { skills: Array<{ name: string }> }).toEqual({ skills: [] })
+    expect((await get.json()) as { skills: Array<{ name: string }> }).toEqual({
+      skills: [],
+      diagnostics: []
+    })
 
     // 验证文件持久化：关闭 server，新 server 实例应能恢复 disabled 集合
     if (server) {
@@ -472,5 +475,172 @@ describe('PUT /api/pi/skills/disabled（管理面单件启停）', () => {
       body: '{not-json'
     })
     expect(res.status).toBe(400)
+  })
+})
+
+describe('GET /api/pi/skills diagnostics 字段（批 B）', () => {
+  beforeEach(async () => {
+    await boot()
+  })
+
+  test('GET 响应新增 diagnostics 字段（空数组起步）', async () => {
+    const res = await fetch(`${baseURL}/api/pi/skills`, {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      skills: unknown[]
+      diagnostics: Array<{ code: string }>
+    }
+    expect(Array.isArray(body.diagnostics)).toBe(true)
+    expect(body.diagnostics).toEqual([])
+  })
+
+  test('有坏 skill 时 diagnostics 触发 parse-failed 条目', async () => {
+    // 造一个缺 SKILL.md 的子目录
+    const skillDir = join(rootDir, 'workspace', '.agents', 'skills', 'broken-skill')
+    mkdirSync(skillDir, { recursive: true })
+
+    const res = await fetch(`${baseURL}/api/pi/skills`, {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    const body = (await res.json()) as {
+      diagnostics: Array<{ code: string; skillName?: string }>
+    }
+    expect(body.diagnostics.some((d) => d.code === 'parse-failed' && d.skillName === 'broken-skill')).toBe(
+      true
+    )
+  })
+
+  test('diagnostics 字段为可空数组（与既有 shape 测试兼容：skills 字段不变）', async () => {
+    const res = await fetch(`${baseURL}/api/pi/skills`, {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    const body = (await res.json()) as { skills: unknown[]; diagnostics: unknown[] }
+    expect(Object.keys(body).sort()).toEqual(['diagnostics', 'skills'])
+  })
+})
+
+describe('POST /api/pi/skills/delete（批 B 分层删除）', () => {
+  beforeEach(async () => {
+    await boot()
+  })
+
+  test('用户层命中 → 200 {deleted: name}；磁盘目录被删除；后续 GET 不再列出', async () => {
+    const skillDir = join(rootDir, 'workspace', '.agents', 'skills', 'doomed')
+    mkdirSync(skillDir, { recursive: true })
+    writeFileSync(
+      join(skillDir, 'SKILL.md'),
+      '---\nname: doomed\ndescription: x\n---\n\n正文\n',
+      'utf8'
+    )
+
+    const post = await fetch(`${baseURL}/api/pi/skills/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ name: 'doomed' })
+    })
+    expect(post.status).toBe(200)
+    expect((await post.json()) as { deleted: string }).toEqual({ deleted: 'doomed' })
+
+    // 磁盘目录已删
+    expect(existsSync(skillDir)).toBe(false)
+
+    // 后续 GET 不再列出
+    const get = await fetch(`${baseURL}/api/pi/skills`, {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    const body = (await get.json()) as { skills: Array<{ name: string }> }
+    expect(body.skills.find((s) => s.name === 'doomed')).toBeUndefined()
+  })
+
+  test('name 不存在 → 404 {error}', async () => {
+    const post = await fetch(`${baseURL}/api/pi/skills/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ name: 'never-installed' })
+    })
+    expect(post.status).toBe(404)
+    const body = (await post.json()) as { error: string }
+    expect(typeof body.error).toBe('string')
+  })
+
+  // 内置件 → 403（SkillBuiltinProtectedError）在 capabilities store 层覆盖：
+  // createPiBackendServer 不暴露 builtinSkillsDir 注入，路由层构造不出内置件场景。
+
+  test('body 缺 name → 400', async () => {
+    const post = await fetch(`${baseURL}/api/pi/skills/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({})
+    })
+    expect(post.status).toBe(400)
+  })
+
+  test('name 空字符串 → 400', async () => {
+    const post = await fetch(`${baseURL}/api/pi/skills/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ name: '' })
+    })
+    expect(post.status).toBe(400)
+  })
+
+  test('坏 JSON → 400', async () => {
+    const post = await fetch(`${baseURL}/api/pi/skills/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: '{not-json'
+    })
+    expect(post.status).toBe(400)
+  })
+
+  test('DELETE / GET 方法 → 405', async () => {
+    const del = await fetch(`${baseURL}/api/pi/skills/delete`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    expect(del.status).toBe(405)
+    const get = await fetch(`${baseURL}/api/pi/skills/delete`, {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    expect(get.status).toBe(405)
+  })
+
+  test('无 token → 401', async () => {
+    const post = await fetch(`${baseURL}/api/pi/skills/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'doomed' })
+    })
+    expect(post.status).toBe(401)
+  })
+
+  test('delete 不动 disabledSkills（重装回来仍处停用态）', async () => {
+    const skillDir = join(rootDir, 'workspace', '.agents', 'skills', 'disabled-then-delete')
+    mkdirSync(skillDir, { recursive: true })
+    writeFileSync(
+      join(skillDir, 'SKILL.md'),
+      '---\nname: disabled-then-delete\ndescription: x\n---\n\n正文\n',
+      'utf8'
+    )
+
+    await fetch(`${baseURL}/api/pi/skills/disabled`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ disabled: ['disabled-then-delete'] })
+    })
+
+    await fetch(`${baseURL}/api/pi/skills/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ name: 'disabled-then-delete' })
+    })
+
+    const capGet = await fetch(`${baseURL}/api/pi/capabilities`, {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    const caps = (await capGet.json()) as { disabledSkills: string[] }
+    expect(caps.disabledSkills).toContain('disabled-then-delete')
   })
 })

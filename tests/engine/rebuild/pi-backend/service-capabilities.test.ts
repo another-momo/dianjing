@@ -306,4 +306,37 @@ description: x
       disabledSkills: ['a', 'b']
     })
   })
+
+  // ── 批 B 管理面：listSkillDiagnostics + deleteSkill ──────────────────
+
+  test('listSkillDiagnostics：空两层 → 空数组', () => {
+    const svc = makeService(rootDir)
+    expect(svc.listSkillDiagnostics()).toEqual([])
+  })
+
+  test('listSkillDiagnostics：有坏 skill → 对应诊断条目', () => {
+    mkdirSync(join(rootDir, 'workspace', '.agents', 'skills', 'no-md'), { recursive: true })
+    const svc = makeService(rootDir)
+    const diag = svc.listSkillDiagnostics()
+    expect(diag.some((d) => d.code === 'parse-failed')).toBe(true)
+  })
+
+  test('deleteSkill：用户层命中 → 删除成功；不动 disabledSkills', () => {
+    const skillDir = join(rootDir, 'workspace', '.agents', 'skills', 'svc-delete')
+    mkdirSync(skillDir, { recursive: true })
+    writeFileSync(
+      join(skillDir, 'SKILL.md'),
+      '---\nname: svc-delete\ndescription: x\n---\n\n正文\n',
+      'utf8'
+    )
+    const svc = makeService(rootDir)
+    svc.setCapabilities({ agentSkills: true })
+    svc.setDisabledSkills(['svc-delete'])
+
+    svc.deleteSkill('svc-delete')
+
+    expect(existsSync(skillDir)).toBe(false)
+    // disabledSkills 不动
+    expect(svc.getCapabilities().disabledSkills).toContain('svc-delete')
+  })
 })

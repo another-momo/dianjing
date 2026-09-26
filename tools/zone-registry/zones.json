@@ -33,6 +33,8 @@
     "src/components/settings/models/PiDesignModelCard.vue",
     "src/components/settings/agent/AgentSettingsPanel.vue",
     "src/components/settings/agent/AgentSkillList.vue",
+    "src/app/ai/pi-backend/skill-diagnostics.ts",
+    "tests/engine/rebuild/pi-backend/skill-diagnostics.test.ts",
     "src/app/settings/credentials/media-credentials.ts",
     "src/components/settings/layout/SettingsSectionHeader.vue",
     "src/components/ui/AppTextButton.vue",
@@ -2289,14 +2291,14 @@
     {
       "id": "P369",
       "file": "src/app/i18n/fork/locales/en.ts",
-      "reason": "字体扩 scope 批 D+E2（2026-09-25）：fontsProvidersOptInHint 新增英文文案；fontsUnauditedLicense 词序降级为 'License: unaudited (package declares {license})'；skill 读侧管理面批 A（2026-09-25）：agentCapabilities 域增 installedSkillsTitle/Description/Empty/SourceUser/SourceBuiltin/EnabledLabel/DisabledLabel 七键（已安装 skill 列表分组文案）",
+      "reason": "字体扩 scope 批 D+E2（2026-09-25）：fontsProvidersOptInHint 新增英文文案；fontsUnauditedLicense 词序降级为 'License: unaudited (package declares {license})'；skill 读侧管理面批 A（2026-09-25）：agentCapabilities 域增 installedSkillsTitle/Description/Empty/SourceUser/SourceBuiltin/EnabledLabel/DisabledLabel 七键（已安装 skill 列表分组文案）；skill 写侧管理面批 B（2026-09-25）：同域增 DeleteLabel/DeleteAction/ConfirmTitle/ConfirmDescription/ConfirmAction/ConfirmCancel/DeleteFailed/DiagnosticsTitle/DiagnosticParseFailed/DiagnosticNameInvalid/DiagnosticNoDescription/DiagnosticShadowedByUser 共 12 键（分层删除对话框 + 诊断块四码文案）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-25"
     },
     {
       "id": "P370",
       "file": "src/app/i18n/fork/locales/zh-cn.ts",
-      "reason": "字体扩 scope 批 D+E2（2026-09-25）：fontsProvidersOptInHint 新增中文文案；fontsUnauditedLicense 词序降级为 '授权：未审计（包内声明：{license}）'；skill 读侧管理面批 A（2026-09-25）：agentCapabilities 域增 installedSkillsTitle/Description/Empty/SourceUser/SourceBuiltin/EnabledLabel/DisabledLabel 七键（已安装 skill 列表分组文案）",
+      "reason": "字体扩 scope 批 D+E2（2026-09-25）：fontsProvidersOptInHint 新增中文文案；fontsUnauditedLicense 词序降级为 '授权：未审计（包内声明：{license}）'；skill 读侧管理面批 A（2026-09-25）：agentCapabilities 域增 installedSkillsTitle/Description/Empty/SourceUser/SourceBuiltin/EnabledLabel/DisabledLabel 七键（已安装 skill 列表分组文案）；skill 写侧管理面批 B（2026-09-25）：同域增 DeleteLabel/DeleteAction/ConfirmTitle/ConfirmDescription/ConfirmAction/ConfirmCancel/DeleteFailed/DiagnosticsTitle/DiagnosticParseFailed/DiagnosticNameInvalid/DiagnosticNoDescription/DiagnosticShadowedByUser 共 12 键（分层删除对话框 + 诊断块四码文案）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-25"
     },

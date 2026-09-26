@@ -52,6 +52,10 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 
 import { isAuthorized } from './auth'
+import {
+  SkillBuiltinProtectedError,
+  SkillNotFoundError
+} from './capabilities'
 import { PI_BACKEND_DEFAULT_PORT } from './config'
 import { handleDecisionAnswerRequest } from './decision-answer-route'
 import { handleDesignAssignmentRequest } from './design-assignment-route'
@@ -342,7 +346,61 @@ async function handleSkillsListRequest(
     res.writeHead(405).end('Method Not Allowed')
     return
   }
-  sendJSON(res, 200, { skills: service.listSkillsForManagement() })
+  sendJSON(res, 200, {
+    skills: service.listSkillsForManagement(),
+    diagnostics: service.listSkillDiagnostics()
+  })
+}
+
+/**
+ * 分层删除：POST /api/pi/skills/delete {name}。
+ *  - name 不在已加载集合 → 404 {error}
+ *  - 命中但 source='builtin' → 403 {error}（内置件不可删）
+ *  - 命中 user → 删 baseDir → 200 {deleted: name}
+ *  - 路径越界（containment 校验失败） → 500 {error}（路径层面拒绝——不视为用户错误）
+ *  - JSON 解析失败/超限沿用既有 400/413 口径
+ */
+async function handleSkillDeleteRequest(
+  service: ReturnType<typeof createPiChatService>,
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  if (req.method !== 'POST') {
+    res.writeHead(405).end('Method Not Allowed')
+    return
+  }
+  let body: { name?: unknown }
+  try {
+    body = JSON.parse(await readBody(req)) as { name?: unknown }
+  } catch (error) {
+    if (error instanceof PayloadTooLargeError) {
+      sendPayloadTooLarge(req, res)
+      return
+    }
+    res.writeHead(400).end('Bad Request: invalid JSON')
+    return
+  }
+  if (typeof body.name !== 'string' || body.name === '') {
+    res.writeHead(400).end('Bad Request: name required')
+    return
+  }
+  try {
+    service.deleteSkill(body.name)
+    sendJSON(res, 200, { deleted: body.name })
+  } catch (error) {
+    if (error instanceof SkillNotFoundError) {
+      sendJSON(res, 404, { error: error.message })
+      return
+    }
+    if (error instanceof SkillBuiltinProtectedError) {
+      sendJSON(res, 403, { error: error.message })
+      return
+    }
+    // SkillPathUnsafeError（路径越界）及其余意外错误 → 500：路径层拒绝不视为用户错误
+    sendJSON(res, 500, {
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
 }
 
 async function handleSkillsDisabledRequest(
@@ -487,7 +545,7 @@ async function handleAdminRequest(
 }
 
 /**
- * 管理面 skill 路由收编（exact match 两件：全量清单 GET + 单件启停 PUT）：
+ * 管理面 skill 路由收编（exact match 三件：全量清单 GET + 单件启停 PUT + 分层删除 POST）：
  * 从 createServer 回调抽出控制主请求分发函数复杂度（oxlint complexity 上限）。
  * 返回是否已处理。必须在 /api/pi/ 管理面前缀之前匹配（调用方保证顺序）。
  */
@@ -503,6 +561,10 @@ function handleSkillsAdminRoutes(
   }
   if (url.pathname === '/api/pi/skills/disabled') {
     void handleSkillsDisabledRequest(service, req, res)
+    return true
+  }
+  if (url.pathname === '/api/pi/skills/delete') {
+    void handleSkillDeleteRequest(service, req, res)
     return true
   }
   return false

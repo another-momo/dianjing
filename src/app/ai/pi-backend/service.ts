@@ -68,6 +68,7 @@ import {
 import type { AuthzNoticeSink } from './authz-guard'
 import { type Capabilities, type ManagedSkillEntry, createCapabilitiesStore } from './capabilities'
 import { type PiModelSpec, createDesignAssignmentStore } from './design-assignment'
+import type { SkillDiagnosticEntry } from './skill-diagnostics'
 import { readPiHistoryFile } from './history'
 import type { ImageGenCredentialStore } from './image-gen/credentials'
 import type { ImageGenSettingsStore } from './image-gen/settings'
@@ -133,8 +134,13 @@ export type PiChatService = {
   setCapabilities(input: { agentSkills: unknown; builtinTools?: unknown }): Capabilities
   /** 管理面：管理面板「已安装 skill」全量清单（含被禁件，不受 agentSkills 总闸影响） */
   listSkillsForManagement(): ManagedSkillEntry[]
+  /** 管理面：双源扫描诊断——空数组 = 无问题 */
+  listSkillDiagnostics(): SkillDiagnosticEntry[]
   /** 管理面：写被禁件清单；非法值抛错并被 server.ts 转 400；返回新集合 */
   setDisabledSkills(input: unknown): string[]
+  /** 管理面：删除用户层 skill——name 不存在 → SkillNotFoundError / 内置件 → SkillNotBuiltinError / 越界 → SkillPathUnsafeError
+   *  （路由层对应 404/403/500）；disabledSkills 不动 */
+  deleteSkill(name: string): void
   /** 2026-09-16：指派后端化——读 design 模型指派（GET /api/pi/design-assignment） */
   getDesignAssignment(): PiModelSpec | null
   /** 2026-09-16：指派后端化——写 design 模型指派（PUT /api/pi/design-assignment）；
@@ -557,8 +563,16 @@ export function createPiChatService({
     return capabilitiesStore.listSkillsForManagement()
   }
 
+  function listSkillDiagnostics(): SkillDiagnosticEntry[] {
+    return capabilitiesStore.listSkillDiagnostics()
+  }
+
   function setDisabledSkills(input: unknown): string[] {
     return capabilitiesStore.setDisabledSkills(input)
+  }
+
+  function deleteSkill(name: string): void {
+    capabilitiesStore.deleteSkill(name)
   }
 
   function getDesignAssignment(): PiModelSpec | null {
@@ -665,7 +679,9 @@ export function createPiChatService({
     getCapabilities,
     setCapabilities,
     listSkillsForManagement,
+    listSkillDiagnostics,
     setDisabledSkills,
+    deleteSkill,
     getDesignAssignment,
     setDesignAssignment,
     setActiveDesign,

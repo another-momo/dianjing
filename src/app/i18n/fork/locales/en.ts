@@ -202,6 +202,30 @@ export const agentCapabilitiesMessageDefaults = {
   installedSkillsSourceBuiltin: 'Built-in',
   installedSkillsEnabledLabel: params('Enable {name}'),
   installedSkillsDisabledLabel: params('Disable {name}'),
+  // 管理面：分层删除 + 诊断（仅用户层可删；内置件无删除入口）
+  installedSkillsDeleteLabel: params('Remove {name}'),
+  installedSkillsDeleteAction: 'Remove',
+  installedSkillsDeleteConfirmTitle: 'Remove this skill?',
+  installedSkillsDeleteConfirmDescription: params(
+    '{name} and all files inside its folder will be removed from disk. This cannot be undone.'
+  ),
+  installedSkillsDeleteConfirmAction: 'Remove from disk',
+  installedSkillsDeleteConfirmCancel: 'Cancel',
+  installedSkillsDeleteFailed: params('Failed to remove {name}: {message}'),
+  // 管理面：诊断（双源扫描 + 内置层被覆盖）——每码一条文案
+  installedSkillsDiagnosticsTitle: 'Some skills need attention',
+  installedSkillsDiagnosticParseFailed: params(
+    '{skillName}: could not be loaded. Check that SKILL.md exists and has valid frontmatter.'
+  ),
+  installedSkillsDiagnosticNameInvalid: params(
+    '{skillName}: the name breaks naming rules — use lowercase letters, digits, and single hyphens.'
+  ),
+  installedSkillsDiagnosticNoDescription: params(
+    '{skillName}: not loaded because the frontmatter description is missing or empty.'
+  ),
+  installedSkillsDiagnosticShadowedByUser: params(
+    '{skillName}: the built-in version is hidden by a user folder skill of the same name.'
+  ),
   // ai-panel-ux-consolidation：自定义拓展（workflow / profile / skill 资产根目录入口）
   customExtensionsTitle: 'Custom extensions',
   customExtensionsDescription:

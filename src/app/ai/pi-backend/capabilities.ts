@@ -38,13 +38,17 @@
  *    agentDir 仅用于 capabilities.json 持久化，不承担 skill 扫描。
  *  - 用 loadSkillsFromDir 逐目录扫描，不暴露 SDK 默认扫描假设。
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 
 import { type Skill, loadSkillsFromDir } from '@earendil-works/pi-coding-agent'
 
 import { CAPABILITIES_DEFAULTS } from './capabilities-defaults'
 import { resolveSkillsDir } from './paths'
+import {
+  type SkillDiagnosticEntry,
+  collectSkillDiagnostics
+} from './skill-diagnostics'
 
 /**
  * 持久化形状：版本号字段防升级期旧文件残留。布尔外不留用户可调字段——
@@ -63,6 +67,19 @@ interface CapabilitiesFile {
 export type BuiltinToolsLevel = 'off' | 'readonly' | 'full'
 
 const BUILTIN_TOOLS_LEVELS: readonly BuiltinToolsLevel[] = ['off', 'readonly', 'full']
+
+/** 删除 skill：name 不在已加载集合 */
+export class SkillNotFoundError extends Error {
+  override name = 'SkillNotFoundError'
+}
+/** 删除 skill：命中但 source='builtin'（内置不可删） */
+export class SkillBuiltinProtectedError extends Error {
+  override name = 'SkillBuiltinProtectedError'
+}
+/** 删除 skill：baseDir 越界（containment 校验失败，防路径拼接注入） */
+export class SkillPathUnsafeError extends Error {
+  override name = 'SkillPathUnsafeError'
+}
 
 // 2026-09-22 owner 拍板翻转：builtinTools readonly→full（内测期考验安全机制）。
 // DEFAULTS 只兜新装/文件缺失/坏文件降级，存量显式值不跟随。
@@ -119,11 +136,24 @@ export type CapabilitiesStore = {
    */
   listSkillsForManagement(): ManagedSkillEntry[]
   /**
+   * 管理面诊断：双源扫描差集 + 内置层被覆盖检测。空数组 = 无问题。
+   * 仅在 listSkillsForManagement 同扫描路径产出，不引入新 IO。
+   */
+  listSkillDiagnostics(): SkillDiagnosticEntry[]
+  /**
    * PUT 写入被禁件清单——非 string[] 抛 TypeError（路由层转 400）；
    * 去重保序归一；写盘（保留既有 builtinTools/agentSkills）；
    * 返回新集合。不校验名字存在性（被禁名对应 skill 卸载后再装回保持禁用）。
    */
   setDisabledSkills(input: unknown): string[]
+  /**
+   * 删除用户层 skill：name 不在已加载集合 → throw SkillNotFoundError；
+   * 命中但 source='builtin' → throw SkillBuiltinProtectedError（UI/路由拒收）；
+   * 命中 user → 递归删除 baseDir 整个目录（containment 校验确保路径
+   * 严格位于用户层 skills 根之下，越界直接抛错——禁直接拼用户输入路径）。
+   * disabledSkills 不动（与负向 override 韧性设计一致：重装回来仍处停用态）。
+   */
+  deleteSkill(name: string): void
   /**
    * T91o：宿主侧 skill 展开。pi SDK `_expandSkillCommand`（agent-session.js:953）
    * 只认「整条消息以 /skill: 开头 + skill 名到首个 ASCII 空格止」，两个硬限制：
@@ -324,6 +354,17 @@ export function createCapabilitiesStore({
     }))
   }
 
+  /**
+   * 管理面诊断：复用 resolveSkillsDir / builtinSkillsDir 双源扫描点，
+   * 与 listSkillsForManagement 同 IO（无额外读取）。返回的诊断按码序稳定。
+   */
+  function listSkillDiagnostics(): SkillDiagnosticEntry[] {
+    return collectSkillDiagnostics({
+      userSkillsDir: resolveSkillsDir(rootDir),
+      builtinSkillsDir
+    })
+  }
+
   function listSkills(): ManifestSkillEntry[] {
     const caps = get()
     if (!caps.agentSkills) return []
@@ -381,5 +422,52 @@ export function createCapabilitiesStore({
     return [...normalized]
   }
 
-  return { get, set, listSkills, listSkillsForManagement, setDisabledSkills, expandSkillText }
+  /**
+   * 路径安全校验：child 必须严格位于 parent 之下——禁直接拼用户输入路径，
+   * 禁越界到 skills 根之外（防 path traversal）；parent 本身也不算（skills
+   * 根目录不是可删对象）。resolve 归一化（含 `..` 折叠）+ relative 判定：
+   * '' = 同径；'..' 起头 = 向上逃逸；绝对路径 = 跨盘符——均判越界。
+   * relative 的分段恒为完整路径段，无前缀混淆（'foo' vs 'foobar'）问题。
+   */
+  function isPathWithin(parent: string, child: string): boolean {
+    const rel = relative(resolve(parent), resolve(child))
+    return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel)
+  }
+
+  /**
+   * 删除用户层 skill：
+   *  - name 不在已加载集合 → SkillNotFoundError（路由层转 404）
+   *  - 命中但 source='builtin' → SkillBuiltinProtectedError（路由层转 403）
+   *  - 命中 user → 路径 containment 校验 → rmSync recursive 删除 baseDir
+   *    → 越界即 SkillPathUnsafeError（防止 baseDir 被覆盖/指向根目录外）
+   *  - disabledSkills 不动（负向 override 韧性：重装回来仍处停用态）
+   */
+  function deleteSkill(name: string): void {
+    if (typeof name !== 'string' || name === '') {
+      throw new SkillNotFoundError(`skill '${name}' not found`)
+    }
+    const userDir = resolveSkillsDir(rootDir)
+    const merged = loadVisibleSkillsWithSource()
+    const entry = merged.find((m) => m.skill.name === name)
+    if (!entry) throw new SkillNotFoundError(`skill '${name}' not found`)
+    if (entry.source !== 'user') {
+      throw new SkillBuiltinProtectedError(`skill '${name}' is built-in`)
+    }
+    // containment 校验：baseDir 必须严格位于用户层 skills 根之下
+    if (!isPathWithin(userDir, entry.skill.baseDir)) {
+      throw new SkillPathUnsafeError(`skill '${name}' path is outside the user skills folder`)
+    }
+    rmSync(entry.skill.baseDir, { recursive: true, force: true })
+  }
+
+  return {
+    get,
+    set,
+    listSkills,
+    listSkillsForManagement,
+    listSkillDiagnostics,
+    setDisabledSkills,
+    deleteSkill,
+    expandSkillText
+  }
 }

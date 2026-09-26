@@ -8,8 +8,9 @@
  *   POST   /api/pi/providers          CustomProviderInput
  *   DELETE /api/pi/providers/{id}     （T100 C1：仅自定义 provider）
  *   POST   /api/pi/credentials/verify {providerId} （T100 B1：最小 chat 验真）
- *   GET    /api/pi/skills                       → PiSkillsList（管理面全量，含被禁件）
+ *   GET    /api/pi/skills                       → PiSkillsList（管理面全量 + diagnostics）
  *   PUT    /api/pi/skills/disabled  {disabled}  → PiDisabledSkills（全量替换语义）
+ *   POST   /api/pi/skills/delete     {name}      → PiSkillDelete（分层删除：仅用户层）
  *
  * 凭据只进不出：catalog 里只有 configured/type/source，绝不回传 key 本体。
  * catalog DTO 单源在 ./catalog（T27：纯类型契约模块，type-only import 构建期
@@ -21,8 +22,15 @@ import { ref } from 'vue'
 
 import type { ManagedSkillEntry } from './capabilities'
 import type { PiCatalog, PiCatalogModel, PiCatalogProvider } from './catalog'
+import type { SkillDiagnosticEntry } from './skill-diagnostics'
 
-export type { ManagedSkillEntry, PiCatalog, PiCatalogModel, PiCatalogProvider }
+export type {
+  ManagedSkillEntry,
+  PiCatalog,
+  PiCatalogModel,
+  PiCatalogProvider,
+  SkillDiagnosticEntry
+}
 
 export type PiThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
 
@@ -138,12 +146,29 @@ export async function fetchStudioFolderPath(): Promise<StudioFolderPath> {
 /**
  * 管理面：全量 skill 清单——含被禁件、不受 agentSkills 总闸影响；
  * 数据源 = 后端 capabilities.listSkillsForManagement 投影（脱敏：
- * 仅 name/description/source/enabled）。
+ * 仅 name/description/source/enabled）+ diagnostics（双源扫描诊断）。
  */
-export type PiSkillsList = { skills: ManagedSkillEntry[] }
+export type PiSkillsList = {
+  skills: ManagedSkillEntry[]
+  diagnostics: SkillDiagnosticEntry[]
+}
 
 export async function fetchPiSkills(): Promise<PiSkillsList> {
   return requestJSON<PiSkillsList>('/skills')
+}
+
+/**
+ * 分层删除：仅用户层（source='user'）可删；内置层服务端 403 拒绝。
+ * 显式声明 method = POST（jsonBody 默认 POST 同语义；明示确保服务端 method 白名单对得上）。
+ */
+export type PiSkillDelete = { deleted: string }
+
+export async function deletePiSkill(name: string): Promise<PiSkillDelete> {
+  return requestJSON<PiSkillDelete>('/skills/delete', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name })
+  })
 }
 
 /** 管理面：写被禁件清单——后端会做去重保序归一；非 string[] 由后端 400 */
