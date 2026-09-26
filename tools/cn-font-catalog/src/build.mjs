@@ -58,14 +58,16 @@ const REGISTRY_FAMILIES = new Set([
 ])
 
 // 授权风险永久剔除：官方口径限非商用（stdgt）、再分发权保留（hqzmt/qtbfsxt）、
-// GPL+上游版权争议（yidianyan）、授权来源矛盾待核（hyqzp/jyhpws）——回归需逐包重核授权后拍板
+// GPL+上游版权争议（yidianyan）、授权来源矛盾待核（hyqzp/jyhpws）、衍生使用需
+// 取得授权码（cqscbbt，2026-09-26 owner 拍板剔除）——回归需逐包重核授权后拍板
 const PRUNE_PACKAGES = new Set([
   '@chinese-fonts/stdgt',
   '@chinese-fonts/hqzmt',
   '@chinese-fonts/yidianyan',
   '@chinese-fonts/qtbfsxt',
   '@chinese-fonts/hyqzp',
-  '@chinese-fonts/jyhpws'
+  '@chinese-fonts/jyhpws',
+  '@chinese-fonts/cqscbbt'
 ])
 
 const NPM_SEARCH = 'https://registry.npmjs.org/-/v1/search'
