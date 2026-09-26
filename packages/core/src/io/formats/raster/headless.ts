@@ -3,27 +3,28 @@ import type { CanvasKit } from 'canvaskit-wasm'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
 import { SkiaRenderer } from '#core/canvas'
+import { memoizeAsync } from '#core/memoize-async'
 
 import { renderNodesToImage, renderThumbnail, type ExportFormat } from './render'
 
-let cachedCk: CanvasKit | null = null
-let cachedRenderer: SkiaRenderer | null = null
-
-export async function initCanvasKit(): Promise<CanvasKit> {
-  if (cachedCk) return cachedCk
+// ck/renderer 双层缓存均走 in-flight 记忆化：并发导出不得双开 WASM 实例、
+// 双建 renderer（重复 loadFonts）；失败清零允许下次导出重试。
+const initOnce = memoizeAsync(async (): Promise<CanvasKit> => {
   const CanvasKitInit = (await import('canvaskit-wasm/full')).default
   const ckPath = import.meta.resolve('canvaskit-wasm/full')
   // T91c 要 fileURLToPath 语义但不能 import node:url——本模块经 io barrel
   // 进浏览器 bundle，vite 把 node:url 外部化、浏览器访问即抛错（owner dev
   // 页面打不开实证）。手写等价转换：pathname 剥 win32 前导斜杠 + 百分号解码。
   const binDir = decodeURIComponent(new URL('.', ckPath).pathname).replace(/^\/(?=[A-Za-z]:\/)/, '')
-  cachedCk = await CanvasKitInit({ locateFile: (file: string) => binDir + file })
-  return cachedCk
+  return CanvasKitInit({ locateFile: (file: string) => binDir + file })
+})
+
+export function initCanvasKit(): Promise<CanvasKit> {
+  return initOnce()
 }
 
-async function getRenderer(): Promise<{ ck: CanvasKit; renderer: SkiaRenderer }> {
+const getRenderer = memoizeAsync(async (): Promise<{ ck: CanvasKit; renderer: SkiaRenderer }> => {
   const ck = await initCanvasKit()
-  if (cachedRenderer) return { ck, renderer: cachedRenderer }
   const surface = ck.MakeSurface(1, 1)
   if (!surface) throw new Error('Failed to create CanvasKit surface')
   const renderer = new SkiaRenderer(ck, surface)
@@ -31,9 +32,8 @@ async function getRenderer(): Promise<{ ck: CanvasKit; renderer: SkiaRenderer }>
   renderer.viewportHeight = 1
   renderer.dpr = 1
   await renderer.loadFonts()
-  cachedRenderer = renderer
   return { ck, renderer }
-}
+})
 
 export async function headlessRenderNodes(
   graph: SceneGraph,

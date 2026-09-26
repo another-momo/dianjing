@@ -129,7 +129,9 @@
     "tests/engine/text/fonts/fallback-pack-signal.test.ts",
     "tools/cn-font-catalog/src/backfill-display-names.mjs",
     "src/components/font-picker/font-option-filter.ts",
-    "tests/engine/vue/font-picker/use-font-picker-filter.test.ts"
+    "tests/engine/vue/font-picker/use-font-picker-filter.test.ts",
+    "packages/core/src/memoize-async.ts",
+    "tests/engine/core/memoize-async.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -820,9 +822,9 @@
     {
       "id": "P151",
       "file": "packages/core/src/io/formats/raster/headless.ts",
-      "reason": "T91c（2026-09-04）：initCanvasKit binDir 用 fileURLToPath 替代 URL.pathname——win32 下 pathname 返回 '/D:/...' 带前导斜杠导致 fs.readFileSync ENOENT；POSIX 两写法结果一致；T91i（2026-09-04）：node:url 顶层 import 经 io barrel 进浏览器 bundle 被 vite 外部化、访问即抛错导致 dev 页面打不开（owner 实测实证）——改为手写等价转换（decodeURIComponent(pathname) + 剥 win32 前导斜杠），零 node 内置依赖",
+      "reason": "T91c（2026-09-04）：initCanvasKit binDir 用 fileURLToPath 替代 URL.pathname——win32 下 pathname 返回 '/D:/...' 带前导斜杠导致 fs.readFileSync ENOENT；POSIX 两写法结果一致；T91i（2026-09-04）：node:url 顶层 import 经 io barrel 进浏览器 bundle 被 vite 外部化、访问即抛错导致 dev 页面打不开（owner 实测实证）——改为手写等价转换（decodeURIComponent(pathname) + 剥 win32 前导斜杠），零 node 内置依赖 | 2026-09-26：cachedCk/cachedRenderer 裸缓存改 memoizeAsync in-flight 记忆化——并发导出不再双开 WASM 实例/双建 renderer，失败清零可重试",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-04",
+      "lastReviewed": "2026-09-26",
       "task": "T91c"
     },
     {
@@ -1380,9 +1382,9 @@
     {
       "id": "P233",
       "file": "packages/core/src/canvaskit.ts",
-      "reason": "2026-09-14 合并：Windows 下 import.meta.resolve 的 file URL pathname 带前导斜杠（/D:/...），Emscripten 读 wasm ENOENT——剥 /^/[A-Za-z]:// 前导斜杠。上游同病未修（其 CI 全 Linux 无感）；暴露路径=上游新 clipboard 测试首次在本机触发 CanvasKit 加载。适机回敬上游；node/浏览器分支判定用 'Bun' in globalThis + hasWindowGlobal 复合——纯活探在 bun 测试 window stub 下返真误走 fetch 分支挂起（render 批次 30s 超时实证，同日修正）",
+      "reason": "2026-09-14 合并：Windows 下 import.meta.resolve 的 file URL pathname 带前导斜杠（/D:/...），Emscripten 读 wasm ENOENT——剥 /^/[A-Za-z]:// 前导斜杠。上游同病未修（其 CI 全 Linux 无感）；暴露路径=上游新 clipboard 测试首次在本机触发 CanvasKit 加载。适机回敬上游；node/浏览器分支判定用 'Bun' in globalThis + hasWindowGlobal 复合——纯活探在 bun 测试 window stub 下返真误走 fetch 分支挂起（render 批次 30s 超时实证，同日修正） | 2026-09-26：getCanvasKit 改 in-flight Promise 记忆化（memoizeAsync，失败清零可重试）——同 tick 并发挂载 scene/overlay 双 surface 时裸单例必开第二个 WASM 实例（双倍堆内存 + 跨实例 embind 对象传递雷区）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-14"
+      "lastReviewed": "2026-09-26"
     },
     {
       "id": "P234",
