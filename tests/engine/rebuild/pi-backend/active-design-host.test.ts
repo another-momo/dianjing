@@ -224,6 +224,11 @@ function makeHost(
   return createActiveDesignHost({ registry: () => registry, bridge, pageStateReader })
 }
 
+/** 逐字段二选一收敛（pageState 优先于 pageContext）——抽出摊派 assemble 复杂度 */
+function pickField(a: string | null | undefined, b: string | null | undefined): string | null {
+  return a ?? b ?? null
+}
+
 /**
  * P0-1：装配链路完整口径 = resolveTurnAssets（probe 阶段的 registry 查找 +
  * page-state / newIntent / slot 三段优先级）→ assembleTurn（拼接 + pageContext
@@ -252,9 +257,9 @@ function assemble(
   const resolved = resolveTurnAssets(registry, slot, opts.pageState ?? null, opts.newIntent ?? null)
   const slotBriefId = slot.status === 'ok' ? slot.design.briefId : ''
   const pageContext = {
-    engagedPageId: opts.pageState?.engagedPageId ?? opts.pageContext?.engagedPageId ?? null,
-    modeId: opts.pageState?.modeId ?? opts.pageContext?.modeId ?? null,
-    profileId: opts.pageState?.profileId ?? opts.pageContext?.profileId ?? null,
+    engagedPageId: pickField(opts.pageState?.engagedPageId, opts.pageContext?.engagedPageId),
+    modeId: pickField(opts.pageState?.modeId, opts.pageContext?.modeId),
+    profileId: pickField(opts.pageState?.profileId, opts.pageContext?.profileId),
     briefId: slotBriefId || opts.pageContext?.briefId || null,
     viewPageId: opts.pageContext?.viewPageId ?? 'page-1'
   }

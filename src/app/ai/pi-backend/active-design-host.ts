@@ -322,30 +322,35 @@ export function assembleTurn(
  * 两条回退路径删除；本阶段保留作为无 page-state 时的兜底（首跑 + 桥不可达
  * 场景）。
  */
+/**
+ * 规制来源取值（page-state > newIntent > slot 帧身份，逐段提前返回摊派
+ * resolveTurnAssets 复杂度）。返回空串 modeId = 全空（空槽语义）。
+ */
+function resolveRegulationSource(
+  slot: ActiveDesignSlotState,
+  pageState: { modeId: string | null; profileId: string | null } | null,
+  fallbackNewIntent: NewIntentState | null
+): { modeId: string; profileId: string } {
+  const pageModeId = pageState?.modeId ?? ''
+  if (pageModeId !== '') {
+    return { modeId: pageModeId, profileId: pageState?.profileId ?? '' }
+  }
+  if (fallbackNewIntent?.confirmed === true && fallbackNewIntent.modeId !== '') {
+    return { modeId: fallbackNewIntent.modeId, profileId: fallbackNewIntent.profileId }
+  }
+  return {
+    modeId: slot.status === 'ok' ? slot.design.modeId : '',
+    profileId: slot.status === 'ok' ? slot.design.profileId : ''
+  }
+}
+
 export function resolveTurnAssets(
   registry: StudioRegistry,
   slot: ActiveDesignSlotState,
   pageState: { modeId: string | null; profileId: string | null } | null,
   fallbackNewIntent: NewIntentState | null
 ): TurnSlotState {
-  const pageModeId = pageState?.modeId ?? ''
-  const pageProfileId = pageState?.profileId ?? ''
-  const usePage = pageModeId !== ''
-  const useIntent =
-    !usePage && fallbackNewIntent?.confirmed === true && fallbackNewIntent.modeId !== ''
-  const slotModeId = slot.status === 'ok' ? slot.design.modeId : ''
-  const slotProfileId = slot.status === 'ok' ? slot.design.profileId : ''
-  // 规制取值 = page-state 优先，其次 newIntent，末位 slot 帧身份（嵌套三元
-  // 过不了 no-nested-ternary，if/else 直写）
-  let modeId = slotModeId
-  let profileId = slotProfileId
-  if (usePage) {
-    modeId = pageModeId
-    profileId = pageProfileId
-  } else if (useIntent) {
-    modeId = fallbackNewIntent.modeId
-    profileId = fallbackNewIntent.profileId
-  }
+  const { modeId, profileId } = resolveRegulationSource(slot, pageState, fallbackNewIntent)
   if (modeId === '') return slot
   const profile = profileId === '' ? undefined : registry.profiles.get(profileId)
   // general 跳过 workflow 查表——纯槽位标识，不命中即合规（base only 组装）

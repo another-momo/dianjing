@@ -48,7 +48,7 @@ const releaseBodySchema = v.object({
   windowId: windowIdSchema
 })
 
-async function readJsonBody(
+async function readJSONBody(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<{ ok: true; body: unknown } | { ok: false }> {
@@ -74,7 +74,7 @@ async function handleClaim(
     res.writeHead(405).end('Method Not Allowed')
     return
   }
-  const parsed = await readJsonBody(req, res)
+  const parsed = await readJSONBody(req, res)
   if (!parsed.ok) return
   const parseResult = v.safeParse(claimBodySchema, parsed.body)
   if (!parseResult.success) {
@@ -110,7 +110,7 @@ async function handleHeartbeat(
     res.writeHead(405).end('Method Not Allowed')
     return
   }
-  const parsed = await readJsonBody(req, res)
+  const parsed = await readJSONBody(req, res)
   if (!parsed.ok) return
   const parseResult = v.safeParse(heartbeatBodySchema, parsed.body)
   if (!parseResult.success) {
@@ -146,7 +146,7 @@ async function handleRelease(
     res.writeHead(405).end('Method Not Allowed')
     return
   }
-  const parsed = await readJsonBody(req, res)
+  const parsed = await readJSONBody(req, res)
   if (!parsed.ok) return
   const parseResult = v.safeParse(releaseBodySchema, parsed.body)
   if (!parseResult.success) {

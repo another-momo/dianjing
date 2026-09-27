@@ -59,20 +59,33 @@ export type LocusNetworkResult<T> =
   | { kind: 'ok'; value: T }
   | { kind: 'unreachable'; message: string }
 
+/** GET 响应探测形状——具名结构替代 Record<string, unknown> 强转（门禁禁宽断言） */
+interface LocusGetResponseProbe {
+  state?: unknown
+  hasSession?: unknown
+}
+
 /** 防御性解析 GET 响应——端点已 2xx 但形状坏（前端版本与后端不匹配 / 字段缺失）
  *  退化为 state=null / hasSession=false；上层若需严格语义应改读 throw。 */
 export function parseLocusGetResponse(input: unknown): LocusGetResponse {
   if (!input || typeof input !== 'object') return { state: null, hasSession: false }
-  const obj = input as Record<string, unknown>
+  const obj = input as LocusGetResponseProbe
   return {
     state: parseLocusState(obj.state),
     hasSession: typeof obj.hasSession === 'boolean' ? obj.hasSession : false
   }
 }
 
+/** 落点标量探测形状（同上） */
+interface LocusStateProbe {
+  modeId?: unknown
+  profileId?: unknown
+  engagedPageId?: unknown
+}
+
 function parseLocusState(input: unknown): LocusState | null {
   if (!input || typeof input !== 'object') return null
-  const obj = input as Record<string, unknown>
+  const obj = input as LocusStateProbe
   if (
     'modeId' in obj &&
     'profileId' in obj &&

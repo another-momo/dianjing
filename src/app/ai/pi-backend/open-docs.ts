@@ -47,9 +47,16 @@ export interface OpenDocRecord {
   heartbeatAt: number
 }
 
+/** 守卫探测形状——具名结构替代 Record<string, unknown> 强转（门禁禁宽断言） */
+interface OpenDocRecordProbe {
+  pid?: unknown
+  windowId?: unknown
+  heartbeatAt?: unknown
+}
+
 function isOpenDocRecord(value: unknown): value is OpenDocRecord {
   if (!value || typeof value !== 'object') return false
-  const obj = value as Record<string, unknown>
+  const obj = value as OpenDocRecordProbe
   return (
     typeof obj.pid === 'number' &&
     Number.isFinite(obj.pid) &&

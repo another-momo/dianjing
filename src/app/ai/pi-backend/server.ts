@@ -68,7 +68,7 @@ import {
 import { createImageGenCredentialStore } from './image-gen/credentials'
 import { handleImageGenAdminRequest } from './image-gen/routes'
 import { createImageGenSettingsStore } from './image-gen/settings'
-import { handleMCPConnectionsRequest } from './mcp-connections/routes'
+import { handleMCPConnectionsRequest, type MCPConnectionsDeps } from './mcp-connections/routes'
 import { createMCPConnectionsStore } from './mcp-connections/store'
 import { handleOpenDocsRequest } from './open-docs-route'
 import {
@@ -570,6 +570,63 @@ function handleSkillsAdminRoutes(
 }
 
 /**
+ * 文档级路由收编（sl-w1/w2：page-state 标量读写 + open-docs 存活守卫）——
+ * 从 createServer 回调抽出控制主请求分发函数复杂度（oxlint complexity 上限），
+ * 与 handleSkillsAdminRoutes 同形。返回是否已处理。
+ * 必须在 /api/pi/ 管理面前缀之前匹配（调用方保证顺序）。
+ */
+function handleDocumentScopedRoutes(
+  service: ReturnType<typeof createPiChatService>,
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL
+): boolean {
+  // 文档级标量读写（GET/PUT /api/pi/page-state?docUuid=）；deps 注入式
+  // （store + hasSessionForDocUuid），避免路由直接依赖 service 闭包
+  if (url.pathname === '/api/pi/page-state') {
+    void handlePageStateRequest(
+      {
+        store: service.getPageStateStore(),
+        hasSessionForDocUuid: (docUuid) => service.hasSessionForDocUuid(docUuid)
+      },
+      req,
+      res
+    )
+    return true
+  }
+  // docUuid 存活唯一守卫（POST /api/pi/open-docs/{claim,heartbeat,release}）
+  if (
+    url.pathname === '/api/pi/open-docs/claim' ||
+    url.pathname === '/api/pi/open-docs/heartbeat' ||
+    url.pathname === '/api/pi/open-docs/release'
+  ) {
+    void handleOpenDocsRequest(service.getOpenDocsGuard(), req, res, url.pathname)
+    return true
+  }
+  return false
+}
+
+/**
+ * MCP 连接凭据面路由收编（list exact + 单条 PUT/DELETE 前缀）——同款
+ * 复杂度摊派 helper。返回是否已处理（命中前缀即恒处理）。
+ */
+function handleMCPConnectionRoutes(
+  deps: MCPConnectionsDeps,
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL
+): boolean {
+  if (
+    url.pathname !== '/api/pi/mcp/connections' &&
+    !url.pathname.startsWith('/api/pi/mcp/connections/')
+  ) {
+    return false
+  }
+  void handleMCPConnectionsRequest(deps, req, res, url.pathname)
+  return true
+}
+
+/**
  * T27：只读 GET 路由（history/sessions/studio manifest）统一收编——
  * ① fs 读取异常不应打穿进程（500 而非崩溃/悬挂）；② 从 createServer 回调
  * 抽出控制复杂度（oxlint complexity 上限）。返回是否已处理。
@@ -701,29 +758,9 @@ export function createPiBackendServer({
       void handleDesignAssignmentRequest(service, req, res)
       return
     }
-    // sl-w1-page-state：文档级标量读写（GET/PUT /api/pi/page-state?docUuid=）
-    // 2026-09-27 sl-w2-state-chain：GET 响应附带 hasSession；deps 注入式
-    // （store + hasSessionForDocUuid），避免本路由直接依赖 service 闭包。
-    if (url.pathname === '/api/pi/page-state') {
-      void handlePageStateRequest(
-        {
-          store: service.getPageStateStore(),
-          hasSessionForDocUuid: (docUuid) => service.hasSessionForDocUuid(docUuid)
-        },
-        req,
-        res
-      )
-      return
-    }
-    // sl-w1-page-state：docUuid 存活唯一守卫（POST /api/pi/open-docs/{claim,heartbeat,release}）
-    if (
-      url.pathname === '/api/pi/open-docs/claim' ||
-      url.pathname === '/api/pi/open-docs/heartbeat' ||
-      url.pathname === '/api/pi/open-docs/release'
-    ) {
-      void handleOpenDocsRequest(service.getOpenDocsGuard(), req, res, url.pathname)
-      return
-    }
+    // sl-w1/w2 文档级路由：page-state 标量读写 + open-docs 存活守卫
+    // （须在 /api/pi/ 管理面前缀之前匹配）
+    if (handleDocumentScopedRoutes(service, req, res, url)) return
     // T22/T23/T24 只读路由（须在 /api/pi/ 管理面前缀之前匹配）
     if (handleReadonlyPiRequest(service, req, res, url)) return
     // T54：生图凭证面（须在 /api/pi/ 管理面前缀之前匹配；只进不出）
@@ -739,10 +776,7 @@ export function createPiBackendServer({
     // MCP 接入阶段 1：连接凭据面（须在 /api/pi/ 管理面前缀之前匹配；list 投影、
     // 单条 PUT/DELETE 含健康检查 + 会话驱逐触发）
     if (
-      url.pathname === '/api/pi/mcp/connections' ||
-      url.pathname.startsWith('/api/pi/mcp/connections/')
-    ) {
-      void handleMCPConnectionsRequest(
+      handleMCPConnectionRoutes(
         {
           store: mcpConnections,
           onConnectionsChanged: () => service.bumpMCPConnections(),
@@ -750,10 +784,10 @@ export function createPiBackendServer({
         },
         req,
         res,
-        url.pathname
+        url
       )
+    )
       return
-    }
     // ai-panel-ux-consolidation：打开用户拓展目录端点（exact match，独立 handler
     // 兜复杂度；须在 /api/pi/ 管理面前缀之前匹配）
     if (url.pathname === '/api/pi/open-studio-folder') {

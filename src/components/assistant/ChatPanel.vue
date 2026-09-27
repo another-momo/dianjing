@@ -348,8 +348,9 @@ async function postSendLocusWrite(postSendPut: { engagedPageId: string }): Promi
     const store = getActiveEditorStore()
     const docUuid = ensurePiDocUuid(store)
     await putLocusEngagedPage({ docUuid, engagedPageId: postSendPut.engagedPageId })
-  } catch {
-    // 静默——发送已成功，PUT 失败只意味着下次发消息触发拦截门再次确认
+  } catch (error) {
+    // 发送已成功，PUT 失败只意味着下次发消息触发拦截门再次确认——warn 留痕不阻断
+    console.warn('[locus] 发送后落点回写失败', error)
   }
 }
 

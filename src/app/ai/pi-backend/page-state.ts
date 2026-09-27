@@ -66,9 +66,16 @@ function assertValidDocUuid(docUuid: string): void {
   }
 }
 
+/** 守卫探测形状——具名结构替代 Record<string, unknown> 强转（门禁禁宽断言） */
+interface PageStateProbe {
+  modeId?: unknown
+  profileId?: unknown
+  engagedPageId?: unknown
+}
+
 function isPageState(value: unknown): value is PageState {
   if (!value || typeof value !== 'object') return false
-  const obj = value as Record<string, unknown>
+  const obj = value as PageStateProbe
   // 三字段都必须存在且为 string|null（undefined = 缺字段 = 形状坏）
   if (!('modeId' in obj) || !('profileId' in obj) || !('engagedPageId' in obj)) {
     return false

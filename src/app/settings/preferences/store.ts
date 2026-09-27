@@ -62,18 +62,28 @@ function normalizeAnimationPreference(value: unknown): AnimationPreference {
   return value === 'off' ? 'off' : 'system'
 }
 
+function normalizeReasoningDisplay(value: unknown): ReasoningDisplay {
+  return value === 'expanded' || value === 'while-thinking' ? value : 'collapsed'
+}
+
+function normalizeSnapping(stored: StoredSnappingPreferences | undefined): SnappingPreferences {
+  return {
+    geometry: booleanOrDefault(stored?.geometry, DEFAULT_APP_PREFERENCES.editing.snapping.geometry),
+    objects: booleanOrDefault(stored?.objects, DEFAULT_APP_PREFERENCES.editing.snapping.objects),
+    pixelGrid: booleanOrDefault(
+      stored?.pixelGrid,
+      DEFAULT_APP_PREFERENCES.editing.snapping.pixelGrid
+    )
+  }
+}
+
 function normalizePreferences(value: unknown): AppPreferences {
   const stored = isStoredAppPreferences(value) ? value : undefined
-  const snapping = stored?.editing?.snapping
 
   return {
     appearance: { animations: normalizeAnimationPreference(stored?.appearance?.animations) },
     chat: {
-      reasoningDisplay:
-        stored?.chat?.reasoningDisplay === 'expanded' ||
-        stored?.chat?.reasoningDisplay === 'while-thinking'
-          ? stored.chat.reasoningDisplay
-          : 'collapsed',
+      reasoningDisplay: normalizeReasoningDisplay(stored?.chat?.reasoningDisplay),
       followLocusPage: booleanOrDefault(
         stored?.chat?.followLocusPage,
         DEFAULT_APP_PREFERENCES.chat.followLocusPage
@@ -84,20 +94,7 @@ function normalizePreferences(value: unknown): AppPreferences {
       enabled: booleanOrDefault(stored?.recovery?.enabled, DEFAULT_APP_PREFERENCES.recovery.enabled)
     },
     editing: {
-      snapping: {
-        geometry: booleanOrDefault(
-          snapping?.geometry,
-          DEFAULT_APP_PREFERENCES.editing.snapping.geometry
-        ),
-        objects: booleanOrDefault(
-          snapping?.objects,
-          DEFAULT_APP_PREFERENCES.editing.snapping.objects
-        ),
-        pixelGrid: booleanOrDefault(
-          snapping?.pixelGrid,
-          DEFAULT_APP_PREFERENCES.editing.snapping.pixelGrid
-        )
-      }
+      snapping: normalizeSnapping(stored?.editing?.snapping)
     },
     rendering: {
       canvasMode: stored?.rendering?.canvasMode === 'tiled' ? 'tiled' : 'retained'
