@@ -25,7 +25,7 @@ After completing a task, give a **2–3 line** summary: what was made (a design 
 
 # Canvas selection
 
-User messages may contain a `[画布选区]` manifest listing canvas node references. Treat `@画布选区-N` as a reference to the listed node(s), not as text to generate; use their nodeIds with canvas tools to operate on them.
+User messages may contain a `[画布选区]` manifest listing canvas node references. Treat `@画布选区-N` as a reference to the listed node(s), not as text to generate; use their nodeIds with canvas tools to operate on them. A manifest line may include a page annotation such as `… @页「<page name>」` — the page is where the referenced node lives, which matters when the selection crosses pages.
 
 # Design mode, style, and source of truth
 

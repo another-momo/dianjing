@@ -296,6 +296,11 @@ function manifestSafeName(name: string): string {
  * 节点名称/类型以调用瞬间的 reader（= graph 实况）为准；已删节点用采集快照
  * 名称 + 「(已删除)」标注；无登记条目 → 「未采集的引用」。登记表里未被文本
  * 引用的条目直接丢弃（不进清单）。
+ *
+ * manifest v2（§8 选区跨页引用）：清单行补页标注 `… @页「<页名>」`——
+ * 数据现成（entry.pageId 已含），页名经 reader 查得。页未知兼容：reader
+ * 缺页信息 / 旧消息回放 pageId 为空 / 页已删 → 优雅省略标注，存量清单行
+ * 形态不变。
  */
 export function serializeSelectionManifest(
   text: string,
@@ -329,7 +334,13 @@ export function serializeSelectionManifest(
         parts.push(`节点 ${nodeId}${label}(已删除)`)
       }
     }
-    lines.push(`@画布选区-${n} = ${parts.join(' + ')}`)
+    // §8 manifest v2：页标注——reader 查得且 pageId 非空则用空格分隔追加；
+    // 节点引用之间仍走 ` + ` 连接，但页标注属于元数据（不是并列节点），分隔符
+    // 与节点段不同。缺页信息时优雅省略（与旧消息回放、单测 fakeReader 共存）。
+    const pageName = entry.pageId ? reader.getNode(entry.pageId)?.name : undefined
+    const nodePart = parts.join(' + ')
+    const pageSuffix = pageName ? ` @页「${manifestSafeName(pageName)}」` : ''
+    lines.push(`@画布选区-${n} = ${nodePart}${pageSuffix}`)
   }
   return {
     text: `${text}\n\n${SELECTION_MANIFEST_HEADER}\n${lines.join('\n')}`,

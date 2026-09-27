@@ -211,3 +211,94 @@ describe('makeFigmaFromStore viewport 写回（方案 A 断头路接通）', () 
     expect(repaintCount()).toBeGreaterThan(repaintsBefore)
   })
 })
+
+// ── §7.3 视图层补洞：selection 种子过滤 + viewport 写回守卫 ──────────────────
+//
+// 这两个补洞服务于同一目的——施工期用户浏览与 agent 操作的隔离：
+//  - selection 跨页污染：facade 钉页 ≠ 用户视图页时，Y 页选区不应种进 X 页
+//  - viewport 写回劫持：facade 钉页 ≠ 用户视图页时，agent viewport 工具不该
+//    拽走用户浏览视角
+
+describe('makeFigmaFromStore selection 种子过滤（§7.3 视图层补洞）', () => {
+  test('节点在目标页内 → 进入 facade selection', () => {
+    const { store, graph, state } = makeFakeStore()
+    const targetPage = graph.addPage('目标页')
+    const frame = graph.createNode('FRAME', targetPage.id, { width: 100, height: 100 })
+    state.selectedIds = new Set([frame.id])
+
+    const api = makeFigmaFromStore(store, targetPage.id)
+    expect(api.currentPage.selection).toHaveLength(1)
+    expect(api.currentPage.selection[0].id).toBe(frame.id)
+  })
+
+  test('节点在别页（用户在别页选中、agent 钉本页）→ 不进入 facade selection', () => {
+    const { store, graph, state } = makeFakeStore()
+    // 用户视图页 = state.currentPageId（fakeStore 默认首页）；agent 钉 targetPage
+    const otherPage = graph.addPage('用户当前页')
+    const targetPage = graph.addPage('施工页')
+    const frameOnUserPage = graph.createNode('FRAME', otherPage.id, { width: 100, height: 100 })
+    state.selectedIds = new Set([frameOnUserPage.id])
+
+    const api = makeFigmaFromStore(store, targetPage.id)
+    // 跨页选区被过滤掉——agent 看 Y 页选区种进 X 页 API 的污染路径关闭
+    expect(api.currentPage.selection).toHaveLength(0)
+  })
+
+  test('混合选中（部分在本页、部分在别页）→ 仅本页进入 facade selection', () => {
+    const { store, graph, state } = makeFakeStore()
+    const otherPage = graph.addPage('用户当前页')
+    const targetPage = graph.addPage('施工页')
+    const inPage = graph.createNode('FRAME', targetPage.id, { width: 100, height: 100 })
+    const outPage = graph.createNode('FRAME', otherPage.id, { width: 100, height: 100 })
+    state.selectedIds = new Set([inPage.id, outPage.id])
+
+    const api = makeFigmaFromStore(store, targetPage.id)
+    const ids = api.currentPage.selection.map((n) => n.id)
+    expect(ids).toEqual([inPage.id])
+  })
+
+  test('缺省 pageId = 用户当前页：选区全在当前页 → 全部种入（回归原行为）', () => {
+    const { store, graph, state } = makeFakeStore()
+    const frame = graph.createNode('FRAME', state.currentPageId, { width: 100, height: 100 })
+    state.selectedIds = new Set([frame.id])
+
+    const api = makeFigmaFromStore(store) // 不传 pageId = state.currentPageId
+    expect(api.currentPage.selection).toHaveLength(1)
+    expect(api.currentPage.selection[0].id).toBe(frame.id)
+  })
+})
+
+describe('makeFigmaFromStore viewport 写回守卫（§7.3 视图层补洞）', () => {
+  test('facade 钉页 = 用户视图页 → viewport 工具写回 store（回归原行为）', () => {
+    const { store, state, repaintCount } = makeFakeStore()
+    const api = makeFigmaFromStore(store) // pageId 缺省 = state.currentPageId
+
+    viewportSet.execute(api, { x: 100, y: 200, zoom: 2 })
+    // 钉页一致 → 守卫放行 → 写回成立
+    expect(state.panX).toBe(760)
+    expect(state.panY).toBe(140)
+    expect(state.zoom).toBe(2)
+    expect(repaintCount()).toBeGreaterThan(0)
+  })
+
+  test('facade 钉页 ≠ 用户视图页（用户在看别页） → viewport 写回被守卫拒绝', () => {
+    const { store, graph, state, repaintCount } = makeFakeStore()
+    // 用户视图页 = state.currentPageId；agent 钉到另一页
+    const agentPage = graph.addPage('施工页')
+    const api = makeFigmaFromStore(store, agentPage.id)
+
+    // 记录守卫前 store 三键与 repaint 计数
+    const panXBefore = state.panX
+    const panYBefore = state.panY
+    const zoomBefore = state.zoom
+    const repaintsBefore = repaintCount()
+
+    viewportSet.execute(api, { x: 100, y: 200, zoom: 2 })
+
+    // 守卫拒绝：store 三键不变 + 无 repaint
+    expect(state.panX).toBe(panXBefore)
+    expect(state.panY).toBe(panYBefore)
+    expect(state.zoom).toBe(zoomBefore)
+    expect(repaintCount()).toBe(repaintsBefore)
+  })
+})

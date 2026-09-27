@@ -71,6 +71,40 @@ function resolveZoneRootId(graph: SceneGraph, candidateIds: string[]): string | 
   return null
 }
 
+/** 节点所在页 id——经 parent 链上溯到 CANVAS（页自身即 CANVAS）。
+ *  跨页引用的「按 id 直改他页节点」场景下，被改节点所在页的布局会陈旧，
+ *  需要随落点页一起重算（§8 布局重算范围跟节点走）。游离/未命中 → null。 */
+function resolveNodePageId(graph: SceneGraph, nodeId: string): string | null {
+  const visited = new Set<string>()
+  let current: string | undefined = nodeId
+  while (current && !visited.has(current)) {
+    visited.add(current)
+    const node = graph.getNode(current)
+    if (!node) return null
+    if (node.type === 'CANVAS') return node.id
+    current = node.parentId
+  }
+  return null
+}
+
+/** 重算作用域 = 落点页 ∪ 本次被改节点所在页。
+ *  computeAllLayouts 签名仅接单 pageId（侵入最小，layout.ts 保留单页语义），
+ *  这里对脏页集合逐页调用，dedupe 后无重复。 */
+function recomputeLayoutsForDirtyPages(
+  graph: SceneGraph,
+  landingPageId: string,
+  touchedNodeIds: Iterable<string>
+): void {
+  const seen = new Set<string>()
+  const collect = (pageId: string | null): void => {
+    if (!pageId || seen.has(pageId)) return
+    seen.add(pageId)
+    computeAllLayouts(graph, pageId)
+  }
+  collect(landingPageId)
+  for (const id of touchedNodeIds) collect(resolveNodePageId(graph, id))
+}
+
 async function withAIUndo<T>(
   store: AutomationTarget['store'],
   documentId: string,
@@ -151,7 +185,8 @@ export function createAutomationToolHandler(makeFigma: FigmaFactory) {
         })
     )
     await ensureGraphFonts(store.graph, [result.id], store.renderer)
-    computeAllLayouts(store.graph, target.pageId)
+    // §8 布局重算脏页作用域：被改节点（含 render 新建结果）的所在页 ∪ 落点页。
+    recomputeLayoutsForDirtyPages(store.graph, target.pageId, [result.id])
     store.requestRender()
     store.flashNodes([result.id])
     return {
@@ -191,7 +226,10 @@ export function createAutomationToolHandler(makeFigma: FigmaFactory) {
     if (def.mutates) {
       const pageNode = store.graph.getNode(figma.currentPageId)
       if (pageNode) await ensureGraphFonts(store.graph, pageNode.childIds, store.renderer)
-      computeAllLayouts(store.graph, figma.currentPageId)
+      // §8 布局重算脏页作用域：args 与 result 两路引用 id 联合，所在页与落点页
+      // 取并集后逐页重算——按 id 直改他页节点时，他页布局不再陈旧。
+      const touchedIds = [...collectArgNodeIds(toolArgs), ...extractNodeIds(result)]
+      recomputeLayoutsForDirtyPages(store.graph, figma.currentPageId, touchedIds)
       store.requestRender()
       store.flashNodes(extractNodeIds(result))
     }

@@ -291,6 +291,52 @@ describe('serializeSelectionManifest（T70 实现点 4）', () => {
     expect(lines[4]).toBe('@画布选区-1 = 节点 1:23「一」(TEXT)')
   })
 
+  // ── manifest v2（§8 选区跨页引用）：清单行补页标注 ────────────────────────
+  //
+  // 数据现成（entry.pageId 已含）；页名由 reader 提供。
+  // 页未知兼容：reader 缺页信息 → 优雅省略标注（与旧消息回放 / 单测 fakeReader
+  // 默认形态共存），不破坏 T70 既有用例。
+
+  test('manifest v2：reader 知道页名 → 清单行追加 ` @页「<名>」`', () => {
+    const registry = makeRegistry([{ n: 1, nodeIds: ['1:23'], names: ['主标题'], types: ['TEXT'] }])
+    const reader = fakeReader({
+      '1:23': { name: '主标题', type: 'TEXT' },
+      // fakeReader 的 `getNode` 同时承担页查找——传页 id 入映射即可。
+      '0:1': { name: '封面', type: 'CANVAS' }
+    })
+    const result = serializeSelectionManifest(selectionTokenText(1), registry, reader)
+    expect(result.text).toBe(
+      `${selectionTokenText(1)}\n\n[画布选区]\n@画布选区-1 = 节点 1:23「主标题」(TEXT) @页「封面」`
+    )
+  })
+
+  test('manifest v2：reader 缺页信息 → 不加标注（页未知兼容）', () => {
+    // fakeReader 默认映射只含节点 id，pageId '0:1' 查不到 → 标注省略。
+    const registry = makeRegistry([{ n: 1, nodeIds: ['1:23'], names: ['主标题'], types: ['TEXT'] }])
+    const reader = fakeReader({ '1:23': { name: '主标题', type: 'TEXT' } })
+    const result = serializeSelectionManifest(selectionTokenText(1), registry, reader)
+    expect(result.text).toBe(
+      `${selectionTokenText(1)}\n\n[画布选区]\n@画布选区-1 = 节点 1:23「主标题」(TEXT)`
+    )
+  })
+
+  test('manifest v2：已删节点仍带页标注（页 = 采集时已知，节点死活无关）', () => {
+    const registry = makeRegistry([{ n: 1, nodeIds: ['1:23'], names: ['主标题'], types: ['TEXT'] }])
+    const reader = fakeReader({
+      // 节点已删，reader 只剩页映射
+      '0:1': { name: '封面', type: 'CANVAS' }
+    })
+    const result = serializeSelectionManifest(selectionTokenText(1), registry, reader)
+    expect(result.text).toBe(
+      `${selectionTokenText(1)}\n\n[画布选区]\n@画布选区-1 = 节点 1:23「主标题」(已删除) @页「封面」`
+    )
+  })
+
+  test('manifest v2：未采集引用行不加页标注（无 entry → 无 pageId）', () => {
+    const result = serializeSelectionManifest(selectionTokenText(9), new Map(), fakeReader({}))
+    expect(result.text).toBe(`${selectionTokenText(9)}\n\n[画布选区]\n@画布选区-9 = 未采集的引用`)
+  })
+
   test('store 端到端：采集 → 删除节点 → 清单标（已删除）', () => {
     const store = createEditorStore()
     const pageId = store.state.currentPageId

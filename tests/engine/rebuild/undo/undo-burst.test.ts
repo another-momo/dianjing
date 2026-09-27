@@ -368,3 +368,102 @@ describe('T59 undo burst coalesce（AI 回合撤销组合并）', () => {
     expect(undoDepth(b.editor)).toBe(base + 1)
   })
 })
+
+// ── §8 布局重算脏页作用域：跨页引用 → 他页布局不再陈旧 ──────────────────────
+//
+// 落点页 ∪ 本次被改节点所在页逐页 computeAllLayouts。
+// 验证方式：在 pageB 建 HORIZONTAL/AUTO frame + 子节点，落点 = pageA 时按
+// id 改 pageB 子节点宽度——若只重算落点页，他页 frame 宽度停在旧值；扩展作
+// 用域后他页 frame 宽度 = 子节点宽度（证明他页被重算）。
+
+describe('§8 布局重算脏页作用域（tool-handlers 跨页引用）', () => {
+  function setupBridgeMultiPage() {
+    const editor = createEditor()
+    const pageA = editor.graph.getPages()[0].id
+    const pageB = editor.graph.addPage('Page B').id
+    const store: AutomationTarget['store'] = Object.assign(Object.create(editor), {
+      flashNodes: () => undefined
+    })
+    const target: AutomationTarget = {
+      store,
+      documentId: 'doc-scope',
+      documentName: 'Scope Test',
+      pageId: pageA,
+      pageName: 'Page A'
+    }
+    const makeFigma = (figmaStore: AutomationTarget['store'], figmaPageId?: string) => {
+      const api = new FigmaAPI(figmaStore.graph)
+      api.currentPage = api.wrapNode(figmaPageId ?? pageA)
+      return api
+    }
+    const { handleTool } = createAutomationToolHandler(makeFigma)
+    async function callTool(name: string, args: ToolResult): Promise<ToolResult> {
+      const res = (await handleTool(target, { name, args })) as { ok: boolean; result: ToolResult }
+      expect(res.ok).toBe(true)
+      return res.result
+    }
+    return { editor, pageA, pageB, callTool }
+  }
+
+  test('按 id 直改他页节点 → 他页自动布局 frame 宽度被刷新（不被脏页作用域遗漏）', async () => {
+    const b = setupBridgeMultiPage()
+
+    // 在 pageB 建 frame + 子节点，启用 HORIZONTAL/AUTO 自动布局（HUG 宽度）
+    const frameB = await b.callTool('create_shape', {
+      type: 'FRAME',
+      parent_id: b.pageB,
+      x: 0,
+      y: 0,
+      width: 10,
+      height: 100,
+      name: 'AutoB'
+    })
+    await b.callTool('set_layout', { id: frameB.id as string, direction: 'HORIZONTAL' })
+    await b.callTool('create_shape', {
+      type: 'RECTANGLE',
+      parent_id: frameB.id as string,
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 50
+    })
+    const frameBId = frameB.id as string
+
+    // 落点 = pageA。按 id 改 pageB 子节点的宽度——当前实现按 args 浅扫会
+    // 命中子节点 id（仅字符串值，不区分键名），触发 dirty-page 集合加入 pageB。
+    await b.callTool('update_node', {
+      id: b.editor.graph.getChildren(frameBId)[0].id,
+      width: 250
+    })
+
+    // §8 修法成立条件：pageB layout 被刷新 → frameB 宽度 = 子节点宽度 = 250
+    expect(b.editor.graph.getNode(frameBId)?.width).toBe(250)
+  })
+
+  test('同页 mutate：作用域仍含落点页（回归不漏）', async () => {
+    const b = setupBridgeMultiPage()
+
+    const frameA = await b.callTool('create_shape', {
+      type: 'FRAME',
+      parent_id: b.pageA,
+      x: 0,
+      y: 0,
+      width: 10,
+      height: 100,
+      name: 'AutoA'
+    })
+    await b.callTool('set_layout', { id: frameA.id as string, direction: 'HORIZONTAL' })
+    const childA = await b.callTool('create_shape', {
+      type: 'RECTANGLE',
+      parent_id: frameA.id as string,
+      x: 0,
+      y: 0,
+      width: 80,
+      height: 50
+    })
+
+    await b.callTool('update_node', { id: childA.id as string, width: 175 })
+
+    expect(b.editor.graph.getNode(frameA.id as string)?.width).toBe(175)
+  })
+})
