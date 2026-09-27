@@ -30,13 +30,18 @@ function postJSON(path: string, body: unknown): Promise<Response> {
 
 /** 409 响应体防御性解析：holder 形状坏 → null（调用方按 unavailable 处理） */
 async function readConflictHolder(res: Response): Promise<OpenDocsHolder | null> {
-  const body = (await res.json().catch(() => null)) as { holder?: OpenDocsHolder } | null
+  // holder 类型写 unknown——响应体是运行时输入，宽类型断言会把 null 防御变成
+  // 类型上不可能的死条件（no-unnecessary-condition 红），逐字段 in 窄化代替
+  const body = (await res.json().catch(() => null)) as { holder?: unknown } | null
   const holder = body?.holder
   if (
     holder !== null &&
     typeof holder === 'object' &&
+    'pid' in holder &&
     typeof holder.pid === 'number' &&
+    'windowId' in holder &&
     typeof holder.windowId === 'string' &&
+    'heartbeatAt' in holder &&
     typeof holder.heartbeatAt === 'number'
   ) {
     return holder
