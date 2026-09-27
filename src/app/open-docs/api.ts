@@ -28,25 +28,27 @@ function postJSON(path: string, body: unknown): Promise<Response> {
   })
 }
 
+/** OpenDocsHolder 运行时 type guard（409 响应体是运行时输入，逐字段核型） */
+function isOpenDocsHolder(value: unknown): value is OpenDocsHolder {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    'pid' in value &&
+    typeof value.pid === 'number' &&
+    'windowId' in value &&
+    typeof value.windowId === 'string' &&
+    'heartbeatAt' in value &&
+    typeof value.heartbeatAt === 'number'
+  )
+}
+
 /** 409 响应体防御性解析：holder 形状坏 → null（调用方按 unavailable 处理） */
 async function readConflictHolder(res: Response): Promise<OpenDocsHolder | null> {
-  // holder 类型写 unknown——响应体是运行时输入，宽类型断言会把 null 防御变成
-  // 类型上不可能的死条件（no-unnecessary-condition 红），逐字段 in 窄化代替
+  // holder 标 unknown——宽类型断言会把 null 防御变成类型上恒真的死条件
+  // （no-unnecessary-condition 红）；type guard 窄化代替
   const body = (await res.json().catch(() => null)) as { holder?: unknown } | null
   const holder = body?.holder
-  if (
-    holder !== null &&
-    typeof holder === 'object' &&
-    'pid' in holder &&
-    typeof holder.pid === 'number' &&
-    'windowId' in holder &&
-    typeof holder.windowId === 'string' &&
-    'heartbeatAt' in holder &&
-    typeof holder.heartbeatAt === 'number'
-  ) {
-    return holder
-  }
-  return null
+  return isOpenDocsHolder(holder) ? holder : null
 }
 
 export async function requestClaim(docUuid: string, force = false): Promise<ClaimOutcome> {
