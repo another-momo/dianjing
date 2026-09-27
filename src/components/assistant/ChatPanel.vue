@@ -455,13 +455,14 @@ const pendingAwaitingView = computed<AwaitingIntentCardView | null>(() => {
   return entry ? awaitingCardView(entry.record) : null
 })
 
-/** dock 门态：凡有未决即出现（ask/authz 在途 + 意图两线）；出现即输入区摘除
+/** dock 门态：凡有未决即出现（ask/authz 在途 + 意图两线 + 落点拦截门）；出现即输入区摘除
  * （dock 独占形态——拍板②：意图卡不破例，草稿随卡编辑） */
 const dockHasDecisions = computed(
   () =>
     pinnedDecisions.value.length > 0 ||
     pendingNewIntentView.value !== null ||
-    pendingAwaitingView.value !== null
+    pendingAwaitingView.value !== null ||
+    pendingLocusGate.value !== null
 )
 
 /** 意图决断在途锁（POST await 期间防连点；卡面 disabled 合成条件之一） */
