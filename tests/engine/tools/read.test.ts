@@ -28,6 +28,76 @@ describe('find_nodes', () => {
     const result = tool.execute(figma, { type: 'RECTANGLE' }) as ToolResult
     expect(result.count).toBe(2)
   })
+
+  test('pages param accepts an id and returns matching page', () => {
+    const { figma } = setupToolTest()
+    const other = figma.createPage()
+    other.name = 'Other'
+    figma.currentPage = other
+    const rect = figma.createRectangle()
+    rect.name = 'OtherRect'
+
+    const tool = getTool('find_nodes')
+    const result = tool.execute(figma, { page: other.id }) as ToolResult
+    expect(result.count).toBe(1)
+    expect(result.nodes[0].name).toBe('OtherRect')
+    expect(result.pageId).toBe(other.id)
+    expect(result.page).toBe('Other')
+  })
+
+  test('pages param accepts an unambiguous page name', () => {
+    const { figma } = setupToolTest()
+    const other = figma.createPage()
+    other.name = 'Slides'
+    figma.currentPage = other
+    const rect = figma.createRectangle()
+    rect.name = 'Hero'
+
+    const tool = getTool('find_nodes')
+    const result = tool.execute(figma, { page: 'Slides' }) as ToolResult
+    expect(result.count).toBe(1)
+    expect(result.pageId).toBe(other.id)
+  })
+
+  test('pages param errors and lists candidates on duplicate name', () => {
+    const { figma } = setupToolTest()
+    const dup1 = figma.createPage()
+    dup1.name = 'Cover'
+    const dup2 = figma.createPage()
+    dup2.name = 'Cover'
+
+    const tool = getTool('find_nodes')
+    const result = tool.execute(figma, { page: 'Cover' }) as {
+      error: string
+      candidates: Array<{ id: string; name: string }>
+    }
+    expect(result.error).toBeTruthy()
+    expect(result.error).toContain('Multiple')
+    const ids = result.candidates.map((c) => c.id)
+    expect(ids).toContain(dup1.id)
+    expect(ids).toContain(dup2.id)
+  })
+
+  test('pages param errors on unknown page name', () => {
+    const { figma } = setupToolTest()
+    const tool = getTool('find_nodes')
+    const result = tool.execute(figma, { page: 'Nope' }) as {
+      error: string
+      candidates: Array<{ id: string; name: string }>
+    }
+    expect(result.error).toContain('not found')
+    expect(result.candidates.length).toBeGreaterThanOrEqual(1)
+  })
+
+  test('pages param errors when id matches a non-page node', () => {
+    const { figma } = setupToolTest()
+    const rect = figma.createRectangle()
+    rect.name = 'Decoy'
+
+    const tool = getTool('find_nodes')
+    const result = tool.execute(figma, { page: rect.id }) as { error: string }
+    expect(result.error).toContain('not found')
+  })
 })
 
 describe('query_nodes', () => {
@@ -109,6 +179,105 @@ describe('query_nodes', () => {
     const result = (await tool.execute(figma, { selector: '//ELLIPSE' })) as ToolResult
     expect(result.count).toBe(0)
     expect(result.nodes).toEqual([])
+  })
+
+  test('pages param accepts an id and scopes results', async () => {
+    const { figma } = setupToolTest()
+    const other = figma.createPage()
+    other.name = 'Slides'
+    figma.currentPage = other
+    const f1 = figma.createFrame()
+    f1.name = 'OnlyOnSlides'
+    f1.resize(100, 100)
+    // back to the default first page and add a distractor
+    const first = figma.root.children.find((p) => p.id !== other.id)
+    if (first) {
+      figma.currentPage = first
+      const f2 = figma.createFrame()
+      f2.name = 'OnFirst'
+      f2.resize(100, 100)
+    }
+
+    const tool = getTool('query_nodes')
+    const result = (await tool.execute(figma, {
+      selector: '//FRAME',
+      page: other.id
+    })) as ToolResult
+    expect(result.count).toBe(1)
+    expect(result.nodes[0].name).toBe('OnlyOnSlides')
+    expect(result.pageId).toBe(other.id)
+  })
+
+  test('pages param accepts an unambiguous page name', async () => {
+    const { figma } = setupToolTest()
+    const other = figma.createPage()
+    other.name = 'Slides'
+    figma.currentPage = other
+    const f1 = figma.createFrame()
+    f1.name = 'Hero'
+
+    const tool = getTool('query_nodes')
+    const result = (await tool.execute(figma, {
+      selector: '//FRAME',
+      page: 'Slides'
+    })) as ToolResult
+    expect(result.count).toBe(1)
+    expect(result.pageId).toBe(other.id)
+  })
+
+  test('pages param errors and lists candidates on duplicate name', async () => {
+    const { figma } = setupToolTest()
+    const dup1 = figma.createPage()
+    dup1.name = 'Cover'
+    const dup2 = figma.createPage()
+    dup2.name = 'Cover'
+
+    const tool = getTool('query_nodes')
+    const result = (await tool.execute(figma, {
+      selector: '//FRAME',
+      page: 'Cover'
+    })) as { error: string; candidates: Array<{ id: string; name: string }> }
+    expect(result.error).toContain('Multiple')
+    const ids = result.candidates.map((c) => c.id)
+    expect(ids).toContain(dup1.id)
+    expect(ids).toContain(dup2.id)
+  })
+
+  test('pages param id scopes correctly even with duplicate page names', async () => {
+    const { figma } = setupToolTest()
+    const dup1 = figma.createPage()
+    dup1.name = 'Cover'
+    const dup2 = figma.createPage()
+    dup2.name = 'Cover'
+    figma.currentPage = dup1
+    const f1 = figma.createFrame()
+    f1.name = 'OnDup1'
+    f1.resize(100, 100)
+    figma.currentPage = dup2
+    const f2 = figma.createFrame()
+    f2.name = 'OnDup2'
+    f2.resize(100, 100)
+
+    const tool = getTool('query_nodes')
+    const result = (await tool.execute(figma, {
+      selector: '//FRAME',
+      page: dup2.id
+    })) as ToolResult
+    // id 权威必须下穿到查询层：重名页不串台（只命中 dup2，不含 dup1 的 OnDup1）
+    expect(result.count).toBe(1)
+    expect(result.nodes[0].name).toBe('OnDup2')
+    expect(result.pageId).toBe(dup2.id)
+  })
+
+  test('pages param errors on unknown page name', async () => {
+    const { figma } = setupToolTest()
+    const tool = getTool('query_nodes')
+    const result = (await tool.execute(figma, {
+      selector: '//FRAME',
+      page: 'Nope'
+    })) as { error: string; candidates: Array<{ id: string; name: string }> }
+    expect(result.error).toContain('not found')
+    expect(result.candidates.length).toBeGreaterThanOrEqual(1)
   })
 })
 

@@ -4,6 +4,8 @@ import type { FigmaNodeProxy } from '#core/figma-api'
 import { toolNumber, nodeIdInput } from '#core/tools/input'
 import { defineTool, nodeSummary, nodeToResult } from '#core/tools/schema'
 
+import { resolvePage } from './pages'
+
 interface TreeEntry {
   id: string
   type: string
@@ -116,7 +118,8 @@ export const getNode = defineTool({
 
 export const findNodes = defineTool({
   name: 'find_nodes',
-  description: 'Find nodes by name pattern and/or type.',
+  description:
+    'Find nodes by name pattern and/or type. Defaults to the current page; pass `page` (page id from list_pages, or an unambiguous page name) to scope the search to a specific page. Use this for simple within-page lookups by name/type; use query_nodes for XPath selectors or when you need to scan pages other than the current one. Call when the user asks to locate nodes on a specific page or to filter by name/type.',
   execution: { kind: 'sync', mutation: 'none' },
   input: v.object({
     name: v.optional(
@@ -140,15 +143,32 @@ export const findNodes = defineTool({
         ]),
         v.description('Node type filter')
       )
+    ),
+    page: v.optional(
+      v.pipe(
+        v.string(),
+        v.description(
+          'Page id (preferred) or unambiguous page name to scope the search to. Omit to search the current page.'
+        )
+      )
     )
   }),
   execute: (figma, args) => {
-    const page = figma.currentPage
+    const resolved = resolvePage(figma, args.page)
+    if ('error' in resolved) {
+      return { error: resolved.error, candidates: resolved.candidates }
+    }
+    const page = resolved.page
     const matches = page.findAll((node) => {
       if (args.type && node.type !== args.type) return false
       if (args.name && !node.name.toLowerCase().includes(args.name.toLowerCase())) return false
       return true
     })
-    return { count: matches.length, nodes: matches.map(nodeSummary) }
+    return {
+      count: matches.length,
+      page: page.name,
+      pageId: page.id,
+      nodes: matches.map(nodeSummary)
+    }
   }
 })

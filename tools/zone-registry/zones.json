@@ -89,6 +89,7 @@
     "tools/visual-oracles/src/render-fixture.ts",
     "tests/engine/tools/all-tools-execution.test.ts",
     "tests/engine/tools/bridge-server-cors.test.ts",
+    "tests/engine/tools/read.test.ts",
     "tests/engine/app/ai/bridge-errors.test.ts",
     "tests/engine/app/bridge/child-ready.test.ts",
     "tests/engine/app/bridge/mcp-runtime.test.ts",
@@ -2331,6 +2332,38 @@
       "reason": "Missing font 徽标滞留修复（2026-09-25）：fontManager 本体非响应式，改以 fontResolver.subscribe 事件驱动 resolutionRevision 重算——settled 后徽标自动消、逐出联动 reset 后重现（修复前面板 ⚠ 需触碰节点才刷新）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-25"
+    },
+    {
+      "id": "P375",
+      "file": "packages/core/src/tools/read/pages.ts",
+      "reason": "sl-w1-xpage-read（2026-09-26）：新增 resolvePage 共享 helper + 类型 PageCandidate / ResolvedPage——find_nodes 与 query_nodes 共用页寻址口径：pageId 权威，name 仅作便捷别名（重名报错并列候选），省略 → currentPage。零行为变更仅新增 helper 与命名导出（仓外 docs/202609231923 §10-1 页寻址口径补充）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-26",
+      "task": "sl-w1-xpage-read"
+    },
+    {
+      "id": "P376",
+      "file": "packages/core/src/tools/read/nodes.ts",
+      "reason": "sl-w1-xpage-read（2026-09-26）：find_nodes 加可选 page 参数走 resolvePage 助手——ID 权威 / name 重名报错并列候选 / 缺省 → currentPage；结果附加 page + pageId 字段（page 名仅诊断冗余，方便模型核对）；description 同步翻 GO 从句。跨页只读不写通道（仓外 §10-1 已裁 a 案都弄）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-26",
+      "task": "sl-w1-xpage-read"
+    },
+    {
+      "id": "P377",
+      "file": "packages/core/src/tools/read/query.ts",
+      "reason": "sl-w1-xpage-read（2026-09-26）：query_nodes 的 page 参数口径迁移——原按 name 匹配（重名会错页）改为先经 resolvePage 助手解析到唯一页，再把 pageId 下穿给 queryByXPath（下穿件见 P378）；省略 → 当前页重置为显式 resolve 当前页（语义一致，结果附 page + pageId 字段）；description 同步翻 GO 从句 + 补充页寻址片段",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-26",
+      "task": "sl-w1-xpage-read"
+    },
+    {
+      "id": "P378",
+      "file": "packages/core/src/xpath.ts",
+      "reason": "sl-w1-xpage-read（2026-09-27 主 agent review 补洞）：XPathQueryOptions 新增 pageId 过滤（权威，优先于 page 名）——原实现仅按页名 filter，「重名页传 id」会在查询层退化为同名页全命中（resolvePage 的消歧被倒挂）；rpc/read-commands 的 page 名入参保持兼容不动",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-27",
+      "task": "sl-w1-xpage-read"
     }
   ],
   "deletedPaths": [

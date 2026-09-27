@@ -104,7 +104,9 @@ const EXTENDED_WHITELIST = [
   'set_rotation',
   'set_blend',
   'set_locked',
-  'list_available_fonts'
+  'list_available_fonts',
+  'list_pages',
+  'query_nodes'
 ] as const
 
 export const MAX_AGENT_STEPS = 50

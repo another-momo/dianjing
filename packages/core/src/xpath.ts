@@ -216,7 +216,10 @@ function createDomFacade(graph: SceneGraph) {
 
 export interface XPathQueryOptions {
   limit?: number
+  /** 页名过滤（重名页会全部命中——有同名页歧义时用 pageId） */
   page?: string
+  /** 页 id 过滤（权威，优先于 page 名） */
+  pageId?: string
 }
 
 export async function queryByXPath(
@@ -226,7 +229,12 @@ export async function queryByXPath(
 ): Promise<SceneNode[]> {
   const { limit = 1000 } = options
   const pages = graph.getPages()
-  const targetPages = options.page ? pages.filter((p) => p.name === options.page) : pages
+  let targetPages = pages
+  if (options.pageId) {
+    targetPages = pages.filter((p) => p.id === options.pageId)
+  } else if (options.page) {
+    targetPages = pages.filter((p) => p.name === options.page)
+  }
 
   if (targetPages.length === 0) return []
 

@@ -2,7 +2,64 @@ import * as v from 'valibot'
 
 import { computeBounds } from '@open-pencil/scene-graph/geometry'
 
+import type { FigmaAPI, FigmaNodeProxy } from '#core/figma-api'
 import { defineTool } from '#core/tools/schema'
+
+export type PageCandidate = { id: string; name: string }
+
+/**
+ * Outcome of resolving a user-supplied page reference (id, name, or omitted).
+ *
+ * - `page` is set on success; the caller uses it as the search/operation scope.
+ * - `error` + `candidates` is set on failure or ambiguity; the caller surfaces the
+ *   error and the candidate list so the agent can disambiguate.
+ *
+ * Shared across `find_nodes` and `query_nodes` so the two read tools agree on
+ * the page addressing contract: pageId is authoritative, page name is a
+ * convenience alias that errors on duplicates, omitting `page` keeps the old
+ * default (the current page).
+ */
+export type ResolvedPage =
+  | { page: FigmaNodeProxy; candidates?: undefined }
+  | { page?: undefined; error: string; candidates: PageCandidate[] }
+
+/**
+ * Resolve a `page` argument to a single page proxy.
+ *
+ *   undefined / ''   → figma.currentPage
+ *   exact pageId     → that page (must be a CANVAS; ids don't collide)
+ *   exact name match → the single page with that name, or an error listing
+ *                       candidates (zero, or two-or-more)
+ *
+ * Page ids are exact match only — passing an id that resolves to a non-page
+ * node falls through to the name lookup and reports not-found, so the agent
+ * never silently lands on the wrong scope.
+ */
+export function resolvePage(figma: FigmaAPI, pageRef: string | undefined): ResolvedPage {
+  if (pageRef === undefined || pageRef === '') {
+    return { page: figma.currentPage }
+  }
+
+  const allPages = figma.root.children
+
+  const byId = figma.getNodeById(pageRef)
+  if (byId && byId.type === 'CANVAS') {
+    return { page: byId }
+  }
+
+  const byName = allPages.filter((p) => p.name === pageRef)
+  const candidates: PageCandidate[] = allPages.map((p) => ({ id: p.id, name: p.name }))
+  if (byName.length === 1) {
+    return { page: byName[0] }
+  }
+  if (byName.length === 0) {
+    return { error: `Page "${pageRef}" not found`, candidates }
+  }
+  return {
+    error: `Multiple pages named "${pageRef}" — pass the pageId from the candidates instead`,
+    candidates: byName.map((p) => ({ id: p.id, name: p.name }))
+  }
+}
 
 export const listPages = defineTool({
   name: 'list_pages',
