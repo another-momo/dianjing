@@ -9,7 +9,7 @@ import { listFamilies, listFonts } from '@/app/editor/fonts'
  *  不应被种进 X 页 API（裸 id 在 X 页图里要么悬空要么错指同名节点）。 */
 function nodeBelongsToPage(graph: SceneGraph, nodeId: string, pageId: string): boolean {
   const visited = new Set<string>()
-  let current: string | undefined = nodeId
+  let current: string | null | undefined = nodeId
   while (current && !visited.has(current)) {
     visited.add(current)
     if (current === pageId) return true

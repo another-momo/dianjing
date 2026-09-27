@@ -76,7 +76,7 @@ function resolveZoneRootId(graph: SceneGraph, candidateIds: string[]): string | 
  *  需要随落点页一起重算（§8 布局重算范围跟节点走）。游离/未命中 → null。 */
 function resolveNodePageId(graph: SceneGraph, nodeId: string): string | null {
   const visited = new Set<string>()
-  let current: string | undefined = nodeId
+  let current: string | null | undefined = nodeId
   while (current && !visited.has(current)) {
     visited.add(current)
     const node = graph.getNode(current)
