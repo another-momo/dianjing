@@ -25,8 +25,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import * as v from 'valibot'
 
+import { PayloadTooLargeError, readBody, sendJSON, sendPayloadTooLarge } from '../http-utils'
 import type { OpenDocsGuard } from './guard'
-import { PayloadTooLargeError, readBody, sendJSON, sendPayloadTooLarge } from './http-utils'
 
 const docUuidSchema = v.pipe(v.string(), v.minLength(1, 'docUuid 不能为空'))
 const windowIdSchema = v.pipe(v.string(), v.minLength(1, 'windowId 不能为空'))
