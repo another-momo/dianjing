@@ -5,9 +5,14 @@
  * /api/pi/intent-confirm 写 pluginData 四键；锁定行由端点置「新鲜」标记驱动，
  * 下回合注入即消费（D3 只注一次）；显式移槽路径清未消费键。
  *
+ * 2026-09-27 sl-w2-state-chain 批 4 接线半：测试装配路径新增 pageStateReader
+ * 注入；assembleTurn 多 pageContext 参数；resolveTurnAssets 规制优先级改
+ * page-state > newIntent > slot；测试 fake bridge SlotProbeData 补 docUuid。
+ *
  * 验收映射（T60-plan §3 宿主侧 + T65-plan §2.4/§2.5；桥 IO 全注入假件，不触真桥）：
  *  - 组装：空槽（含桥不可达降级）/ 有槽 / 落盘 mode 缺失 / profile 有无 /
- *    base→workflow→profile 顺序固定；身份封套与系统提示行进 contextLines
+ *    base→workflow→profile 顺序固定；身份封套与系统提示行进 contextLines；
+ *    page-state 规制 > newIntent > slot 的优先级（resolveTurnAssets）
  *  - 一次性旗标：pluginData confirmed 置真 / finalizeTurn 复位 / 不滞留 /
  *    裸信封不置旗（批 1 行为变更钉扎）
  *  - 确认参数系统提示行：fresh 标记 + pluginData confirmed → 注入即消费 /
@@ -20,10 +25,12 @@
  *  - T91b：pluginData 四键确认——document root 四键命中 → 旗标置真。
  *    clearNewIntent hook 由 onDesignCreated 触发
  *  - P0-1（newIntent 时序缺口修复）：资产解析（resolveTurnAssets）优先级
- *    newIntent > slot；空槽 + newIntent confirmed 的 Turn 1 也拿到
- *    workflow + profile + references；newIntent 未确认/modeId 空则维持 slot 语义。
- *    守卫（newIntentConfirmed）仍手动管理——不采文档建议的派生式（见宿主内注）。
- *    探针合并：newIntent 四键随 probeSlot 同片段返回（原独立 eval 撤销）
+ *    page-state > newIntent > slot；空槽 + page-state modeId / profileId
+ *    也能拿到 workflow + profile + references；page-state 为空则走
+ *    newIntent > slot 兜底；守卫（newIntentConfirmed）仍手动管理。
+ *    探针合并：newIntent 四键 + docUuid 随 probeSlot 同片段返回
+ *  - 2026-09-27 sl-w2-state-chain：每回合恒注 `[施工页 page=… 模式=…/…
+ *    brief=…]` 行 + 视图页 ≠ 落点页时 `[你正在看第X页]` 差分行。
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -130,13 +137,14 @@ type FakeBridge = ActiveDesignBridgeIO & {
 }
 
 /** 假桥：内存槽位 + 写记录；probeCandidate 读独立候选表。init.newIntent = 初始 pluginData 四键（批 1 后确认真源） */
-function makeFakeBridge(init?: { newIntent?: NewIntentState }): FakeBridge {
+function makeFakeBridge(init?: { newIntent?: NewIntentState; docUuid?: string }): FakeBridge {
   let slot: SlotProbeData = {
     slotNodeId: '',
     currentPageId: 'page-1',
     design: null,
     brief: null,
-    newIntent: init?.newIntent ?? { modeId: '', profileId: '', confirmed: false, canvas: '' }
+    newIntent: init?.newIntent ?? { modeId: '', profileId: '', confirmed: false, canvas: '' },
+    docUuid: init?.docUuid ?? 'doc-fake'
   }
   const candidateById = new Map<string, DesignRootSnapshot | null>()
   const writes: string[] = []
@@ -179,22 +187,78 @@ function makeFakeBridge(init?: { newIntent?: NewIntentState }): FakeBridge {
   }
 }
 
-function makeHost(bridge: ActiveDesignBridgeIO, registry = makeRegistry()) {
-  return createActiveDesignHost({ registry: () => registry, bridge })
+/**
+ * 2026-09-27 sl-w2-state-chain：page-state 标量读取器（注入式 stub）——按
+ * docUuid 返 {modeId, profileId, engagedPageId}。测试通过 setPageState
+ * 注入；未注入 → 返 null（与 page-state 缺失 / 腐烂语义一致，host 兜底走
+ * fallbackNewIntent + slot 帧身份）。
+ */
+type PageStateReaderStub = (
+  docUuid: string
+) => { modeId: string | null; profileId: string | null; engagedPageId: string | null } | null
+function makePageStateReader(): {
+  reader: PageStateReaderStub
+  set(
+    docUuid: string,
+    state: { modeId: string | null; profileId: string | null; engagedPageId: string | null }
+  ): void
+} {
+  const map = new Map<
+    string,
+    { modeId: string | null; profileId: string | null; engagedPageId: string | null }
+  >()
+  const reader: PageStateReaderStub = (docUuid) => map.get(docUuid) ?? null
+  return {
+    reader,
+    set(docUuid, state) {
+      map.set(docUuid, state)
+    }
+  }
+}
+
+function makeHost(
+  bridge: ActiveDesignBridgeIO,
+  registry = makeRegistry(),
+  pageStateReader: PageStateReaderStub = () => null
+) {
+  return createActiveDesignHost({ registry: () => registry, bridge, pageStateReader })
 }
 
 /**
  * P0-1：装配链路完整口径 = resolveTurnAssets（probe 阶段的 registry 查找 +
- * newIntent 优先级）→ assembleTurn（拼接）。测试统一走这条组合，与 prepareTurn
- * 内部顺序一致。
+ * page-state / newIntent / slot 三段优先级）→ assembleTurn（拼接 + pageContext
+ * 恒在行）。测试统一走这条组合，与 prepareTurn 内部顺序一致。
  */
 function assemble(
   registry: StudioRegistry,
   slot: ActiveDesignSlotState,
-  opts: { newIntent?: NewIntentState; notices?: string[] } = {}
+  opts: {
+    newIntent?: NewIntentState
+    pageState?: {
+      modeId: string | null
+      profileId: string | null
+      engagedPageId: string | null
+    } | null
+    notices?: string[]
+    pageContext?: {
+      engagedPageId?: string | null
+      modeId?: string | null
+      profileId?: string | null
+      briefId?: string | null
+      viewPageId?: string | null
+    }
+  } = {}
 ) {
-  const resolved = resolveTurnAssets(registry, slot, opts.newIntent ?? null)
-  return assembleTurn(registry, resolved, opts.notices ?? [])
+  const resolved = resolveTurnAssets(registry, slot, opts.pageState ?? null, opts.newIntent ?? null)
+  const slotBriefId = slot.status === 'ok' ? slot.design.briefId : ''
+  const pageContext = {
+    engagedPageId: opts.pageState?.engagedPageId ?? opts.pageContext?.engagedPageId ?? null,
+    modeId: opts.pageState?.modeId ?? opts.pageContext?.modeId ?? null,
+    profileId: opts.pageState?.profileId ?? opts.pageContext?.profileId ?? null,
+    briefId: slotBriefId || opts.pageContext?.briefId || null,
+    viewPageId: opts.pageContext?.viewPageId ?? 'page-1'
+  }
+  return assembleTurn(registry, resolved, pageContext, opts.notices ?? [])
 }
 
 /** newIntent 四键构造糖（confirmed 默认 true；canvas 默认空） */
@@ -244,6 +308,9 @@ describe('确认参数系统提示行注入', () => {
     await host.prepareTurn('做图')
     expect(host.newIntentConfirmed()).toBe(true)
     expect(host.turnAssembly()?.contextLines).toEqual([
+      // 2026-09-27 sl-w2-state-chain：page-state 未设时恒注施工页行（占位
+      // '无'）——本件验证事实行（不在此测）+ D3 锁定行（次位）逐字钉扎
+      '[施工页 page=无 模式=无/无 brief=无]',
       '用户已为本次新建确认参数：modeId=longform profileId=watercolor 尺寸=750x2000（选择即锁定，不得覆盖）'
     ])
     host.finalizeTurn()
@@ -254,6 +321,7 @@ describe('确认参数系统提示行注入', () => {
     host.markNewIntentFresh()
     await host.prepareTurn('做图')
     expect(host.turnAssembly()?.contextLines).toEqual([
+      '[施工页 page=无 模式=无/无 brief=无]',
       '用户已为本次新建确认参数：modeId=longform（选择即锁定，不得覆盖）'
     ])
     host.finalizeTurn()
@@ -261,20 +329,21 @@ describe('确认参数系统提示行注入', () => {
 
   test('D3 只注一次：confirmed 无 fresh 不注；fresh 消费后次回合不再注', async () => {
     const host = makeHost(makeFakeBridge({ newIntent: intent('longform') }))
-    // confirmed 在位但无 fresh 标记 → 不注入
+    // confirmed 在位但无 fresh 标记 → 不注入 D3 锁定行；pageContext 行恒在
     await host.prepareTurn('做图')
-    expect(host.turnAssembly()?.contextLines).toEqual([])
+    expect(host.turnAssembly()?.contextLines).toEqual(['[施工页 page=无 模式=无/无 brief=无]'])
     host.finalizeTurn()
 
     // fresh 标记 → 注入一次即消费；次回合 confirmed 仍在但 fresh 已清 → 不再注入
     host.markNewIntentFresh()
     await host.prepareTurn('继续')
     expect(host.turnAssembly()?.contextLines).toEqual([
+      '[施工页 page=无 模式=无/无 brief=无]',
       '用户已为本次新建确认参数：modeId=longform（选择即锁定，不得覆盖）'
     ])
     host.finalizeTurn()
     await host.prepareTurn('再继续')
-    expect(host.turnAssembly()?.contextLines).toEqual([])
+    expect(host.turnAssembly()?.contextLines).toEqual(['[施工页 page=无 模式=无/无 brief=无]'])
     host.finalizeTurn()
   })
 
@@ -288,6 +357,10 @@ describe('确认参数系统提示行注入', () => {
     await host.prepareTurn('另起一张')
     const lines = host.turnAssembly()?.contextLines
     expect(lines).toEqual([
+      // 2026-09-27 sl-w2-state-chain：page-state 未设时施工页行 brief=b1
+      // （从 slot.design.briefId 派生），其余字段占位 '无'——顺序 = 事实 →
+      // 身份封套 → D3 锁定行 → 提示行
+      '[施工页 page=无 模式=无/无 brief=b1]',
       '[当前设计目标 nodeId=d1 briefId=b1]',
       '用户已为本次新建确认参数：modeId=general 尺寸=750x（选择即锁定，不得覆盖）',
       ACTIVE_DESIGN_TEXTS.briefMissing
@@ -305,7 +378,9 @@ describe('每回合组装（assembleTurn）', () => {
     const turn = assemble(registry, { status: 'empty' })
     // A3 B7：base 段前冠 `# studio base` 来源头
     expect(turn.systemPrompt).toBe('# studio base\nBASE')
-    expect(turn.contextLines).toEqual([])
+    // 2026-09-27 sl-w2-state-chain：pageContext 恒在首行——空槽无 engaged/mode/
+    // profile/brief → 全 '无' 占位
+    expect(turn.contextLines).toEqual(['[施工页 page=无 模式=无/无 brief=无]'])
   })
 
   test('有槽：base → workflow → profile 顺序固定 + 身份封套首行', () => {
@@ -319,7 +394,10 @@ describe('每回合组装（assembleTurn）', () => {
     expect(turn.systemPrompt).toBe(
       '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
     )
-    expect(turn.contextLines[0]).toBe('[当前设计目标 nodeId=d1 briefId=b1]')
+    // 2026-09-27 sl-w2-state-chain：pageContext 行（brief 从 slot.design.briefId
+    // 派生 = b1）+ 身份封套 = 第 0 / 1 行
+    expect(turn.contextLines[0]).toBe('[施工页 page=无 模式=无/无 brief=b1]')
+    expect(turn.contextLines[1]).toBe('[当前设计目标 nodeId=d1 briefId=b1]')
   })
 
   test('general mode：A3 B1 兼容行——跳过 workflow 查表，按 base only 组装（profile 仍按 P2-10 modes 过滤）', () => {
@@ -343,7 +421,9 @@ describe('每回合组装（assembleTurn）', () => {
     expect(turn.systemPrompt).toBe('# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW')
     // P2-2（2026-09-07）：designTargetEnvelope 移除 modeId/profileId——agent 从
     // system prompt 内容本身知道当前 workflow/profile，不需文件名 id
-    expect(turn.contextLines[0]).toBe('[当前设计目标 nodeId=d1 briefId=b1]')
+    // 2026-09-27 sl-w2-state-chain：pageContext 行恒在首位
+    expect(turn.contextLines[0]).toBe('[施工页 page=无 模式=无/无 brief=b1]')
+    expect(turn.contextLines[1]).toBe('[当前设计目标 nodeId=d1 briefId=b1]')
   })
 
   test('profileId 未命中注册表 → 跳过（失败面归 manifest failures）', () => {
@@ -363,8 +443,10 @@ describe('每回合组装（assembleTurn）', () => {
     })
     // A3 B7：workflow 缺失 → workflow 段为空不冠头；只剩 base 段
     expect(turn.systemPrompt).toBe('# studio base\nBASE')
-    expect(turn.contextLines).toHaveLength(2)
-    expect(turn.contextLines[1]).toBe(ACTIVE_DESIGN_TEXTS.workflowMissing('ghost-mode'))
+    // 2026-09-27 sl-w2-state-chain：pageContext 行 + 身份封套 + workflowMissing
+    expect(turn.contextLines).toHaveLength(3)
+    expect(turn.contextLines[0]).toBe('[施工页 page=无 模式=无/无 brief=b1]')
+    expect(turn.contextLines[2]).toBe(ACTIVE_DESIGN_TEXTS.workflowMissing('ghost-mode'))
   })
 
   test('brief 悬空 → 提示行进 contextLines', () => {
@@ -414,8 +496,8 @@ describe('P0-1 newIntent 优先级装配（resolveTurnAssets）', () => {
       'workflow:longform/references/imagery.md':
         '/abs/studio/workflows/longform/references/imagery.md'
     })
-    // 空槽 → 无身份封套（设计区尚未落图）
-    expect(turn.contextLines).toEqual([])
+    // 2026-09-27 sl-w2-state-chain：pageContext 行恒在；空槽无 brief → '无'
+    expect(turn.contextLines).toEqual(['[施工页 page=无 模式=无/无 brief=无]'])
   })
 
   test('② slot=ok（旧设计）+ newIntent confirmed（新模式）→ newIntent 胜出', () => {
@@ -432,7 +514,9 @@ describe('P0-1 newIntent 优先级装配（resolveTurnAssets）', () => {
     expect(turn.systemPrompt).not.toContain('LONGFORM-WORKFLOW')
     expect(turn.systemPrompt).not.toContain('PROFILE-BODY')
     // 身份封套仍按 slot 落盘事实（目标节点没变；P2-2 移除 modeId/profileId）
-    expect(turn.contextLines[0]).toBe('[当前设计目标 nodeId=d1 briefId=b1]')
+    // 2026-09-27 sl-w2-state-chain：pageContext 行（brief=b1 从 slot 派生）在首位
+    expect(turn.contextLines[0]).toBe('[施工页 page=无 模式=无/无 brief=b1]')
+    expect(turn.contextLines[1]).toBe('[当前设计目标 nodeId=d1 briefId=b1]')
   })
 
   test('③ newIntent 未 confirmed / modeId 空 → 维持 slot 逻辑不变', () => {
@@ -467,7 +551,8 @@ describe('P0-1 newIntent 优先级装配（resolveTurnAssets）', () => {
     )
     // A3 B1：general 跳过 workflow 查表；profile.modes=['longform'] 不含 general → 不注 profile
     expect(turn.systemPrompt).toBe('# studio base\nBASE')
-    expect(turn.contextLines).toEqual([])
+    // 2026-09-27 sl-w2-state-chain：pageContext 行恒在
+    expect(turn.contextLines).toEqual(['[施工页 page=无 模式=无/无 brief=无]'])
   })
 
   test('newIntent 的 modeId 未命中 registry → workflowMissing 提示 + 不注 profile', () => {
@@ -477,7 +562,11 @@ describe('P0-1 newIntent 优先级装配（resolveTurnAssets）', () => {
       { newIntent: intent('ghost-mode', 'watercolor') }
     )
     expect(turn.systemPrompt).toBe('# studio base\nBASE')
-    expect(turn.contextLines).toEqual([ACTIVE_DESIGN_TEXTS.workflowMissing('ghost-mode')])
+    // 2026-09-27 sl-w2-state-chain：pageContext 行 + workflowMissing
+    expect(turn.contextLines).toEqual([
+      '[施工页 page=无 模式=无/无 brief=无]',
+      ACTIVE_DESIGN_TEXTS.workflowMissing('ghost-mode')
+    ])
   })
 
   // P2-10（2026-09-07）：profile.modes 运行时过滤——显式填写时仅在列出的 mode 下注入
@@ -861,9 +950,11 @@ describe('prepareTurn 管线', () => {
     expect(promptText).toBe(text)
     expect(host.newIntentConfirmed()).toBe(false)
     // 桥不可达 → 空槽降级 base only（信封不再把 Turn 1 从降级里捞起）
+    // 2026-09-27 sl-w2-state-chain：pageContext 行恒在——probe 不可达 = 全部 null
+    // → 全 '无' 占位
     expect(host.turnAssembly()).toEqual({
       systemPrompt: '# studio base\nBASE',
-      contextLines: [],
+      contextLines: ['[施工页 page=无 模式=无/无 brief=无]'],
       allowedReferences: new Map()
     })
     host.finalizeTurn()
@@ -891,7 +982,11 @@ describe('prepareTurn 管线', () => {
     expect(bridge.writes).toEqual([''])
     const turn = host.turnAssembly()
     expect(turn?.systemPrompt).toBe('# studio base\nBASE')
-    expect(turn?.contextLines).toEqual([ACTIVE_DESIGN_TEXTS.slotCleared])
+    // 2026-09-27 sl-w2-state-chain：pageContext 行 + slotCleared 提示行
+    expect(turn?.contextLines).toEqual([
+      '[施工页 page=无 模式=无/无 brief=无]',
+      ACTIVE_DESIGN_TEXTS.slotCleared
+    ])
     host.finalizeTurn()
   })
 
@@ -1179,7 +1274,10 @@ describe('A3 波4：B3 身份差分通知', () => {
     const host = makeHost(bridge)
     await host.prepareTurn('继续')
     // fake bridge probeSlot 返 brief=null → briefMissing 提示行进 contextLines（与既有测试同律）
+    // 2026-09-27 sl-w2-state-chain：pageContext 行（brief=b1 从 slot 派生）
+    // + 身份封套 + briefMissing
     expect(host.turnAssembly()?.contextLines ?? []).toEqual([
+      '[施工页 page=无 模式=无/无 brief=b1]',
       '[当前设计目标 nodeId=d1 briefId=b1]',
       '当前设计目标关联的需求单已被删除——可新建需求单绑定，或不走需求单直接聊天修改。'
     ])
@@ -1223,7 +1321,11 @@ describe('A3 波4：B2 pluginData 持久化路径', () => {
     expect(host.turnAssembly()?.systemPrompt).toBe(
       '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
     )
-    expect(host.turnAssembly()?.contextLines ?? []).toEqual([])
+    // 2026-09-27 sl-w2-state-chain：pageContext 行恒在（D3 锁定行不复发 ≠
+    // pageContext 行不复——前者随 intent 一次性态，后者随装配事实恒在）
+    expect(host.turnAssembly()?.contextLines ?? []).toEqual([
+      '[施工页 page=无 模式=无/无 brief=无]'
+    ])
     host.finalizeTurn()
   })
 
@@ -1266,6 +1368,162 @@ describe('A3 波4：B2 pluginData 持久化路径', () => {
     expect(host.turnAssembly()?.contextLines).toContain(
       '[系统] 设计模式已切换：longform → 通用（触发源：新设计落图）；画布内容不受影响。'
     )
+    host.finalizeTurn()
+  })
+})
+
+// ── 2026-09-27 sl-w2-state-chain：page-state 优先级 + pageContext 注入 ────────
+
+describe('page-state 优先级 + 施工页/视图差分行注入', () => {
+  test('P0-1 优先级：page-state modeId 胜出 newIntent + slot（空槽 + 三段冲突时 page-state 取上）', () => {
+    // page-state modeId=longform / profileId=watercolor（确认规制真源）
+    // newIntent modeId=poster（刚刚确认的新建意图）
+    // slot 空（尚未落图）
+    // 期望：resolveTurnAssets 走 page-state → 装配出 longform/watercolor
+    // systemPrompt，pageContext.modeId=longform, profileId=watercolor
+    const turn = assemble(
+      makeRegistry(),
+      { status: 'empty' },
+      {
+        pageState: { modeId: 'longform', profileId: 'watercolor', engagedPageId: 'page-A' },
+        newIntent: { modeId: 'poster', profileId: '', confirmed: true, canvas: '' }
+      }
+    )
+    // page-state 胜出 → longform / watercolor（不是 newIntent 的 poster）
+    expect(turn.systemPrompt).toBe(
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
+    )
+    // 施工页行 = page-state 三字段（page/mode/profile），brief 从 slot 派生（空槽 = '无'）
+    expect(turn.contextLines).toContain('[施工页 page=page-A 模式=longform/watercolor brief=无]')
+  })
+
+  test('page-state 缺失时 newIntent 兜底（规制优先级二级）', () => {
+    // page-state null（首跑 / 腐烂）
+    // newIntent modeId=longform profileId=watercolor
+    // slot 空
+    const turn = assemble(
+      makeRegistry(),
+      { status: 'empty' },
+      {
+        pageState: null,
+        newIntent: intent('longform', 'watercolor')
+      }
+    )
+    // 走 newIntent → 同前页规制装配
+    expect(turn.systemPrompt).toBe(
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
+    )
+    // page-state null → pageContext.modeId/profileId = null → 占位 '无'（与
+    // 缺省链兜底对齐，不沿用 newIntent 值灌入事实行——规制真源是 page-state）
+    expect(turn.contextLines).toContain('[施工页 page=无 模式=无/无 brief=无]')
+  })
+
+  test('page-state 缺失 + newIntent 缺失 → slot 兜底（规制优先级三级）', () => {
+    const turn = assemble(makeRegistry(), {
+      status: 'ok',
+      design: designSnap(),
+      briefMissing: false
+    })
+    // slot 命中 longform/watercolor
+    expect(turn.systemPrompt).toBe(
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
+    )
+    // page-state 空 → pageContext.modeId/profileId = null → 占位 '无'（brief
+    // 从 slot.design.briefId 派生 = b1）
+    expect(turn.contextLines).toContain('[施工页 page=无 模式=无/无 brief=b1]')
+  })
+
+  test('视图页 ≠ 落点页：注 [你正在看第X页] 差分行（位于施工页行之后）', () => {
+    // page-state engagedPageId=page-A，probe currentPageId=page-B → view=page-B
+    // 装配时通过 opts.pageContext.viewPageId 注入 viewPageId
+    const turn = assemble(
+      makeRegistry(),
+      { status: 'empty' },
+      {
+        pageState: { modeId: 'longform', profileId: 'watercolor', engagedPageId: 'page-A' },
+        pageContext: { viewPageId: 'page-B' }
+      }
+    )
+    const lines = turn.contextLines
+    // 差分行位于施工页行之后（且仅当两事实均非空且不等）
+    expect(lines).toContain('[施工页 page=page-A 模式=longform/watercolor brief=无]')
+    expect(lines).toContain('[你正在看第page-B页]')
+    expect(lines.indexOf('[你正在看第page-B页]')).toBeGreaterThan(
+      lines.indexOf('[施工页 page=page-A 模式=longform/watercolor brief=无]')
+    )
+  })
+
+  test('视图页 = 落点页：不注差分行（避免冗余）', () => {
+    const turn = assemble(
+      makeRegistry(),
+      { status: 'empty' },
+      {
+        pageState: { modeId: 'longform', profileId: 'watercolor', engagedPageId: 'page-A' },
+        pageContext: { viewPageId: 'page-A' }
+      }
+    )
+    expect(turn.contextLines).not.toContain(expect.stringContaining('[你正在看第'))
+  })
+
+  test('视图页缺失（桥不可达）→ 不注差分行（单事实不能触发）', () => {
+    const turn = assemble(
+      makeRegistry(),
+      { status: 'empty' },
+      {
+        pageState: { modeId: 'longform', profileId: 'watercolor', engagedPageId: 'page-A' },
+        pageContext: { viewPageId: null }
+      }
+    )
+    expect(turn.contextLines).not.toContain(expect.stringContaining('[你正在看第'))
+  })
+
+  test('落点页缺失（首跑 / 腐烂）→ 不注差分行（单事实不能触发）', () => {
+    const turn = assemble(
+      makeRegistry(),
+      { status: 'empty' },
+      {
+        pageState: { modeId: null, profileId: null, engagedPageId: null },
+        pageContext: { viewPageId: 'page-B' }
+      }
+    )
+    expect(turn.contextLines).not.toContain(expect.stringContaining('[你正在看第'))
+  })
+
+  test('probe docUuid → pageStateReader 注入路径：reader 命中 → 施工页行带规制', async () => {
+    const pageState = makePageStateReader()
+    pageState.set('doc-X', {
+      modeId: 'longform',
+      profileId: 'watercolor',
+      engagedPageId: 'page-X'
+    })
+    const bridge = makeFakeBridge({ docUuid: 'doc-X' })
+    const host = makeHost(bridge, makeRegistry(), pageState.reader)
+    await host.prepareTurn('做图')
+    // pageStateReader 命中 → 施工页行带 page-X / longform / watercolor
+    expect(host.turnAssembly()?.contextLines).toContain(
+      '[施工页 page=page-X 模式=longform/watercolor brief=无]'
+    )
+    // 注：probe.newIntent 空 + slot 空 + page-state 命中 → 走 page-state 装配
+    // longform/workflow + watercolor/profile（规制真源 = page-state）
+    expect(host.turnAssembly()?.systemPrompt).toBe(
+      '# studio base\nBASE\n\n# workflow: longform\nLONGFORM-WORKFLOW\n\n# profile: watercolor\nPROFILE-BODY'
+    )
+    host.finalizeTurn()
+  })
+
+  test('probe docUuid 空（文档尚未铸造 uuid / 根 pluginData 被覆盖）→ pageStateReader 跳过', async () => {
+    const pageState = makePageStateReader()
+    pageState.set('doc-X', {
+      modeId: 'longform',
+      profileId: 'watercolor',
+      engagedPageId: 'page-X'
+    })
+    const bridge = makeFakeBridge({ docUuid: '' }) // 文档尚未铸造 uuid
+    const host = makeHost(bridge, makeRegistry(), pageState.reader)
+    await host.prepareTurn('做图')
+    // probe docUuid 空 → pageStateReader 跳过 → pageContext 三字段全 null →
+    // 施工页行占位 '无'（不走 fallbackNewIntent + slot 帧身份——首跑路径）
+    expect(host.turnAssembly()?.contextLines).toContain('[施工页 page=无 模式=无/无 brief=无]')
     host.finalizeTurn()
   })
 })

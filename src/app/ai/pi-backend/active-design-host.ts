@@ -37,6 +37,13 @@
  *    POST /api/pi/intent-confirm 写 document root pluginData 四键；首回合
  *    锁定行注入由 intent-confirm 端点置「新鲜」标记驱动，下回合 prepareTurn
  *    消费即清——防止 F3 锁定行每回合复发。
+ *  - 2026-09-27 sl-w2-state-chain（批 4 接线半）：probe 增 docUuid 字段，
+ *    服务侧读 page-state 拿落点 / 规制标量；每回合恒注页身份行
+ *    `[施工页 page=<id> 模式=<modeId/profileId> brief=<id|无>]`；
+ *    视图页 ≠ 落点页时追加 `[你正在看第X页]` 差分行（视图页来自 probe 不钉页
+ *    的活页读——与落点是两个事实）。具体接读详见 `TurnPageContext` 与
+ *    `assembleTurn` 注入段；旧 bridge 写 pluginData 四键的通路仍保留为死码，
+ *    待阶段 2 摘除。
  *
  * 桥失败语义：探针不可达（无 discovery / 桥 502 / 无活动文档）→ 本回合按空槽
  * 组装并 warn（冒烟环境无浏览器即此路径；工具调用届时会各自显式失败）；
@@ -95,6 +102,52 @@ export interface TurnAssembly {
 
 /** 索引节标题（T85 定谳 3 字面口径；P2-3 同步工具名） */
 const REFERENCES_INDEX_HEADING = '## 按需参考（load_reference 工具按需读取）'
+
+/**
+ * 2026-09-27 sl-w2-state-chain：本回合页身份上下文（agent 可见的「在何处按
+ * 什么规制施工」事实行）——来源 = page-state 标量（落点 + 规制）+ probe
+ * 一次不钉页活页读（视图页）。落点冻结值与视图页是两个事实：落点是确认
+ * 拦截门写回 / 初始化写回的事实值（恒 == 视图页或被用户改写过）；视图页
+ * 是用户在浏览器里正在浏览的页（run 起始时刻取一次）。
+ *
+ * 字段全集可空 / 「无」字面量：
+ *  - engagedPageId = 落点页 id；空 = 未初始化（首跑 / 腐烂）
+ *  - modeId = 规制模式 id；空 = 未绑规制
+ *  - profileId = 规制风格档案 id；空 = 未绑风格或 modeId 命中 general
+ *  - briefId = 当前施工面关联的需求单 id；空 = 无设计区 / 无需求单
+ *  - viewPageId = 视图页 id（不钉页活页读）；空 = 桥不可达 / 无 tab
+ */
+export interface TurnPageContext {
+  engagedPageId: string | null
+  modeId: string | null
+  profileId: string | null
+  briefId: string | null
+  viewPageId: string | null
+}
+
+/** `[施工页 page=<id|无> 模式=<modeId|无>/<profileId|无> brief=<id|无>]` —— 恒在注入行。
+ *
+ * 模式 = page-state.modeId / profileId（缺省 `无`，与缺省链兜底对齐——modeId
+ * 未绑 = `无`/`无`，profileId 未绑 = 留 `无`）。落点页与需求单同理：未初始化
+ * / 无关联 = `无`。Agent 看到的就是事实行——以 id 维稳，不混入展示语。 */
+function buildConstructionPageLine(ctx: TurnPageContext): string {
+  const page = ctx.engagedPageId ?? '无'
+  const mode = ctx.modeId ?? '无'
+  const profile = ctx.profileId ?? '无'
+  const brief = ctx.briefId ?? '无'
+  return `[施工页 page=${page} 模式=${mode}/${profile} brief=${brief}]`
+}
+
+/** `[你正在看第<viewPageId>页]` 差分行——视图页 ≠ 落点页时追加。两事实均
+ *  非空才生效；任一空 = 不注（首跑 / 桥不可达场景）。 */
+function buildViewPageDiffLine(
+  viewPageId: string | null,
+  engagedPageId: string | null
+): string | null {
+  if (!viewPageId || !engagedPageId) return null
+  if (viewPageId === engagedPageId) return null
+  return `[你正在看第${viewPageId}页]`
+}
 
 /** 索引节下首行操作指令——agent 照抄行首 key 即唯一寻址手段（2026-09-21 owner 拍板加注） */
 const REFERENCES_INDEX_INSTRUCTION = 'path 参数 = 照抄下行行首 key（含桶前缀）'
@@ -202,10 +255,16 @@ export type TurnSlotState = ActiveDesignSlotState & {
  *    `# profile: <id>`（asset.kind + asset.id，collectActiveReferences 同款）；
  *    空段不冠头（joinSegments 滤空串语义不变）。Agent 可机械分辨当前注入构成——
  *    不见 workflow 行即通用模式（与 base.md 真源教学段互锁）。
+ *  - 2026-09-27 sl-w2-state-chain：pageContext 恒在首行——「[施工页
+ *    page=… 模式=… brief=…]」行 + 可选「[你正在看第X页]」差分行。
+ *    两行位于 identity 封套与 extraNotices 之前，确保事实行永远在
+ *    观察行（封套）+ 一次性旗标（D3 锁定行）+ 系统提示行（悬空 /
+ *    workflowMissing）之前——事实 → 观察 → 提示 的注入序。
  */
 export function assembleTurn(
   registry: StudioRegistry,
   slot: TurnSlotState,
+  pageContext: TurnPageContext,
   extraNotices: string[] = []
 ): TurnAssembly {
   const base = registry.base?.body ?? ''
@@ -227,7 +286,11 @@ export function assembleTurn(
       : ''
   ]
 
-  const contextLines = slot.status === 'ok' ? [designTargetEnvelope(slot.design)] : []
+  const contextLines: string[] = []
+  contextLines.push(buildConstructionPageLine(pageContext))
+  const viewDiff = buildViewPageDiffLine(pageContext.viewPageId, pageContext.engagedPageId)
+  if (viewDiff) contextLines.push(viewDiff)
+  if (slot.status === 'ok') contextLines.push(designTargetEnvelope(slot.design))
   contextLines.push(...extraNotices)
   if (slot.status === 'ok' && slot.briefMissing) contextLines.push(ACTIVE_DESIGN_TEXTS.briefMissing)
   if (slot.workflowMissingModeId !== undefined) {
@@ -239,9 +302,12 @@ export function assembleTurn(
 /**
  * P0-1：本回合资产解析（纯函数；probe 阶段调用，装配侧只消费结果）。
  *
- * 优先级 **newIntent > slot**：`newIntent.confirmed && newIntent.modeId` 为真时按
- * newIntent 的 modeId/profileId 解析；否则按 slot.design 的落盘三元组解析。
- * 两者皆无 → 全空（空槽 base only）。
+ * 优先级 **page-state > newIntent > slot**（2026-09-27 sl-w2-state-chain 批 4
+ * 接线半——规制真源迁移到 page-state 标量）：
+ *  1. page-state 有值（modeId 非空）→ 用 page-state.modeId/profileId 解析
+ *  2. 否则 `newIntent.confirmed && newIntent.modeId` → 用 pluginData 四键解析
+ *  3. 否则按 slot.design 落盘三元组解析（旧帧身份，向后兼容过渡）
+ *  4. 全空 → base only（空槽语义）
  *
  * workflow 缺失语义（沿用 T60 定谳）：modeId 非空但 registry 未命中 workflow
  * → workflowMissingModeId 置位 + **profile 不注入**（按 base only 组装，避免
@@ -251,17 +317,35 @@ export function assembleTurn(
  * 已删除）。general 是无 workflow 的纯槽位标识——跳过 registry 查表、不置
  * workflowMissingModeId；profile 通道独立于 workflow（profileMatches 逻辑不动）。
  * 旧 general 槽位文档继续工作：base only + 身份封套 + profile（若有）。
+ *
+ * 阶段 2：page-state 单源后，`fallbackNewIntent` 与 `slot.design.modeId/profileId`
+ * 两条回退路径删除；本阶段保留作为无 page-state 时的兜底（首跑 + 桥不可达
+ * 场景）。
  */
 export function resolveTurnAssets(
   registry: StudioRegistry,
   slot: ActiveDesignSlotState,
-  newIntent: NewIntentState | null
+  pageState: { modeId: string | null; profileId: string | null } | null,
+  fallbackNewIntent: NewIntentState | null
 ): TurnSlotState {
-  const useIntent = newIntent?.confirmed === true && newIntent.modeId !== ''
+  const pageModeId = pageState?.modeId ?? ''
+  const pageProfileId = pageState?.profileId ?? ''
+  const usePage = pageModeId !== ''
+  const useIntent =
+    !usePage && fallbackNewIntent?.confirmed === true && fallbackNewIntent.modeId !== ''
   const slotModeId = slot.status === 'ok' ? slot.design.modeId : ''
   const slotProfileId = slot.status === 'ok' ? slot.design.profileId : ''
-  const modeId = useIntent ? newIntent.modeId : slotModeId
-  const profileId = useIntent ? newIntent.profileId : slotProfileId
+  // 规制取值 = page-state 优先，其次 newIntent，末位 slot 帧身份（嵌套三元
+  // 过不了 no-nested-ternary，if/else 直写）
+  let modeId = slotModeId
+  let profileId = slotProfileId
+  if (usePage) {
+    modeId = pageModeId
+    profileId = pageProfileId
+  } else if (useIntent) {
+    modeId = fallbackNewIntent.modeId
+    profileId = fallbackNewIntent.profileId
+  }
   if (modeId === '') return slot
   const profile = profileId === '' ? undefined : registry.profiles.get(profileId)
   // general 跳过 workflow 查表——纯槽位标识，不命中即合规（base only 组装）
@@ -308,6 +392,14 @@ export interface SlotProbeData {
    * 但三键缺省 → { modeId:'', profileId:'', confirmed:false }。
    */
   newIntent: NewIntentState
+  /**
+   * 2026-09-27 sl-w2-state-chain：document root `openpencil.ai/docId` 条目读出的
+   * 文档 UUID——page-state 与 session 索引皆以此键控；run 起始服务侧据此读
+   * page-state 拿落点 / 规制标量；空串 = 文档尚未铸造 uuid（首跑 / 桥不可达
+   * 子集情形）。该字段不参与组装判定，仅作为上层「是否做 page-state 读写」
+   * 的依据。
+   */
+  docUuid: string
 }
 
 export interface CandidateProbeData {
@@ -341,10 +433,12 @@ export interface ActiveDesignBridgeIO {
 const K = ACTIVE_DESIGN_PROBE_KEYS
 
 /**
- * 探针 eval 片段：只取裸数据（快照 + 页归属 + newIntent 四键），判定在后端。
+ * 探针 eval 片段：只取裸数据（快照 + 页归属 + newIntent 四键 + docUuid），判定在后端。
  * C1：物化判据已随 A3/C1 退役——不再下发 hasMaterial helper 与 materialized 字段。
  * P0-1：newIntent 三键并入本片段——原 probeNewIntent 独立 eval 撤销，
  * 每回合桥 eval 从 2 次减为 1 次。
+ * 2026-09-27 sl-w2-state-chain：docUuid（document root `openpencil.ai/docId` 条目
+ * 值）并入——服务侧以此为键读 page-state 与会话索引。
  */
 function buildProbeSource(candidateNodeId?: string): string {
   return `const NS = ${JSON.stringify(K.namespace)};
@@ -386,7 +480,12 @@ const newIntent = { modeId: figma.root.getSharedPluginData(NS, ${JSON.stringify(
   profileId: figma.root.getSharedPluginData(NS, ${JSON.stringify(K.newIntentProfileIdKey)}),
   confirmed: figma.root.getSharedPluginData(NS, ${JSON.stringify(K.newIntentConfirmedKey)}) === 'true',
   canvas: figma.root.getSharedPluginData(NS, ${JSON.stringify(K.newIntentCanvasKey)}) || '' };
-return { slotNodeId, currentPageId, design, brief, newIntent };`
+// 2026-09-27 sl-w2-state-chain：document root 上的 docUuid 条目（与前端
+// document-key.ts PI_DOC_NAMESPACE / PI_DOC_ENTRY_KEY 同源）——page-state 与
+// 会话索引皆以此键控；空串 = 文档尚未铸造 uuid（首跑 / 根 pluginData 被导入
+// 覆盖窗口），上层据此跳过 page-state 读写。
+const docUuid = figma.root.getSharedPluginData('openpencil.ai', 'openpencil.ai/docId') || '';
+return { slotNodeId, currentPageId, docUuid, design, brief, newIntent };`
 }
 
 function buildWriteSlotSource(nodeId: string): string {
@@ -507,7 +606,8 @@ export function createBridgeSlotIO(
       currentPageId: asString(raw.currentPageId),
       design: parseDesignSnapshot(raw.design),
       brief: parseBriefSnapshot(raw.brief),
-      newIntent: parseNewIntent(raw.newIntent)
+      newIntent: parseNewIntent(raw.newIntent),
+      docUuid: asString(raw.docUuid)
     }
   }
   return {
@@ -554,10 +654,14 @@ export function isFormTargetStillValid(probe: CandidateProbeData): boolean {
 /** 装配后生效身份（resolveTurnAssets 解析后的 modeId+profileId 二元组） */
 function effectiveIdentity(
   slot: TurnSlotState,
-  probeIntent: NewIntentState | null
+  probeIntent: NewIntentState | null,
+  pageContext: TurnPageContext
 ): { modeId: string; profileId: string } {
-  // 批 1 后（2026-09-21 D2/D3 拍板）：信封通道退役，effective 只看 probe.pluginData
-  // intent 优先（与 resolveTurnAssets 同语义）：probe > slot
+  // 2026-09-27 sl-w2-state-chain：page-state 标量优先（与 resolveTurnAssets
+  // 同构），fallback = probeIntent，末位 = slot 帧身份。空串 = 空身份。
+  if (pageContext.modeId !== null && pageContext.modeId !== '') {
+    return { modeId: pageContext.modeId, profileId: pageContext.profileId ?? '' }
+  }
   if (probeIntent?.confirmed && probeIntent.modeId !== '') {
     return { modeId: probeIntent.modeId, profileId: probeIntent.profileId }
   }
@@ -614,6 +718,16 @@ function pushConfirmedIntentLine(notices: string[], intent: NewIntentState): voi
 export interface ActiveDesignHostDeps {
   registry(): StudioRegistry
   bridge: ActiveDesignBridgeIO
+  /**
+   * 2026-09-27 sl-w2-state-chain：page-state 标量读取器——按 docUuid 读
+   * 文档级规制（modeId / profileId）+ 落点（engagedPageId）。无 docUuid
+   * （首跑 / 桥不可达）或文件缺失 / 腐烂 → 返 null，host 兜底走
+   * fallbackNewIntent + slot 帧身份。注入式参数（测试纪律：禁读真实 env /
+   * 进程全局走参数）。
+   */
+  pageStateReader: (
+    docUuid: string
+  ) => { modeId: string | null; profileId: string | null; engagedPageId: string | null } | null
 }
 
 export interface ActiveDesignHost {
@@ -685,12 +799,13 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
   /**
    * 槽位读穿 + 本回合资产解析（P0-1）。
    *
-   * 一次桥 eval 同时取回槽位快照与 newIntent 四键（原 probeSlot + probeNewIntent
-   * 两次 eval 合并）。`intentConfirmed` 返值即 pluginData 侧确认旗标——
-   * prepareTurn 直接取作用为 setup_design 守卫真源。
+   * 一次桥 eval 同时取回槽位快照 + newIntent 四键 + docUuid（原 probeSlot
+   * + probeNewIntent 两次 eval 合并）。`intentConfirmed` 返值即 pluginData 侧
+   * 确认旗标——prepareTurn 直接取作用为 setup_design 守卫真源。
    *
-   * 批 1 后（2026-09-21 D2/D3 拍板）：信封通道整段退役，asset 解析只看
-   * probe.newIntent；envelopeIntent 参数移除。
+   * 批 1 后（2026-09-21 D2/D3 拍板）：信封通道整段退役，asset 解析主路 =
+   * page-state 标量（probe.docUuid 解析得到），fallbackNewIntent + slot 帧身份
+   * 留作无 page-state 时的兜底（首跑 / 腐烂 / 桥不可达）。
    */
   async function probeSlotState(
     documentId?: string,
@@ -702,6 +817,9 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
     intentConfirmed: boolean
     /** 探针 newIntent 原始快照（B2.③：参数锁定行持久路径行为归一源） */
     probeIntent: NewIntentState | null
+    /** 2026-09-27 sl-w2-state-chain：本回合页身份上下文——落点 + 模式 + brief
+     *  + 视图页，恒在注入行的数据源。probe 不可达时全空。 */
+    pageContext: TurnPageContext
   }> {
     const probe = await deps.bridge.probeSlot(documentId, windowId)
     if (!probe) {
@@ -709,29 +827,58 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
         '[pi-backend] active_design 桥探针不可用——本回合按空槽组装（桥不可达或无活动文档）'
       )
       return {
-        slot: resolveTurnAssets(deps.registry(), { status: 'empty' }, null),
+        slot: resolveTurnAssets(deps.registry(), { status: 'empty' }, null, null),
         notices: [],
         intentConfirmed: false,
-        probeIntent: null
+        probeIntent: null,
+        pageContext: {
+          engagedPageId: null,
+          modeId: null,
+          profileId: null,
+          briefId: null,
+          viewPageId: null
+        }
       }
     }
     const evaluated = evaluateActiveDesignSlot(probe.slotNodeId, probe.design, probe.brief)
     const intentConfirmed = probe.newIntent.confirmed
+    const pageState = probe.docUuid ? deps.pageStateReader(probe.docUuid) : null
+    // 规制输入（resolveTurnAssets 只看 modeId / profileId，落点不进资产解析）
+    const pageStateRegulation = pageState
+      ? { modeId: pageState.modeId, profileId: pageState.profileId }
+      : null
+    const slotBriefId = evaluated.status === 'ok' ? evaluated.design.briefId : ''
+    const pageContext: TurnPageContext = {
+      // 2026-09-27 sl-w2-state-chain：落点标量来自 page-state；空 = 首跑 /
+      // 腐烂 / 未初始化。视图页 = probe 一次不钉页活页读（与落点是两个事实）。
+      engagedPageId: pageState?.engagedPageId ?? null,
+      modeId: pageState?.modeId ?? null,
+      profileId: pageState?.profileId ?? null,
+      briefId: slotBriefId || null,
+      viewPageId: probe.currentPageId || null
+    }
     if (evaluated.status !== 'dangling') {
       return {
-        slot: resolveTurnAssets(deps.registry(), evaluated, probe.newIntent),
+        slot: resolveTurnAssets(deps.registry(), evaluated, pageStateRegulation, probe.newIntent),
         notices: [],
         intentConfirmed,
-        probeIntent: probe.newIntent
+        probeIntent: probe.newIntent,
+        pageContext
       }
     }
     // 定谳 3：槽位节点删除/失格 → 清槽 + 一行系统提示
     await moveSlot('', documentId, windowId)
     return {
-      slot: resolveTurnAssets(deps.registry(), { status: 'empty' }, probe.newIntent),
+      slot: resolveTurnAssets(
+        deps.registry(),
+        { status: 'empty' },
+        pageStateRegulation,
+        probe.newIntent
+      ),
       notices: [ACTIVE_DESIGN_TEXTS.slotCleared],
       intentConfirmed,
-      probeIntent: probe.newIntent
+      probeIntent: probe.newIntent,
+      pageContext
     }
   }
 
@@ -794,7 +941,8 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
         slot,
         notices,
         intentConfirmed: probeConfirmed,
-        probeIntent
+        probeIntent,
+        pageContext
       } = await probeSlotState(documentId, windowId)
       // T91b：pluginData 探针确认是 setup_design 守卫真源（批 1 后信封通道退役，
       // 不再有 envelope 兼容路径）。守卫旗标保留手动管理，不采文档建议的
@@ -811,9 +959,10 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
         freshIntent = false
       }
       currentSlotNodeId = slot.status === 'ok' ? slot.design.nodeId : ''
-      // A3：B3 身份差分——装配后取生效身份（probeIntent 优先后的 modeId+profileId 二元组）
-      // 与上回合闭包 diff。首回合 lastIdentity === null → 不注入。
-      const effective = effectiveIdentity(slot, probeIntent)
+      // A3：B3 身份差分——装配后取生效身份（page-state 标量优先 → probeIntent
+      // → slot 帧身份；与 resolveTurnAssets 优先级同构）。首回合 lastIdentity
+      // === null → 不注入。
+      const effective = effectiveIdentity(slot, probeIntent, pageContext)
       const identityNotices: string[] = []
       if (lastIdentity !== null && identityChanged(lastIdentity, effective)) {
         const source = pendingSource ?? IDENTITY_DIFF_SOURCES.externalChange
@@ -823,7 +972,11 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
       // 即用即清（首注即清；无 diff 不读、不延后至下回合）
       pendingSource = null
       lastIdentity = effective
-      turn = assembleTurn(deps.registry(), slot, [...intentNotices, ...identityNotices, ...notices])
+      turn = assembleTurn(deps.registry(), slot, pageContext, [
+        ...intentNotices,
+        ...identityNotices,
+        ...notices
+      ])
       return { promptText: text }
     },
     turnAssembly: () => turn,

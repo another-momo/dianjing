@@ -702,8 +702,17 @@ export function createPiBackendServer({
       return
     }
     // sl-w1-page-state：文档级标量读写（GET/PUT /api/pi/page-state?docUuid=）
+    // 2026-09-27 sl-w2-state-chain：GET 响应附带 hasSession；deps 注入式
+    // （store + hasSessionForDocUuid），避免本路由直接依赖 service 闭包。
     if (url.pathname === '/api/pi/page-state') {
-      void handlePageStateRequest(service.getPageStateStore(), req, res)
+      void handlePageStateRequest(
+        {
+          store: service.getPageStateStore(),
+          hasSessionForDocUuid: (docUuid) => service.hasSessionForDocUuid(docUuid)
+        },
+        req,
+        res
+      )
       return
     }
     // sl-w1-page-state：docUuid 存活唯一守卫（POST /api/pi/open-docs/{claim,heartbeat,release}）

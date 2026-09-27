@@ -99,6 +99,14 @@ export type AssembleSessionContext = {
   mcpPool: MCPClientPool
   /** index.json 读取（service.ts 闭包内 readIndex——装配段不直接 IO） */
   readIndex: () => Record<string, { file: string }>
+  /**
+   * 2026-09-27 sl-w2-state-chain：page-state 读取器——按 docUuid 读文档级
+   * 规制 + 落点；传 null 等价 page-state 不可读，host 兜底走 fallback 路径。
+   * 注入式参数（测试纪律：禁读真实 env / 进程全局走参数）。
+   */
+  pageStateReader: (
+    docUuid: string
+  ) => { modeId: string | null; profileId: string | null; engagedPageId: string | null } | null
 }
 
 /** assembleSession 返回值——entry 注册所需件 */
@@ -140,7 +148,8 @@ export async function assembleSession(
     imageGenSettings,
     mcpConnections,
     mcpPool,
-    readIndex
+    readIndex,
+    pageStateReader
   } = ctx
 
   // T100：spec 必填——无 spec 由 resolveModel 直接抛可行动错误，
@@ -175,9 +184,12 @@ export async function assembleSession(
   // T98-路由：windowId 同缝——tools.ts 经 target.windowId 注入 postBridgeRPC 顶层
   const target: { documentId?: string; pageId?: string; windowId?: string } = {}
   // T60：active_design 宿主会话态（注册表每回合读单例；桥 IO 共享无状态单例）
+  // 2026-09-27 sl-w2-state-chain：pageStateReader 透传——按 docUuid 读 page-state
+  // 标量；host 据此解析规制 + 注入页身份行。
   const host = createActiveDesignHost({
     registry: () => getStudioRegistry(rootDir),
-    bridge: activeDesignBridge
+    bridge: activeDesignBridge,
+    pageStateReader
   })
   // T53（S3 §2）+ T60：setup_design 注入缝——catalog 请求时投影；新建意图
   // 确认真源 = 当回合信封旗标（active-design-host，run 结束 finally 复位）

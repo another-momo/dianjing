@@ -1,8 +1,11 @@
 /**
  * 2026-09-26 sl-w1-page-state：page-state HTTP 路由——
  * GET  /api/pi/page-state?docUuid=<uuid>
- *   → 200 { state: { modeId, profileId, engagedPageId } | null }
+ *   → 200 { state: { modeId, profileId, engagedPageId } | null,
+ *           hasSession: boolean }
  *   腐烂 / 缺失 → state: null（不抛、不 500；与 store.read 语义一致）
+ *   hasSession = 族内是否有过会话（docKey 前缀扫描 index.json）；
+ *   前端初始化分档用——有会话 = 历史回填命中；无 = 真首跑路径
  *
  * PUT  /api/pi/page-state { docUuid, patch }
  *   patch: { modeId?: string|null, profileId?: string|null, engagedPageId?: string|null }
@@ -21,7 +24,13 @@ import * as v from 'valibot'
 import { PayloadTooLargeError, readBody, sendJSON, sendPayloadTooLarge } from './http-utils'
 import type { PageStateStore } from './page-state'
 
-type PageStateService = Pick<PageStateStore, 'read' | 'write' | 'clear' | 'exists'>
+type PageStateStoreService = Pick<PageStateStore, 'read' | 'write' | 'clear' | 'exists'>
+/** 2026-09-27 sl-w2-state-chain：hasSession 真源——会话索引按 docUuid 键控，
+ *  前端初始化分档。注入式接口（避免本路由直接依赖 service.ts 闭包） */
+type PageStateRouteDeps = {
+  store: PageStateStoreService
+  hasSessionForDocUuid(docUuid: string): boolean
+}
 
 const docUuidSchema = v.pipe(v.string(), v.minLength(1, 'docUuid 不能为空'))
 
@@ -39,7 +48,7 @@ const putBodySchema = v.object({
 })
 
 export async function handlePageStateRequest(
-  store: PageStateService,
+  deps: PageStateRouteDeps,
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<void> {
@@ -52,8 +61,12 @@ export async function handlePageStateRequest(
       return
     }
     try {
-      const state = store.read(parseResult.output)
-      sendJSON(res, 200, { state })
+      const state = deps.store.read(parseResult.output)
+      // 2026-09-27 sl-w2-state-chain：hasSession 真源 = service 层
+      // hasSessionForDocUuid（sha1(docUuid) → 前缀扫描 index.json）；
+      // 非法 docUuid 由 store 形状校验兜回 400，此处不会再遇。
+      const hasSession = deps.hasSessionForDocUuid(parseResult.output)
+      sendJSON(res, 200, { state, hasSession })
     } catch (error) {
       sendJSON(res, 400, {
         error: error instanceof Error ? error.message : String(error)
@@ -95,7 +108,7 @@ export async function handlePageStateRequest(
     return
   }
   try {
-    const state = store.write(docUuid, patch)
+    const state = deps.store.write(docUuid, patch)
     sendJSON(res, 200, { state })
   } catch (error) {
     sendJSON(res, 400, {
