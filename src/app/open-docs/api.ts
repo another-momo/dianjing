@@ -81,7 +81,8 @@ export async function requestHeartbeat(docUuid: string): Promise<'held' | 'taken
 export async function requestRelease(docUuid: string): Promise<void> {
   try {
     await postJSON('/api/pi/open-docs/release', { docUuid, windowId: getWindowId() })
-  } catch {
+  } catch (error) {
     // release 失败由心跳 TTL 兜底
+    console.warn('[open-docs] release request failed; heartbeat TTL will reclaim:', error)
   }
 }

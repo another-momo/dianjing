@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:
 
 import { ensurePiDocUuid, setPiDocUuidMintedListener } from '@/app/ai/pi-backend/document-key'
 import type { EditorStore } from '@/app/editor/session'
+import { createEditorStore } from '@/app/editor/session/create'
 import {
   answerOpenDocsConflict,
   claimDocumentOpen,
@@ -22,26 +23,15 @@ const HEARTBEAT_INTERVAL_MS = 20_000
 const OK_RECORD = { pid: 1, windowId: 'self-window', heartbeatAt: 1 }
 const CONFLICT_HOLDER = { pid: 2, windowId: 'other-window', heartbeatAt: 123 }
 
-interface PluginDataEntry {
-  pluginId: string
-  key: string
-  value: string
-}
-
 function makeStore(docUuid: string | null, documentName = 'Doc'): EditorStore {
-  const root = {
-    pluginData: docUuid
-      ? [{ pluginId: 'openpencil.ai', key: 'openpencil.ai/docId', value: docUuid }]
-      : []
+  const store = createEditorStore()
+  store.state.documentName = documentName
+  if (docUuid !== null) {
+    store.graph.updateNode(store.graph.rootId, {
+      pluginData: [{ pluginId: 'openpencil.ai', key: 'openpencil.ai/docId', value: docUuid }]
+    })
   }
-  const graph = {
-    rootId: 'root',
-    getNode: () => root,
-    updateNode: (_id: string, patch: { pluginData: PluginDataEntry[] }) => {
-      root.pluginData = patch.pluginData
-    }
-  }
-  return { graph, state: { documentName } } as unknown as EditorStore
+  return store
 }
 
 function jsonResponse(status: number, payload: unknown): Response {
@@ -58,7 +48,9 @@ function claimConflict(): Response {
 
 /** 心跳定时器回调是 fire-and-forget（void sendHeartbeat）——tick 后排空微任务再断言 */
 async function flushAsync(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 0))
+  await new Promise((resolve) => {
+    setTimeout(resolve, 0)
+  })
 }
 
 let fetchCalls: Array<{ url: string; body: Record<string, unknown> | null; init: RequestInit }>
@@ -84,7 +76,9 @@ beforeEach(() => {
   spyOn(globalThis, 'setInterval').mockImplementation(((fn: () => void, ms?: number) => {
     intervalFns.push(fn)
     intervalMs = ms
-    return 0 as unknown as ReturnType<typeof setInterval>
+    // 返回真值句柄（真实环境为正整数/Timeout 对象）——useIntervalFn 的 clean()
+    // 以 `if (timer)` 判空，返回 0 会让 pause() 静默跳过 clearInterval
+    return 1 as unknown as ReturnType<typeof setInterval>
   }) as typeof setInterval)
   spyOn(globalThis, 'clearInterval').mockImplementation((() => {
     clearCalls++
@@ -311,7 +305,9 @@ describe('wireOpenDocsLifecycle — mint → claim 生产接线', () => {
     route = () => claimOk()
     const store = makeStore(null)
     ensurePiDocUuid(store)
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0)
+    })
     const claimCalls = fetchCalls.filter((c) => c.url.endsWith('/claim'))
     expect(claimCalls.length).toBe(1)
     expect(claimCalls[0]?.body?.docUuid).toBe(readBackUuid(store))

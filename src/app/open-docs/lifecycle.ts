@@ -14,7 +14,10 @@
  *    release（后端 release 对已不持者 no-op）。
  */
 
+import { useIntervalFn, type Pausable } from '@vueuse/core'
 import { shallowRef } from 'vue'
+
+import { IS_BROWSER } from '@open-pencil/core/constants'
 
 import { readPiDocUuid, setPiDocUuidMintedListener } from '@/app/ai/pi-backend/document-key'
 import { getWindowId } from '@/app/bridge/window-id'
@@ -35,20 +38,25 @@ export interface OpenDocsConflictState {
 /** 冲突覆写卡状态（null = 无冲突；对话框组件只读消费） */
 export const openDocsConflict = shallowRef<OpenDocsConflictState | null>(null)
 
-const heldTimers = new Map<string, ReturnType<typeof setInterval>>()
+const heldTimers = new Map<string, Pausable>()
 
 function stopHeartbeat(docUuid: string): void {
-  const timer = heldTimers.get(docUuid)
-  if (timer === undefined) return
-  clearInterval(timer)
+  heldTimers.get(docUuid)?.pause()
   heldTimers.delete(docUuid)
 }
 
 function startHeartbeat(docUuid: string): void {
   stopHeartbeat(docUuid)
-  const timer = setInterval(() => {
-    void sendHeartbeat(docUuid)
-  }, HEARTBEAT_INTERVAL_MS)
+  // useIntervalFn 的 immediate 起步门在 isClient 上（测试/SSR 环境静默不起表）——
+  // 统一 immediate:false + 显式 resume()，浏览器与测试走同一条代码路径
+  const timer = useIntervalFn(
+    () => {
+      void sendHeartbeat(docUuid)
+    },
+    HEARTBEAT_INTERVAL_MS,
+    { immediate: false }
+  )
+  timer.resume()
   heldTimers.set(docUuid, timer)
 }
 
@@ -59,8 +67,9 @@ async function sendHeartbeat(docUuid: string): Promise<void> {
       stopHeartbeat(docUuid)
       console.warn(`[open-docs] heartbeat rejected, another window holds ${docUuid}`)
     }
-  } catch {
+  } catch (error) {
     // 网络抖动：本轮失败不摘持有，下轮心跳续刷
+    console.warn('[open-docs] heartbeat request failed, will retry next round:', error)
   }
 }
 
@@ -126,7 +135,7 @@ export async function answerOpenDocsConflict(choice: 'force' | 'close' | 'dismis
 
 /** pagehide 兜底（wire 时挂到 window；导出供单测直调） */
 export function releaseAllOnPageHide(): void {
-  for (const uuid of [...heldTimers.keys()]) {
+  for (const uuid of heldTimers.keys()) {
     stopHeartbeat(uuid)
     sendReleaseBeacon(uuid)
   }
@@ -174,7 +183,7 @@ export function wireOpenDocsLifecycle(options: {
   })
   if (wired) return
   wired = true
-  if (typeof window !== 'undefined') {
+  if (IS_BROWSER) {
     window.addEventListener('pagehide', releaseAllOnPageHide)
   }
 }

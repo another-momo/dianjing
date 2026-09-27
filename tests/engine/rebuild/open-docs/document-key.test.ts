@@ -13,28 +13,19 @@ import {
   setPiDocUuidMintedListener
 } from '@/app/ai/pi-backend/document-key'
 import type { EditorStore } from '@/app/editor/session'
+import { createEditorStore } from '@/app/editor/session/create'
 
 const DOC_NAMESPACE = 'openpencil.ai'
 const DOC_ENTRY_KEY = 'openpencil.ai/docId'
 
-interface PluginDataEntry {
-  pluginId: string
-  key: string
-  value: string
-}
-
 function makeStore(docUuid: string | null): EditorStore {
-  const root = {
-    pluginData: docUuid ? [{ pluginId: DOC_NAMESPACE, key: DOC_ENTRY_KEY, value: docUuid }] : []
+  const store = createEditorStore()
+  if (docUuid !== null) {
+    store.graph.updateNode(store.graph.rootId, {
+      pluginData: [{ pluginId: DOC_NAMESPACE, key: DOC_ENTRY_KEY, value: docUuid }]
+    })
   }
-  const graph = {
-    rootId: 'root',
-    getNode: () => root,
-    updateNode: (_id: string, patch: { pluginData: PluginDataEntry[] }) => {
-      root.pluginData = patch.pluginData
-    }
-  }
-  return { graph } as unknown as EditorStore
+  return store
 }
 
 beforeEach(() => {

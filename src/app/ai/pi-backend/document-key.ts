@@ -46,7 +46,8 @@ export type PiRequestContext = {
   // active_design 单槽读穿（T60），不再随请求走
 }
 
-function findDocIdEntry(store: EditorStore): string | null {
+/** open-docs 守卫只读 reader：无 uuid 文档返回 null（不铸造——从未 AI 交互的文档不拦不 claim） */
+export function readPiDocUuid(store: EditorStore): string | null {
   const root = store.graph.getNode(store.graph.rootId)
   return (
     root?.pluginData.find(
@@ -70,7 +71,7 @@ export function setPiDocUuidMintedListener(listener: PiDocUuidMintedListener | n
 
 /** 读/铸文档 UUID（无则铸入根节点 pluginData，随下次 autosave/保存落盘） */
 export function ensurePiDocUuid(store: EditorStore): string {
-  const existing = findDocIdEntry(store)
+  const existing = readPiDocUuid(store)
   if (existing) return existing
 
   const uuid = crypto.randomUUID()
@@ -136,7 +137,7 @@ export async function resolvePiSessionId(store: EditorStore): Promise<string> {
  */
 export async function loadPiChatHistory(store: EditorStore): Promise<UIMessage[] | undefined> {
   try {
-    const uuid = findDocIdEntry(store)
+    const uuid = readPiDocUuid(store)
     if (!uuid) return undefined
     const prefix = `doc-${await sha1Hex(uuid)}`
     if (storeSessions.get(store)?.startsWith(`${prefix}-`)) return undefined
@@ -172,12 +173,7 @@ export async function getPiRequestContext(store: EditorStore): Promise<PiRequest
 
 /** T23：当前文档是否已有 docId（只读）——会话栏可用态判定 */
 export function hasPiDocId(store: EditorStore): boolean {
-  return findDocIdEntry(store) !== null
-}
-
-/** open-docs 守卫只读 reader：无 uuid 文档返回 null（不铸造——从未 AI 交互的文档不拦不 claim） */
-export function readPiDocUuid(store: EditorStore): string | null {
-  return findDocIdEntry(store)
+  return readPiDocUuid(store) !== null
 }
 
 /**
@@ -188,7 +184,7 @@ export async function listPiSessionFamily(
   store: EditorStore
 ): Promise<PiSessionSummary[] | undefined> {
   try {
-    const uuid = findDocIdEntry(store)
+    const uuid = readPiDocUuid(store)
     if (!uuid) return undefined
     const prefix = `doc-${await sha1Hex(uuid)}`
     const res = await fetch(`/api/pi/sessions?docKey=${encodeURIComponent(prefix)}`)
@@ -215,7 +211,7 @@ export async function switchPiSession(
   sessionId: string
 ): Promise<UIMessage[] | null> {
   try {
-    const uuid = findDocIdEntry(store)
+    const uuid = readPiDocUuid(store)
     if (!uuid) return null
     const prefix = `doc-${await sha1Hex(uuid)}`
     if (!sessionId.startsWith(`${prefix}-`)) return null
