@@ -2570,7 +2570,6 @@
     "src/app/ai/pi-backend/setup-catalog.ts",
     "src/components/assistant/ChatAwaitingIntentCard.vue",
     "src/components/assistant/ChatSetActiveDesignCard.vue",
-    "tests/engine/rebuild/pi-backend/intent-confirm.test.ts",
     "tests/engine/rebuild/marketing/active-design.test.ts",
     "tests/engine/rebuild/chat/intent-cards.test.ts"
   ],
