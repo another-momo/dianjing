@@ -47,7 +47,8 @@ export const forkI18n = createI18n<Locale, 'en'>(locale, {
         confirm: mod.default.confirm,
         agentCapabilities: mod.default.agentCapabilities,
         toolbar: mod.default.toolbar,
-        locus: mod.default.locus
+        locus: mod.default.locus,
+        opendocs: mod.default.opendocs
       }
     }
     return {}
