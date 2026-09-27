@@ -5,14 +5,12 @@
  * intent-confirm 同款）；windowId 随请求直传。
  */
 
+import type { OpenDocRecord } from '@/app/ai/pi-backend/open-docs/guard'
 import { getWindowId } from '@/app/bridge/window-id'
 
-/** 活性文件登记形（与后端 OpenDocRecord 同构） */
-export interface OpenDocsHolder {
-  pid: number
-  windowId: string
-  heartbeatAt: number
-}
+/** 活性文件登记形——真源在后端 guard.ts OpenDocRecord，前端 type 别名复用
+ * （重复字面量形状过不了 test:type-shapes 门禁；type-only import 构建期擦除） */
+export type OpenDocsHolder = OpenDocRecord
 
 export type ClaimOutcome =
   | { kind: 'claimed'; record: OpenDocsHolder }
