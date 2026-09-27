@@ -167,6 +167,13 @@ const zhCN = {
     locusFollowToggle: '开始施工时自动切到施工页',
     locusFollowDescription: '启用后，每次 AI 开始施工会自动把视图切到施工页。'
   },
+  // open-docs 存活守卫冲突覆写卡（§10-4）：同一文档在另一窗口被持有时拦打开
+  opendocs: {
+    openDocsConflictHeading: '该文档正在另一个窗口中编辑',
+    openDocsConflictHolder: '另一个窗口 · {minutes} 分钟前活跃',
+    openDocsConflictClose: '关闭',
+    openDocsConflictForce: '仍要打开'
+  },
   ask: {
     askFormTitle: 'AI 向你提问',
     askSubmit: '提交作答',

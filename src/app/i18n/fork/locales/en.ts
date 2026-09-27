@@ -345,6 +345,17 @@ export const locusMessageDefaults = {
     'When enabled, the view jumps to the working page each time the AI starts working.'
 } as const
 
+/**
+ * open-docs 存活守卫冲突覆写卡（§10-4）：同一文档在另一实例/窗口被持有且
+ * 心跳未过期时拦打开——「仍要打开」force 覆写接管，「关闭」关掉刚打开的 tab。
+ */
+export const openDocsMessageDefaults = {
+  openDocsConflictHeading: 'This document is being edited in another window',
+  openDocsConflictHolder: params('Another window · active {minutes} min ago'),
+  openDocsConflictClose: 'Close',
+  openDocsConflictForce: 'Open anyway'
+} as const
+
 /** T41：字体白名单设置面板（SettingsDialog fonts 分区）英文默认值；T42：来源开关 + 目录组 + 筛选/折叠/批量；统一批：来源开关扩至本地源 + 提供商细分 + 回退/缓存 */
 export const fontsMessageDefaults = {
   settingsFonts: 'Fonts',

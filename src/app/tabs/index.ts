@@ -27,6 +27,11 @@ import {
   type StorageDocument
 } from '@/app/integrations/storage'
 import {
+  claimDocumentOpen,
+  releaseDocumentClaim,
+  wireOpenDocsLifecycle
+} from '@/app/open-docs/lifecycle'
+import {
   cacheRecentFileThumbnail,
   loadCachedRecentFileThumbnail,
   rememberRecentStorageDocument
@@ -47,6 +52,14 @@ export interface Tab {
 
 const io = new IORegistry(BUILTIN_IO_FORMATS)
 const fileOpenCoordinator = createFileOpenCoordinator()
+// open-docs 存活守卫生产装配：冲突卡「关闭」的关 tab 通路注入 + docUuid mint
+// 钩子 + pagehide release 兜底
+wireOpenDocsLifecycle({
+  closeStoreTab: async (store) => {
+    const tab = getTabForStore(store)
+    if (tab) await closeTab(tab.id)
+  }
+})
 const RECENT_FILE_THUMBNAIL_SIZE = 512
 const coverThumbnailListeners = new WeakMap<EditorStore, () => void>()
 
@@ -165,6 +178,7 @@ export async function closeTab(tabId: string): Promise<void> {
   else await closingTab.store.persistRecoveryNow()
   if (!tabsRef.value.includes(closingTab)) return
   if (choice !== 'discard' && closingTab.store.hasUnsavedChanges()) return
+  releaseDocumentClaim(closingTab.store)
   const wasActive = activeTabId.value === tabId
   coverThumbnailListeners.get(closingTab.store)?.()
   coverThumbnailListeners.delete(closingTab.store)
@@ -368,6 +382,7 @@ export async function openStorageDocumentInNewTab(document: StorageDocument): Pr
     )
     rememberRecentStorageDocument(providerId, document.id, document.name)
     succeeded = true
+    void claimDocumentOpen(store)
   } catch (error) {
     if (!load.signal.aborted) {
       const diagnostic = describeDiagnosticError(error)
@@ -450,6 +465,7 @@ export async function openFileInNewTab(
       await store.openDOMFile(file, { handle, path, preparation: load })
       completion.resolve(undefined)
       succeeded = true
+      void claimDocumentOpen(store)
       return
     }
 
@@ -490,6 +506,7 @@ export async function openFileInNewTab(
     }
     completion.resolve(undefined)
     succeeded = true
+    void claimDocumentOpen(store)
   } catch (error) {
     failPreparation(load, 'decode-failed', error)
     completion.reject(error)
@@ -541,6 +558,7 @@ export async function restoreRecoverySnapshot(id: string): Promise<void> {
       load
     )
     succeeded = true
+    void claimDocumentOpen(store)
   } catch (error) {
     failPreparation(load, 'decode-failed', error)
     throw error

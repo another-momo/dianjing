@@ -25,6 +25,7 @@ import {
   fontsMessageDefaults,
   imageGenMessageDefaults,
   locusMessageDefaults,
+  openDocsMessageDefaults,
   panelsMessageDefaults,
   piMessageDefaults,
   toolbarMessageDefaults
@@ -88,6 +89,13 @@ export const forkLocusMessages = forkI18n('locus', locusMessageDefaults)
 
 export function useForkLocus() {
   return useStore(forkLocusMessages)
+}
+
+/** open-docs 存活守卫冲突覆写卡文案域（OpenDocsConflictDialog） */
+export const forkOpenDocsMessages = forkI18n('opendocs', openDocsMessageDefaults)
+
+export function useForkOpenDocs() {
+  return useStore(forkOpenDocsMessages)
 }
 
 export function useForkAgentCapabilities() {

@@ -55,6 +55,19 @@ function findDocIdEntry(store: EditorStore): string | null {
   )
 }
 
+/**
+ * 宿主钩子（open-docs 存活守卫前端接线）：ensurePiDocUuid 铸出新 uuid 后触发。
+ * 缺省 null 无副作用——本模块被后端测试环境引用，claim 类副作用必须显式接线
+ * （生产接线在 tabs 模块装配）；钩子异常不得中断铸造。
+ */
+export type PiDocUuidMintedListener = (store: EditorStore, docUuid: string) => void
+
+let piDocUuidMintedListener: PiDocUuidMintedListener | null = null
+
+export function setPiDocUuidMintedListener(listener: PiDocUuidMintedListener | null): void {
+  piDocUuidMintedListener = listener
+}
+
 /** 读/铸文档 UUID（无则铸入根节点 pluginData，随下次 autosave/保存落盘） */
 export function ensurePiDocUuid(store: EditorStore): string {
   const existing = findDocIdEntry(store)
@@ -70,6 +83,11 @@ export function ensurePiDocUuid(store: EditorStore): string {
       { pluginId: PI_DOC_NAMESPACE, key: PI_DOC_ENTRY_KEY, value: uuid }
     ]
   })
+  try {
+    piDocUuidMintedListener?.(store, uuid)
+  } catch (error) {
+    console.warn('[document-key] docUuid mint listener failed:', error)
+  }
   return uuid
 }
 
@@ -155,6 +173,11 @@ export async function getPiRequestContext(store: EditorStore): Promise<PiRequest
 /** T23：当前文档是否已有 docId（只读）——会话栏可用态判定 */
 export function hasPiDocId(store: EditorStore): boolean {
   return findDocIdEntry(store) !== null
+}
+
+/** open-docs 守卫只读 reader：无 uuid 文档返回 null（不铸造——从未 AI 交互的文档不拦不 claim） */
+export function readPiDocUuid(store: EditorStore): string | null {
+  return findDocIdEntry(store)
 }
 
 /**

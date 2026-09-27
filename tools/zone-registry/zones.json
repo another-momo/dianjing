@@ -13,6 +13,7 @@
     "tools/rebuild/",
     "tools/release/",
     "src/app/ai/pi-backend/",
+    "src/app/open-docs/",
     "tools/cn-font-catalog/",
     "src/components/assistant/",
     "src/app/ai/fork/",
@@ -132,7 +133,8 @@
     "src/components/font-picker/font-option-filter.ts",
     "tests/engine/vue/font-picker/use-font-picker-filter.test.ts",
     "packages/core/src/memoize-async.ts",
-    "tests/engine/core/memoize-async.test.ts"
+    "tests/engine/core/memoize-async.test.ts",
+    "src/components/document/OpenDocsConflictDialog.vue"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -2377,6 +2379,22 @@
       "id": "P380",
       "file": "packages/core/src/io/formats/fig/thumbnail-page.ts",
       "reason": "state-layering wave-2 修红（2026-09-27）：ThumbnailPage 补 export——tools/read/pages.ts PageCandidate 与其同构 {id,name}，type-shapes 门禁要求并型复用",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-27",
+      "task": "state-layering-locus-gate"
+    },
+    {
+      "id": "P381",
+      "file": "src/app/tabs/index.ts",
+      "reason": "open-docs 存活守卫前端接线（2026-09-27，设计 docs/202609231923-state-layering-locus-gate.md §10-4）：三条文档打开通路完成点 claimDocumentOpen + closeTab releaseDocumentClaim + wireOpenDocsLifecycle 生产装配（冲突卡「关闭」关 tab 通路注入 + docUuid mint 钩子 + pagehide release 兜底）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-27",
+      "task": "state-layering-locus-gate"
+    },
+    {
+      "id": "P382",
+      "file": "src/App.vue",
+      "reason": "open-docs 冲突覆写卡集中挂载（2026-09-27，UnsavedChangesDialog 同款 App 根常驻；fork i18n seam 与主题上下文依赖 App 树）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-27",
       "task": "state-layering-locus-gate"
