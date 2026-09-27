@@ -95,9 +95,9 @@ function parseLocusState(input: unknown): LocusState | null {
     (obj.engagedPageId === null || typeof obj.engagedPageId === 'string')
   ) {
     return {
-      modeId: obj.modeId as string | null,
-      profileId: obj.profileId as string | null,
-      engagedPageId: obj.engagedPageId as string | null
+      modeId: obj.modeId,
+      profileId: obj.profileId,
+      engagedPageId: obj.engagedPageId
     }
   }
   return null

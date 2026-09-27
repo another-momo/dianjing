@@ -43,7 +43,7 @@ export function resolvePage(figma: FigmaAPI, pageRef: string | undefined): Resol
   const allPages = figma.root.children
 
   const byId = figma.getNodeById(pageRef)
-  if (byId && byId.type === 'CANVAS') {
+  if (byId?.type === 'CANVAS') {
     return { page: byId }
   }
 
