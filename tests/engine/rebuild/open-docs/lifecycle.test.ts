@@ -53,11 +53,14 @@ async function flushAsync(): Promise<void> {
   })
 }
 
-let fetchCalls: Array<{ url: string; body: Record<string, unknown> | null; init: RequestInit }>
+/** open-docs 请求体（claim/heartbeat/release 共用 docUuid 载体）——命名别名替代内联 Record 强转 */
+type OpenDocsRequestBody = Record<string, unknown>
+
+let fetchCalls: Array<{ url: string; body: OpenDocsRequestBody | null; init: RequestInit }>
 let intervalFns: Array<() => void>
 let intervalMs: number | undefined
 let clearCalls: number
-let route: (url: string, body: Record<string, unknown> | null) => Response
+let route: (url: string, body: OpenDocsRequestBody | null) => Response
 
 beforeEach(() => {
   fetchCalls = []
@@ -68,7 +71,7 @@ beforeEach(() => {
   spyOn(globalThis, 'fetch').mockImplementation(
     async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const raw = init?.body
-      const body = typeof raw === 'string' ? (JSON.parse(raw) as Record<string, unknown>) : null
+      const body = typeof raw === 'string' ? (JSON.parse(raw) as OpenDocsRequestBody) : null
       fetchCalls.push({ url: String(input), body, init: init ?? {} })
       return route(String(input), body)
     }
@@ -76,13 +79,13 @@ beforeEach(() => {
   spyOn(globalThis, 'setInterval').mockImplementation(((fn: () => void, ms?: number) => {
     intervalFns.push(fn)
     intervalMs = ms
-    // 返回真值句柄（真实环境为正整数/Timeout 对象）——useIntervalFn 的 clean()
-    // 以 `if (timer)` 判空，返回 0 会让 pause() 静默跳过 clearInterval
-    return 1 as unknown as ReturnType<typeof setInterval>
+    // 假句柄只需真值（真实环境为正整数/Timer 对象）——useIntervalFn 的 clean()
+    // 以 `if (timer)` 判空，falsy 句柄会让 pause() 静默跳过 clearInterval
+    return {} as ReturnType<typeof setInterval>
   }) as typeof setInterval)
   spyOn(globalThis, 'clearInterval').mockImplementation((() => {
     clearCalls++
-  }) as unknown as typeof clearInterval)
+  }) as typeof clearInterval)
   // 清理上一用例遗留的模块级持有（beacon 落进本轮 fetch 桩），随后计数归零
   releaseAllOnPageHide()
   fetchCalls = []
@@ -260,7 +263,7 @@ describe('releaseAllOnPageHide', () => {
       const first = beacons[0]
       if (!first) throw new Error('beacon missing')
       expect(first.url).toBe('/api/pi/open-docs/release')
-      const payload = JSON.parse(await first.blob.text()) as Record<string, unknown>
+      const payload = JSON.parse(await first.blob.text()) as OpenDocsRequestBody
       expect(payload.docUuid).toBe('uuid-p1')
       expect(typeof payload.windowId).toBe('string')
       expect(clearCalls).toBe(2)
