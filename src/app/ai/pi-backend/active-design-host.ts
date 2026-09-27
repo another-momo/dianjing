@@ -477,7 +477,7 @@ export function createActiveDesignHost(deps: ActiveDesignHostDeps): ActiveDesign
     let briefId: string | null = null
     if (engagedPageId) {
       const briefs = await deps.bridge.probeBrief(engagedPageId, documentId, windowId)
-      briefId = briefs !== null && briefs.length === 1 ? (briefs[0] ?? null) : null
+      briefId = briefs?.length === 1 ? (briefs[0] ?? null) : null
     }
     return {
       assets,

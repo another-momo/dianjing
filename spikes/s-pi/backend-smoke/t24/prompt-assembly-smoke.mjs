@@ -22,8 +22,8 @@
  *     表单作答信封不剥离（AI 须读答案原文）
  *  C3 兼容窗：请求面残留 chatMode/pickedProfileId 字段忽略不报错（正常进 run，
  *     组装口径同 C1）
- *  端点 POST /api/pi/active-design：401 未鉴权 / 405 非 POST / 400 坏体 /
- *     502 bridge_unavailable（无桥环境显式失败，红线 #8 不静默）
+ *  端点 POST /api/pi/active-design：已随槽位面下线（2026-09-27 状态分层
+ *     批5b）——钉 404 防复活
  *  路由 GET /api/pi/studio/manifest 形状 + 脱敏（无正文/无绝对路径）+ 405
  *  T87：manifest 透传 capabilities/skills 字段（缺省态）；capabilities 端点
  *   GET 缺省 DEFAULTS / PUT ON-OFF 往返 / 负向 400 / 未鉴权 401
@@ -487,31 +487,16 @@ try {
     legacyProbe === null ? 'probe missing' : `len ${legacyProbe.length}`
   )
 
-  // ── 端点 POST /api/pi/active-design（无桥环境）
-  const endpointNoAuth = await fetch(`${BASE}/api/pi/active-design`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ nodeId: '1:2' })
-  })
-  check('端点：未鉴权 → 401', endpointNoAuth.status === 401, `status=${endpointNoAuth.status}`)
-  const endpointGet = await fetch(`${BASE}/api/pi/active-design`, { headers: authHeaders(token) })
-  check('端点：非 POST → 405', endpointGet.status === 405, `status=${endpointGet.status}`)
-  const endpointBad = await fetch(`${BASE}/api/pi/active-design`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...authHeaders(token) },
-    body: JSON.stringify({})
-  })
-  check('端点：缺 nodeId → 400', endpointBad.status === 400, `status=${endpointBad.status}`)
-  const endpointNoBridge = await fetch(`${BASE}/api/pi/active-design`, {
+  // ── 端点 POST /api/pi/active-design 已随槽位面下线（批5b）——钉 404 防复活
+  const endpointGone = await fetch(`${BASE}/api/pi/active-design`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...authHeaders(token) },
     body: JSON.stringify({ nodeId: '1:2' })
   })
-  const endpointBody = await endpointNoBridge.json().catch(() => null)
   check(
-    '端点：桥不可达 → 502 + bridge_unavailable（显式失败不静默）',
-    endpointNoBridge.status === 502 && endpointBody?.error === 'bridge_unavailable',
-    `status=${endpointNoBridge.status} body=${JSON.stringify(endpointBody)}`
+    '端点：active-design 移槽端点已下线 → 404',
+    endpointGone.status === 404,
+    `status=${endpointGone.status}`
   )
 
   // ── 无资产后端：base 缺失 → 空槽组装 = 空 systemPrompt（failures 数据面已断言）
