@@ -70,7 +70,7 @@ import { handleImageGenAdminRequest } from './image-gen/routes'
 import { createImageGenSettingsStore } from './image-gen/settings'
 import { handleMCPConnectionsRequest, type MCPConnectionsDeps } from './mcp-connections/routes'
 import { createMCPConnectionsStore } from './mcp-connections/store'
-import { handleOpenDocsRequest } from './open-docs-route'
+import { handleOpenDocsRequest } from './open-docs/route'
 import {
   defaultOpenFolderOpener,
   handleOpenImageGenFolderRequest,

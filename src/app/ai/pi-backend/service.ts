@@ -75,7 +75,7 @@ import { createPiEventMapper } from './mapping'
 import type { MCPConnectionsStore } from './mcp-connections/store'
 import { getMCPClientPool } from './mcp/pool-instance'
 import { migrateUserdataLayout } from './migrate'
-import { type OpenDocsGuard, createOpenDocsGuard } from './open-docs'
+import { type OpenDocsGuard, createOpenDocsGuard } from './open-docs/guard'
 import { type PageStateStore, createPageStateStore } from './page-state'
 import {
   resolveAgentDir,

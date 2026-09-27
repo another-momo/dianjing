@@ -23,7 +23,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { createOpenDocsGuard, DEFAULT_HEARTBEAT_TTL_MS } from '@/app/ai/pi-backend/open-docs'
+import { createOpenDocsGuard, DEFAULT_HEARTBEAT_TTL_MS } from '@/app/ai/pi-backend/open-docs/guard'
 
 let openDocsDir = ''
 let nowMs = 1_000_000
