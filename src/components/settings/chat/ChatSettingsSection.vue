@@ -24,7 +24,10 @@ const locusText = useForkLocus()
 const reasoningDisplay = computed({
   get: () => appPreferences.value.chat.reasoningDisplay,
   set: (value: ReasoningDisplay) => {
-    appPreferences.value = { ...appPreferences.value, chat: { reasoningDisplay: value } }
+    appPreferences.value = {
+      ...appPreferences.value,
+      chat: { ...appPreferences.value.chat, reasoningDisplay: value }
+    }
   }
 })
 

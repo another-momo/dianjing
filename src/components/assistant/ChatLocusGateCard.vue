@@ -18,16 +18,7 @@ import { computed } from 'vue'
 
 import { useForkLocus } from '@/app/i18n/fork'
 
-export type LocusGateReason = 'switch' | 'orphan'
-
-export interface LocusGateView {
-  /** 当前视图页名（用户发消息时所在的页） */
-  viewPageName: string
-  /** 现有落点页名；orphan 变体可为空字符串（落点未设置 / 已删） */
-  engagedPageName: string
-  /** switch：两按钮形态；orphan：单按钮确认 */
-  reason: LocusGateReason
-}
+import type { LocusGateView } from './locus'
 
 const { view, disabled = false } = defineProps<{
   view: LocusGateView

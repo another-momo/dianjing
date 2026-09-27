@@ -59,6 +59,19 @@ export type LocusNetworkResult<T> =
   | { kind: 'ok'; value: T }
   | { kind: 'unreachable'; message: string }
 
+/** 拦截门确认卡变体：switch = 视图页 ≠ 落点页（页仍在）；orphan = 落点页缺失 */
+export type LocusGateReason = 'switch' | 'orphan'
+
+/** 拦截门确认卡渲染视图（ChatLocusGateCard props / ChatPanel 构造共用契约） */
+export interface LocusGateView {
+  /** 当前视图页名（用户发消息时所在的页） */
+  viewPageName: string
+  /** 现有落点页名；orphan 变体可为空字符串（落点未设置 / 已删） */
+  engagedPageName: string
+  /** switch：两按钮形态；orphan：单按钮确认 */
+  reason: LocusGateReason
+}
+
 /** GET 响应探测形状——具名结构替代 Record<string, unknown> 强转（门禁禁宽断言） */
 interface LocusGetResponseProbe {
   state?: unknown
