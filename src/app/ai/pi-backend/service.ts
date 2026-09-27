@@ -21,8 +21,9 @@
  *    （T24 注册表烘焙 + 驱逐重建）退役；每回合组装 = base + workflow(落盘
  *    mode body) + profile 全文（active-design-host.ts，before_agent_start
  *    钩子 per-run 返回），身份封套/系统提示经 result.message custom 通道
- *    进 context；新建意图一次性旗标接 setup_design 注入缝；setup_design
- *    成功移槽回调、ask formId 映射、删除悬空清槽皆由 host 承担
+ *    进 context。2026-09-27 state-layering wave-2 摘除半：单槽移槽 / intent
+ *    四键 / 身份差分通知族退役——每回合组装 = page-state 标量（落点 + 规制）
+ *    + 落点页需求单按页发现 + 页身份信封（active-design-host.ts）
  *  - T28：会话 GC（决策单 #2，session/gc.ts）——铸新会话后检查，超量
  *    （DIANJING_MAX_SESSIONS，默认 200）/超龄（DIANJING_SESSION_MAX_AGE_DAYS，
  *    默认 30）会话**移动**到 pi-sessions-archive/（保持文件名，index 除条），
@@ -58,12 +59,9 @@ import {
 } from '@/app/orchestration/env'
 
 import {
-  confirmNewIntentViaBridge,
   createBridgeSlotIO,
-  setActiveDesignViaBridge,
-  type ConfirmNewIntentResult,
-  type createActiveDesignHost,
-  type SetActiveDesignResult
+  type ActiveDesignBridgeIO,
+  type createActiveDesignHost
 } from './active-design-host'
 import type { AuthzNoticeSink } from './authz-guard'
 import { type Capabilities, type ManagedSkillEntry, createCapabilitiesStore } from './capabilities'
@@ -115,6 +113,13 @@ export type PiPromptOptions = {
   windowId?: string
 }
 
+/** T91b 规制确认端点结果——确认即物化（直写 page-state 标量）。
+ *  原定义在 active-design-host（旧桥写四键通路），随摘除退役；唯一消费方
+ *  即本模块，就地落定义（canvas 字段随确认卡尺寸行摘除去）。 */
+type ConfirmNewIntentResult =
+  | { ok: true; modeId: string; profileId: string }
+  | { ok: false; error: 'bridge_unavailable' | 'invalid_args'; message: string }
+
 export type PiChatService = {
   prompt(
     sessionId: string,
@@ -162,16 +167,11 @@ export type PiChatService = {
   hasSessionForDocUuid(docUuid: string): boolean
   /** sl-w1-page-state：open-docs guard 实例（routes 层 claim/heartbeat/release 三端点共用此实例） */
   getOpenDocsGuard(): OpenDocsGuard
-  /** T60：active_design 端点（②面板点选 / ③AI 声明+同意）——四条件校验 → 移槽 → 身份三元组
-   *  T98-路由：windowId 透传（与 documentId 同缝）——多窗时按发起窗路由 */
-  setActiveDesign(
-    nodeId: string,
-    documentId?: string,
-    windowId?: string
-  ): Promise<SetActiveDesignResult>
   /** T91b：newIntent 确认端点——前端 ChatNewIntentCard 确认按钮触发。
-   *  2026-09-27 sl-w2-state-chain：确认即物化 = 直写 page-state 标量
-   * （modeId/profileId）；旧 pluginData 四键通路留作死码兜底，阶段 2 摘除。
+   *  2026-09-27 sl-w2-state-chain 批 4 摘除半：确认即物化 = 直写 page-state
+   *  标量（modeId/profileId）；旧 pluginData 四键通路已整体摘除；canvas 收集面
+   *  随确认卡尺寸行摘除退役（page-state 字段全集无 canvas——setup_design 的
+   *  canvas 参数保留，由 agent 按对话/教学显式传）。
    *  T98-路由：windowId 透传 */
   confirmNewIntent(
     args: { modeId: string; profileId?: string },
@@ -198,7 +198,7 @@ type SessionEntry = {
    *  2026-09-21 修法 C：pageId run 起始探测一次钉死，全 run 复用——切 tab/翻页
    *  不再影响执行中 run 的落点 */
   target: { documentId?: string; pageId?: string; windowId?: string }
-  /** T60：active_design 宿主会话态（旗标/formId 映射/每回合组装缓存袋） */
+  /** active_design 宿主会话态（每回合组装缓存袋——prepareTurn 组装、finalizeTurn 清零） */
   host: ReturnType<typeof createActiveDesignHost>
   /**
    * T27：run 进行中标记。T66 起不再作 abort 守卫（时序竞争实证见 abort()
@@ -221,7 +221,8 @@ export function createPiChatService({
   admin,
   imageGenCredentials,
   imageGenSettings,
-  mcpConnections
+  mcpConnections,
+  activeDesignBridge: activeDesignBridgeOverride
 }: {
   rootDir: string
   admin: ProviderAdmin
@@ -230,6 +231,8 @@ export function createPiChatService({
   imageGenSettings: ImageGenSettingsStore
   /** MCP 接入阶段 1：连接凭据 store（routes 层 PUT/DELETE 经此落盘 + 触发驱逐） */
   mcpConnections: MCPConnectionsStore
+  /** 测试注入缝：桥 IO 替身（生产缺省 = 真桥 createBridgeSlotIO()） */
+  activeDesignBridge?: ActiveDesignBridgeIO
 }): PiChatService {
   const agentDir = resolveAgentDir(rootDir)
   const sessionsDir = resolveSessionsDir(rootDir)
@@ -271,7 +274,7 @@ export function createPiChatService({
   // reloadStudio 触发面接上后天然跟随）——不再启动期快照固化。
   // base.md 未落位前 failures 恒含 base 缺失一条（manifest 显式暴露数据面）。
   // T60：active_design 桥探针/写槽 IO（无状态单例，session 间共享）
-  const activeDesignBridge = createBridgeSlotIO()
+  const activeDesignBridge = activeDesignBridgeOverride ?? createBridgeSlotIO()
   // T87：capabilities store 单例（与 stateDir/agentDir 同源）；session 装配按
   // builtinTools 切换 noTools/tools、按 agentSkills 切换 noSkills（T96 解耦）；
   // manifest 投影/GET/PUT 共用此实例。builtinSkillsDir 与用户层同构（同闭包
@@ -294,12 +297,18 @@ export function createPiChatService({
   // 实例（页状态读穿盘、无缓存——dev / 打包版共享状态根场景下的「另一边进程刚
   // 写、这边立刻读到」保证）。
   const pageStateReader = (docUuid: string) => {
-    const state = pageStateStore.read(docUuid)
-    if (state === null) return null
-    return {
-      modeId: state.modeId,
-      profileId: state.profileId,
-      engagedPageId: state.engagedPageId
+    // 腐烂即无家规延伸：非法 docUuid（store 层 assertValidDocUuid 抛 TypeError）
+    // 与一切读取异常一律按 null 降级——装配径不因此炸整 run（独立 review P2）。
+    try {
+      const state = pageStateStore.read(docUuid)
+      if (state === null) return null
+      return {
+        modeId: state.modeId,
+        profileId: state.profileId,
+        engagedPageId: state.engagedPageId
+      }
+    } catch {
+      return null
     }
   }
   // sl-w1-page-state：docUuid 存活唯一守卫——同进程内存注册表 + 跨进程活性
@@ -478,14 +487,14 @@ export function createPiChatService({
     entry.running = true
     // 2026-09-21 修法 C：run 起始冻结 {documentId, pageId}——documentId 已由
     // prompt() 写入 entry.target.documentId。
-    // 2026-09-27 sl-w2-state-chain 批 4 接线半：冻结源改 page-state 标量——
-    // probe 取 docUuid → pageStateStore.read(docUuid).engagedPageId 即冻结
-    // 落点；probe.currentPageId 仅作视图页保留供信封差分行（活页轻量读道，
-    // 详见 active-design-host.ts §7.2）。engagedPageId 为空（首跑 / 腐烂 /
-    // probe 不可达）→ 回退 probe.currentPageId，不硬炸（任务明示「真首跑
-    // 路径 docUuid 甫铸、值尚未写回」）。注意：probeSlot 调用整体退出冻结
-    // 路径只移出——函数本体与 probeSlot IO 不删（阶段 2 摘除）。一次不钉页
-    // 活页读是视图事实，必须保留；落点冻结绝不允许再读活页。
+    // 2026-09-27 sl-w2-state-chain 批 4 摘除半：冻结源单 = page-state 标量
+    // engagedPageId（前端落点拦截门确认写回 / 静默初始化写回；§7.2 落点事实
+    // 单源化）。活页轻量读道保留，此处 probe 只供两件事实——docUuid
+    // （page-state 寻址键）与 currentPageId（视图页事实，主供宿主信封差分行）。
+    // 首跑回退（独立 review P1-1）：docUuid 未铸 / page-state 尚无落点时，前端
+    // PUT 写回发生在发送完成之后——不冻结则桥在每个工具调用时刻解析当时视图
+    // 页，run 中翻页会拽走施工面；首跑语义恰是「落点 = 发送时视图页」（拦截门
+    // silent-init 同值写回），故回退 probe.currentPageId 钉死全 run。
     if (entry.target.documentId) {
       try {
         const probe = await activeDesignBridge.probeSlot(
@@ -494,15 +503,7 @@ export function createPiChatService({
         )
         const docUuid = probe?.docUuid ?? ''
         const pageState = docUuid ? pageStateStore.read(docUuid) : null
-        const engaged = pageState?.engagedPageId ?? null
-        // 落点冻结 = page-state 优先；fallback = probe 活页读（保持旧语义
-        // 当 page-state 还没物化——典型首跑）。viewPageId 留 entry.target.pageId
-        // 闭包外用于 host 信封差分行（详见 prepareTurn 内 pageContext.viewPageId）
-        if (engaged) {
-          entry.target.pageId = engaged
-        } else if (probe?.currentPageId) {
-          entry.target.pageId = probe.currentPageId
-        }
+        entry.target.pageId = pageState?.engagedPageId ?? probe?.currentPageId ?? undefined
       } catch {
         entry.target.pageId = undefined
       }
@@ -511,11 +512,6 @@ export function createPiChatService({
     entry.authzSink.emit = emit
     const unsubscribe = entry.session.subscribe((event) => {
       if (event.type === 'turn_start') entry.budget.current++
-      // T60 事件④：ask_user_question awaiting 信封 → 记录 formId→当时槽位
-      if (event.type === 'tool_execution_end') {
-        const details = (event.result as { details?: unknown } | undefined)?.details
-        entry.host.observeToolExecution(event.toolName, event.isError, details)
-      }
       if (debug) {
         const sub = event.type === 'message_update' ? `/${event.assistantMessageEvent.type}` : ''
         console.error(`[pi-backend:event] ${event.type}${sub}`)
@@ -523,10 +519,11 @@ export function createPiChatService({
       for (const chunk of mapper(event)) emit(chunk)
     })
     try {
-      // T60：回合入口——剥新建意图信封（置一次性旗标）→ ④表单作答移槽 →
-      // 槽位读穿（悬空清槽）→ 组装（host.turnAssembly 供 before_agent_start 读）
-      // T98-路由：windowId 与 documentId 同缝穿线（host 内部经桥探针/写槽
-      // 时也按发起窗路由——多窗时不会把 A 窗的回包串到 B 窗）
+      // 2026-09-27 sl-w2-state-chain 批 4 摘除半：回合入口 = 宿主读穿（活页
+      // probe → page-state 标量 → 落点页需求单按页发现）→ 组装
+      // （host.turnAssembly 供 before_agent_start 读）。
+      // T98-路由：windowId 与 documentId 同缝穿线（host 内部经桥探针时按发起
+      // 窗路由——多窗时不会把 A 窗的回包串到 B 窗）
       const prepared = await entry.host.prepareTurn(
         text,
         entry.target.documentId,
@@ -668,37 +665,22 @@ export function createPiChatService({
     return false
   }
 
-  async function setActiveDesign(
-    nodeId: string,
-    documentId?: string,
-    windowId?: string
-  ): Promise<SetActiveDesignResult> {
-    // A3：B3 触发源标定——切槽前先在所有现存 session 的 host 闭包记「同意切换」
-    // 触发源旗标（best-effort：端点不绑 sessionId，但目标 session 是当前活跃
-    // 的；多 session 时全标，备选回合消费到。无活跃 session 时不标——待落地）。
-    for (const entry of sessions.values()) entry.host.onSlotSwitchedViaBridge()
-    return setActiveDesignViaBridge(nodeId, documentId, activeDesignBridge, windowId)
-  }
-
   /** T91b：POST /api/pi/intent-confirm——前端 ChatNewIntentCard 确认后触发。
-   *  2026-09-27 sl-w2-state-chain 批 4 接线半：写入目标改道 page-state 标量
-   * （确认即物化，§4 拍板）。旧桥写 pluginData 四键的通路仍保留为死码
-   * （confirmNewIntentViaBridge），阶段 2 摘除。
+   *  2026-09-27 sl-w2-state-chain 批 4 摘除半：写入目标 = page-state 标量
+   * （确认即物化，§4 拍板）；旧桥写 pluginData 四键的死码路径已整体摘除。
    *  - 读桥 probe 拿 docUuid → pageStateStore.write 直写 modeId/profileId
    *  - 桥不可达（probe 失败 / docUuid 空）→ 整端点返 bridge_unavailable
    *  - page-state 写入失败（IoErr）→ 同样桥不可达语义（兜 502） */
   async function confirmNewIntent(
-    args: { modeId: string; profileId?: string; canvas?: string },
+    args: { modeId: string; profileId?: string },
     documentId?: string,
     windowId?: string
   ): Promise<ConfirmNewIntentResult> {
-    // T91b：能力面开关与 set_active_design 同语义——agent skills 未开 → 拒绝。
+    // 能力面开关：agent skills 未开 → 拒绝。
     if (!capabilitiesStore.get().agentSkills) {
       return { ok: false, error: 'invalid_args', message: 'agent skills 不可用' }
     }
-    // 改道：probe 拿 docUuid → 直写 page-state。旧 confirmNewIntentViaBridge
-    // 写 pluginData 四键的逻辑仍保留调用（死码路径，不被读取），阶段 2 摘除
-    // 时一并删除 bridge 调用与 probe 同片段读 pluginData 的语义。
+    // probe 拿 docUuid → 直写 page-state
     const probe = await activeDesignBridge.probeSlot(documentId, windowId)
     if (!probe) {
       return {
@@ -728,15 +710,7 @@ export function createPiChatService({
       }
     }
     const profileId = args.profileId ?? ''
-    const canvas = args.canvas ?? ''
-    // 死码保留：旧桥写 pluginData 四键——不被读取，但调用保留以维持探针
-    // 侧代码路径未消（阶段 2 摘除时一并清理）
-    void confirmNewIntentViaBridge(args, documentId, windowId)
-    // D3 锁定行只注一次：直写 page-state 成功 → 所有现存 session 的 host 置
-    // 「新鲜」标记，下回合 prepareTurn 注入确认参数行后即消费。全 session
-    // 标记与 onSlotSwitchedViaBridge 同先例（端点不绑 sessionId，备选回合消费到）。
-    for (const entry of sessions.values()) entry.host.markNewIntentFresh()
-    return { ok: true, modeId: args.modeId, profileId, canvas }
+    return { ok: true, modeId: args.modeId, profileId }
   }
 
   async function abort(sessionId: string): Promise<void> {
@@ -811,7 +785,6 @@ export function createPiChatService({
     getPageStateStore,
     hasSessionForDocUuid,
     getOpenDocsGuard,
-    setActiveDesign,
     confirmNewIntent,
     abort,
     decisionAnswer: (input) =>

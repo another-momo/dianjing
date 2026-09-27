@@ -10,7 +10,6 @@
  *    with your best judgment…」+ details {formId, status:'skipped', questions}
  *  - alreadyPending：同 session 第二表单 → {error:'ask_pending'}（硬错误结果）
  *  - formId 默认派生 = 'ask-' + toolCallId（双侧确定性）
- *  - onPendingRegistered 在 register 成功后回调（host 拿 formId→槽位映射用）
  *  - abort signal 注册时已 abort → reject 后挂起 promise 解锁为 Error('aborted')
  */
 
@@ -137,40 +136,6 @@ describe('createAskUserQuestionTool（execute 挂起 → 端点 resolve 路径�
     const result = await p
     const details = result.details as { formId: string }
     expect(details.formId).toBe('custom-tc-1')
-  })
-
-  test('onPendingRegistered 在 register 成功后立即触发（异步 resolve 前）', async () => {
-    const store = createPendingDecisionStore()
-    let observed: string | null = null
-    const tool = createAskUserQuestionTool({
-      store,
-      sessionId: 's1',
-      onPendingRegistered: (formId) => {
-        observed = formId
-      }
-    })
-    const p = tool.execute('call-x', { questions: [singleSelect('q1')] }, undefined)
-    expect(observed).toBe('ask-call-x')
-    store.resolveAsk('ask-call-x', { skip: true })
-    await p
-  })
-
-  test('alreadyPending 触发时 onPendingRegistered 不调用', async () => {
-    const store = createPendingDecisionStore()
-    let calls = 0
-    const tool = createAskUserQuestionTool({
-      store,
-      sessionId: 's1',
-      onPendingRegistered: () => {
-        calls++
-      }
-    })
-    const first = tool.execute('a', { questions: [singleSelect('q1')] }, undefined)
-    expect(calls).toBe(1)
-    await tool.execute('b', { questions: [singleSelect('q2')] }, undefined)
-    expect(calls).toBe(1)
-    store.resolveAsk('ask-a', { skip: true })
-    await first
   })
 
   test('signal 已 abort → register 立即 reject，execute 抛 Error（沿工具失败路径传播）', async () => {

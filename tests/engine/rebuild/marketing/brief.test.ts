@@ -16,7 +16,7 @@ import { expect, test } from 'bun:test'
 
 import { computeAllLayouts } from '@open-pencil/core/layout'
 
-import { getSharedPluginData, setSharedPluginData } from '#core/figma-api/plugin-data'
+import { getSharedPluginData } from '#core/figma-api/plugin-data'
 import { fontRegistryEntry } from '#core/text/font/registry'
 import {
   BRIEF_BINDING_KEY,
@@ -40,23 +40,17 @@ import {
   BRIEF_ZONE_KEY,
   BRIEF_ZONE_MATERIALS,
   BRIEF_ZONE_MATERIALS_NAME,
-  DESIGN_BRIEF_KEY,
-  DESIGN_MODE_KEY,
   appendToBriefAIZone,
   bindBriefToDesign,
   briefBoundDesignIds,
   briefSchemaVersion,
-  clearNewIntent,
   createBrief,
   findBrief,
   findBriefZone,
   getDesignUniqueId,
   isBrief,
   listBriefs,
-  readNewIntent,
   registerBriefDesignEntry,
-  syncBriefDesignEntries,
-  writeNewIntent,
   type BriefZoneId
 } from '#core/tools/fork/marketing/brief'
 import { readBrief, updateBriefContent } from '#core/tools/fork/marketing/brief-edit'
@@ -312,7 +306,7 @@ test('appendToBriefAIZone：无归属平铺 + 按设计归组（组标记 design
   ])
 })
 
-test('关联设计区：registerBriefDesignEntry 幂等 + 投影读穿三元组缺省「—」', () => {
+test('关联设计区：registerBriefDesignEntry 幂等 + 条目名称投影', () => {
   const { graph, figma } = setupToolTest()
   const brief = createBrief(figma)
   const design = graph.createNode('FRAME', figma.currentPage.id, { name: '产品长图' })
@@ -331,7 +325,7 @@ test('关联设计区：registerBriefDesignEntry 幂等 + 投影读穿三元组�
   )
   expect(expectDefined(graph.getNode(hintId)).visible).toBe(false)
 
-  // 三元组未写入（T53 前）→ 投影缺省「—」，名称读活设计名
+  // 条目投影：名称读活设计名；mode 投影与 registered 字段已随帧无身份退役
   const view = expectDefined(readBrief(figma))
   expect(view.designs).toEqual([
     {
@@ -341,22 +335,9 @@ test('关联设计区：registerBriefDesignEntry 幂等 + 投影读穿三元组�
       // setup_design / bindBriefToDesign 才会触发懒补
       uniqueId: '',
       name: '产品长图',
-      modeId: BRIEF_TEXTS.missingProjection,
-      deleted: false,
-      registered: true
+      deleted: false
     }
   ])
-
-  // 三元组写入后投影读穿
-  setSharedPluginData(
-    graph,
-    expectDefined(graph.getNode(design.id)),
-    BRIEF_PLUGIN_NAMESPACE,
-    DESIGN_MODE_KEY,
-    'longform'
-  )
-  const after = expectDefined(readBrief(figma))
-  expect(after.designs[0]?.modeId).toBe('longform')
 
   // 设计改名 → 名称投影读穿活名
   graph.updateNode(design.id, { name: '产品长图 v2' })
@@ -377,108 +358,6 @@ test('tombstone 保痕：设计已删 → 视图标注「（已删除）」，�
   const entry = expectDefined(view.designs[0])
   expect(entry.deleted).toBe(true)
   expect(entry.name).toBe(`产品长图${BRIEF_TEXTS.deletedMark}`)
-  expect(entry.modeId).toBe(BRIEF_TEXTS.missingProjection)
   // 保痕：条目节点仍在画布上
   expect(graph.getNode(registered.entryId)).toBeDefined()
-})
-
-test('读侧容错补显：design→brief 指针有而条目缺 → registered:false；变更路径物理补写', () => {
-  const { graph, figma } = setupToolTest()
-  const brief = createBrief(figma)
-  const design = graph.createNode('FRAME', figma.currentPage.id, { name: '详情页' })
-  setSharedPluginData(
-    graph,
-    expectDefined(graph.getNode(design.id)),
-    BRIEF_PLUGIN_NAMESPACE,
-    DESIGN_BRIEF_KEY,
-    brief.id
-  )
-
-  // 读侧：条目缺 → 视图补显但不落盘
-  const view = expectDefined(readBrief(figma))
-  expect(view.designs.length).toBe(1)
-  expect(view.designs[0]?.registered).toBe(false)
-  expect(view.designs[0]?.entryId).toBe(null)
-  expect(view.designs[0]?.name).toBe('详情页')
-  const designsZone = expectDefined(findBriefZone(graph, brief, BRIEF_ZONE_DESIGNS))
-  const listId = expectDefined(
-    designsZone.childIds.find((id) => graph.getNode(id)?.name === 'DesignList')
-  )
-  expect(expectDefined(graph.getNode(listId)).childIds).toEqual([])
-
-  // 变更路径：syncBriefDesignEntries 物理补写，之后 registered:true
-  expect(syncBriefDesignEntries(figma, brief.id)).toEqual([design.id])
-  expect(expectDefined(readBrief(figma)).designs[0]?.registered).toBe(true)
-  // 幂等：再次 sync 不重复登记
-  expect(syncBriefDesignEntries(figma, brief.id)).toEqual([])
-})
-
-// ── T91b：newIntent pluginData helper round-trip ────────────────────────────
-
-test('newIntent pluginData 四键 round-trip：write → read 对称；clear 复位（A3 B2 canvas 扩展）', () => {
-  const { figma } = setupToolTest()
-
-  // 初态：未写入 = 缺省空 state
-  expect(readNewIntent(figma)).toEqual({
-    modeId: '',
-    profileId: '',
-    confirmed: false,
-    canvas: ''
-  })
-
-  // 写完整四键
-  writeNewIntent(figma, {
-    modeId: 'longform',
-    profileId: 'p1',
-    canvas: '750x2000',
-    confirmed: true
-  })
-  expect(readNewIntent(figma)).toEqual({
-    modeId: 'longform',
-    profileId: 'p1',
-    confirmed: true,
-    canvas: '750x2000'
-  })
-
-  // 写 confirmed=false（profileId/canvas 不传 → ''——单一原子入口语义，不保留旧值）
-  writeNewIntent(figma, { modeId: 'general', confirmed: false })
-  expect(readNewIntent(figma)).toEqual({
-    modeId: 'general',
-    profileId: '',
-    confirmed: false,
-    canvas: ''
-  })
-
-  // profileId/canvas 缺省 = ''
-  writeNewIntent(figma, { modeId: 'general', confirmed: true })
-  expect(readNewIntent(figma)).toEqual({
-    modeId: 'general',
-    profileId: '',
-    confirmed: true,
-    canvas: ''
-  })
-
-  // 清：read 返缺省空 state
-  clearNewIntent(figma)
-  expect(readNewIntent(figma)).toEqual({
-    modeId: '',
-    profileId: '',
-    confirmed: false,
-    canvas: ''
-  })
-})
-
-test('newIntent confirmed 仅字面量 "true" 视为真；其他字串 / 空串视为假', () => {
-  const { figma, graph } = setupToolTest()
-  const root = expectDefined(graph.getNode(figma.graph.rootId))
-  // 直接写 pluginData 模拟"非 'true' 真值"——核心读侧只看字面量
-  setSharedPluginData(graph, root, BRIEF_PLUGIN_NAMESPACE, 'newIntentModeId', 'longform')
-  setSharedPluginData(graph, root, BRIEF_PLUGIN_NAMESPACE, 'newIntentProfileId', 'p1')
-  setSharedPluginData(graph, root, BRIEF_PLUGIN_NAMESPACE, 'newIntentConfirmed', 'TRUE')
-  expect(readNewIntent(figma).confirmed).toBe(false)
-
-  setSharedPluginData(graph, root, BRIEF_PLUGIN_NAMESPACE, 'newIntentConfirmed', 'true')
-  expect(readNewIntent(figma).confirmed).toBe(true)
-  expect(readNewIntent(figma).modeId).toBe('longform')
-  expect(readNewIntent(figma).profileId).toBe('p1')
 })

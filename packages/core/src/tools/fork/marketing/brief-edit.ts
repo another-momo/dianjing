@@ -11,10 +11,9 @@
  * Lazy reconciliation is VIEW-ONLY here (read paths must not mutate — the
  * read_brief tool is mutates:false): entries pointing at deleted designs are
  * annotated with 「（已删除）」 in the view while the canvas row is kept
- * untouched (保痕 tombstone, v7 删除边界态); design roots whose design→brief
- * pointer targets this brief but lack an entry row are surfaced with
- * `registered: false`. Physical backfill lives in syncBriefDesignEntries
- * (brief.ts) and runs on mutating paths.
+ * untouched (保痕 tombstone, v7 删除边界态). 2026-09-27 帧无身份：mode 投影
+ * 与 design→brief 反向指针补显（registered: false）已退役——设计身份 = 页本身，
+ * 规制可见性由确认门 UI + 状态行承担。
  */
 
 import type { SceneGraph } from '@open-pencil/scene-graph'
@@ -33,8 +32,6 @@ import {
   BRIEF_ZONE_CONTENT,
   BRIEF_ZONE_DESIGNS,
   BRIEF_ZONE_MATERIALS,
-  DESIGN_BRIEF_KEY,
-  DESIGN_MODE_KEY,
   briefDesignEntryDesignId,
   briefDesignEntryIds,
   findBrief,
@@ -71,7 +68,10 @@ export interface BriefConclusionView {
   designName: string | null
 }
 
-/** One designs-zone row: id authoritative, name/mode read through the design root */
+/** One designs-zone row: id authoritative, name read from the live design root.
+ *  2026-09-27 帧无身份：mode 投影字段已裁——规制可见性由确认门 UI + 状态行承担；
+ *  design→brief 反向指针补显（registered: false）随指针写源退役，视图只出
+ *  关联设计区已登记条目。 */
 export interface BriefDesignEntryView {
   entryId: string | null
   designId: string
@@ -83,12 +83,8 @@ export interface BriefDesignEntryView {
   uniqueId: string
   /** Live design name; dead designs keep the entry's last projected text + 「（已删除）」 */
   name: string
-  /** mode projection off the design root identity tuple (T53); 缺省「—」 */
-  modeId: string
   /** Tombstone: the design root no longer exists — the entry row is kept, not removed */
   deleted: boolean
-  /** false = design→brief pointer exists but the entry row is missing (读侧容错补显) */
-  registered: boolean
 }
 
 /** One-shot view model for the brief panel */
@@ -196,31 +192,29 @@ function readConclusions(graph: SceneGraph, conclusionsId: string): BriefConclus
   return conclusions
 }
 
+/** 设计名投影：活设计读现名；已死设计保痕（条目名 + 已删除标注，不物理清除）。
+ *  2026-09-27 帧无身份：mode 投影（读穿设计根 pluginData 三元组）已裁。 */
 function designProjection(graph: SceneGraph, designId: string, fallbackName: string) {
   const design = graph.getNode(designId)
   if (!design) {
     return {
       name: `${fallbackName}${BRIEF_TEXTS.deletedMark}`,
-      modeId: BRIEF_TEXTS.missingProjection,
       deleted: true
     }
   }
   return {
     name: design.name,
-    modeId:
-      getSharedPluginData(design, BRIEF_PLUGIN_NAMESPACE, DESIGN_MODE_KEY) ||
-      BRIEF_TEXTS.missingProjection,
     deleted: false
   }
 }
 
 /**
- * Designs-zone view with read-time lazy reconciliation: registered entries in
- * list order (tombstoned when their design died), then designs whose pointer
- * targets this brief but which never got an entry (registered: false).
+ * Designs-zone view: registered entries in list order (tombstoned when their
+ * design died).
  *
  * T91a：去重键从节点 id 改为 design uniqueId（跨持久化稳定）。`seen` 集合
  * 同时记 uniqueId 与 designId，应对老 design（无 uniqueId）的迁移过渡期。
+ * 2026-09-27：design→brief 反向指针补显（registered: false）随指针写源退役。
  */
 /** T91a：单源去重键映射（uniqueId + node id 双 dedupe，应对老 design 无 UUID） */
 interface DesignDedupe {
@@ -261,62 +255,15 @@ function collectRegisteredDesigns(
       entryId,
       designId,
       uniqueId,
-      registered: true,
       ...designProjection(graph, designId, fallbackName)
     })
   }
 }
 
-/** T91a：从设计→brief 反向指针读未注册设计（registered:false） */
-function collectOrphanDesigns(
-  graph: SceneGraph,
-  pageId: string,
-  briefId: string,
-  briefUuid: string,
-  dedupe: DesignDedupe,
-  out: BriefDesignEntryView[]
-): void {
-  const page = graph.getNode(pageId)
-  for (const childId of page?.childIds ?? []) {
-    if (dedupe.nodeIds.has(childId)) continue
-    const node = graph.getNode(childId)
-    if (node?.type !== 'FRAME') continue
-    // T91a：design→brief 指针由「node id」迁到「uniqueId」匹配。
-    // 老 design（指针是 node id）继续兼容——UUID 为空时退回 node id 比对。
-    const designBriefPointer = getSharedPluginData(node, BRIEF_PLUGIN_NAMESPACE, DESIGN_BRIEF_KEY)
-    const matches = designBriefPointer
-      ? designBriefPointer === briefId || designBriefPointer === briefUuid
-      : false
-    if (!matches) continue
-    const uniqueId = getDesignUniqueId(node)
-    if (alreadySeen(dedupe, childId, uniqueId)) continue
-    markSeen(dedupe, childId, uniqueId)
-    out.push({
-      entryId: null,
-      designId: childId,
-      uniqueId,
-      registered: false,
-      ...designProjection(graph, childId, '')
-    })
-  }
-}
-
-/**
- * T91a：去重键从节点 id 改为 design uniqueId（跨持久化稳定）。`seen` 集合
- * 同时记 uniqueId 与 designId，应对老 design（无 uniqueId）的迁移过渡期。
- */
-function readDesigns(
-  graph: SceneGraph,
-  figma: FigmaAPI,
-  briefId: string,
-  listId: string
-): BriefDesignEntryView[] {
-  const brief = graph.getNode(briefId)
-  const briefUuid = getBriefUniqueId(brief) // 空字符串 = 老 brief（迁移前）
+function readDesigns(graph: SceneGraph, listId: string): BriefDesignEntryView[] {
   const designs: BriefDesignEntryView[] = []
   const dedupe: DesignDedupe = { uniqueIds: new Set(), nodeIds: new Set() }
   collectRegisteredDesigns(graph, listId, dedupe, designs)
-  collectOrphanDesigns(graph, figma.currentPage.id, briefId, briefUuid, dedupe, designs)
   return designs
 }
 
@@ -343,7 +290,7 @@ export function readBrief(figma: FigmaAPI, briefId?: string): BriefView | null {
     content: graph.getNode(contentTextId)?.text ?? '',
     materials: readMaterials(graph, gridId),
     conclusions: readConclusions(graph, conclusionsId),
-    designs: readDesigns(graph, figma, brief.id, designListId)
+    designs: readDesigns(graph, designListId)
   }
 }
 

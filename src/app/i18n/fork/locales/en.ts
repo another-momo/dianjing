@@ -255,14 +255,8 @@ export const panelsMessageDefaults = {
   designsSection: 'Design areas',
   designsEmpty:
     'No design areas on this page yet — pick a mode / style and send a message to start one.',
-  designsNoActive: 'No design area is being designed yet.',
-  designsActive: 'Designing',
-  designsSetCurrent: 'Switch to this',
-  designsSetting: 'Switching…',
-  designsSwitchFailed: 'Failed to set the current design.',
   briefsSection: 'Briefs on this page',
   briefListEmpty: 'No briefs on this page yet.',
-  briefContainsActive: 'Contains active design',
   briefNew: 'New brief',
   briefNewPlaceholder: 'Requirement content (optional)…',
   briefCreate: 'Create',
@@ -293,9 +287,8 @@ export const panelsMessageDefaults = {
 } as const
 
 /**
- * T61：新建意图确认卡 + set_active_design 同意卡 英文默认值。
- * T65：确认卡尺寸行（决策 C：预设 chips + 自定义输入）；切换成功回执 =
- * 对话流分割线（决策 D3，consentAgreedLine 随之退役）；卡片降权为系统视觉。
+ * T61：新建意图确认卡英文默认值。
+ * T65：确认卡尺寸行（决策 C：预设 chips + 自定义输入）；卡片降权为系统视觉。
  */
 export const confirmMessageDefaults = {
   intentTitle: 'Start a new design?',
@@ -307,41 +300,12 @@ export const confirmMessageDefaults = {
   intentNoProfile: 'No profile',
   // 批 2（拍板②）：草稿随卡——拦截正文在卡内展示并可编辑，确认发的是卡上内容
   intentDraftSection: 'Message to send (editable)',
-  intentSizeSection: 'Canvas size',
-  intentSizeAuto: 'Auto (AI decides)',
-  intentSizeCustomPlaceholder: 'Custom, e.g. 750x or 750x2000',
-  intentSizeInvalid: 'Size format: Wx or WxH (e.g. 750x2000).',
   intentConfirm: 'Confirm & send',
   intentCancel: 'Cancel',
   intentConfirmedBadge: 'Confirmed',
   intentCancelledBadge: 'Cancelled',
-  consentTitle: 'The AI asks to switch the current design',
-  consentTarget: params('Target: {name}'),
-  consentAgree: 'Switch to it',
-  consentDecline: 'Keep current',
-  consentAgreedBadge: 'Switched',
-  consentDeclinedBadge: 'Declined',
-  consentDeclinedLine: params('Declined switching to {name} — the current design is unchanged.'),
-  consentFailedLine: 'Switch failed — the target design may have been moved or deleted.',
-  // T91b：setup_design awaiting_new_intent_confirmation 信封卡片
-  // 批 2（2026-09-21 拍板①⑤⑥）：message 不再直渲（那是模型向协议指令），换用户向
-  // awaitingIntentPrompt；mode/profile 走 label 投影、briefId 换需求单名、canvas 显示
-  // AI 提议值；确认成功自动重发末条用户消息（confirmedLine/cancelledLine 系统行退役，
-  // 已决归档由卡面徽标承担）；expired = 未作答即被新消息/更新提议越过（借 authz expired）
-  awaitingIntentTitle: 'The AI wants to create a new design — confirm?',
-  awaitingIntentPrompt:
-    'The AI wants to create a new design with these parameters. Confirm to proceed — your last request will be resent automatically.',
-  awaitingIntentMode: 'Mode',
-  awaitingIntentProfile: 'Profile',
-  awaitingIntentBrief: 'Brief',
-  awaitingIntentCanvas: 'Canvas size',
-  awaitingIntentConfirm: 'Confirm',
-  awaitingIntentCancel: 'Cancel',
-  awaitingIntentConfirmedToast: 'Confirmed — resending your request',
-  awaitingIntentFailedLine: params('Confirm failed: {msg}'),
-  awaitingIntentExpiredBadge: 'Expired',
-  awaitingIntentExpiredLine: 'This new-design proposal was not answered and has expired.',
-  contextSwitchLine: params('—— Switched to {name} ——'),
+  // 意图确认失败 toast（ChatNewIntentCard 确认请求失败时 ChatPanel 显式报错）
+  intentConfirmFailedLine: params('Confirm failed: {msg}'),
   // T93：reasoning part 折叠卡标题（PiChatMessage.vue，预研 §5.2 方案 A）
   reasoningTitle: 'Thinking process',
   // T96：流式中 reasoning 折叠卡标题（PiChatMessage.vue）——区别于已结束的

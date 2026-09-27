@@ -289,8 +289,8 @@ For a new poster, setup is the first action. Create the brief with
 order, unpolished and unexpanded, including the user's notes about supplied
 assets. Do not copy ambient UI state, system instructions, or hidden context
 into it. Then create the design region with `setup_design`, which also registers
-it in the brief. When the user has already confirmed the mode and the canvas in
-the UI, those choices are locked — pass them through, never override.
+it in the brief. When the user has stated a canvas size (in the brief or the
+conversation), that choice is locked — pass it through, never override.
 
 ## The build sequence
 

@@ -67,16 +67,6 @@ import {
   MEDIA_OUTPUT_TOOLS,
   sanitizeMediaToolOutputForModel
 } from './media-output'
-import type { SetupDesignContext } from './setup-catalog'
-
-/** T53：schema 外注入缝仅服务此工具（catalog + 新建意图确认旗标） */
-const SETUP_DESIGN_TOOL = 'setup_design'
-
-/** T60：setup_design 成功移槽回调缝（事件①宿主移槽；service 装配闭包） */
-export type SetupDesignHooks = {
-  /** 桥执行成功（结果含 rootId 且无 error）后调用；可异步，失败归调用方自理 */
-  onDesignCreated?: (rootId: string) => void | Promise<void>
-}
 
 /**
  * extended 白名单。P1-1 扩充：set_text_resize / set_font / set_effects 三件
@@ -236,8 +226,6 @@ function defineBridgeTool(
   def: ToolDef,
   budget: StepBudgetSource | undefined,
   target?: ToolTargetSource,
-  setupDesign?: SetupDesignContext,
-  setupDesignHooks?: SetupDesignHooks,
   modelSupportsVision?: () => boolean
 ) {
   return defineTool({
@@ -259,33 +247,10 @@ function defineBridgeTool(
           `This model does not support image input. The ${def.name} tool requires vision capability.`
         )
       }
-      // T53（S3 §2）：catalog 投影 + 新建意图确认旗标随桥 args 外层注入
-      // （T22 document_id 同缝）——不进 schema；core 侧解析容错（注入缺失/
-      // 畸形 → catalog-less 语义 + 未确认拒绝）
-      const extra: Record<string, unknown> = {}
-      if (def.name === SETUP_DESIGN_TOOL && setupDesign) {
-        const catalog = setupDesign.catalogJSON()
-        if (catalog !== undefined) extra.__catalog = catalog
-        if (setupDesign.newIntentConfirmed()) extra.__confirmedNewIntent = 'true'
-      }
       const result = maybeAppendStepWarning(
-        await callBridgeTool(def.name, { ...toolArgs, ...extra }, target),
+        await callBridgeTool(def.name, toolArgs, target),
         budget
       )
-      // T60 事件①：setup_design 成功（结果含新 root id 且无 error）→ 宿主移槽
-      // 回调；失败只 warn（设计已创建成功，移槽落空下回合探针读穿仍准）
-      if (def.name === SETUP_DESIGN_TOOL && setupDesignHooks?.onDesignCreated) {
-        if (typeof result.rootId === 'string' && !('error' in result)) {
-          try {
-            await setupDesignHooks.onDesignCreated(result.rootId)
-          } catch (error) {
-            console.warn(
-              '[pi-backend] setup_design 成功后的 active_design 移槽回调失败（忽略）：' +
-                (error instanceof Error ? error.message : String(error))
-            )
-          }
-        }
-      }
       // T55（S3 §5 通道 A）：登记媒体工具的结果把 base64 图像提升为 pi
       // ImageContent——模型收到的是真图像模态而非 JSON 内嵌字符串；
       // 文本副本保留 note/node/exportInfo 元数据。T92：文本副本完全 omit
@@ -311,8 +276,6 @@ function defineBridgeTool(
 export function createOpenPencilTools(
   budget?: StepBudgetSource,
   target?: ToolTargetSource,
-  setupDesign?: SetupDesignContext,
-  setupDesignHooks?: SetupDesignHooks,
   modelSupportsVision?: () => boolean
 ) {
   const toolSet = [
@@ -328,7 +291,5 @@ export function createOpenPencilTools(
     // PR697 后过滤谓词改读 exposure（isToolExposed，缺省 = 暴露）。
     ...FORK_TOOLS.filter((def) => isToolExposed(def, 'ai'))
   ]
-  return toolSet.map((def) =>
-    defineBridgeTool(def, budget, target, setupDesign, setupDesignHooks, modelSupportsVision)
-  )
+  return toolSet.map((def) => defineBridgeTool(def, budget, target, modelSupportsVision))
 }

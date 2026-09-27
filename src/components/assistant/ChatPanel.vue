@@ -40,11 +40,8 @@ import {
 import {
   clearPiPendingNewIntent,
   markPiIntentInFlight,
-  piActiveDesign,
   piPendingNewIntent,
-  piStudioManifest,
-  refreshPiStudioManifest,
-  resyncPiActiveDesign
+  refreshPiStudioManifest
 } from '@/app/ai/pi-backend/mode-selection'
 import { deriveGateState, type GateState } from '@/app/ai/pi-backend/provider-gate'
 import { getActiveEditorStore } from '@/app/editor/active-store'
@@ -61,25 +58,7 @@ import AppPlaceholder from '@/components/ui/feedback/AppPlaceholder.vue'
 import { menuItem, useMenuUI } from '@/components/ui/menu/menu'
 import Tip from '@/components/ui/overlay/Tip.vue'
 
-import {
-  ACTIVE_DESIGN_DECISION_PART_TYPE,
-  CONTEXT_SWITCH_PART_TYPE,
-  NEW_INTENT_PART_TYPE,
-  awaitingCardView,
-  intentSizeChoices,
-  lastUserMessageText,
-  parseSetActiveDesignProposed,
-  postActiveDesign,
-  postIntentConfirm,
-  resolveBriefDisplayName,
-  scanAwaitingIntentCards,
-  type ActiveDesignDecisionPartData,
-  type AwaitingIntentCardView,
-  type AwaitingSessionDecision,
-  type ContextSwitchPartData,
-  type NewIntentPartData
-} from './active-design'
-import ChatAwaitingIntentCard from './ChatAwaitingIntentCard.vue'
+import { NEW_INTENT_PART_TYPE, postIntentConfirm, type NewIntentPartData } from './active-design'
 import ChatBriefDialog from './ChatBriefDialog.vue'
 import ChatContextBar from './ChatContextBar.vue'
 import ChatLocusGateCard from './ChatLocusGateCard.vue'
@@ -417,52 +396,21 @@ const pendingNewIntentView = computed<NewIntentPartData | null>(() => {
   const intent = piPendingNewIntent.value
   const draft = pendingIntentDraft.value
   if (!intent || draft === null) return null
-  const active = piActiveDesign.value
-  const modeEntry = piStudioManifest.value?.modes.find((mode) => mode.id === intent.modeId) ?? null
   return {
     modeId: intent.modeId,
     profileId: intent.profileId,
-    activeDesignName: active?.name ?? null,
-    sizeChoices: intentSizeChoices(intent.modeId, modeEntry),
-    canvas: null,
+    activeDesignName: null,
     text: draft,
     resolved: null
   }
 })
 
-// 线 B（AI 提议）：setup_design awaiting 信封全史扫描（active-design.ts
-// scanAwaitingIntentCards，D6 派生口径——会话已决 > 随后同身份落图派生已确认 >
-// 后续用户消息过期 > 最后候选为唯一活卡）。会话内已决记号（含兄弟卡 superseded
-// 封印）按 toolCallId 持有；重载后灭失，由派生规则兜底（复活卡永不直接可点——
-// 要么是真正未决的活卡（dock 承接），要么派生归档）。
-const awaitingIntentDecisions = ref<Map<string, AwaitingSessionDecision>>(new Map())
-
-const awaitingCards = computed(() =>
-  scanAwaitingIntentCards(messages.value, awaitingIntentDecisions.value, (briefId) =>
-    resolveBriefDisplayName(getActiveEditorStore(), briefId)
-  )
-)
-
-/** 当前唯一活卡（兄弟卡联动锁保证至多一张）；handler 零参自取 toolCallId */
-const pendingAwaitingEntry = computed(() => {
-  for (const [toolCallId, record] of awaitingCards.value) {
-    if (record.state.kind === 'pending') return { toolCallId, record }
-  }
-  return null
-})
-
-const pendingAwaitingView = computed<AwaitingIntentCardView | null>(() => {
-  const entry = pendingAwaitingEntry.value
-  return entry ? awaitingCardView(entry.record) : null
-})
-
-/** dock 门态：凡有未决即出现（ask/authz 在途 + 意图两线 + 落点拦截门）；出现即输入区摘除
- * （dock 独占形态——拍板②：意图卡不破例，草稿随卡编辑） */
+/** dock 门态：凡有未决即出现（ask/authz 在途 + 意图确认卡 + 落点拦截门）；出现即
+ *  输入区摘除（dock 独占形态——拍板②：意图卡不破例，草稿随卡编辑） */
 const dockHasDecisions = computed(
   () =>
     pinnedDecisions.value.length > 0 ||
     pendingNewIntentView.value !== null ||
-    pendingAwaitingView.value !== null ||
     pendingLocusGate.value !== null
 )
 
@@ -920,19 +868,16 @@ function interceptNewIntent(text: string): boolean {
   return true
 }
 
-/** 归档 part 数据组装（confirmed/cancelled 共用；sizeChoices 归档不消费恒 []） */
+/** 归档 part 数据组装（confirmed/cancelled 共用） */
 function intentArchiveData(
   intent: { modeId: string; profileId: string | null },
   resolved: 'confirmed' | 'cancelled',
-  canvas: string | null,
   text: string
 ): NewIntentPartData {
   return {
     modeId: intent.modeId,
     profileId: intent.profileId,
-    activeDesignName: piActiveDesign.value?.name ?? null,
-    sizeChoices: [],
-    canvas,
+    activeDesignName: null,
     text,
     resolved
   }
@@ -943,7 +888,7 @@ function intentArchiveData(
  * （卡留未决，草稿不丢）；成功后暂存转在途 + 追加归档 part + 发送卡上正文
  * （草稿随卡：发的是卡内编辑后的 text，不再是拦截快照）。信封通道已整段退役。
  */
-async function handleIntentConfirm(payload: { canvas: string | null; text: string }) {
+async function handleIntentConfirm(payload: { text: string }) {
   if (status.value === 'streaming' || status.value === 'submitted') return
   if (intentDecisionBusy.value) return
   const intent = piPendingNewIntent.value
@@ -953,21 +898,21 @@ async function handleIntentConfirm(payload: { canvas: string | null; text: strin
   try {
     const confirmArgs: Parameters<typeof postIntentConfirm>[0] = { modeId: intent.modeId }
     if (intent.profileId) confirmArgs.profileId = intent.profileId
-    if (payload.canvas) confirmArgs.canvas = payload.canvas
     const result = await postIntentConfirm(confirmArgs)
     if (!result.ok) {
-      toast.error(confirmText.value.awaitingIntentFailedLine({ msg: result.message }))
+      toast.error(confirmText.value.intentConfirmFailedLine({ msg: result.message }))
       return
     }
-    // 确认后暂存转在途（不即时清空）——chip/状态栏在 setup_design 落槽前持续
-    // 显示所选 mode；物化为匹配身份的 active design 时由 mode-selection 清偿。
+    // 确认后暂存转在途（不即时清空）——chip/状态栏持续显示所选 mode。确认即
+    // 物化（确认端点已直写 page-state 标量），在途态仅为显示锚；清偿与回显的
+    // page-state 接线归确认卡归族批次收口。
     // pending 清空 → dock 收卡 → 输入框回归（全新挂载，无草稿残留）
     markPiIntentInFlight(intent)
     pendingIntentDraft.value = null
     await appendHostMessage([
       {
         type: NEW_INTENT_PART_TYPE,
-        data: intentArchiveData(intent, 'confirmed', payload.canvas, payload.text)
+        data: intentArchiveData(intent, 'confirmed', payload.text)
       }
     ])
     await handleSubmit(payload.text)
@@ -986,168 +931,10 @@ function handleIntentCancel(payload: { text: string }) {
   void appendHostMessage([
     {
       type: NEW_INTENT_PART_TYPE,
-      data: intentArchiveData(intent, 'cancelled', null, payload.text)
+      data: intentArchiveData(intent, 'cancelled', payload.text)
     }
   ])
   void nextTick(() => chatInputRef.value?.restoreDraft(payload.text))
-}
-
-// ── T61：set_active_design 同意卡（共享契约 3） ─────────────────────────────
-
-/** 已决断 toolCallId → decision（扫宿主决定记录 data part 派生，重载后保持置灰） */
-const consentDecisions = computed(() => {
-  const map = new Map<string, 'agreed' | 'declined'>()
-  for (const message of messages.value) {
-    for (const part of message.parts) {
-      if (part.type !== ACTIVE_DESIGN_DECISION_PART_TYPE || !('data' in part)) continue
-      const data = part.data as Partial<ActiveDesignDecisionPartData> | undefined
-      if (typeof data?.toolCallId !== 'string') continue
-      map.set(data.toolCallId, data.decision === 'agreed' ? 'agreed' : 'declined')
-    }
-  }
-  return map
-})
-
-/** 从工具 part output 取 proposed（{proposed:{nodeId,...}}，共享契约 3；解析单源在 active-design.ts。
- *  注意读 output 不读 input——input 是工具入参 {node_id}，proposed 在结果里（核验钉死）） */
-function consentProposed(toolCallId: string): { nodeId: string | null; name: string | null } {
-  for (const message of messages.value) {
-    for (const part of message.parts) {
-      if (!('toolCallId' in part) || part.toolCallId !== toolCallId) continue
-      const output = (part as { state?: string; output?: unknown }).output
-      const proposed = parseSetActiveDesignProposed(output)
-      if (proposed.nodeId !== null || proposed.name !== null) return proposed
-    }
-  }
-  return { nodeId: null, name: null }
-}
-
-async function handleConsentDecide(payload: { toolCallId: string; agree: boolean }) {
-  if (status.value === 'streaming' || status.value === 'submitted') return
-  if (consentDecisions.value.has(payload.toolCallId)) return
-  const proposed = consentProposed(payload.toolCallId)
-  const designName = proposed.name ?? proposed.nodeId ?? payload.toolCallId
-
-  let switched = false
-  let line: string | null = null
-  if (payload.agree && proposed.nodeId) {
-    // 同意 → 切换端点（共享契约 2，与画布状态面板「设为当前」共用）
-    const result = await postActiveDesign(proposed.nodeId)
-    if (result) {
-      resyncPiActiveDesign()
-      switched = true
-    } else {
-      line = confirmText.value.consentFailedLine
-    }
-  } else if (payload.agree) {
-    line = confirmText.value.consentFailedLine
-  } else {
-    line = confirmText.value.consentDeclinedLine({ name: designName })
-  }
-  // 两侧均不伪装用户消息：决定记录 data part（置灰派生源）+ 回执。
-  // T65（决策 D3）：同意成功的回执 = 对话流分割线（data-context-switch），
-  // 替换原本地系统行；失败 / 拒绝仍走文本行。
-  const parts: UIMessage['parts'] = [
-    {
-      type: ACTIVE_DESIGN_DECISION_PART_TYPE,
-      data: {
-        toolCallId: payload.toolCallId,
-        decision: payload.agree ? 'agreed' : 'declined',
-        designName
-      } satisfies ActiveDesignDecisionPartData
-    }
-  ]
-  if (switched) {
-    parts.push({
-      type: CONTEXT_SWITCH_PART_TYPE,
-      data: { name: designName } satisfies ContextSwitchPartData
-    })
-  } else if (line !== null) {
-    parts.push({ type: 'text', text: line })
-  }
-  await appendHostMessage(parts)
-}
-
-/** T65（决策 D3）：画布状态面板「设为当前」端点 200 后注入分割线回执 */
-async function handleContextSwitch(payload: { name: string }) {
-  await appendHostMessage([
-    {
-      type: CONTEXT_SWITCH_PART_TYPE,
-      data: { name: payload.name } satisfies ContextSwitchPartData
-    }
-  ])
-}
-
-// ── T91b：setup_design awaiting_new_intent_confirmation 信封处理 ─────────────
-//
-// 批 2（2026-09-21 拍板①⑥ + D6）重写：
-//  - 未决卡由 dock 承接（仅 idle 可点——intentCardsDisabled 含 streaming 禁点）；
-//  - `stop()` 整段删除（拍板⑥：卡维持仅 idle 可点，常规路径 turn 已结束，stop
-//    是死代码且失败路径误杀流）；F9-2 守卫不对称随 dock 禁点统一消解；
-//  - 确认成功 → 自动重发末条用户消息续跑（pluginData 四键已落，守卫放行后
-//    setup_design 在同一需求下直接物化）；确认失败 → toast 明示 + 卡留未决，
-//    不杀流不发送；
-//  - D6c：确认前核当前 active——已物化为同一身份 = 幂等收口（不覆写、不重发）。
-
-/** 已决标记 + 兄弟卡封印（F9-1 联动锁）：活卡之外的其余在途候选全部落
- *  superseded——否则活卡已决后次旧候选会被扫描规则晋升为新的活卡 */
-function sealAwaitingDecision(toolCallId: string, decision: 'confirmed' | 'cancelled'): void {
-  const next = new Map(awaitingIntentDecisions.value)
-  next.set(toolCallId, decision)
-  for (const [id, record] of awaitingCards.value) {
-    if (id !== toolCallId && record.candidate) next.set(id, 'superseded')
-  }
-  awaitingIntentDecisions.value = next
-}
-
-async function handleIntentAwaitingConfirm(): Promise<void> {
-  if (status.value === 'streaming' || status.value === 'submitted') return
-  if (intentDecisionBusy.value) return
-  const entry = pendingAwaitingEntry.value
-  if (!entry) return
-  const { toolCallId, record } = entry
-  const { info } = record
-  intentDecisionBusy.value = true
-  try {
-    // D6c 幂等：active 槽已物化为同一身份（重载复活卡/竞态窗口）→ 不覆写
-    // pluginData、不重发需求，直接已决收口
-    const active = piActiveDesign.value
-    if (active && active.modeId === info.modeId && (active.profileId ?? '') === info.profileId) {
-      sealAwaitingDecision(toolCallId, 'confirmed')
-      toast.info(confirmText.value.awaitingIntentConfirmedToast)
-      return
-    }
-    const confirmArgs: Parameters<typeof postIntentConfirm>[0] = { modeId: info.modeId }
-    if (info.profileId !== '') confirmArgs.profileId = info.profileId
-    if (info.canvas) confirmArgs.canvas = info.canvas
-    const result = await postIntentConfirm(confirmArgs)
-    if (!result.ok) {
-      // 拍板⑥：失败不杀流不发送——toast 明示，卡留未决可重试
-      toast.error(confirmText.value.awaitingIntentFailedLine({ msg: result.message }))
-      return
-    }
-    sealAwaitingDecision(toolCallId, 'confirmed')
-    toast.info(confirmText.value.awaitingIntentConfirmedToast)
-    // 拍板⑥：自动续跑——重发末条用户消息（原需求已在历史里，零重打）。
-    // pluginData 四键已落，重发的 run 里 setup_design 守卫绑定命中即物化。
-    const text = lastUserMessageText(messages.value)
-    if (text === null) {
-      console.warn('[chat] awaiting 意图确认后找不到可续跑的用户消息——跳过自动重发')
-      return
-    }
-    await handleSubmit(text)
-  } finally {
-    intentDecisionBusy.value = false
-  }
-}
-
-/** 用户在 ChatAwaitingIntentCard 点 Cancel → 已决标记（归档卡转「已取消」徽标）；
- *  不杀流不注入系统行（拍板⑥ + 归档由卡面徽标承担） */
-function handleIntentAwaitingCancel(): void {
-  if (status.value === 'streaming' || status.value === 'submitted') return
-  const entry = pendingAwaitingEntry.value
-  if (!entry) return
-  sealAwaitingDecision(entry.toolCallId, 'cancelled')
 }
 
 async function handleCopyDebug() {
@@ -1243,11 +1030,8 @@ function handleClearChat() {
         </DropdownMenuPortal>
       </DropdownMenuRoot>
 
-      <!-- T65：画布工作状态面板（三合一）；切换成功 → 分割线回执 -->
-      <ChatContextBar
-        :disabled="status === 'streaming' || status === 'submitted'"
-        @switched="handleContextSwitch"
-      />
+      <!-- T65：画布工作状态面板（三合一） -->
+      <ChatContextBar :disabled="status === 'streaming' || status === 'submitted'" />
       <!-- sl-w2-locus-gate（§7.3 感知三件套之二）：状态行——run 在途 + 落点页 ≠
            视图页时呼吸徽标 + 跳转；当前页 ≠ 落点页时常驻被动入口。 -->
       <ChatLocusStatusRow
@@ -1285,10 +1069,7 @@ function handleClearChat() {
             :streaming="isStreamingMessage(msg, index)"
             :stopped="index === messages.length - 1 && justStopped"
             :answered-form-ids="answeredFormIds"
-            :consent-decisions="consentDecisions"
-            :awaiting-cards="awaitingCards"
             @form-submit="handleFormSubmit"
-            @consent-decide="handleConsentDecide"
           />
 
           <!-- Thinking indicator: shown when AI is working but no visible activity -->
@@ -1382,9 +1163,9 @@ function handleClearChat() {
          输入框不渲染 = 从根上消灭未配置发送的死路（spec b）。 -->
     <!-- 2026-09-18 broker P1：pending 决断卡 pinned 挂点（输入区上方，不随消息流
          滚动）——ask/authz 双族未决卡在此承接交互；已决/失效归档在消息流内。
-         批 2（2026-09-21 拍板①）：意图确认族（chip 发起 ChatNewIntentCard +
-         AI 提议 ChatAwaitingIntentCard）并入本 dock——凡有未决即出现；意图卡
-         维持仅 idle 可点（拍板⑥，streaming 期由 dock 停止按钮承担取消） -->
+         批 2（2026-09-21 拍板①）：意图确认卡（chip 发起 ChatNewIntentCard）并入
+         本 dock——凡有未决即出现；意图卡维持仅 idle 可点（拍板⑥，streaming 期
+         由 dock 停止按钮承担取消） -->
     <div
       v-if="isGateReady && dockHasDecisions"
       data-test-id="pending-decision-dock"
@@ -1402,13 +1183,6 @@ function handleClearChat() {
         :disabled="intentCardsDisabled"
         @confirm="handleIntentConfirm"
         @cancel="handleIntentCancel"
-      />
-      <ChatAwaitingIntentCard
-        v-if="pendingAwaitingView"
-        :view="pendingAwaitingView"
-        :disabled="intentCardsDisabled"
-        @confirm="handleIntentAwaitingConfirm"
-        @cancel="handleIntentAwaitingCancel"
       />
       <!-- sl-w2-locus-gate（§3.1）：落点拦截门确认卡——与 ask/authz/intent
            同属 dock 形态，复用现有「凡有未决即出现」语义。pin 在输入区上方。

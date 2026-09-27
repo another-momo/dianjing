@@ -160,7 +160,7 @@ function parseInstallSkillAuthzRequest(
 
 /** data part 载荷防御性归一（形状不符 → null，渲染层不崩不渲染）。
  *  按 toolName 分支校验（分支体检拆 helper——complexity 门禁上限 20）；
- *  `in` 收窄逐字段取（parseSetActiveDesignProposed 先例），不做宽断言；
+ *  `in` 收窄逐字段取（NewIntentPartData 防御性归一先例），不做宽断言；
  *  未知 toolName 返 null——前端不假装 fallback bash，避免 install_skill 之外
  *  的闸门载荷静默走 bash 分支渲染命令框 */
 export function parseAuthzRequestData(input: unknown): AuthzRequestPartData | null {

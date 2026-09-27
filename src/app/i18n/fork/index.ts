@@ -70,7 +70,7 @@ export const forkChipsMessages = forkI18n('chips', chipsMessageDefaults)
 /** T61→T65：画布工作状态面板文案域（ChatContextBar 三合一：目标卡 / 设计区 / 需求单） */
 export const forkPanelsMessages = forkI18n('panels', panelsMessageDefaults)
 
-/** T61：新建意图确认卡 + set_active_design 同意卡文案域（ChatNewIntentCard / ChatSetActiveDesignCard） */
+/** T61：新建意图确认卡文案域（ChatNewIntentCard） */
 export const forkConfirmMessages = forkI18n('confirm', confirmMessageDefaults)
 
 /** T87：settings 面板 Agent 能力分区（ai 区下小节） */

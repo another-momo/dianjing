@@ -1,42 +1,34 @@
 /**
- * T91a 回归：active-design 端点探针（生成的桥 eval 串）× 真实数据形态接线测试。
+ * 2026-09-27 sl-w2-state-chain：桥探针生成串 × 真实数据形态接线测试（slim 版，
+ * 前身 = T91a active-design-probe-eval.test.ts，随槽位机制摘除整删）。
  *
- * 事故背景：T91a（d1809c1d）把 design.briefId / bound-designs 迁 UUID 后，
- * host 生成的探针 eval 串仍按节点 id 解析、且不捕 design uniqueId——host
- * 单测全部 mock probeCandidate，生成串从未在测试里执行过，「切换到此」
- * 对全部新文档 100% 422 brief_mismatch（owner 实测撞见，2026-09-09）。
- *
- * 本文件经 createBridgeSlotIO 的执行器注入缝，把同一份生成串放到真实
- * store（setupToolTest + createBrief + setupDesign 全真 T91a 产线）上跑，
- * 覆盖「生成代码 × 真实数据形态」接线面；另钉老文档形态（node id）兼容。
+ * 钉死的接线面：host 的桥探针 eval 串由代码生成，mock 桥的单测从不执行串本
+ * 体——「生成串 × 真实数据形态」断裂只有真跑能兜。2026-09-27 推送前独立
+ * review 实证：probeSlot 的 docUuid 查询键误用条目全键（自命名空间编码形
+ * 下匹配器剥前缀比对后缀，传全键 = 双前缀恒 miss），生产恒返空串——
+ * page-state 读写面（冻结 / 确认门端点 / 信封规制）整体静默失效。
  */
 import { describe, expect, test } from 'bun:test'
 
 import type { FigmaAPI } from '@open-pencil/core/figma-api'
-import { getSharedPluginData, setSharedPluginData } from '@open-pencil/core/figma-api/plugin-data'
 import { wrapEvalCode } from '@open-pencil/core/tools'
-import { ACTIVE_DESIGN_KEY } from '@open-pencil/core/tools/fork/marketing/active-design'
-import {
-  BRIEF_BINDING_KEY,
-  BRIEF_PLUGIN_NAMESPACE,
-  BRIEF_ROLE_KEY,
-  BRIEF_ROLE_VALUE,
-  DESIGN_BRIEF_KEY,
-  briefBoundDesignIds,
-  createBrief
-} from '@open-pencil/core/tools/fork/marketing/brief'
-import { MARKETING_ROLE_ROOT, setupDesign } from '@open-pencil/core/tools/fork/marketing/setup'
+import { createBrief } from '@open-pencil/core/tools/fork/marketing/brief'
+import type { SceneGraph } from '@open-pencil/scene-graph'
 
-import {
-  createBridgeSlotIO,
-  setActiveDesignViaBridge,
-  type ActiveDesignBridgeIO
-} from '@/app/ai/pi-backend/active-design-host'
+import { createBridgeSlotIO } from '@/app/ai/pi-backend/active-design-host'
 
 import { setupToolTest } from '#tests/helpers/tools'
 
-/** 与桥 eval-handler 同形态执行生成串（AsyncFunction + wrapEvalCode） */
-async function evalInPage(figma: FigmaAPI, code: string): Promise<unknown> {
+/**
+ * 与桥 eval-handler 同形态执行生成串（AsyncFunction + wrapEvalCode）；
+ * args.pageId 存在时先钉页（复刻桥 resolveAutomationTarget 的 page_id 语义）。
+ */
+async function evalInPage(figma: FigmaAPI, code: string, pageId?: string): Promise<unknown> {
+  if (pageId) {
+    const page = figma.getNodeById(pageId)
+    if (!page) throw new Error(`page not found: ${pageId}`)
+    figma.currentPage = page
+  }
   const AsyncFunction = Object.getPrototypeOf(async function () {
     /* noop */
   }).constructor
@@ -44,86 +36,45 @@ async function evalInPage(figma: FigmaAPI, code: string): Promise<unknown> {
   return fn(figma)
 }
 
-function bridgeOn(figma: FigmaAPI): ActiveDesignBridgeIO {
-  return createBridgeSlotIO((code) => evalInPage(figma, code))
+function bridgeOn(figma: FigmaAPI) {
+  return createBridgeSlotIO((code, args) => evalInPage(figma, code, args.pageId))
 }
 
-/** 全真 T91a 产线：一页一 brief 一设计根（briefId/bound-designs 均 UUID 形态） */
-function setupT91aPage() {
-  const { graph, figma } = setupToolTest()
-  const brief = createBrief(figma)
-  const result = setupDesign(figma, {
-    modeId: 'general',
-    briefId: brief.id,
-    confirmedNewIntent: true
+/** 以 document-key.ts 的生产形态写 docUuid 条目（自命名空间编码全键直写数组） */
+function writeDocUuid(graph: SceneGraph, uuid: string): void {
+  const root = graph.getNode(graph.rootId)
+  graph.updateNode(graph.rootId, {
+    pluginData: [
+      ...(root?.pluginData ?? []),
+      { pluginId: 'openpencil.ai', key: 'openpencil.ai/docId', value: uuid }
+    ]
   })
-  if ('error' in result) throw new Error(`setup_design failed: ${result.error}`)
-  return { graph, figma, brief, rootId: result.rootId }
 }
 
-describe('active-design 端点探针 × 真实数据形态（生成 eval 串直跑真实 store）', () => {
-  test('T91a 形态（UUID）：探针解析 + 切换成功 + 落槽 + briefId 归一节点 id', async () => {
-    const { graph, figma, brief, rootId } = setupT91aPage()
-
-    // 钉扎前提：产线写的确实是 UUID 形态——若未来改回节点 id，本测试应重审而非空转
-    const designNode = graph.getNode(rootId)
-    const rawBriefId = designNode
-      ? getSharedPluginData(designNode, BRIEF_PLUGIN_NAMESPACE, DESIGN_BRIEF_KEY)
-      : ''
-    expect(rawBriefId).not.toBe(brief.id)
-    expect(rawBriefId).not.toBe('')
-    expect(briefBoundDesignIds(graph.getNode(brief.id))).not.toContain(rootId)
-
-    const result = await setActiveDesignViaBridge(rootId, undefined, bridgeOn(figma))
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(result.modeId).toBe('general')
-      expect(result.briefId).toBe(brief.id) // 归一为节点 id（snapshotDesignRoot 同语义）
-    }
-
-    const docRoot = graph.getNode(graph.rootId)
-    expect(
-      docRoot ? getSharedPluginData(docRoot, BRIEF_PLUGIN_NAMESPACE, ACTIVE_DESIGN_KEY) : ''
-    ).toBe(rootId)
-  })
-
-  test('老文档形态（节点 id + 无 uniqueId）：兼容路径不回归', async () => {
+describe('桥探针生成串 × 真实数据形态（接线面钉扎）', () => {
+  test('probeSlot：docUuid 按生产条目形态读回 + currentPageId 为视图页', async () => {
     const { graph, figma } = setupToolTest()
-    const pageId = figma.currentPage.id
-    const design = graph.createNode('FRAME', pageId, {
-      name: 'Old Design',
-      x: 0,
-      y: 0,
-      width: 100,
-      height: 100
-    })
-    setSharedPluginData(graph, design, BRIEF_PLUGIN_NAMESPACE, BRIEF_ROLE_KEY, MARKETING_ROLE_ROOT)
-    const brief = graph.createNode('FRAME', pageId, {
-      name: 'Old Brief',
-      x: 0,
-      y: 200,
-      width: 100,
-      height: 100
-    })
-    setSharedPluginData(graph, brief, BRIEF_PLUGIN_NAMESPACE, BRIEF_ROLE_KEY, BRIEF_ROLE_VALUE)
-    // 老形态：design.briefId = brief 节点 id；bound-designs = design 节点 id；均无 uniqueId
-    setSharedPluginData(graph, design, BRIEF_PLUGIN_NAMESPACE, DESIGN_BRIEF_KEY, brief.id)
-    setSharedPluginData(graph, brief, BRIEF_PLUGIN_NAMESPACE, BRIEF_BINDING_KEY, design.id)
+    writeDocUuid(graph, 'uuid-123')
 
-    const result = await setActiveDesignViaBridge(design.id, undefined, bridgeOn(figma))
-    expect(result.ok).toBe(true)
-    if (result.ok) expect(result.briefId).toBe(brief.id)
+    const probe = await bridgeOn(figma).probeSlot()
+    expect(probe).toEqual({ currentPageId: figma.currentPageId, docUuid: 'uuid-123' })
   })
 
-  test('T91a 形态下 brief 真不一致（bound 列表为空）仍 422——校验没有被放宽', async () => {
-    const { graph, figma, brief, rootId } = setupT91aPage()
-    // 拆掉绑定：bound-designs 清空（design.briefId 仍指向 brief UUID）
-    const briefNode = graph.getNode(brief.id)
-    if (briefNode)
-      setSharedPluginData(graph, briefNode, BRIEF_PLUGIN_NAMESPACE, BRIEF_BINDING_KEY, '')
+  test('probeSlot：文档未铸 uuid → docUuid 空串（首跑形态）', async () => {
+    const { figma } = setupToolTest()
 
-    const result = await setActiveDesignViaBridge(rootId, undefined, bridgeOn(figma))
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('brief_mismatch')
+    const probe = await bridgeOn(figma).probeSlot()
+    expect(probe?.docUuid).toBe('')
+  })
+
+  test('probeBrief：按钉页扫描需求单根——命中页返 id，他页返空', async () => {
+    const { graph, figma } = setupToolTest()
+    const brief = createBrief(figma)
+    const pageA = figma.currentPageId
+    const pageB = graph.addPage('Page 2')
+
+    const io = bridgeOn(figma)
+    expect(await io.probeBrief(pageA)).toEqual([brief.id])
+    expect(await io.probeBrief(pageB.id)).toEqual([])
   })
 })

@@ -64,8 +64,6 @@ export interface AskUserQuestionToolDeps {
   store: PendingDecisionStore
   /** 当前 session id（service.ts 装配闭包注入；同 session 重复 register → alreadyPending 错误结果） */
   sessionId: string
-  /** formId 注册后回调（宿主 recordAskForm——active-design-host.ts） */
-  onPendingRegistered?: (formId: string) => void
   /** formId 派生（默认 'ask-'+toolCallId；测试可注入确定性） */
   makeId?: (toolCallId: string) => string
 }
@@ -137,7 +135,6 @@ export function createAskUserQuestionTool(deps: AskUserQuestionToolDeps) {
           message: 'A previous form is still awaiting the user answer.'
         })
       }
-      deps.onPendingRegistered?.(formId)
       const questions = validated.questions
 
       // 挂起 → resolve/reject → 构造工具结果

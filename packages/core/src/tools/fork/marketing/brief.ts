@@ -15,12 +15,10 @@
  *   歧义信号（源仓「当前页第一个」兜底已废除）。
  * - 结论按设计归组：组 frame 携带 designId 标记 + GroupTitle 显示名；
  *   存储不分区，per-design 视图由读取侧过滤。
- * - 关联设计区条目 = 设计 id 权威（条目 pluginData designId）+ 名称 /
- *   mode 投影（读穿设计根 pluginData 三元组——T53 写入，此前
- *   缺省显示 BRIEF_TEXTS.missingProjection）。惰性调和在读取侧：
- *   设计已死 → 视图标注「（已删除）」保痕，不物理清除；design→brief
- *   指针有而条目缺 → 视图补显（registered: false），物理补写走
- *   syncBriefDesignEntries（变更路径调用）。
+ * - 关联设计区条目 = 设计 id 权威（条目 pluginData designId）+ 名称投影。
+ *   惰性调和在读取侧：设计已死 → 视图标注「（已删除）」保痕，不物理清除。
+ *   2026-09-27 帧无身份：设计身份三元组投影（mode/profile，读穿设计根
+ *   pluginData）与 design→brief 反向指针补显随规制迁用户层整体退役。
  */
 
 import type { Fill, SceneGraph, SceneNode } from '@open-pencil/scene-graph'
@@ -65,23 +63,6 @@ export const BRIEF_UNIQUE_ID_KEY = 'uniqueId'
 export const DESIGN_UNIQUE_ID_KEY = 'uniqueId'
 
 /**
- * T91b：newIntent pluginData 三键——「待新建的设计区 workflow / profile / 确认旗标」
- * 存在 document root sharedPluginData（与 activeDesignNodeId 同层），用于跨回合
- * 持久化「用户或 AI 提议的新建意图」，装配时（assembleTurn）优先读、setup_design
- * 执行时读 confirmed 旗标、确认或成功后清除。键名与 activeDesignNodeId 一致
- * 单源在 BRIEF_PLUGIN_NAMESPACE 下，避免键名散落。
- */
-export const NEW_INTENT_MODE_ID_KEY = 'newIntentModeId'
-export const NEW_INTENT_PROFILE_ID_KEY = 'newIntentProfileId'
-export const NEW_INTENT_CONFIRMED_KEY = 'newIntentConfirmed'
-/**
- * A3 方案：canvas 尺寸覆盖值与 modeId/profileId/confirmed 同持久化
- * （T91b 三键扩展为四键）——确认意图本就该持久至落图/被覆盖，不该靠
- * agent「记得」当回合调用（§2.2）。
- */
-export const NEW_INTENT_CANVAS_KEY = 'newIntentCanvas'
-
-/**
  * T91a：生成跨实例稳定的唯一标识符。`crypto.randomUUID()` 是 Node 14.17+
  * 与所有现代浏览器都内置的实现，跨 .fig 序列化、跨重启、跨图实例都不会冲突。
  * 不能用 `graph.generateId()`——它产出 `0:<n++>` 形式，re-import 时重新分配。
@@ -112,31 +93,6 @@ export function setDesignUniqueId(graph: SceneGraph, nodeId: string, uuid: strin
   setBriefMarker(graph, nodeId, DESIGN_UNIQUE_ID_KEY, uuid)
 }
 
-/** 扫描当前页，按 uniqueId 找 brief 根 */
-export function findBriefByUniqueId(figma: FigmaAPI, uuid: string): SceneNode | undefined {
-  if (!uuid) return undefined
-  for (const b of listBriefs(figma)) {
-    if (getBriefUniqueId(b) === uuid) return b
-  }
-  return undefined
-}
-
-/**
- * T91a：graph-only brief 解析（不需要 figma 句柄，用于 scanMarketingDesigns
- * 把 DESIGN_BRIEF_KEY UUID 翻成 brief 节点 id 的纯读侧路径）。
- */
-export function findBriefByUniqueIdViaGraph(
-  graph: SceneGraph,
-  uuid: string
-): SceneNode | undefined {
-  if (!uuid) return undefined
-  for (const root of graph.nodes.values()) {
-    if (!isBrief(root)) continue
-    if (getBriefUniqueId(root) === uuid) return root
-  }
-  return undefined
-}
-
 /** 扫描当前页，按 uniqueId 找 design 根（带 DESIGN_ROLE_KEY 标记的 FRAME） */
 export function findDesignByUniqueId(figma: FigmaAPI, uuid: string): SceneNode | undefined {
   if (!uuid) return undefined
@@ -154,110 +110,6 @@ export function findDesignByUniqueId(figma: FigmaAPI, uuid: string): SceneNode |
   }
   return undefined
 }
-
-// ── T91b：newIntent 显式状态（document root sharedPluginData）────────────────
-//
-// 设计真源：仓外 docs/202609031650-new-intent-plugindata-design.md。
-// 把原本隐式的「envelope.modeId 比装配早 + 内存变量 intentConfirmed」合并为
-// document root 上的显式三键——`newIntentModeId` / `newIntentProfileId` /
-// `newIntentConfirmed`。所有 .fig 持久化边界外的进程共享同一来源，避免：
-//  - Bug 3：装配点用错 workflow
-//  - Bug 2 收尾：用户答"是"无法写入，setup_design 永远 unconfirmed_new_intent
-//
-// 写入调用方：前端 ChatNewIntentCard 确认按钮 → POST /api/pi/intent-confirm
-//             → confirmNewIntent(figma, ...) → writeNewIntent。
-// 清除调用方：setupDesign 成功落图后 → clearNewIntent；onDesignCreated hook。
-// 读取调用方：setupDesign 执行前 → 决定 awaiting 信封 vs 继续；
-//             assembleTurn 装配 → 优先于 activeDesign slot 决定 effective ids。
-//
-// 实现见文件底部 T91b 段（避免重复 + 单源纪律）；键常量 + helper 全数落下方。
-
-export interface NewIntentState {
-  modeId: string
-  profileId: string
-  confirmed: boolean
-  /** A3 方案：canvas 尺寸覆盖值（与信封 canvas 字段同源；空串 = 缺省） */
-  canvas: string
-}
-
-/** 读 document root newIntent 四键。任一缺键视为不存在（空态） */
-export function readNewIntent(figma: FigmaAPI): NewIntentState {
-  const root = figma.graph.getNode(figma.graph.rootId)
-  if (!root) return { modeId: '', profileId: '', confirmed: false, canvas: '' }
-  const modeId = getSharedPluginData(root, BRIEF_PLUGIN_NAMESPACE, NEW_INTENT_MODE_ID_KEY)
-  const profileId = getSharedPluginData(root, BRIEF_PLUGIN_NAMESPACE, NEW_INTENT_PROFILE_ID_KEY)
-  const confirmed =
-    getSharedPluginData(root, BRIEF_PLUGIN_NAMESPACE, NEW_INTENT_CONFIRMED_KEY) === 'true'
-  const canvas = getSharedPluginData(root, BRIEF_PLUGIN_NAMESPACE, NEW_INTENT_CANVAS_KEY)
-  return { modeId, profileId, confirmed, canvas }
-}
-
-/** 写入 newIntent 四键——单一原子入口（前端确认按钮 / envelope 兼容写入） */
-export function writeNewIntent(
-  figma: FigmaAPI,
-  args: { modeId: string; profileId?: string; canvas?: string; confirmed: boolean }
-): void {
-  const root = figma.graph.getNode(figma.graph.rootId)
-  if (!root) return
-  setSharedPluginData(
-    figma.graph,
-    root,
-    BRIEF_PLUGIN_NAMESPACE,
-    NEW_INTENT_MODE_ID_KEY,
-    args.modeId
-  )
-  setSharedPluginData(
-    figma.graph,
-    root,
-    BRIEF_PLUGIN_NAMESPACE,
-    NEW_INTENT_PROFILE_ID_KEY,
-    args.profileId ?? ''
-  )
-  setSharedPluginData(
-    figma.graph,
-    root,
-    BRIEF_PLUGIN_NAMESPACE,
-    NEW_INTENT_CANVAS_KEY,
-    args.canvas ?? ''
-  )
-  setSharedPluginData(
-    figma.graph,
-    root,
-    BRIEF_PLUGIN_NAMESPACE,
-    NEW_INTENT_CONFIRMED_KEY,
-    args.confirmed ? 'true' : ''
-  )
-}
-
-/** 清除 newIntent 四键——setup_design 成功 / 用户取消意图 */
-export function clearNewIntent(figma: FigmaAPI): void {
-  writeNewIntent(figma, { modeId: '', profileId: '', canvas: '', confirmed: false })
-}
-
-/**
- * 仅确认旗标（不改 modeId / profileId）——用于 envelope 兼容路径：
- * 已有 modeId 但需要把 confirmed 旗标置 true。
- */
-export function markNewIntentConfirmed(figma: FigmaAPI, confirmed: boolean): void {
-  const root = figma.graph.getNode(figma.graph.rootId)
-  if (!root) return
-  setSharedPluginData(
-    figma.graph,
-    root,
-    BRIEF_PLUGIN_NAMESPACE,
-    NEW_INTENT_CONFIRMED_KEY,
-    confirmed ? 'true' : ''
-  )
-}
-
-/**
- * Design identity tuple keys on design root frames (S3 §9 pluginData 标记协议).
- * WRITTEN BY T53 setup_design — this module only reads them for projections
- * and for the design→brief pointer scan. Exported so T53 shares the key names.
- */
-export const DESIGN_MODE_KEY = 'modeId'
-export const DESIGN_PROFILE_KEY = 'profileId'
-export const DESIGN_BRIEF_KEY = 'briefId'
 
 /** Marker on a designs-zone entry row: the authoritative design root id it points at */
 export const BRIEF_DESIGN_ENTRY_KEY = 'designId'
@@ -1046,29 +898,3 @@ export function registerBriefDesignEntry(
   if (emptyHintId) graph.updateNode(emptyHintId, { visible: false })
   return { entryId: entry.id, created: true }
 }
-
-/**
- * Physical backfill half of the lazy reconciliation (S3 §3 读时惰性调和):
- * scan the current page for design roots whose design→brief pointer
- * (DESIGN_BRIEF_KEY, written by T53) targets this brief and register any
- * missing entries. Mutating — call from mutating paths only; the read side
- * surfaces the same designs with `registered: false` instead.
- */
-export function syncBriefDesignEntries(figma: FigmaAPI, briefId: string): string[] {
-  const graph = figma.graph
-  const brief = graph.getNode(briefId)
-  if (!isBrief(brief)) return []
-  const page = graph.getNode(figma.currentPage.id)
-  if (!page) return []
-  const added: string[] = []
-  for (const childId of page.childIds) {
-    const node = graph.getNode(childId)
-    if (node?.type !== 'FRAME') continue
-    if (briefMarker(node, DESIGN_BRIEF_KEY) !== briefId) continue
-    const result = registerBriefDesignEntry(figma, briefId, childId)
-    if ('entryId' in result && result.created) added.push(childId)
-  }
-  return added
-}
-
-// T91b：newIntent pluginData 读写实现见文件头部 169–233 段；此处不重复定义以遵守单源纪律。

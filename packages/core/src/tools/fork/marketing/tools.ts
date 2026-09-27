@@ -23,8 +23,7 @@ import {
   BRIEF_WIDTH,
   appendToBriefAIZone,
   createBrief,
-  findBrief,
-  syncBriefDesignEntries
+  findBrief
 } from './brief'
 import { readBrief, updateBriefContent } from './brief-edit'
 import { BRIEF_TEXTS } from './texts'
@@ -47,7 +46,7 @@ export const readBriefTool = defineTool({
   execution: { kind: 'sync', mutation: 'none' },
   exposure: { mcp: false, webmcp: false },
   description:
-    'Read the 需求单 (design brief) in one call — content text, material entries (each with imageNodeId for `look`, caption, hasImage), AI conclusions (with per-design attribution), and the designs registered in its 关联设计区 (id + name/mode/type projections; deleted designs are tombstoned, not removed). Pass briefId when several briefs exist on the page; without it the page must contain exactly one brief, otherwise the result is { brief: null, ambiguous: true, candidates } — ask the user which brief to use, do NOT create another one. Returns { brief: null } when no brief exists — a normal state, not an error; the marketing workflow then creates one with create_brief. Prefer this over find_nodes + describe when looking for the brief.',
+    'Read the 需求单 (design brief) in one call — content text, material entries (each with imageNodeId for `look`, caption, hasImage), AI conclusions (with per-design attribution), and the designs registered in its 关联设计区 (id + name; deleted designs are tombstoned, not removed). Pass briefId when several briefs exist on the page; without it the page must contain exactly one brief, otherwise the result is { brief: null, ambiguous: true, candidates } — ask the user which brief to use, do NOT create another one. Returns { brief: null } when no brief exists — a normal state, not an error; the marketing workflow then creates one with create_brief. Prefer this over find_nodes + describe when looking for the brief.',
   input: v.object({
     briefId: v.optional(
       v.pipe(
@@ -84,20 +83,16 @@ export const readBriefTool = defineTool({
     }
     return {
       briefId: view.briefId,
-      // T91a：从 view.designs（合并后的）按 registered:true 筛出 brief 权威绑定
-      // 列表。`rootFrameId` 字段保留——这是 brief→design 的绑定证明，agent
-      // 不需要，但保留便于老 prompt 兼容。`uniqueId` 字段同时输出供跨重启
-      // 寻址。
-      boundDesigns: view.designs
-        .filter((d) => d.registered)
-        .map((d) => ({
-          rootFrameId: d.designId,
-          uniqueId: d.uniqueId,
-          name: graph.getNode(d.designId)?.name ?? BRIEF_TEXTS.deletedMark,
-          page: pageNameOf(graph, d.designId) ?? null
-        })),
-      // T91a：designs 字段已合并 registered + unregistered 视图；每条带
-      // uniqueId（跨持久化稳定寻址键）。
+      // T91a：view.designs = 关联设计区已登记条目视图。`rootFrameId` 字段保留
+      // ——这是 brief→design 的绑定证明，agent 不需要，但保留便于老 prompt
+      // 兼容。`uniqueId` 字段同时输出供跨重启寻址。
+      boundDesigns: view.designs.map((d) => ({
+        rootFrameId: d.designId,
+        uniqueId: d.uniqueId,
+        name: graph.getNode(d.designId)?.name ?? BRIEF_TEXTS.deletedMark,
+        page: pageNameOf(graph, d.designId) ?? null
+      })),
+      // T91a：designs 每条带 uniqueId（跨持久化稳定寻址键）。
       designs: view.designs,
       content: view.content,
       materials: view.materials.map((material) => ({
@@ -194,9 +189,6 @@ export const appendBriefConclusionTool = defineTool({
       return { ok: false, note: 'No 需求单 exists in this document.' }
     }
     const brief = resolution.brief
-    // Mutating path: physically backfill designs-zone entries for designs whose
-    // pointer targets this brief (read side surfaces them as registered:false).
-    syncBriefDesignEntries(figma, brief.id)
 
     const designNode = design_id ? figma.graph.getNode(design_id) : undefined
     const design = designNode ? { id: designNode.id, name: designNode.name } : undefined

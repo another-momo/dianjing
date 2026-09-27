@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * 2026-09-27 sl-w2-locus-gate：落点拦截门确认卡（§3.1）——
- * 复用现有确认卡族渲染形态（与 ChatNewIntentCard / ChatSetActiveDesignCard
+ * 复用现有确认卡族渲染形态（与 ChatNewIntentCard
  * 对齐：虚线边框、无填充、系统样式），不新开模态。两变体：
  *
  *  - `switch`：视图页 ≠ 落点页（页仍存在）—— 两按钮「留在原施工页 / 切到当前页」
@@ -10,7 +10,7 @@
  * 行为统一收口于上层（ChatPanel.handleSubmit）：本组件只承担文案渲染与
  * 事件 emit；按钮按下 → emit 决断 → 上层写 PUT / switchPage 后放行发送。
  *
- * 与 set_active_design 同意卡不同：本卡不写 active-design-decision 归档
+ * 本卡不写归档 part（决断即 PUT 写回，无槽位可回指）
  * part——落点是文档级标量（page-state/<docUuid>.json），机制真源在后端
  * 端点直写，不进消息流（§6.3「确认即物化」：确认端点直写唯一存储）。
  */
@@ -63,7 +63,7 @@ function handleConfirm() {
 </script>
 
 <template>
-  <!-- 系统样式（虚线边框无填充）——与 ChatNewIntentCard / ChatSetActiveDesignCard 对齐 -->
+  <!-- 系统样式（虚线边框无填充）——与 ChatNewIntentCard 对齐 -->
   <div
     data-test-id="locus-gate-card"
     :data-reason="view.reason"

@@ -30,7 +30,7 @@ references:
 
 ## 阶段 0 · 需求接入
 
-做：read_brief → 无则 create_brief（initial_content = 用户原话逐字转录）→ 新建意图确认后 setup_design({ modeId, profileId?, briefId, canvas? })。
+做：read_brief → 无则 create_brief（initial_content = 用户原话逐字转录）→ 确认新建后 setup_design({ briefId, canvas? })（模式/风格跟随文档当前设置；用户在需求里明说了尺寸就把 canvas 传上，没说就用缺省）。
 
 不做：用户要求修改已有设计时直接编辑，不重新 setup_design；不替用户改 brief 内容区。
 

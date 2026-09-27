@@ -36,9 +36,7 @@ interface ReadBriefResult {
     entryId: string | null
     designId: string
     name: string
-    modeId: string
     deleted: boolean
-    registered: boolean
   }>
   content?: string
   materials?: Array<{

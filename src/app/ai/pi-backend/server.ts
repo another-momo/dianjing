@@ -24,10 +24,8 @@
  * 桥按发起窗路由 RPC（window-id.ts 设计取舍见其头注）。T60 起
  * chatMode/pickedProfileId 退役——active_design 单槽取代请求级模式；
  * 请求面残留字段忽略不报错（兼容窗，前端生产侧删除归 T61）。）
- *
- * T60：POST /api/pi/active-design {nodeId} → 四条件校验 → 移槽 → 身份三元组
- * {modeId, profileId, briefId}（②面板点选 / ③set_active_design 同意卡共用；
- * 校验驳回 422 {error, message}，桥不可达 502）。
+ * 2026-09-27：POST /api/pi/active-design 移槽端点随 set_active_design 工具
+ * 退役整体删除——落点写通道 = 落点拦截门 + 规制确认门（intent-confirm）。
  *
  * T22：GET /api/pi/history?docKey=<族谱前缀>（或 ?sessionId=<完整 id>）→
  * { sessionId, messages }——会话族谱解析 + 历史回填（T22-plan D2/D3）。
@@ -196,8 +194,9 @@ async function handlePiChatCancelRequest(
 }
 
 /**
- * T60：POST /api/pi/active-design {nodeId}——②面板点选 / ③AI 声明+同意共用
- * 的移槽端点（非聊天消息）。成功 200 身份三元组；四条件驳回 422；桥不可达 502。
+ * T91b：POST /api/pi/intent-confirm {modeId, profileId?}——规制确认门
+ * 端点（前端 ChatNewIntentCard 确认按钮触发）。成功 200 回显确认参数；
+ * 入参缺失 400；桥不可达 502。
  */
 async function handleIntentConfirmRequest(
   service: ReturnType<typeof createPiChatService>,
@@ -208,13 +207,12 @@ async function handleIntentConfirmRequest(
     res.writeHead(405).end('Method Not Allowed')
     return
   }
-  // intent 确认端点：modeId + profileId/canvas/documentId/windowId 可选。
+  // intent 确认端点：modeId 必填；profileId/documentId/windowId 可选。
   const parsed = await parseJSONBody(req, res)
   if (!parsed.ok) return
   const body = parsed.body as {
     modeId?: unknown
     profileId?: unknown
-    canvas?: unknown
     documentId?: unknown
     windowId?: unknown
   }
@@ -225,59 +223,16 @@ async function handleIntentConfirmRequest(
   // T98-路由：windowId/documentId 随确认请求直传——多窗时按发起窗路由桥调用
   const windowId = optionalString(body.windowId)
   const documentId = optionalString(body.documentId)
-  const confirmArgs: { modeId: string; profileId?: string; canvas?: string } = {
+  const confirmArgs: { modeId: string; profileId?: string } = {
     modeId: body.modeId
   }
   if (typeof body.profileId === 'string') confirmArgs.profileId = body.profileId
-  if (typeof body.canvas === 'string') confirmArgs.canvas = body.canvas
   const result = await service.confirmNewIntent(confirmArgs, documentId, windowId)
   if (result.ok) {
     sendJSON(res, 200, {
       ok: true,
       modeId: result.modeId,
-      profileId: result.profileId,
-      canvas: result.canvas
-    })
-    return
-  }
-  sendJSON(res, result.error === 'bridge_unavailable' ? 502 : 422, {
-    error: result.error,
-    message: result.message
-  })
-}
-
-async function handleActiveDesignRequest(
-  service: ReturnType<typeof createPiChatService>,
-  req: IncomingMessage,
-  res: ServerResponse
-): Promise<void> {
-  if (req.method !== 'POST') {
-    res.writeHead(405).end('Method Not Allowed')
-    return
-  }
-  // 点选端点：nodeId 必填，documentId/windowId 透传 T98 路由。
-  const parsed = await parseJSONBody(req, res)
-  if (!parsed.ok) return
-  const body = parsed.body as {
-    nodeId?: unknown
-    documentId?: unknown
-    windowId?: unknown
-  }
-  if (typeof body.nodeId !== 'string' || body.nodeId.trim() === '') {
-    res.writeHead(400).end('Bad Request: nodeId required')
-    return
-  }
-  // T98-路由：windowId/documentId 随点选请求直传——多窗时按发起窗路由桥调用
-  const windowId = typeof body.windowId === 'string' && body.windowId ? body.windowId : undefined
-  const documentId =
-    typeof body.documentId === 'string' && body.documentId ? body.documentId : undefined
-  const result = await service.setActiveDesign(body.nodeId, documentId, windowId)
-  if (result.ok) {
-    sendJSON(res, 200, {
-      modeId: result.modeId,
-      profileId: result.profileId,
-      briefId: result.briefId,
-      name: result.name
+      profileId: result.profileId
     })
     return
   }
@@ -728,12 +683,7 @@ export function createPiBackendServer({
       void handlePiChatCancelRequest(service, req, res)
       return
     }
-    // T60：active_design 移槽端点（须在 /api/pi/ 管理面前缀之前匹配）
-    if (url.pathname === '/api/pi/active-design') {
-      void handleActiveDesignRequest(service, req, res)
-      return
-    }
-    // T91b：newIntent 确认端点（前端 ChatNewIntentCard 触发，写 pluginData 三键）
+    // T91b：newIntent 确认端点（前端 ChatNewIntentCard 触发，直写 page-state 标量）
     if (url.pathname === '/api/pi/intent-confirm') {
       void handleIntentConfirmRequest(service, req, res)
       return

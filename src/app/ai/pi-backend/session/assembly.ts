@@ -52,7 +52,6 @@ import {
 } from '../paths'
 import type { PendingDecisionStore } from '../pending-decision'
 import type { ModelSpec, ProviderAdmin } from '../provider-admin'
-import { buildSetupCatalog, type SetupDesignContext } from '../setup-catalog'
 import { getStudioRegistry } from '../studio'
 import { createOpenPencilTools } from '../tools'
 
@@ -101,7 +100,7 @@ export type AssembleSessionContext = {
   readIndex: () => Record<string, { file: string }>
   /**
    * 2026-09-27 sl-w2-state-chain：page-state 读取器——按 docUuid 读文档级
-   * 规制 + 落点；传 null 等价 page-state 不可读，host 兜底走 fallback 路径。
+   * 规制 + 落点；传 null 等价 page-state 不可读，host 按空规制降级组装。
    * 注入式参数（测试纪律：禁读真实 env / 进程全局走参数）。
    */
   pageStateReader: (
@@ -112,7 +111,7 @@ export type AssembleSessionContext = {
 /** assembleSession 返回值——entry 注册所需件 */
 export type AssembledSession = {
   session: AgentSession
-  /** T60：active_design 宿主会话态（旗标/formId 映射/每回合组装缓存袋） */
+  /** active_design 宿主会话态（每回合组装缓存袋） */
   host: ReturnType<typeof createActiveDesignHost>
   /** T21：step budget 每 session 一份（prompt 时清零、turn_start 递增） */
   budget: { current: number }
@@ -191,12 +190,6 @@ export async function assembleSession(
     bridge: activeDesignBridge,
     pageStateReader
   })
-  // T53（S3 §2）+ T60：setup_design 注入缝——catalog 请求时投影；新建意图
-  // 确认真源 = 当回合信封旗标（active-design-host，run 结束 finally 复位）
-  const setupDesign: SetupDesignContext = {
-    catalogJSON: () => JSON.stringify(buildSetupCatalog(getStudioRegistry(rootDir))),
-    newIntentConfirmed: () => host.newIntentConfirmed()
-  }
   // authz 直推缝须先于 customTools 声明：install_skill 闸门与 authz-guard 共享
   // 同一实例（数组字面量求值时引用，声明在后 = TDZ ReferenceError）
   const authzSink = createAuthzNoticeSink()
@@ -204,13 +197,6 @@ export async function assembleSession(
     ...createOpenPencilTools(
       { current: () => budget.current },
       target,
-      setupDesign,
-      {
-        // T60 事件①：setup_design 桥执行成功（结果含新 root id）→ 移槽
-        // T98-路由：windowId 与 documentId 同缝穿线——桥按发起窗路由
-        onDesignCreated: (rootId) =>
-          host.onDesignCreated(rootId, target.documentId, target.windowId)
-      },
       // T81 P-04：vision 前置拒绝闭包——pi Model.input('text' | 'image')
       // 的 'image' 在场即代表 vision；createSession 已 resolveModel，闭包
       // 直接读 model.input。无视时延展到"工具跑通也喂不进图像"，先 fail-fast
@@ -234,13 +220,9 @@ export async function assembleSession(
     // /api/pi/decision-answer resolve（kind:'ask'，旧 ask-answer 已删）；
     // answer/skip 作为本工具结果在同一 turn 返回（2026-09-19 起
     // store = PendingDecisionStore，ask 族行为零变化）。
-    // onPendingRegistered 通知 host 记录 formId→当时槽位（active-design-host
-    // observeToolExecution 不再触发，新流走工具结果 details.status='answered'
-    // 移槽——见 host recordAskForm）。
     createAskUserQuestionTool({
       store: decisionStore,
-      sessionId,
-      onPendingRegistered: (formId) => host.recordAskForm(formId)
+      sessionId
     }),
     // T85：load_reference 后端本地工具（资产 references 按需读取；允许集 =
     // 本回合 active 资产声明并集——assembleTurn 计算、host 持有于 turn 缓存袋、

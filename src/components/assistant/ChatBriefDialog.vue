@@ -26,7 +26,6 @@ import { RASTER_IMAGE_FILE_ACCEPT } from '@open-pencil/core/bytes'
 import type { BriefView } from '@open-pencil/core/tools/fork/marketing/brief-edit'
 import { useSelectionState } from '@open-pencil/vue'
 
-import { piStudioManifest } from '@/app/ai/pi-backend/mode-selection'
 import { getActiveEditorStoreOrNull } from '@/app/editor/active-store'
 import { useForkPanels } from '@/app/i18n/fork'
 import { toast } from '@/app/shell/ui'
@@ -228,11 +227,6 @@ function setCaptionInput(entryId: string, el: unknown): void {
   if (el instanceof HTMLInputElement) captionInputs.set(entryId, el)
   else captionInputs.delete(entryId)
 }
-
-/** 关联设计区条目 mode 投影（与 ChatContextBar 同 manifest 数据源） */
-function modeLabel(modeId: string): string {
-  return piStudioManifest.value?.modes.find((mode) => mode.id === modeId)?.label ?? modeId
-}
 </script>
 
 <template>
@@ -392,7 +386,6 @@ function modeLabel(modeId: string): string {
             :data-design-id="design.designId"
           >
             {{ design.name }}
-            <span class="text-[11px] text-muted">{{ modeLabel(design.modeId) }}</span>
           </div>
         </section>
       </template>
