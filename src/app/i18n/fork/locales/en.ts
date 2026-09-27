@@ -351,6 +351,36 @@ export const confirmMessageDefaults = {
   chatStopped: 'Stopped'
 } as const
 
+/**
+ * sl-w2-locus-gate：落点拦截门 + 感知三件套文案（§3 + §7.3）。
+ * 拦截门二选一（视图页与落点页不一致时）：
+ *  - engaged = 现有落点页（用户可能不在该页）
+ *  - view    = 当前视图页（用户发消息时所在）
+ * 「留下 / 过去」为二选一按钮——拍板口径保留为产品语言，
+ * 不引入内部机制词（「落点门」「施工页」）。
+ */
+export const locusMessageDefaults = {
+  locusSwitchPrompt: params('Switch the working page from "{engaged}" to "{view}"?'),
+  locusSwitchStay: params('Stay on "{engaged}"'),
+  locusSwitchGo: params('Switch to "{view}"'),
+  // 悬空变体：旧落点页已删 / 状态腐烂再初始化 / 落点未设置 —— 单按钮确认
+  locusOrphanPrompt: params(
+    'Working page was deleted or unset — confirm to switch it to "{view}"?'
+  ),
+  locusOrphanConfirm: 'Confirm switch',
+  // 拦截门不可达（GET/PUT fail-closed 阻塞发送）——toast 文案
+  locusGateUnreachable: 'Working page state is unreachable — please retry.',
+  // 状态行：run 进行中 + 落点页 ≠ 视图页时的呼吸提示
+  locusStatusBuilding: params('Working on page "{page}"'),
+  locusStatusJump: 'Jump to it',
+  // 状态行被动入口：当前页 ≠ 落点页时常驻显示，点击即确认切到当前页
+  locusSetCurrentPage: params('Work on "{page}" instead'),
+  // 设置项：跟随施工页
+  locusFollowToggle: 'Auto-switch to working page when a run starts',
+  locusFollowDescription:
+    'When enabled, the view jumps to the working page each time the AI starts working.'
+} as const
+
 /** T41：字体白名单设置面板（SettingsDialog fonts 分区）英文默认值；T42：来源开关 + 目录组 + 筛选/折叠/批量；统一批：来源开关扩至本地源 + 提供商细分 + 回退/缓存 */
 export const fontsMessageDefaults = {
   settingsFonts: 'Fonts',

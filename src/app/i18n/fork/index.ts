@@ -24,6 +24,7 @@ import {
   confirmMessageDefaults,
   fontsMessageDefaults,
   imageGenMessageDefaults,
+  locusMessageDefaults,
   panelsMessageDefaults,
   piMessageDefaults,
   toolbarMessageDefaults
@@ -44,7 +45,8 @@ export const forkI18n = createI18n<Locale, 'en'>(locale, {
         panels: mod.default.panels,
         confirm: mod.default.confirm,
         agentCapabilities: mod.default.agentCapabilities,
-        toolbar: mod.default.toolbar
+        toolbar: mod.default.toolbar,
+        locus: mod.default.locus
       }
     }
     return {}
@@ -79,6 +81,14 @@ export const forkAgentCapabilitiesMessages = forkI18n(
 
 /** ux-polish⑤（2026-09-09）：画布工具条「添加图片」文案域（Toolbar / useAddImage） */
 export const forkToolbarMessages = forkI18n('toolbar', toolbarMessageDefaults)
+
+/** sl-w2-locus-gate：落点拦截门 + 感知三件套文案域
+ *  （ChatLocusGateCard / ChatLocusStatusRow / SettingsDialog locus 行） */
+export const forkLocusMessages = forkI18n('locus', locusMessageDefaults)
+
+export function useForkLocus() {
+  return useStore(forkLocusMessages)
+}
 
 export function useForkAgentCapabilities() {
   return useStore(forkAgentCapabilitiesMessages)

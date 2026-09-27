@@ -30,6 +30,7 @@ import { useAIChat } from '@/app/ai/fork/use'
 import { piDesignAssignment, piDesignAssignmentReady } from '@/app/ai/pi-backend/assignment'
 import { piCatalog, refreshPiCatalog } from '@/app/ai/pi-backend/client'
 import {
+  ensurePiDocUuid,
   getPiCurrentSessionId,
   hasPiDocId,
   listPiSessionFamily,
@@ -47,9 +48,10 @@ import {
 } from '@/app/ai/pi-backend/mode-selection'
 import { deriveGateState, type GateState } from '@/app/ai/pi-backend/provider-gate'
 import { getActiveEditorStore } from '@/app/editor/active-store'
-import { useForkConfirm, useForkPi } from '@/app/i18n/fork'
+import { useForkConfirm, useForkLocus, useForkPi } from '@/app/i18n/fork'
 import { useNotificationMessages } from '@/app/i18n/notifications'
 import { openSettingsDialog } from '@/app/settings/dialog'
+import { appPreferences, updateFollowLocusPage } from '@/app/settings/preferences/store'
 import { toast } from '@/app/shell/ui'
 import { activeTab } from '@/app/tabs'
 import AppTextButton from '@/components/ui/AppTextButton.vue'
@@ -80,7 +82,18 @@ import {
 import ChatAwaitingIntentCard from './ChatAwaitingIntentCard.vue'
 import ChatBriefDialog from './ChatBriefDialog.vue'
 import ChatContextBar from './ChatContextBar.vue'
+import ChatLocusGateCard from './ChatLocusGateCard.vue'
+import ChatLocusStatusRow from './ChatLocusStatusRow.vue'
 import ChatNewIntentCard from './ChatNewIntentCard.vue'
+import {
+  fetchLocusPageState,
+  putLocusEngagedPage,
+  resolveLocusIntercept,
+  type LocusGateView,
+  type LocusIntercept
+} from './locus'
+import { bindRunPageTracking } from './locus-run'
+import { setEngagedPage, useLocusState } from './locus-state'
 import {
   collectPinnedDecisions,
   postDecisionAnswer,
@@ -96,6 +109,7 @@ const { ensureChat, resetChat, chatFailure, clearChatFailure } = useAIChat()
 const { ai } = useI18n()
 const notifications = useNotificationMessages()
 const confirmText = useForkConfirm()
+const locusText = useForkLocus()
 const piDialogs = useForkPi()
 
 const chat = ref<Chat<UIMessage> | null>(null)
@@ -196,6 +210,148 @@ const gateCardState = computed(() => {
 onMounted(() => {
   void refreshPiCatalog()
 })
+
+// sl-w2-locus-gate（§7.3）：run 期施工页追踪——status 进入 in-flight 时
+// 捕获当前视图页 ref；写回 locus-state 模块供 PagesPanel 徽标 / 状态行复用。
+// flush: 'sync' 让状态机变化即时反映到下游 ref。本 ref 仅为绑定 watcher
+// 副作用用，组件直接读 locus-state 模块的全局 ref。
+// 「跟随施工页」开关 on 时：若持久化 engagedPageId 已设且 ≠ 当前视图，
+// run 起始自动 switchPage 到 engagedPage（让捕获 = 已切到的施工页）。
+const locusStateRefs = useLocusState()
+const locusRunTracker = bindRunPageTracking({
+  chat,
+  resolveStartPageId: () => getActiveEditorStore()?.state.currentPageId ?? null,
+  isFollowLocusEnabled: () => appPreferences.value.chat.followLocusPage,
+  getEngagedPageId: () => locusStateRefs.engagedPageId.value,
+  switchToPage: (id) => {
+    void getActiveEditorStore().switchPage(id)
+  }
+})
+void locusRunTracker.runStartedPageId
+
+// sl-w2-locus-gate（§3.1）：发送前落点拦截门——返回 proceed / gate / block。
+// 抽为独立函数便于 review（gate 弹卡 + send 放行的双路径汇合一处）。
+type LocusPreflight =
+  | {
+      kind: 'proceed'
+      /** first-send-no-doc 路径：发送完成后 PUT engagedPageId = 捕获值（防竞态：捕获先于发送）。 */
+      postSendPut?: { engagedPageId: string }
+    }
+  | { kind: 'gate'; view: LocusGateView; text: string }
+  | { kind: 'block'; message: string }
+
+const pendingLocusGate = ref<{ view: LocusGateView; text: string } | null>(null)
+
+// sl-w2-locus-gate（§7.3）：状态行派发状态。runActive 与 engagedPageId/Name
+// 来自 locus-state 全局 ref；viewPageId/Name 来自 store（实时）。
+const locusStatusRowState = computed(() => ({
+  engagedPageId: locusStateRefs.engagedPageId.value,
+  engagedPageName: locusStateRefs.engagedPageName.value,
+  viewPageId: getCurrentViewPageId(),
+  viewPageName: getCurrentViewPageName(),
+  runActive: locusStateRefs.runActive.value
+}))
+
+/** 装配面调用点：locus 拦下后 pendingIntentDraft 之外再叠加本关。 */
+function getCurrentViewPageId(): string {
+  return getActiveEditorStore().state.currentPageId
+}
+
+function getCurrentViewPageName(): string {
+  const id = getCurrentViewPageId()
+  return getActiveEditorStore().graph.getNode(id)?.name ?? id
+}
+
+function getEngagedPageName(pageId: string): string {
+  return getActiveEditorStore().graph.getNode(pageId)?.name ?? pageId
+}
+
+function getPageList(): string[] {
+  return getActiveEditorStore()
+    .graph.getPages()
+    .map((p) => p.id)
+}
+
+async function preflightLocusGate(text: string): Promise<LocusPreflight> {
+  const store = getActiveEditorStore()
+  const currentPageId = getCurrentViewPageId()
+  const docUuidPresent = hasPiDocId(store)
+  if (!docUuidPresent) {
+    // 首开消息：先捕获 currentPageId（防竞态），发送后再 PUT。
+    // docUuid 在 ensurePiDocUuid 路径下随发送铸入根节点——postSendLocusWrite 发送完成后重读。
+    return {
+      kind: 'proceed',
+      postSendPut: { engagedPageId: currentPageId }
+    }
+  }
+  const docUuid = ensurePiDocUuid(store)
+  const result = await fetchLocusPageState(docUuid)
+  if (result.kind === 'unreachable') {
+    return { kind: 'block', message: locusText.value.locusGateUnreachable }
+  }
+  const intercept = resolveLocusIntercept({
+    currentPageId,
+    pageList: getPageList(),
+    response: result.value,
+    docUuidPresent: true
+  })
+  // 维护 engagedPage 全局状态——GET 成功后即时刷新（PUT 后同样刷新）。
+  setEngagedPage({
+    id: result.value.state?.engagedPageId ?? null,
+    name: result.value.state?.engagedPageId
+      ? getEngagedPageName(result.value.state.engagedPageId)
+      : null
+  })
+  return await applyLocusIntercept(intercept, text, docUuid, currentPageId)
+}
+
+async function applyLocusIntercept(
+  intercept: LocusIntercept,
+  text: string,
+  docUuid: string,
+  currentPageId: string
+): Promise<LocusPreflight> {
+  const viewPageName = getCurrentViewPageName()
+  switch (intercept.kind) {
+    case 'same-page':
+      return { kind: 'proceed' }
+    case 'silent-init': {
+      // 真首跑：静默 PUT engaged = view 后放行
+      const put = await putLocusEngagedPage({ docUuid, engagedPageId: currentPageId })
+      if (put.kind === 'unreachable') {
+        return { kind: 'block', message: locusText.value.locusGateUnreachable }
+      }
+      setEngagedPage({ id: currentPageId, name: viewPageName })
+      return { kind: 'proceed' }
+    }
+    case 'first-send-no-doc':
+      return {
+        kind: 'proceed',
+        postSendPut: { engagedPageId: currentPageId }
+      }
+    case 'gate-resolve': {
+      const engagedPageName =
+        intercept.engagedPageId === '' ? '' : getEngagedPageName(intercept.engagedPageId)
+      const view: LocusGateView = {
+        viewPageName,
+        engagedPageName,
+        reason: intercept.reason
+      }
+      return { kind: 'gate', view, text }
+    }
+  }
+}
+
+/** 发送完成后落点回写（first-send-no-doc 路径）——再读 docUuid（已铸） */
+async function postSendLocusWrite(postSendPut: { engagedPageId: string }): Promise<void> {
+  try {
+    const store = getActiveEditorStore()
+    const docUuid = ensurePiDocUuid(store)
+    await putLocusEngagedPage({ docUuid, engagedPageId: postSendPut.engagedPageId })
+  } catch {
+    // 静默——发送已成功，PUT 失败只意味着下次发消息触发拦截门再次确认
+  }
+}
 
 // T56：已作答/已跳过表单 formId 集——扫 user 消息文本首行信封标记
 // （重载后已答表单置灰的唯一信号，formId 相关性降级口径见 T56-plan §1 定谳 6）
@@ -498,6 +654,25 @@ async function handleSubmit(text: string) {
     interceptNewIntent(text)
     return
   }
+  // sl-w2-locus-gate（§3.1）：落点拦截门 preflight。fail-closed：不可达
+  // 即阻塞发送并 toast——不静默放行（错页风险高，桥断语义同款沿用）。
+  const preflight = await preflightLocusGate(text)
+  if (preflight.kind === 'block') {
+    toast.error(preflight.message)
+    chatInputRef.value?.restoreDraft(text)
+    return
+  }
+  if (preflight.kind === 'gate') {
+    pendingLocusGate.value = { view: preflight.view, text }
+    chatInputRef.value?.restoreDraft(text)
+    return
+  }
+  // preflight.kind === 'proceed'
+  await actuallySend(text, preflight.postSendPut)
+}
+
+/** 拦截门放行后真正执行 sendMessage——handleSubmit / handleLocusGateDecide 共用。 */
+async function actuallySend(text: string, postSendPut?: { engagedPageId: string }): Promise<void> {
   clearChatFailure()
   try {
     // 恒走 ensureChat：transport dirty（如 e2e mock 后注入）时重建会话，
@@ -514,11 +689,73 @@ async function handleSubmit(text: string) {
     // 不 reject——node_modules/ai AbstractChat.makeRequest 实证）——失败时回填草稿
     if (currentChat.status === 'error') chatInputRef.value?.restoreDraft(text)
     refreshSessionMeta()
+    // sl-w2-locus-gate（§3.1 docUuid 缺失路径）：first-send-no-doc 路径
+    // 发送完成后回写 engagedPageId = 发送时刻捕获的视图页（先捕获后发送）。
+    if (postSendPut) await postSendLocusWrite(postSendPut)
   } catch (e) {
     console.error('Chat error:', e)
     toast.error(ai.value.chatRequestFailed)
     chatInputRef.value?.restoreDraft(text)
   }
+}
+
+/** 拦截门决断二选一 / 单按钮确认。 */
+async function handleLocusGateDecide(payload: {
+  decision: 'go' | 'stay' | 'confirm'
+}): Promise<void> {
+  const pending = pendingLocusGate.value
+  if (!pending) return
+  if (status.value === 'streaming' || status.value === 'submitted') return
+  pendingLocusGate.value = null
+  const store = getActiveEditorStore()
+  const currentPageId = getCurrentViewPageId()
+  const docUuid = ensurePiDocUuid(store)
+  if (payload.decision === 'go' || payload.decision === 'confirm') {
+    // 切到当前视图页：PUT engaged = view；维护全局 ref；view 已是当前页无需 switch
+    const put = await putLocusEngagedPage({ docUuid, engagedPageId: currentPageId })
+    if (put.kind === 'unreachable') {
+      toast.error(locusText.value.locusGateUnreachable)
+      chatInputRef.value?.restoreDraft(pending.text)
+      return
+    }
+    setEngagedPage({ id: currentPageId, name: getCurrentViewPageName() })
+  } else {
+    // stay：保持 engaged；把视图切回 engaged（满足「裁决后视图恒 == 落点」）
+    const engagedId = await getCurrentEngagedPageId(docUuid)
+    if (engagedId && engagedId !== currentPageId) {
+      void store.switchPage(engagedId)
+    }
+  }
+  void actuallySend(pending.text)
+}
+
+/** 拉当前 engagedPageId（用于 'stay' 路径：拉回视图） */
+async function getCurrentEngagedPageId(docUuid: string): Promise<string | null> {
+  const result = await fetchLocusPageState(docUuid)
+  if (result.kind === 'unreachable') return null
+  return result.value.state?.engagedPageId ?? null
+}
+
+/** 状态行被动入口「以当前页为施工页」：PUT engaged = current 后维持。 */
+async function handleLocusSetCurrent(): Promise<void> {
+  if (status.value === 'streaming' || status.value === 'submitted') return
+  const store = getActiveEditorStore()
+  const currentPageId = getCurrentViewPageId()
+  const docUuid = ensurePiDocUuid(store)
+  const put = await putLocusEngagedPage({ docUuid, engagedPageId: currentPageId })
+  if (put.kind === 'unreachable') {
+    toast.error(locusText.value.locusGateUnreachable)
+    return
+  }
+  setEngagedPage({ id: currentPageId, name: getCurrentViewPageName() })
+}
+
+/** 状态行「跳转过去」链接：switchPage 到 engagedPage（不动落点）。 */
+async function handleLocusJump(): Promise<void> {
+  const { engagedPageId } = useLocusState()
+  const target = engagedPageId.value
+  if (!target) return
+  void getActiveEditorStore().switchPage(target)
 }
 
 async function handleStop() {
@@ -1009,6 +1246,14 @@ function handleClearChat() {
         :disabled="status === 'streaming' || status === 'submitted'"
         @switched="handleContextSwitch"
       />
+      <!-- sl-w2-locus-gate（§7.3 感知三件套之二）：状态行——run 在途 + 落点页 ≠
+           视图页时呼吸徽标 + 跳转；当前页 ≠ 落点页时常驻被动入口。 -->
+      <ChatLocusStatusRow
+        :state="locusStatusRowState"
+        :disabled="status === 'streaming' || status === 'submitted'"
+        @jump="handleLocusJump"
+        @set-current="handleLocusSetCurrent"
+      />
     </div>
 
     <ScrollAreaRoot class="relative min-h-0 flex-1">
@@ -1162,6 +1407,16 @@ function handleClearChat() {
         :disabled="intentCardsDisabled"
         @confirm="handleIntentAwaitingConfirm"
         @cancel="handleIntentAwaitingCancel"
+      />
+      <!-- sl-w2-locus-gate（§3.1）：落点拦截门确认卡——与 ask/authz/intent
+           同属 dock 形态，复用现有「凡有未决即出现」语义。pin 在输入区上方。
+           disable 条件同意图族（status running + 本族 busy 防连点） -->
+      <ChatLocusGateCard
+        v-if="pendingLocusGate"
+        :view="pendingLocusGate.view"
+        :disabled="intentCardsDisabled"
+        @decide="(decision) => handleLocusGateDecide({ decision })"
+        @confirm="handleLocusGateDecide({ decision: 'confirm' })"
       />
       <AppTextButton
         v-if="status === 'streaming' || status === 'submitted'"

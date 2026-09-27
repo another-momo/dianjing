@@ -20,6 +20,7 @@ import type {
   confirmMessageDefaults,
   fontsMessageDefaults,
   imageGenMessageDefaults,
+  locusMessageDefaults,
   panelsMessageDefaults,
   piMessageDefaults,
   toolbarMessageDefaults
@@ -175,6 +176,28 @@ const zhCN = {
     reasoningStreamingTitle: '思考中',
     // T94：用户主动停止回执（ChatPanel toast + ChatMessage 末条消息底部小字行）
     chatStopped: '已停止'
+  },
+  // 落点拦截门与感知三件套（sl-w2-locus-gate，§3 + §7.3）
+  // engaged = 现有落点页（用户可能不在该页），view = 当前视图页（用户所在）
+  // 二选一：留在当前视图页（不动落点，视图切回 engaged）/ 把落点切到当前视图页
+  // 按钮文案用产品语言，不引入内部机制词。
+  locus: {
+    locusSwitchPrompt: '本轮施工页将由「{engaged}」切换到「{view}」？',
+    locusSwitchStay: '留在「{engaged}」',
+    locusSwitchGo: '切到「{view}」',
+    // 悬空变体：旧施工页已删 / 状态腐烂再初始化 / 落点未设置 —— 单按钮确认
+    locusOrphanPrompt: '原施工页已删除或未设置——确认把施工页切到「{view}」？',
+    locusOrphanConfirm: '确认切换',
+    // 拦截门不可达（GET/PUT fail-closed 阻塞发送）——toast 文案
+    locusGateUnreachable: '施工页状态不可达，请稍后重试。',
+    // 状态行：run 进行中 + 施工页 ≠ 视图页时的呼吸提示
+    locusStatusBuilding: '正在「{page}」施工',
+    locusStatusJump: '跳转过去',
+    // 状态行被动入口：当前页 ≠ 施工页时常驻显示，点击即确认切换
+    locusSetCurrentPage: '把施工页切到「{page}」',
+    // 设置项：跟随施工页（run 起始自动切到施工页）
+    locusFollowToggle: '开始施工时自动切到施工页',
+    locusFollowDescription: '启用后，每次 AI 开始施工会自动把视图切到施工页。'
   },
   ask: {
     askFormTitle: 'AI 向你提问',
@@ -380,5 +403,6 @@ export type AskNamespace = typeof askMessageDefaults
 export type ChipsNamespace = typeof chipsMessageDefaults
 export type PanelsNamespace = typeof panelsMessageDefaults
 export type ConfirmNamespace = typeof confirmMessageDefaults
+export type LocusNamespace = typeof locusMessageDefaults
 export type AgentCapabilitiesNamespace = typeof agentCapabilitiesMessageDefaults
 export type ToolbarNamespace = typeof toolbarMessageDefaults

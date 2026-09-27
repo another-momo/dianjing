@@ -10,7 +10,7 @@ export type CanvasRenderingMode = 'retained' | 'tiled'
 
 export interface AppPreferences {
   appearance: { animations: AnimationPreference }
-  chat: { reasoningDisplay: ReasoningDisplay }
+  chat: { reasoningDisplay: ReasoningDisplay; followLocusPage: boolean }
   version: 1
   recovery: {
     enabled: boolean
@@ -25,7 +25,7 @@ export interface AppPreferences {
 
 export const DEFAULT_APP_PREFERENCES: Readonly<AppPreferences> = {
   appearance: { animations: 'system' },
-  chat: { reasoningDisplay: 'collapsed' },
+  chat: { reasoningDisplay: 'collapsed', followLocusPage: false },
   version: 1,
   recovery: { enabled: true },
   editing: {
@@ -48,7 +48,7 @@ interface StoredSnappingPreferences {
 
 interface StoredAppPreferences {
   appearance?: { animations?: unknown }
-  chat?: { reasoningDisplay?: unknown }
+  chat?: { reasoningDisplay?: unknown; followLocusPage?: unknown }
   recovery?: { enabled?: unknown }
   editing?: { snapping?: StoredSnappingPreferences }
   rendering?: { canvasMode?: unknown }
@@ -73,7 +73,11 @@ function normalizePreferences(value: unknown): AppPreferences {
         stored?.chat?.reasoningDisplay === 'expanded' ||
         stored?.chat?.reasoningDisplay === 'while-thinking'
           ? stored.chat.reasoningDisplay
-          : 'collapsed'
+          : 'collapsed',
+      followLocusPage: booleanOrDefault(
+        stored?.chat?.followLocusPage,
+        DEFAULT_APP_PREFERENCES.chat.followLocusPage
+      )
     },
     version: 1,
     recovery: {
@@ -122,6 +126,12 @@ export function updateCanvasRenderingMode(canvasMode: CanvasRenderingMode): void
     ...appPreferences.value,
     rendering: { canvasMode }
   }
+}
+
+export function updateFollowLocusPage(follow: boolean): void {
+  const preferences = structuredClone(appPreferences.value)
+  preferences.chat.followLocusPage = follow
+  appPreferences.value = preferences
 }
 
 export function updateSnappingPreferences(changes: Partial<SnappingPreferences>): void {

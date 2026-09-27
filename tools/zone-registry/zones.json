@@ -2364,6 +2364,14 @@
       "disposition": "permanent",
       "lastReviewed": "2026-09-27",
       "task": "sl-w1-xpage-read"
+    },
+    {
+      "id": "P379",
+      "file": "src/components/PagesPanel.vue",
+      "reason": "sl-w2-locus-gate（2026-09-27）：页签呼吸徽标——run 在途且施工页 ≠ 视图页时，施工页页签显示呼吸圆点（数据源 = locus-state 全局 ref：runActive + runStartedPageId，纯渲染零副作用）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-27",
+      "task": "sl-w2-locus-gate"
     }
   ],
   "deletedPaths": [

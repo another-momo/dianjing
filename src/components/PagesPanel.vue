@@ -8,11 +8,12 @@ import {
   ContextMenuTrigger
 } from 'reka-ui'
 import { tv } from 'tailwind-variants'
-import { ref, watch, type ComponentPublicInstance } from 'vue'
+import { computed, ref, watch, type ComponentPublicInstance } from 'vue'
 
 import type { SceneNode } from '@open-pencil/scene-graph'
 import { PageListRoot, useFlatReorderDrag, useI18n, useInlineRename } from '@open-pencil/vue'
 
+import { useLocusState } from '@/components/assistant/locus-state'
 import IconButton from '@/components/ui/button/IconButton.vue'
 import { useMenuUI } from '@/components/ui/menu/menu'
 import pageListTheme from '@/theme/page-list'
@@ -42,6 +43,19 @@ const pageReorder = useFlatReorderDrag<PageItem>({
   items: () => currentPages.value,
   onMove: (pageId, index) => currentMovePage.value?.(pageId, index)
 })
+
+// sl-w2-locus-gate（§7.3）：run 进行中且施工页 ≠ 视图页时，施工页页签显示呼吸徽标。
+// 「施工页 id」与「run 在途旗标」来自 ChatPanel 维护的全局 locus-state
+// 模块（同一份 ref 在 ChatLocusStatusRow 复用）。
+const { runActive, runStartedPageId } = useLocusState()
+
+/** 该页是否需要显示呼吸徽标：run 在途 + 该页即起始捕获的施工页 + 不在视图页 */
+function showLocusBadge(pageId: string, currentPageId: string): boolean {
+  if (!runActive.value) return false
+  const started = runStartedPageId.value
+  if (started === null) return false
+  return pageId === started && pageId !== currentPageId
+}
 
 function setPageActions(renamePage: (pageId: string, name: string) => void) {
   pageActions.value = { rename: renamePage }
@@ -141,6 +155,16 @@ function setupPageRowRef(
                 >
                   <icon-lucide-file :class="pageStyles(pg, currentPageId).icon()" />
                   <span :class="pageStyles(pg, currentPageId).label()">{{ pg.name }}</span>
+                  <!-- sl-w2-locus-gate §7.3：run 在途 + 施工页 ≠ 视图页 → 呼吸徽标
+                       提示「此处为 AI 当前施工页」 -->
+                  <span
+                    v-if="showLocusBadge(pg.id, currentPageId)"
+                    data-test-id="pages-locus-badge"
+                    class="ml-auto inline-flex items-center"
+                    aria-hidden="true"
+                  >
+                    <span class="inline-block size-1.5 animate-pulse rounded-full bg-accent" />
+                  </span>
                 </button>
                 <div
                   v-if="pageDropPosition(pg) === 'after'"
