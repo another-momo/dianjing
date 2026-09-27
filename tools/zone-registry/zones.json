@@ -2372,6 +2372,14 @@
       "disposition": "permanent",
       "lastReviewed": "2026-09-27",
       "task": "sl-w2-locus-gate"
+    },
+    {
+      "id": "P380",
+      "file": "packages/core/src/io/formats/fig/thumbnail-page.ts",
+      "reason": "state-layering wave-2 修红（2026-09-27）：ThumbnailPage 补 export——tools/read/pages.ts PageCandidate 与其同构 {id,name}，type-shapes 门禁要求并型复用",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-27",
+      "task": "state-layering-locus-gate"
     }
   ],
   "deletedPaths": [

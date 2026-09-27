@@ -3,9 +3,12 @@ import * as v from 'valibot'
 import { computeBounds } from '@open-pencil/scene-graph/geometry'
 
 import type { FigmaAPI, FigmaNodeProxy } from '#core/figma-api'
+import type { ThumbnailPage } from '#core/io/formats/fig/thumbnail-page'
 import { defineTool } from '#core/tools/schema'
 
-export type PageCandidate = { id: string; name: string }
+// 形状与 io/formats/fig/thumbnail-page.ts ThumbnailPage 同构——并型复用，
+// 重复字面量形状过不了 test:type-shapes 门禁
+export type PageCandidate = ThumbnailPage
 
 /**
  * Outcome of resolving a user-supplied page reference (id, name, or omitted).

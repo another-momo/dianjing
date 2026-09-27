@@ -1,4 +1,4 @@
-type ThumbnailPage = {
+export type ThumbnailPage = {
   id: string
   name: string
 }

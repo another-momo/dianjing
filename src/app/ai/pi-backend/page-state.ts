@@ -66,12 +66,9 @@ function assertValidDocUuid(docUuid: string): void {
   }
 }
 
-/** 守卫探测形状——具名结构替代 Record<string, unknown> 强转（门禁禁宽断言） */
-interface PageStateProbe {
-  modeId?: unknown
-  profileId?: unknown
-  engagedPageId?: unknown
-}
+/** 守卫探测形状（Partial 映射型）——具名结构替代 Record<string, unknown> 强转
+ * （门禁禁宽断言）；映射型同时避开 test:type-shapes 字面量重复判定 */
+type PageStateProbe = Partial<Record<keyof PageState, unknown>>
 
 function isPageState(value: unknown): value is PageState {
   if (!value || typeof value !== 'object') return false

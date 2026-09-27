@@ -21,13 +21,11 @@
  * 不在纯逻辑层吞掉「端点活但文件坏」与「端点死」两种语义，本模块只看端点活
  * 且已解析的 response 对象。
  */
+import type { PageState } from '@/app/ai/pi-backend/page-state'
 
-/** 文档级标量值——与 pi-backend page-state.ts PageState 同源；前端只关心 engagedPageId。 */
-export interface LocusState {
-  modeId: string | null
-  profileId: string | null
-  engagedPageId: string | null
-}
+/** 文档级标量值——真源在 pi-backend page-state.ts PageState，前端并型别名复用
+ * （重复字面量形状过不了 test:type-shapes 门禁）；前端只关心 engagedPageId。 */
+export type LocusState = PageState
 
 /** GET /api/pi/page-state 响应（与路由端返回的 JSON 形状对齐）。 */
 export interface LocusGetResponse {
@@ -89,12 +87,8 @@ export function parseLocusGetResponse(input: unknown): LocusGetResponse {
   }
 }
 
-/** 落点标量探测形状（同上） */
-interface LocusStateProbe {
-  modeId?: unknown
-  profileId?: unknown
-  engagedPageId?: unknown
-}
+/** 落点标量探测形状（Partial 映射型——字面量重复过不了 test:type-shapes） */
+type LocusStateProbe = Partial<Record<keyof LocusState, unknown>>
 
 function parseLocusState(input: unknown): LocusState | null {
   if (!input || typeof input !== 'object') return null
