@@ -116,9 +116,12 @@ export function updateAnimationPreference(animations: AnimationPreference): void
 }
 
 export function updateRecoveryEnabled(enabled: boolean): void {
-  const preferences = structuredClone(appPreferences.value)
-  preferences.recovery.enabled = enabled
-  appPreferences.value = preferences
+  // 禁 structuredClone(appPreferences.value)：useLocalStorage 的 value 是 Vue
+  // reactive proxy，structuredClone 遇 Proxy 抛 DataCloneError，开关静默失效。
+  appPreferences.value = {
+    ...appPreferences.value,
+    recovery: { enabled }
+  }
 }
 
 export function updateCanvasRenderingMode(canvasMode: CanvasRenderingMode): void {
@@ -129,9 +132,10 @@ export function updateCanvasRenderingMode(canvasMode: CanvasRenderingMode): void
 }
 
 export function updateFollowLocusPage(follow: boolean): void {
-  const preferences = structuredClone(appPreferences.value)
-  preferences.chat.followLocusPage = follow
-  appPreferences.value = preferences
+  appPreferences.value = {
+    ...appPreferences.value,
+    chat: { ...appPreferences.value.chat, followLocusPage: follow }
+  }
 }
 
 export function updateSnappingPreferences(changes: Partial<SnappingPreferences>): void {
