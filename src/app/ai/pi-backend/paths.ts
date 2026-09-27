@@ -60,6 +60,25 @@ export const SKILLS_SUBDIR = 'skills'
 export const PI_BACKEND_TOKEN_FILENAME = 'pi-backend-token'
 
 /**
+ * 用户层 page-state 目录（每文档一文件，落点 `<rootDir>/page-state/<docUuid>.json`）——
+ * 2026-09-26 sl-w1-page-state：文档级标量存储层（modeId / profileId /
+ * engagedPageId），与 design-assignment.json 同缝同家规（tmp + rename 原子写 /
+ * 0o600 / 腐烂即无）。一文档一文件而非单 map 文件的取舍：
+ * dev / 打包版双进程并发读-改-写同一 map 文件会互丢更新（tmp + rename 只防
+ * 撕裂不防互丢）；按文档分文件顺带把腐烂粒度对齐到单文档。
+ */
+export const PAGE_STATE_SUBDIR = 'page-state'
+
+/**
+ * docUuid 存活唯一守卫的活性文件目录（落点 `<rootDir>/open-docs/<docUuid>.json`）——
+ * 2026-09-26 sl-w1-page-state：跨进程证明「该 docUuid 当前已被某实例持有」
+ * （pid / windowId / heartbeatAt），心跳 TTL 过期 = stale 可被新实例覆盖。
+ * 内存注册表同进程多窗走快路（同 docUuid + 同进程 = 不拦），跨进程则须
+ * 读活性文件取证。
+ */
+export const OPEN_DOCS_SUBDIR = 'open-docs'
+
+/**
  * 会话工作目录子目录（agent 文件工具/bash 的相对路径基点）——与凭据文件所在根隔离
  * （2026-09-16 key 守卫 B 案，须配 key-guard A 案）。createAgentSession options.cwd 下沉
  * 此处后，老会话 JSONL header cwd 与 options.cwd 不一致也不再走老 cwd（sdk.js:67
@@ -167,6 +186,16 @@ export function resolveSkillsDir(rootDir: string): string {
 /** `rootDir/pi-backend-token` */
 export function resolvePiBackendTokenPath(rootDir: string): string {
   return join(rootDir, PI_BACKEND_TOKEN_FILENAME)
+}
+
+/** `rootDir/page-state/` —— 用户层标量存储目录（sl-w1-page-state） */
+export function resolvePageStateDir(rootDir: string): string {
+  return join(rootDir, PAGE_STATE_SUBDIR)
+}
+
+/** `rootDir/open-docs/` —— docUuid 存活唯一守卫活性文件目录（sl-w1-page-state） */
+export function resolveOpenDocsDir(rootDir: string): string {
+  return join(rootDir, OPEN_DOCS_SUBDIR)
 }
 
 /** `<builtinStudioDir>/skills/` —— 与 resolveSkillsDir 同构：内置 studio

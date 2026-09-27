@@ -70,6 +70,7 @@ import { handleImageGenAdminRequest } from './image-gen/routes'
 import { createImageGenSettingsStore } from './image-gen/settings'
 import { handleMCPConnectionsRequest } from './mcp-connections/routes'
 import { createMCPConnectionsStore } from './mcp-connections/store'
+import { handleOpenDocsRequest } from './open-docs-route'
 import {
   defaultOpenFolderOpener,
   handleOpenImageGenFolderRequest,
@@ -77,6 +78,7 @@ import {
   handleStudioFolderPathRequest,
   type OpenFolderOpener
 } from './open-studio-folder'
+import { handlePageStateRequest } from './page-state-route'
 import { resolveAgentDir } from './paths'
 import { createProviderAdmin, type ModelSpec } from './provider-admin'
 import { createPiChatService } from './service'
@@ -697,6 +699,20 @@ export function createPiBackendServer({
       // 与 capabilities 同款两形制——单行 return void 触发 consistent-return
       // （本函数其他分支无返回值，CI type-aware 实证）
       void handleDesignAssignmentRequest(service, req, res)
+      return
+    }
+    // sl-w1-page-state：文档级标量读写（GET/PUT /api/pi/page-state?docUuid=）
+    if (url.pathname === '/api/pi/page-state') {
+      void handlePageStateRequest(service.getPageStateStore(), req, res)
+      return
+    }
+    // sl-w1-page-state：docUuid 存活唯一守卫（POST /api/pi/open-docs/{claim,heartbeat,release}）
+    if (
+      url.pathname === '/api/pi/open-docs/claim' ||
+      url.pathname === '/api/pi/open-docs/heartbeat' ||
+      url.pathname === '/api/pi/open-docs/release'
+    ) {
+      void handleOpenDocsRequest(service.getOpenDocsGuard(), req, res, url.pathname)
       return
     }
     // T22/T23/T24 只读路由（须在 /api/pi/ 管理面前缀之前匹配）

@@ -75,10 +75,14 @@ import { createPiEventMapper } from './mapping'
 import type { MCPConnectionsStore } from './mcp-connections/store'
 import { getMCPClientPool } from './mcp/pool-instance'
 import { migrateUserdataLayout } from './migrate'
+import { type OpenDocsGuard, createOpenDocsGuard } from './open-docs'
+import { type PageStateStore, createPageStateStore } from './page-state'
 import {
   resolveAgentDir,
   resolveArchiveDir,
   resolveBuiltinSkillsDir,
+  resolveOpenDocsDir,
+  resolvePageStateDir,
   resolveSessionsDir,
   resolveStudioDirs
 } from './paths'
@@ -146,6 +150,10 @@ export type PiChatService = {
   /** 2026-09-16：指派后端化——写 design 模型指派（PUT /api/pi/design-assignment）；
    *  非法值抛 TypeError，server.ts 转 400；null → 删文件 */
   setDesignAssignment(spec: PiModelSpec | null): PiModelSpec | null
+  /** sl-w1-page-state：page-state store 实例（routes 层 GET/PUT /api/pi/page-state 共用此实例） */
+  getPageStateStore(): PageStateStore
+  /** sl-w1-page-state：open-docs guard 实例（routes 层 claim/heartbeat/release 三端点共用此实例） */
+  getOpenDocsGuard(): OpenDocsGuard
   /** T60：active_design 端点（②面板点选 / ③AI 声明+同意）——四条件校验 → 移槽 → 身份三元组
    *  T98-路由：windowId 透传（与 documentId 同缝）——多窗时按发起窗路由 */
   setActiveDesign(
@@ -267,6 +275,17 @@ export function createPiChatService({
   // 2026-09-16：design 模型指派后端化——单实例（与 capabilities store 同缝，
   // 共享 agentDir；落盘 <状态根>/pi-agent/design-assignment.json）；GET/PUT 路由共用此实例
   const designAssignmentStore = createDesignAssignmentStore({ agentDir })
+  // sl-w1-page-state：文档级标量存储（modeId / profileId / engagedPageId）
+  // ——一文档一文件 `<rootDir>/page-state/<docUuid>.json`，与
+  // design-assignment 同缝同家规（tmp + rename 原子写 / 0o600 / 腐烂即无）。
+  const pageStateStore = createPageStateStore({ pageStateDir: resolvePageStateDir(rootDir) })
+  // sl-w1-page-state：docUuid 存活唯一守卫——同进程内存注册表 + 跨进程活性
+  // 文件 `<rootDir>/open-docs/<docUuid>.json`，心跳 TTL 回收崩溃 stale。
+  // pid 注入避免读 process 全局（测试纪律：禁读真实 env / 进程全局走参数）。
+  const openDocsGuard = createOpenDocsGuard({
+    openDocsDir: resolveOpenDocsDir(rootDir),
+    pid: process.pid
+  })
   // 2026-09-19 broker P1 件1：ask/authz 双族 pending-decision 注册表单例（跨 session 共享）
   const decisionStore = createPendingDecisionStore()
 
@@ -583,6 +602,14 @@ export function createPiChatService({
     return designAssignmentStore.set(spec)
   }
 
+  function getPageStateStore(): PageStateStore {
+    return pageStateStore
+  }
+
+  function getOpenDocsGuard(): OpenDocsGuard {
+    return openDocsGuard
+  }
+
   async function setActiveDesign(
     nodeId: string,
     documentId?: string,
@@ -684,6 +711,8 @@ export function createPiChatService({
     deleteSkill,
     getDesignAssignment,
     setDesignAssignment,
+    getPageStateStore,
+    getOpenDocsGuard,
     setActiveDesign,
     confirmNewIntent,
     abort,
