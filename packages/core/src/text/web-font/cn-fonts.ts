@@ -337,74 +337,68 @@ export class CnFontSubsetResolver {
     }
   }
 
-  private subfamilyIndex(url: string): Promise<string[] | null> {
-    let promise = this.indexPromises.get(url)
-    if (!promise) {
-      promise = (async () => {
-        const text = await this.fetchText(url)
-        if (!text) return null
-        try {
-          const parsed: unknown = JSON.parse(text)
-          return Array.isArray(parsed)
-            ? parsed.filter((dir): dir is string => typeof dir === 'string')
-            : null
-        } catch {
-          return null
-        }
-      })()
-      this.indexPromises.set(url, promise)
-      // 失败（null）不记忆，index/css/piece 三层同款：null 条目留在图里会让
-      // 「下一轮重试」零网络命中缓存的 null 永不自愈——瞬态限流/抖动须可重试
-      void promise.then((dirs) => {
-        if (dirs === null) this.indexPromises.delete(url)
-      })
-    }
-    return promise
+  private async subfamilyIndex(url: string): Promise<string[] | null> {
+    const existing = this.indexPromises.get(url)
+    if (existing) return existing
+    const promise = (async () => {
+      const text = await this.fetchText(url)
+      if (!text) return null
+      try {
+        const parsed: unknown = JSON.parse(text)
+        return Array.isArray(parsed)
+          ? parsed.filter((dir): dir is string => typeof dir === 'string')
+          : null
+      } catch {
+        return null
+      }
+    })()
+    this.indexPromises.set(url, promise)
+    // 失败（null）不记忆，index/css/piece 三层同款：null 条目留在图里会让
+    // 「下一轮重试」零网络命中缓存的 null 永不自愈——瞬态限流/抖动须可重试
+    const dirs = await promise
+    if (dirs === null) this.indexPromises.delete(url)
+    return dirs
   }
 
-  private pieceList(cssURL: string): Promise<CnFontFacePiece[] | null> {
-    let promise = this.pieceListPromises.get(cssURL)
-    if (!promise) {
-      promise = (async () => {
-        const text = await this.fetchText(cssURL)
-        if (!text) return null
-        try {
-          return parseCnFontResultCSS(text, cssURL)
-        } catch (error) {
-          console.warn(`cn-font result.css parse failed (${cssURL}):`, error)
-          return null
-        }
-      })()
-      this.pieceListPromises.set(cssURL, promise)
-      void promise.then((parsed) => {
-        if (parsed === null) this.pieceListPromises.delete(cssURL)
-      })
-    }
-    return promise
+  private async pieceList(cssURL: string): Promise<CnFontFacePiece[] | null> {
+    const existing = this.pieceListPromises.get(cssURL)
+    if (existing) return existing
+    const promise = (async () => {
+      const text = await this.fetchText(cssURL)
+      if (!text) return null
+      try {
+        return parseCnFontResultCSS(text, cssURL)
+      } catch (error) {
+        console.warn(`cn-font result.css parse failed (${cssURL}):`, error)
+        return null
+      }
+    })()
+    this.pieceListPromises.set(cssURL, promise)
+    const pieces = await promise
+    if (pieces === null) this.pieceListPromises.delete(cssURL)
+    return pieces
   }
 
-  private fetchPiece(url: string): Promise<ArrayBuffer | null> {
-    let promise = this.piecePromises.get(url)
-    if (!promise) {
-      promise = (async () => {
-        const cached = await this.cache?.read(url).catch(() => null)
-        if (cached) return cached
-        try {
-          const response = await this.fetcher(url)
-          if (!response.ok) return null
-          const buffer = await response.arrayBuffer()
-          await this.cache?.write(url, buffer).catch(() => undefined)
-          return buffer
-        } catch {
-          return null
-        }
-      })()
-      this.piecePromises.set(url, promise)
-      void promise.then((buffer) => {
-        if (buffer === null) this.piecePromises.delete(url)
-      })
-    }
-    return promise
+  private async fetchPiece(url: string): Promise<ArrayBuffer | null> {
+    const existing = this.piecePromises.get(url)
+    if (existing) return existing
+    const promise = (async () => {
+      const cached = await this.cache?.read(url).catch(() => null)
+      if (cached) return cached
+      try {
+        const response = await this.fetcher(url)
+        if (!response.ok) return null
+        const buffer = await response.arrayBuffer()
+        await this.cache?.write(url, buffer).catch(() => undefined)
+        return buffer
+      } catch {
+        return null
+      }
+    })()
+    this.piecePromises.set(url, promise)
+    const buffer = await promise
+    if (buffer === null) this.piecePromises.delete(url)
+    return buffer
   }
 }
 

@@ -286,7 +286,12 @@ describe('FontManager custom service integration', () => {
   })
 
   test('a hanging catalog honors the picker list timeout', async () => {
-    const manager = makeManager(() => new Promise<Response>(() => {}))
+    const manager = makeManager(
+      () =>
+        new Promise<Response>(() => {
+          // 永不 settle——本用例验证的是 picker 列表超时兜底
+        })
+    )
     manager.setWebFontListTimeout(20)
     manager.setCustomFontService({ baseURL: SERVICE_BASE, token: 'tok', enabled: true })
     const started = Date.now()

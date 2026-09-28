@@ -63,6 +63,10 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
 /**
  * 防御式解析 catalog.json：整体非数组返回 `[]`；仅收 package/family/latestVersion
  * 均为非空 string 的条目；可选字段类型不符时视同缺省，绝不 throw。
@@ -71,27 +75,23 @@ export function parseCustomServiceCatalog(json: unknown): CustomFontServiceCatal
   if (!Array.isArray(json)) return []
   const entries: CustomFontServiceCatalogEntry[] = []
   for (const item of json) {
-    if (typeof item !== 'object' || item === null) continue
-    const record = item as Record<string, unknown>
-    const pkg = record['package']
-    const family = record['family']
-    const latestVersion = record['latestVersion']
+    if (!isRecord(item)) continue
+    const pkg = item['package']
+    const family = item['family']
+    const latestVersion = item['latestVersion']
     if (!isNonEmptyString(pkg) || !isNonEmptyString(family) || !isNonEmptyString(latestVersion)) {
       continue
     }
-    const displayName = record['displayName']
-    const license = record['license']
-    const weights = record['weights']
-    const variable = record['variable']
-    entries.push({
-      package: pkg,
-      family,
-      latestVersion,
-      ...(typeof displayName === 'string' ? { displayName } : {}),
-      ...(typeof license === 'string' ? { license } : {}),
-      ...(isStringArray(weights) ? { weights } : {}),
-      ...(typeof variable === 'boolean' ? { variable } : {})
-    })
+    const entry: CustomFontServiceCatalogEntry = { package: pkg, family, latestVersion }
+    const displayName = item['displayName']
+    if (typeof displayName === 'string') entry.displayName = displayName
+    const license = item['license']
+    if (typeof license === 'string') entry.license = license
+    const weights = item['weights']
+    if (isStringArray(weights)) entry.weights = weights
+    const variable = item['variable']
+    if (typeof variable === 'boolean') entry.variable = variable
+    entries.push(entry)
   }
   return entries
 }
