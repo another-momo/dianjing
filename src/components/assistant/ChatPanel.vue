@@ -258,6 +258,12 @@ function getPageList(): string[] {
 async function preflightLocusGate(text: string): Promise<LocusPreflight> {
   const store = getActiveEditorStore()
   const currentPageId = getCurrentViewPageId()
+  if (currentPageId === '') {
+    // 视图页瞬态为空——判定层约定上层守卫（locus.ts resolveLocusIntercept
+    // docblock）：空 id 放行会让 postSend PUT 写入空落点 / gate-resolve 弹卡
+    // 页名解析为空串。fail-closed：toast 请重试（瞬态自愈），不发送。
+    return { kind: 'block', message: locusText.value.locusGateUnreachable }
+  }
   const docUuidPresent = hasPiDocId(store)
   if (!docUuidPresent) {
     // 首开消息：先捕获 currentPageId（防竞态），发送后再 PUT。
@@ -720,7 +726,13 @@ function handleLocusGateCancel(): void {
   void nextTick(() => chatInputRef.value?.restoreDraft(pending.text))
 }
 
-/** 拉当前 engagedPageId（用于 'stay' 路径：拉回视图） */
+/**
+ * 拉当前 engagedPageId（用于 'stay' 路径：拉回视图）。
+ * GET 不可达 → null → stay 路径跳过视图回拉、照常发送（2026-09-28 locus 门
+ * 审计 P2 拍板的 fail-soft 例外）：放行依据 = preflight 时刻的新鲜 GET，此处
+ * 回拉只是视觉重锚；发送落点由 docUuid 会话决定、与视图页无关——跳过不改变
+ * 交付正确性，故不阻断。
+ */
 async function getCurrentEngagedPageId(docUuid: string): Promise<string | null> {
   const result = await fetchLocusPageState(docUuid)
   if (result.kind === 'unreachable') return null
