@@ -4,7 +4,8 @@
  * 机制基线（2026-09-27 帧无身份）：modeId/profileId 参数、catalog 注入缝
  * （__catalog / __confirmedNewIntent）、新建意图确认门（awaiting 信封）与
  * 设计身份三元组落盘已整体退役——本文件钉活下来的面：
- *  - 建框契约：缺省 750 宽 + HUG、显式 canvas 覆盖、非法 canvas → invalid_canvas
+ *  - 建框契约：缺省长图兜底（尺寸库 DEFAULT_SIZE_PRESET）、显式 canvas
+ *    覆盖（像素直给 > 平台库别名 > invalid_canvas，错误消息附预设速览）
  *  - 帧无身份：设计根只落 role 标记 + schemaVersion + uniqueId，三元组键不写
  *  - 命名：最小空闲「营销设计 N」（去重域 = 当前页全部设计根）+ 恒新建
  *  - brief 校验：not-found / none / ambiguous 三态 + 关联设计区登记
@@ -39,6 +40,7 @@ import {
   type SetupDesignSuccess
 } from '#core/tools/fork/marketing/setup'
 import { SETUP_TOOLS, setupDesignTool } from '#core/tools/fork/marketing/setup-tool'
+import { DEFAULT_SIZE_PRESET, SIZE_PRESET_IDS } from '#core/tools/fork/marketing/sizes'
 import { SETUP_TEXTS } from '#core/tools/fork/marketing/texts'
 import { PLACEMENT_GAP } from '#core/tools/fork/placement'
 
@@ -258,15 +260,61 @@ describe('setup_design 尺寸解析：canvas 二态（显式覆盖 / 缺省）',
     expect(fixedRoot.primaryAxisSizing).toBe('FIXED')
   })
 
-  test('非法 canvas → invalid_canvas 且无框落地（非数字宽 / 缺 x / 三段 / 空串）', () => {
+  test('非法 canvas → invalid_canvas 且无框落地（非数字宽 / 缺 x / 三段 / 空串）；消息附预设速览', () => {
     const { graph, figma, run } = setupPage()
     const before = expectDefined(graph.getNode(figma.currentPage.id)).childIds.length
     for (const bad of ['abc', '750', '750x2000x3', '']) {
       const failure = err(run({ canvas: bad }), 'invalid_canvas')
-      expect(failure.message).toBe(SETUP_TEXTS.invalidCanvas(bad))
+      expect(failure.message).toBe(SETUP_TEXTS.invalidCanvas(bad, SIZE_PRESET_IDS.join(', ')))
     }
+    // 预设速览 = agent 自愈锚点（id 列表一行流，尺寸库单源）
+    const unknown = err(run({ canvas: 'myspace' }), 'invalid_canvas')
+    expect(unknown.message).toContain('Presets:')
+    expect(unknown.message).toContain('long-image')
+    expect(unknown.message).toContain('ig-square')
     expect(expectDefined(graph.getNode(figma.currentPage.id)).childIds.length).toBe(before)
     expect(scanMarketingDesigns(figma)).toEqual([])
+  })
+})
+
+describe('setup_design 尺寸解析：canvas 接平台尺寸库（像素直给 > 库别名 > invalid_canvas）', () => {
+  test('库别名命中：id / CJK 俗名 / 比例俗名 → 预设尺寸落框', () => {
+    const { graph, run } = setupPage()
+    const square = ok(run({ canvas: 'ig-square' }))
+    expect(square.size).toEqual({ width: 1080, height: 1080 })
+    const squareRoot = expectDefined(graph.getNode(square.rootId))
+    expect(squareRoot.height).toBe(1080)
+    expect(squareRoot.primaryAxisSizing).toBe('FIXED')
+
+    const xhs = ok(run({ canvas: '小红书' }))
+    expect(xhs.size).toEqual({ width: 1080, height: 1440 })
+
+    const slides = ok(run({ canvas: '16:9' }))
+    expect(slides.size).toEqual({ width: 1920, height: 1080 })
+  })
+
+  test('HUG 条目别名命中：长图 → 750 宽 + HUG（与缺省同形）', () => {
+    const { graph, run } = setupPage()
+    const hug = ok(run({ canvas: '长图' }))
+    expect(hug.size).toEqual({ width: 750, height: null })
+    expect(expectDefined(graph.getNode(hug.rootId)).primaryAxisSizing).toBe('HUG')
+  })
+
+  test('像素直给优先且自由值不受库限制：库外像素原样落框', () => {
+    const { run } = setupPage()
+    const free = ok(run({ canvas: '1234x567' }))
+    expect(free.size).toEqual({ width: 1234, height: 567 })
+    const freeHug = ok(run({ canvas: '640x' }))
+    expect(freeHug.size).toEqual({ width: 640, height: null })
+  })
+
+  test('缺省 = DEFAULT_SIZE_PRESET 兜底条目（引用库常量，非字面量 750）', () => {
+    const { run } = setupPage()
+    const result = ok(run())
+    expect(result.size).toEqual({
+      width: DEFAULT_SIZE_PRESET.width,
+      height: DEFAULT_SIZE_PRESET.height
+    })
   })
 })
 

@@ -21,9 +21,12 @@
  *  - brief 关联（bound-designs 指针 + 关联设计区条目登记）保留——绑定天然
  *    页局部，跨页校验不复存在。
  *
- * T65（owner 2026-09-01 拍板 C）：尺寸语义——可选 `canvas` 参数覆盖
- * （自由值 `宽x`/`宽x高`，非法 → invalid_canvas；2026-09-27 起确认卡尺寸行
- * 摘除，来源只剩 agent 按对话/教学显式传）；缺省恒为 750 宽 + HUG。
+ * T65（owner 2026-09-01 拍板 C）：尺寸语义——可选 `canvas` 参数覆盖。
+ * 尺寸知识真源 = 同域 sizes.ts 平台尺寸库（平台规格维护在库，不靠模型
+ * 记忆）；canvas 接受像素直给或库别名，解析序：像素 `宽x`/`宽x高` >
+ * 库别名命中 > invalid_canvas（错误消息附预设 id 速览）；（2026-09-27 起
+ * 确认卡尺寸行摘除，来源只剩 agent 按对话/教学显式传）；缺省 = 库兜底
+ * 条目 DEFAULT_SIZE_PRESET（长图，750 宽 + HUG）。
  * 落盘 size 语义不变（{width, height|null}，null = HUG）。
  */
 
@@ -46,13 +49,12 @@ import {
   setDesignUniqueId,
   type BriefCandidate
 } from './brief'
+import { DEFAULT_SIZE_PRESET, SIZE_PRESET_IDS, resolveSizeAlias } from './sizes'
 import { SETUP_TEXTS } from './texts'
 
 /** 设计根 role 标记值（单源；image-gen/history.ts 的同名本地常量集成时改 import） */
 export const MARKETING_ROLE_ROOT = 'marketing-root'
 
-/** 缺省尺寸：750 宽 + HUG 高（长图默认，T62 定谳 1——所有 mode 同口径） */
-const SETUP_DEFAULT_WIDTH = 750
 /** HUG 高根 frame 的初始高度（随内容生长前的占位） */
 const SETUP_HUG_INITIAL_HEIGHT = 400
 
@@ -82,7 +84,7 @@ export function parseCanvasSize(canvas: string): { width: number; height: number
 
 export interface SetupDesignArgs {
   briefId: string
-  /** 尺寸覆盖（T65）：自由值 `宽x`/`宽x高`；格式非法 → invalid_canvas */
+  /** 尺寸覆盖（T65）：像素 `宽x`/`宽x高` 或尺寸库别名；皆不命中 → invalid_canvas */
   canvas?: string
 }
 
@@ -126,18 +128,25 @@ export function isMarketingDesignRoot(node: SceneNode | undefined): node is Scen
 
 // ── 尺寸与命名 ─────────────────────────────────────────────────────────────
 
-/** 尺寸解析：显式 canvas 参数（非法 → invalid_canvas）> 750 宽 + HUG 缺省 */
+/**
+ * 尺寸解析（序 pin 死）：像素直给 `宽x`/`宽x高` > 尺寸库别名命中 >
+ * invalid_canvas（消息附预设 id 速览，agent 自愈）；缺省 → 库兜底条目
+ * DEFAULT_SIZE_PRESET（长图 750 宽 + HUG）。
+ */
 function resolveSize(
   args: SetupDesignArgs
 ): { width: number; height: number | null } | SetupDesignError {
   if (args.canvas !== undefined) {
     const parsed = parseCanvasSize(args.canvas)
-    if (!parsed) {
-      return { error: 'invalid_canvas', message: SETUP_TEXTS.invalidCanvas(args.canvas) }
+    if (parsed) return parsed
+    const preset = resolveSizeAlias(args.canvas)
+    if (preset) return { width: preset.width, height: preset.height }
+    return {
+      error: 'invalid_canvas',
+      message: SETUP_TEXTS.invalidCanvas(args.canvas, SIZE_PRESET_IDS.join(', '))
     }
-    return parsed
   }
-  return { width: SETUP_DEFAULT_WIDTH, height: null }
+  return { width: DEFAULT_SIZE_PRESET.width, height: DEFAULT_SIZE_PRESET.height }
 }
 
 /**

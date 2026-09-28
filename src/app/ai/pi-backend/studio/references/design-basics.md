@@ -48,7 +48,15 @@ render 的 JSX 内可直用 solid / linearGradient / radialGradient / angularGra
 
 ## 画布预设
 
-- **通用画布**：`750x`（HUG 高度）
-- **方形画布**：`1080x1080`
+尺寸知识真源 = 内置平台尺寸库（`setup_design` 的 `canvas` 参数直接吃库别名）。常用条目：
 
-画布尺寸按上列预设自选或按用户语言自定义；未指定时走首选预设（清单首条）。
+- **长图（默认兜底）**：`long-image` = 750 宽 × HUG
+- **Instagram 方形**：`ig-square` = 1080×1080
+- **Instagram 竖版**：`ig-portrait` = 1080×1350
+- **小红书**：`xhs-cover` = 1080×1440
+- **公众号封面**：`wechat-cover` = 900×383
+- **演示页 16:9**：`slides-16x9` = 1920×1080
+- **X 帖图**：`x-post` = 1200×675
+- **横幅 banner**：`banner-wide` = 1500×500
+
+画布尺寸按上列库别名或像素直给（`750x` / `1080x1920`，库不限制自由值）；用户未指定时省略 `canvas` 走默认长图兜底。
