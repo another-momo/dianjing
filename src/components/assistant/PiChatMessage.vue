@@ -14,10 +14,8 @@ import { useForkConfirm } from '@/app/i18n/fork'
 import { appPreferences } from '@/app/settings/preferences/store'
 import IconButton from '@/components/ui/button/IconButton.vue'
 
-import { NEW_INTENT_PART_TYPE, type NewIntentPartData } from './active-design'
 import AskUserQuestionCard from './AskUserQuestionCard.vue'
 import ChatMarkdown from './ChatMarkdown.vue'
-import ChatNewIntentCard from './ChatNewIntentCard.vue'
 import {
   AUTHZ_REQUEST_PART_TYPE,
   authzToolCallId,
@@ -136,22 +134,6 @@ function deriveAuthzOutcome(formId: string): 'executed' | 'blocked' | null {
   return null
 }
 
-/** T61：宿主发起的新建意图确认卡 data part 判定 + 载荷防御性归一 */
-function isNewIntentPart(part: UIMessagePart<UIDataTypes, UITools>): boolean {
-  return part.type === NEW_INTENT_PART_TYPE && 'data' in part
-}
-
-function newIntentData(part: UIMessagePart<UIDataTypes, UITools>): NewIntentPartData {
-  const raw = ('data' in part ? part.data : null) as Partial<NewIntentPartData> | null
-  return {
-    modeId: typeof raw?.modeId === 'string' ? raw.modeId : null,
-    profileId: typeof raw?.profileId === 'string' ? raw.profileId : null,
-    activeDesignName: typeof raw?.activeDesignName === 'string' ? raw.activeDesignName : null,
-    text: typeof raw?.text === 'string' ? raw.text : '',
-    resolved: raw?.resolved === 'confirmed' || raw?.resolved === 'cancelled' ? raw.resolved : null
-  }
-}
-
 function toolDisplayName(part: ToolPart): string {
   return getToolName(part)
     .replace(/^mcp__[^_]+__/, '')
@@ -214,13 +196,10 @@ function filePartFilename(part: FilePart): string {
             :answered="isAskFormAnswered(part)"
             @submit="emit('formSubmit', $event)"
           />
-          <!-- T61：宿主发起的新建意图确认卡——批 2 起未决卡由 dock 承接，流内只渲染
-               已决归档件（resolved 非 null；归档在决断落地时才注入，见 ChatPanel） -->
-          <ChatNewIntentCard
-            v-else-if="isNewIntentPart(part) && newIntentData(part).resolved !== null"
-            :data="newIntentData(part)"
-          />
-          <!-- 2026-09-18 broker P1：authz 授权请求 data part——未决且流式中由
+          <!-- 2026-09-27 意图确认卡退役：宿主发起的新建意图归档 part
+               （data-new-intent-confirm）随卡摘除——发送即物化后不再产生该 part；
+               历史会话残留的同类 part 落入通用分支不渲染（data part 非工具）。
+               2026-09-18 broker P1：authz 授权请求 data part——未决且流式中由
                输入区 pinned 卡承接（authzInlineDecision 返 null 不渲染）；已决/失效
                落消息流内卡（历史回看 + 审计轨迹，§6 已决归档合一） -->
           <PendingDecisionCard

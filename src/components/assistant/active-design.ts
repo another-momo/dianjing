@@ -1,7 +1,6 @@
 /**
  * 选择器 UI 重做的共享前端助手——
  *
- *  - 宿主发起的 data part 类型（新建意图确认卡归档）。
  *  - 批 2（2026-09-21 拍板③）：`[新建意图确认 …]` 用户消息首行信封**生产侧整段退役**
  *    ——后端已废剥离通道，确认参数只走 POST /api/pi/intent-confirm；继续塞信封
  *    只会让协议文本原样进 prompt 与气泡。
@@ -10,6 +9,10 @@
  *    awaiting 信封解析族（全史扫描/卡态派生）整体摘除——落点写通道 = 落点
  *    拦截门 + 规制确认门（确认端点直写 page-state），agent 无改址工具，
  *    setup_design 落点页建根帧为静默操作。
+ *  - 2026-09-27 意图确认卡退役（发送即物化批）：新建意图确认卡归档 part
+ *    （NEW_INTENT_PART_TYPE / NewIntentPartData）随卡摘除——chip 武装态在
+ *    ChatPanel actuallySend 开头经 postIntentConfirm 直写 page-state，
+ *    不拦截、不弹卡、不产生归档 part；postIntentConfirm 保留为写通道。
  *  - 面板读画布通路：makeFigmaFromStore seam（automation/bridge）+ core
  *    scanMarketingDesigns / brief-edit 读写原语。
  */
@@ -42,27 +45,11 @@ import { getWindowId } from '@/app/bridge/window-id'
 import type { EditorStore } from '@/app/editor/active-store'
 import { ensureGraphFonts } from '@/app/editor/fonts'
 
-// ── 宿主发起的 data part 类型 ────────────────────────────────────────────────
+// ── 意图写通道（发送即物化） ─────────────────────────────────────────────────
 
-/** 新建意图确认卡（宿主发起非工具 part，T56 卡片范式）
- *  批 2（拍板①②）：未决卡不再注入消息流——dock 承接交互（草稿随卡可编辑），
- *  本 part 只在决断落地时追加为**归档件**（resolved 恒非 null；重载后随宿主
- *  消息蒸发，D6 口径显式接受线 A 无跨会话归档）。 */
-export const NEW_INTENT_PART_TYPE = 'data-new-intent-confirm'
-
-export interface NewIntentPartData {
-  modeId: string | null
-  profileId: string | null
-  /** 被替换的当前目标名（单槽退役后恒 null——字段保留供归档件形状稳定） */
-  activeDesignName: string | null
-  /** 草稿随卡：未决态 = 拦截正文初值（卡内编辑）；归档 = 实际发出/取消时的
-   *  卡上正文快照（卡面即事实源） */
-  text: string
-  resolved: 'confirmed' | 'cancelled' | null
-}
-
-/** T91b：POST /api/pi/intent-confirm——前端 ChatNewIntentCard 确认按钮触发，
- *  直写 page-state 标量（确认即物化）。 */
+/** T91b：POST /api/pi/intent-confirm——直写 page-state 标量（确认即物化）。
+ *  2026-09-27 意图确认卡退役：触发方由确认卡按钮改为 ChatPanel 发送即物化
+ *  通路（chip 武装态发消息时先行直写，失败 fail-closed 不发送）。 */
 export async function postIntentConfirm(args: {
   modeId: string
   profileId?: string

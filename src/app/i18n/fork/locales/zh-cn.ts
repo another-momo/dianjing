@@ -34,7 +34,7 @@ const zhCN = {
     chipsMode: '模式',
     chipsProfile: '风格',
     chipsNoProfile: '无风格档案',
-    chipsPendingTip: '将以 {mode} · {profile} 新建设计，发送时确认',
+    chipsPendingTip: '将以 {mode} · {profile} 新建设计，发送即生效',
     chipsManifestFailed: '设计模式与风格加载失败——选择器已禁用。',
     chipsRetry: '重试',
     chipsCaptureSelection: '引用画布选区',
@@ -127,15 +127,8 @@ const zhCN = {
     briefApplyFailed: '操作失败——请重试。'
   },
   confirm: {
-    intentTitle: '以新身份开始新设计？',
-    intentSummaryLine: '将按「{mode} / {profile}」新建设计——画布上的现有内容原样保留，不会被删除。',
-    intentNoProfile: '无风格档案',
-    intentDraftSection: '发送内容（可编辑）',
-    intentConfirm: '确认并发送',
-    intentCancel: '取消',
-    intentConfirmedBadge: '已确认',
-    intentCancelledBadge: '已取消',
-    // 意图确认失败 toast（ChatNewIntentCard 确认请求失败时 ChatPanel 显式报错）
+    // 意图物化失败 toast（chip 武装态发送时 POST /api/pi/intent-confirm 失败，
+    // ChatPanel fail-closed 显式报错 + 草稿回填 + 不发送）
     intentConfirmFailedLine: '确认失败：{msg}',
     // T93：reasoning part 折叠卡标题（PiChatMessage.vue）
     reasoningTitle: '思考过程',

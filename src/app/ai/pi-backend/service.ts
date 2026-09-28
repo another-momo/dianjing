@@ -167,7 +167,8 @@ export type PiChatService = {
   hasSessionForDocUuid(docUuid: string): boolean
   /** sl-w1-page-state：open-docs guard 实例（routes 层 claim/heartbeat/release 三端点共用此实例） */
   getOpenDocsGuard(): OpenDocsGuard
-  /** T91b：newIntent 确认端点——前端 ChatNewIntentCard 确认按钮触发。
+  /** T91b：newIntent 确认端点——前端 ChatPanel 发送即物化通路触发
+   *  （chip 武装态发消息时先行直写；确认卡组件已随 2026-09-27 退役批摘除）。
    *  2026-09-27 sl-w2-state-chain 批 4 摘除半：确认即物化 = 直写 page-state
    *  标量（modeId/profileId）；旧 pluginData 四键通路已整体摘除；canvas 收集面
    *  随确认卡尺寸行摘除退役（page-state 字段全集无 canvas——setup_design 的
@@ -665,7 +666,8 @@ export function createPiChatService({
     return false
   }
 
-  /** T91b：POST /api/pi/intent-confirm——前端 ChatNewIntentCard 确认后触发。
+  /** T91b：POST /api/pi/intent-confirm——前端 ChatPanel 发送即物化通路触发
+   *  （确认卡组件已随 2026-09-27 退役批摘除）。
    *  2026-09-27 sl-w2-state-chain 批 4 摘除半：写入目标 = page-state 标量
    * （确认即物化，§4 拍板）；旧桥写 pluginData 四键的死码路径已整体摘除。
    *  - 读桥 probe 拿 docUuid → pageStateStore.write 直写 modeId/profileId

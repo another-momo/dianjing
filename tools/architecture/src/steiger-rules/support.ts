@@ -33,7 +33,11 @@ export const FILE_PREFIX_GROUP_ALLOWLIST = new Set([
   // observe）是同域判定栈兄弟档——收拢子目录会给 key-guard / load-image /
   // export-image-to-file / assembly 等消费方制造 import churn，用规则自带
   // 豁免（与楼上 cjk 同口径）。
-  'src/app/ai/pi-backend::path'
+  'src/app/ai/pi-backend::path',
+  // 2026-09-27 意图确认卡退役批：pi-backend 的 page- 三件（page-state /
+  // page-state-route / page-state-client——文档标量真源 / 路由 / 前端网络层）
+  // 是同域分层兄弟档，收拢子目录徒增 import churn——与楼上 path- 同口径豁免。
+  'src/app/ai/pi-backend::page'
 ])
 
 type ImportRef = {

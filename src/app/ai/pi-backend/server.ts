@@ -195,7 +195,8 @@ async function handlePiChatCancelRequest(
 
 /**
  * T91b：POST /api/pi/intent-confirm {modeId, profileId?}——规制确认门
- * 端点（前端 ChatNewIntentCard 确认按钮触发）。成功 200 回显确认参数；
+ * 端点（2026-09-27 意图确认卡退役后 = 前端 ChatPanel 发送即物化通路触发：
+ * chip 武装态发消息时先行直写）。成功 200 回显确认参数；
  * 入参缺失 400；桥不可达 502。
  */
 async function handleIntentConfirmRequest(
@@ -683,7 +684,7 @@ export function createPiBackendServer({
       void handlePiChatCancelRequest(service, req, res)
       return
     }
-    // T91b：newIntent 确认端点（前端 ChatNewIntentCard 触发，直写 page-state 标量）
+    // T91b：newIntent 确认端点（前端 ChatPanel 发送即物化通路触发，直写 page-state 标量）
     if (url.pathname === '/api/pi/intent-confirm') {
       void handleIntentConfirmRequest(service, req, res)
       return

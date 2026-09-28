@@ -72,7 +72,8 @@ export const forkChipsMessages = forkI18n('chips', chipsMessageDefaults)
 /** T61→T65：画布工作状态面板文案域（ChatContextBar 三合一：目标卡 / 设计区 / 需求单） */
 export const forkPanelsMessages = forkI18n('panels', panelsMessageDefaults)
 
-/** T61：新建意图确认卡文案域（ChatNewIntentCard） */
+/** T61：确认域文案——2026-09-27 意图确认卡退役后余物化失败 toast（ChatPanel
+ *  发送即物化通路）+ reasoning 折叠卡标题 + 停止回执（ChatPanel/PiChatMessage） */
 export const forkConfirmMessages = forkI18n('confirm', confirmMessageDefaults)
 
 /** T87：settings 面板 Agent 能力分区（ai 区下小节） */

@@ -22,19 +22,25 @@
  * 显式返 `{ kind: 'unreachable', message }`，上层按 fail-closed 阻塞发送——
  * 不在纯逻辑层吞掉「端点活但文件坏」与「端点死」两种语义，本模块只看端点活
  * 且已解析的 response 对象。
+ *
+ * 2026-09-27：网络层（fetchLocusPageState / putLocusEngagedPage /
+ * parseLocusGetResponse / LocusState / probe 类型）迁至 app 层
+ * @/app/ai/pi-backend/page-state-client——app 层模块不得 import components
+ * 层（FSD），chips 回显（mode-selection）以 page-state 为真源需要读通道。
+ * 本模块 re-export 既有名，导出面零破坏（现有 import 方不改）。
  */
-import type { PageState } from '@/app/ai/pi-backend/page-state'
+import type { LocusGetResponse } from '@/app/ai/pi-backend/page-state-client'
 
-/** 文档级标量值——真源在 pi-backend page-state.ts PageState，前端并型别名复用
- * （重复字面量形状过不了 test:type-shapes 门禁）；前端只关心 engagedPageId。 */
-export type LocusState = PageState
-
-/** GET /api/pi/page-state 响应（与路由端返回的 JSON 形状对齐）。 */
-export interface LocusGetResponse {
-  state: LocusState | null
-  /** 后端 session index 是否存在该 docUuid 族谱——首跑 / 腐烂分档事实源。 */
-  hasSession: boolean
-}
+export type {
+  LocusGetResponse,
+  LocusNetworkResult,
+  LocusState
+} from '@/app/ai/pi-backend/page-state-client'
+export {
+  fetchLocusPageState,
+  parseLocusGetResponse,
+  putLocusEngagedPage
+} from '@/app/ai/pi-backend/page-state-client'
 
 /** 拦截判定结果——上层按 kind 派发动作。 */
 export type LocusIntercept =
@@ -53,57 +59,12 @@ export type LocusIntercept =
       engagedPageId: string
     }
 
-/** 上层调用 fetchLocusPageState / putLocusEngagedPage 的网络结果。 */
-export type LocusNetworkResult<T> =
-  | { kind: 'ok'; value: T }
-  | { kind: 'unreachable'; message: string }
-
 /** 拦截门确认卡渲染视图（ChatLocusGateCard props / ChatPanel 构造共用契约） */
 export interface LocusGateView {
   /** 当前视图页名（用户发消息时所在的页） */
   viewPageName: string
   /** 现有落点页名——gate-resolve 仅剩 switch 单变体（落点页恒在），页名恒可解析 */
   engagedPageName: string
-}
-
-/** GET 响应探测形状——具名结构替代 Record<string, unknown> 强转（门禁禁宽断言） */
-interface LocusGetResponseProbe {
-  state?: unknown
-  hasSession?: unknown
-}
-
-/** 防御性解析 GET 响应——端点已 2xx 但形状坏（前端版本与后端不匹配 / 字段缺失）
- *  退化为 state=null / hasSession=false；上层若需严格语义应改读 throw。 */
-export function parseLocusGetResponse(input: unknown): LocusGetResponse {
-  if (!input || typeof input !== 'object') return { state: null, hasSession: false }
-  const obj = input as LocusGetResponseProbe
-  return {
-    state: parseLocusState(obj.state),
-    hasSession: typeof obj.hasSession === 'boolean' ? obj.hasSession : false
-  }
-}
-
-/** 落点标量探测形状（Partial 映射型——字面量重复过不了 test:type-shapes） */
-type LocusStateProbe = Partial<Record<keyof LocusState, unknown>>
-
-function parseLocusState(input: unknown): LocusState | null {
-  if (!input || typeof input !== 'object') return null
-  const obj = input as LocusStateProbe
-  if (
-    'modeId' in obj &&
-    'profileId' in obj &&
-    'engagedPageId' in obj &&
-    (obj.modeId === null || typeof obj.modeId === 'string') &&
-    (obj.profileId === null || typeof obj.profileId === 'string') &&
-    (obj.engagedPageId === null || typeof obj.engagedPageId === 'string')
-  ) {
-    return {
-      modeId: obj.modeId,
-      profileId: obj.profileId,
-      engagedPageId: obj.engagedPageId
-    }
-  }
-  return null
 }
 
 /**
@@ -154,53 +115,6 @@ export function resolveLocusIntercept(args: {
 //
 // 与 resolveLocusIntercept 解耦：纯逻辑层做判定，网络层做 I/O；
 // 单测只覆盖纯逻辑层，网络层经测试桩 fetch 钉扎。
-
-/**
- * GET /api/pi/page-state?docUuid=<uuid>——网络层包装。解析失败 / 非 2xx / fetch
- * 抛出均返 `{ kind: 'unreachable' }`，由上层按 fail-closed 阻塞发送。响应 JSON
- * 形状坏 → 退化为 `{ state: null, hasSession: false }`（按缺省链兜底）。
- */
-export async function fetchLocusPageState(
-  docUuid: string
-): Promise<LocusNetworkResult<LocusGetResponse>> {
-  try {
-    const res = await fetch(`/api/pi/page-state?docUuid=${encodeURIComponent(docUuid)}`)
-    if (!res.ok) {
-      return { kind: 'unreachable', message: `HTTP ${res.status}` }
-    }
-    const body = (await res.json().catch(() => null)) as unknown
-    return { kind: 'ok', value: parseLocusGetResponse(body) }
-  } catch (error) {
-    return { kind: 'unreachable', message: error instanceof Error ? error.message : String(error) }
-  }
-}
-
-/**
- * PUT /api/pi/page-state { docUuid, patch: { engagedPageId } }——网络层包装。
- * 非 2xx / fetch 抛 → `{ kind: 'unreachable' }`；与 fetchLocusPageState 共享
- * 同一 fail-closed 语义。
- */
-export async function putLocusEngagedPage(args: {
-  docUuid: string
-  engagedPageId: string
-}): Promise<LocusNetworkResult<LocusState>> {
-  try {
-    const res = await fetch('/api/pi/page-state', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ docUuid: args.docUuid, patch: { engagedPageId: args.engagedPageId } })
-    })
-    if (!res.ok) {
-      return { kind: 'unreachable', message: `HTTP ${res.status}` }
-    }
-    const body = (await res.json().catch(() => null)) as { state?: unknown } | null
-    const state = parseLocusState(body?.state) ?? {
-      modeId: null,
-      profileId: null,
-      engagedPageId: args.engagedPageId
-    }
-    return { kind: 'ok', value: state }
-  } catch (error) {
-    return { kind: 'unreachable', message: error instanceof Error ? error.message : String(error) }
-  }
-}
+//
+// 2026-09-27：网络层本体迁至 @/app/ai/pi-backend/page-state-client（见文件头），
+// 本文件仅以页首 export 块 re-export 既有名（导出面零破坏）。

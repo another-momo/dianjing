@@ -166,7 +166,7 @@ export const chipsMessageDefaults = {
   chipsMode: 'Mode',
   chipsProfile: 'Style',
   chipsNoProfile: 'No style profile',
-  chipsPendingTip: params('Will create {mode} · {profile} as a new design — confirm on send'),
+  chipsPendingTip: params('Will create {mode} · {profile} as a new design — applied on send'),
   chipsManifestFailed: 'Failed to load design modes and profiles — selectors are disabled.',
   chipsRetry: 'Retry',
   chipsCaptureSelection: 'Reference canvas selection',
@@ -288,23 +288,12 @@ export const panelsMessageDefaults = {
 
 /**
  * T61：新建意图确认卡英文默认值。
- * T65：确认卡尺寸行（决策 C：预设 chips + 自定义输入）；卡片降权为系统视觉。
+ * 2026-09-27 意图确认卡退役（发送即物化批）：卡面文案键随卡组件摘除；
+ * 保留意图物化失败 toast 键（发送即物化路径复用）与 reasoning / 停止回执键。
  */
 export const confirmMessageDefaults = {
-  intentTitle: 'Start a new design?',
-  // 批 2（2026-09-21 拍板⑤）：卡面复述将确认的 mode/profile label——
-  // 替代旧 intentUnifiedLine 静态文案（F7：卡面不说确认内容）
-  intentSummaryLine: params(
-    'Start a new design as {mode} / {profile} — everything already on the canvas stays as is and will not be deleted.'
-  ),
-  intentNoProfile: 'No profile',
-  // 批 2（拍板②）：草稿随卡——拦截正文在卡内展示并可编辑，确认发的是卡上内容
-  intentDraftSection: 'Message to send (editable)',
-  intentConfirm: 'Confirm & send',
-  intentCancel: 'Cancel',
-  intentConfirmedBadge: 'Confirmed',
-  intentCancelledBadge: 'Cancelled',
-  // 意图确认失败 toast（ChatNewIntentCard 确认请求失败时 ChatPanel 显式报错）
+  // 意图物化失败 toast（chip 武装态发送时 POST /api/pi/intent-confirm 失败，
+  // ChatPanel fail-closed 显式报错 + 草稿回填 + 不发送）
   intentConfirmFailedLine: params('Confirm failed: {msg}'),
   // T93：reasoning part 折叠卡标题（PiChatMessage.vue，预研 §5.2 方案 A）
   reasoningTitle: 'Thinking process',

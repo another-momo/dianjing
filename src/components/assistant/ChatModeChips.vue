@@ -6,14 +6,16 @@
  *  - 两级数据驱动：mode chip → profile chip。
  *    type 中间级已随 T62 删除（manifest.modes[].types 数据面退役）——本文件
  *    无 type 级专属逻辑。
- *  - 恒回显 active_design（piChipSelection：未确认意向 > active 读穿 >
- *    默认态 general + 无 profile）；指针移动由 mode-selection watcher 自动
- *    同步，系统同步不触发意图。
- *  - 拨 chip = setPiChipSelection 暂存未确认意向（与回显相同则清空）；
- *    发消息时 ChatPanel 拦为新建意图确认卡。只拨 chip 浏览不发消息 = 无意图事件。
+ *  - 恒回显 page-state（piChipSelection：未物化暂存 > page-state 回显，
+ *    缺省 general + 无 profile）；2026-09-27 意图确认卡退役批：回显真源
+ *    从硬编码缺省改接 page-state（mode-selection 内 piPageStateEcho，
+ *    GET/乐观更新/preflight 三写口），本组件消费面不变。
+ *  - 拨 chip = setPiChipSelection 暂存未物化意向（与回显相同则清空）；
+ *    发消息时发送即物化——ChatPanel 直写 page-state 后放行（不弹卡）。
+ *    只拨 chip 浏览不发消息 = 无意图事件；文档切换暂存清空（防串味）。
  *  - pending 意向呈现：与回显逐项比对（piChipEcho），不同的 chip 变 accent 色
- *    + Tip 悬停全文「将以 … 新建设计，发送时确认」；只拨 mode 仅 mode chip 变色。
- *    撤销 = 拨回原组合（sameSelection 自动清暂存），确认卡是最终闸门。
+ *    + Tip 悬停全文「将以 … 新建设计，发送即生效」；只拨 mode 仅 mode chip 变色。
+ *    撤销 = 拨回原组合（sameSelection 自动清暂存）。
  *  - manifest 失败（piStudioManifestFailed）→ chips 禁用（错误条 + 重试在
  *    ChatInput 错误条区，08 P0-2）。
  *  - P2-10（2026-09-07）：profile 菜单按当前选中 mode ⊆ profile.modes 过滤——

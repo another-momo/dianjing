@@ -5,8 +5,10 @@
  *
  *  - trigger 按钮 = 双段式状态文案（T66 决策①）：「正在设计：<设计名> |
  *    需求单：<N>」，空值 text-muted 弱色——状态可见性与入口合一。
- *    2026-09-27 单槽退役：当前设计段回落缺省态（在途意向 / 空）——当前施工
- *    面的权威显示是落点拦截门 + 状态行（确认卡族批次归族时收口）。
+ *    2026-09-27 单槽退役：当前设计段回落缺省态（恒空）——当前施工面的
+ *    权威显示是落点拦截门 + 状态行。2026-09-27 意图确认卡退役：在途意向
+ *    显示锚（piInFlightIntent）随发送即物化摘除——chip 武装态直写
+ *    page-state，无窗口期可显示；本段维持恒空，回显接线归 chips。
  *  - 需求单计数口径 = 当前页（拍板⑩沿用 T65 D4；scanCurrentPageBriefs 即面板
  *    列表同一口径），sceneVersion watcher 保持新鲜（locus 同范式）。
  *  - popover 内分节不分 tab：①设计区列表（点击条目 = 定位）②需求单列表 +
@@ -23,11 +25,10 @@
  * brief-edit 原语（画布节点单一事实源）。常驻非模态、仅用户打开。
  */
 import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 
 import type { MarketingDesignRef } from '@open-pencil/core/tools/fork/marketing/setup'
 
-import { piInFlightIntent, piStudioManifest } from '@/app/ai/pi-backend/mode-selection'
 import { getActiveEditorStoreOrNull, useActiveEditorStoreRef } from '@/app/editor/active-store'
 import { useForkPanels } from '@/app/i18n/fork'
 import { toast } from '@/app/shell/ui'
@@ -49,13 +50,6 @@ const cls = usePopoverUI({ content: 'isolate z-[51] w-80 p-3' })
 const open = ref(false)
 
 // ── ① 设计区列表（当前页；点击 = 定位） ─────────────────────────────────────
-
-/** 在途意向（已确认待物化）——trigger 显示当前所选 mode */
-const inFlight = computed(() => piInFlightIntent.value)
-
-function modeLabel(modeId: string): string {
-  return piStudioManifest.value?.modes.find((mode) => mode.id === modeId)?.label ?? modeId
-}
 
 const designs = ref<MarketingDesignRef[]>([])
 
@@ -158,11 +152,12 @@ function handleOpen(value: boolean) {
         }"
       >
         <icon-lucide-pin class="size-3 shrink-0" />
-        <!-- T66 决策①双段式：「当前设计区：X | 需求单：N」；空值 text-muted 弱色 -->
+        <!-- T66 决策①双段式：「当前设计区：X | 需求单：N」；空值 text-muted 弱色。
+             2026-09-27 意图确认卡退役：在途意向显示锚摘除，设计段恒空（权威
+             施工面显示 = 落点拦截门 + 状态行） -->
         <span class="min-w-0 truncate" data-test-id="chat-context-trigger-design">
           <span class="text-muted">{{ panelsText.contextTriggerDesignLabel }}</span>
-          <template v-if="inFlight">{{ modeLabel(inFlight.modeId) }}</template>
-          <span v-else class="text-muted">{{ panelsText.contextTriggerDesignEmpty }}</span>
+          <span class="text-muted">{{ panelsText.contextTriggerDesignEmpty }}</span>
         </span>
         <span class="shrink-0 text-muted">|</span>
         <span class="shrink-0" data-test-id="chat-context-trigger-briefs">

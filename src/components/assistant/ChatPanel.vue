@@ -34,14 +34,16 @@ import {
   getPiCurrentSessionId,
   hasPiDocId,
   listPiSessionFamily,
+  readPiDocUuid,
   switchPiSession,
   type PiSessionSummary
 } from '@/app/ai/pi-backend/document-key'
 import {
   clearPiPendingNewIntent,
-  markPiIntentInFlight,
-  piPendingNewIntent,
-  refreshPiStudioManifest
+  materializePiPendingIntent,
+  refreshPiChipEcho,
+  refreshPiStudioManifest,
+  syncPiChipEchoFromPageState
 } from '@/app/ai/pi-backend/mode-selection'
 import { deriveGateState, type GateState } from '@/app/ai/pi-backend/provider-gate'
 import { getActiveEditorStore } from '@/app/editor/active-store'
@@ -58,12 +60,11 @@ import AppPlaceholder from '@/components/ui/feedback/AppPlaceholder.vue'
 import { menuItem, useMenuUI } from '@/components/ui/menu/menu'
 import Tip from '@/components/ui/overlay/Tip.vue'
 
-import { NEW_INTENT_PART_TYPE, postIntentConfirm, type NewIntentPartData } from './active-design'
+import { postIntentConfirm } from './active-design'
 import ChatBriefDialog from './ChatBriefDialog.vue'
 import ChatContextBar from './ChatContextBar.vue'
 import ChatLocusGateCard from './ChatLocusGateCard.vue'
 import ChatLocusStatusRow from './ChatLocusStatusRow.vue'
-import ChatNewIntentCard from './ChatNewIntentCard.vue'
 import {
   fetchLocusPageState,
   putLocusEngagedPage,
@@ -231,7 +232,7 @@ const locusStatusRowState = computed(() => ({
   runActive: locusStateRefs.runActive.value
 }))
 
-/** 装配面调用点：locus 拦下后 pendingIntentDraft 之外再叠加本关。 */
+/** 装配面调用点：locus 拦下后草稿随卡扣留（pendingLocusGate.text），决断后放行。 */
 function getCurrentViewPageId(): string {
   return getActiveEditorStore().state.currentPageId
 }
@@ -281,6 +282,9 @@ async function preflightLocusGate(text: string): Promise<LocusPreflight> {
       ? getEngagedPageName(result.value.state.engagedPageId)
       : null
   })
+  // chips 回显顺手刷新（2026-09-27 E2 债清偿）：preflight 本就 GET page-state，
+  // 响应含 modeId/profileId——同步 echo 真源，零新增请求
+  syncPiChipEchoFromPageState(result.value.state)
   return await applyLocusIntercept(intercept, text, docUuid, currentPageId)
 }
 
@@ -371,13 +375,13 @@ const status = computed(() => chat.value?.status ?? 'ready')
 // 只可能存在于在途 run）。挂起期间聊天处于 streaming，输入区照常锁定，与现状
 // ask pending 同构。已决/失效归档由消息流内卡承担（PiChatMessage），不在此渲染。
 //
-// 批 2（2026-09-21 拍板①）：意图确认族（chip 发起 + AI 提议两线）并入本 dock——
-// dock 语义扩为「凡有未决即出现」（不限 streaming、不限末条消息）；ask/authz
-// 收集口径不变（其未决本就只在在途 run 存在），意图族收集见下方两段 computed。
-//
-// 2026-09-27：locus 落点拦截门并入本 dock（第三族，前端自产、非 part-backed）——
+// 2026-09-27：locus 落点拦截门并入本 dock（前端自产、非 part-backed）——
 // idle 态 pre-send 触发、置首（用户刚点了发送的阻塞项），不受 streaming/submitted
 // 状态门限制；草稿随卡扣留（dock 独占形态下输入框整棵摘除，文本只活在 pending 里）。
+//
+// 2026-09-27 意图确认卡退役（发送即物化批）：意图确认族（chip 发起
+// ChatNewIntentCard）整体摘除——发送不再被意图拦截，chip 武装态在 actuallySend
+// 开头直写 page-state（materializePiPendingIntent），dock 只剩 locus + ask/authz。
 const pinnedDecisions = computed<PendingDecisionView[]>(() => {
   const out: PendingDecisionView[] = []
   const gate = pendingLocusGate.value
@@ -394,38 +398,13 @@ const pinnedDecisions = computed<PendingDecisionView[]>(() => {
 /** dock 模板收窄对象（判别联合分支禁布尔 computed guard——返回收窄对象供模板直取） */
 const locusGateCardView = computed<LocusGateView | null>(() => pendingLocusGate.value?.view ?? null)
 
-// ── 批 2：意图确认族 dock 收集（两线合一） ─────────────────────────────────
-//
-// 线 A（chip 发起）：拨 chip 后发送被拦截 → 未决卡进 dock（草稿随卡可编辑，
-// 确认发卡上内容）。视图源 = piPendingNewIntent + 拦截草稿 ref；appendHostMessage
-// 只在决断落地时追加归档 part（流内不再出现未决卡）。
-/** 拦截时刻的草稿（卡内编辑初值；确认/取消以卡上 emit 的正文为准） */
-const pendingIntentDraft = ref<string | null>(null)
+/** dock 门态：凡有未决即出现（locus 拦截门 + ask/authz 在途）；出现即输入区摘除
+ * （dock 独占形态——草稿随卡扣留/编辑） */
+const dockHasDecisions = computed(() => pinnedDecisions.value.length > 0)
 
-const pendingNewIntentView = computed<NewIntentPartData | null>(() => {
-  const intent = piPendingNewIntent.value
-  const draft = pendingIntentDraft.value
-  if (!intent || draft === null) return null
-  return {
-    modeId: intent.modeId,
-    profileId: intent.profileId,
-    activeDesignName: null,
-    text: draft,
-    resolved: null
-  }
-})
-
-/** dock 门态：凡有未决即出现（locus 拦截门 + ask/authz 在途已并入 pinnedDecisions，
- *  意图确认卡单列）；出现即输入区摘除（dock 独占形态——拍板②：意图卡不破例，
- *  草稿随卡编辑） */
-const dockHasDecisions = computed(
-  () => pinnedDecisions.value.length > 0 || pendingNewIntentView.value !== null
-)
-
-/** 意图决断在途锁（POST await 期间防连点；卡面 disabled 合成条件之一） */
-const intentDecisionBusy = ref(false)
-const intentCardsDisabled = computed(
-  () => intentDecisionBusy.value || status.value === 'streaming' || status.value === 'submitted'
+/** dock 卡面 disabled 合成条件（streaming/submitted 期锁定；意图族 busy 锁随卡退役摘除） */
+const dockCardsDisabled = computed(
+  () => status.value === 'streaming' || status.value === 'submitted'
 )
 
 function pinnedDecisionKey(view: PendingDecisionView): string {
@@ -528,13 +507,32 @@ watch(
     refreshSessionMeta()
   }
 )
+// D6（2026-09-27 意图确认卡退役批）：chip 武装态 = 内存态不持久化——文档切换
+// 即清空暂存（防跨文档串味）；chips 回显真源 = page-state，docUuid 已存在才
+// 只读拉取（readPiDocUuid 探测，禁为拉 echo 铸新 docUuid），GET 失败保持现状
+// （mode-selection 内 warn，不进显式失败面）。无 docUuid = 无 page-state =
+// 规制缺省——回显同步回落缺省链，防上一文档 echo 串味到本文档。
+function handleDocSwitched(): void {
+  clearPiPendingNewIntent()
+  const docUuid = readPiDocUuid(getActiveEditorStore())
+  if (docUuid !== null) {
+    void refreshPiChipEcho(docUuid)
+  } else {
+    syncPiChipEchoFromPageState(null)
+  }
+}
+
 // T22：restore/打开文件在同 store 上 replaceGraph（tab id 不变，上面的 watcher
 // 不触发）——图替换后 docId 才就位，重跑 ensureChat 补上历史回填
 watch(
   () => activeTab.value?.store,
   (store, _prev, onCleanup) => {
     if (!store) return
+    // 文档就绪 / 切换（本 watcher immediate 覆盖首开）：清武装暂存 + echo 拉取
+    handleDocSwitched()
     const stop = store.onEditorEvent('graph:replaced', () => {
+      // 同 store 换文档（restore/打开文件）——同口径清暂存 + 拉 echo
+      handleDocSwitched()
       void ensureChat().then((nextChat) => {
         if (nextChat) chat.value = markRaw(nextChat)
         refreshSessionMeta()
@@ -606,13 +604,9 @@ async function handleSwitchSession(sessionId: string) {
 
 async function handleSubmit(text: string) {
   if (status.value === 'streaming' || status.value === 'submitted') return
-  // T61：chips 未确认新建意向存在 → 发送前拦截（批 2：拦为 dock 未决卡，
-  // 草稿随卡可编辑；chips 暂存不清——确认/取消由卡片决断）。
-  const intent = piPendingNewIntent.value
-  if (intent) {
-    interceptNewIntent(text)
-    return
-  }
+  // 2026-09-27 意图确认卡退役：chip 武装态不再拦截发送——发送即物化，
+  // 直写 page-state 统一收口在 actuallySend 开头（本直发路与 locus 门
+  // go/stay 放行路都经它，防旁路）。
   // sl-w2-locus-gate（§3.1）：落点拦截门 preflight。fail-closed：不可达
   // 即阻塞发送并 toast——不静默放行（错页风险高，桥断语义同款沿用）。
   const preflight = await preflightLocusGate(text)
@@ -634,6 +628,16 @@ async function handleSubmit(text: string) {
 /** 拦截门放行后真正执行 sendMessage——handleSubmit / handleLocusGateDecide 共用。 */
 async function actuallySend(text: string, postSendPut?: { engagedPageId: string }): Promise<void> {
   clearChatFailure()
+  // 发送即物化（2026-09-27 意图确认卡退役批）：chip 武装态（piPendingNewIntent
+  // 非空）→ 先 POST /api/pi/intent-confirm 直写 page-state 再发送——成功即清
+  // 暂存 + echo 乐观更新（mode-selection 内完成）；失败 fail-closed：toast +
+  // 草稿回填 + 不发送。顺序须在 ensureChat/sendMessage 之前（物化是发送前提）。
+  const materialized = await materializePiPendingIntent(postIntentConfirm)
+  if (!materialized.ok) {
+    toast.error(confirmText.value.intentConfirmFailedLine({ msg: materialized.message }))
+    chatInputRef.value?.restoreDraft(text)
+    return
+  }
   try {
     // 恒走 ensureChat：transport dirty（如 e2e mock 后注入）时重建会话，
     // 避免持有旧 transport 的 stale Chat
@@ -859,100 +863,13 @@ async function handleFormSubmit(submission: AskFormSubmission) {
   }
 }
 
-// ── T61：新建意图确认卡（chip 发起线；批 2 起 dock 承接） ─────────────────────
-
-/** 追加宿主发起的 assistant 消息（本地，不经 transport 发送） */
-async function appendHostMessage(parts: UIMessage['parts']): Promise<UIMessage | null> {
-  const currentChat = await ensureChat()
-  if (!currentChat) return null
-  const message: UIMessage = {
-    id: `host-${crypto.randomUUID()}`,
-    role: 'assistant',
-    parts
-  }
-  currentChat.messages = [...currentChat.messages, message]
-  chat.value = markRaw(currentChat)
-  return message
-}
-
-/**
- * 发送前拦截（chips 未确认新建意向存在时）。批 2（拍板①②）：不再注入消息流
- * data part、不回填输入框——暂存草稿即触发 dock 未决卡（卡内可编辑，视图直接
- * 读 piPendingNewIntent）；dock 独占形态下输入框随之摘除，确认/取消都由卡面决断。
- */
-function interceptNewIntent(text: string): boolean {
-  pendingIntentDraft.value = text
-  return true
-}
-
-/** 归档 part 数据组装（confirmed/cancelled 共用） */
-function intentArchiveData(
-  intent: { modeId: string; profileId: string | null },
-  resolved: 'confirmed' | 'cancelled',
-  text: string
-): NewIntentPartData {
-  return {
-    modeId: intent.modeId,
-    profileId: intent.profileId,
-    activeDesignName: null,
-    text,
-    resolved
-  }
-}
-
-/**
- * 确认（拍板③⑥）：POST /api/pi/intent-confirm 先行——失败 toast 明示 + 不发送
- * （卡留未决，草稿不丢）；成功后暂存转在途 + 追加归档 part + 发送卡上正文
- * （草稿随卡：发的是卡内编辑后的 text，不再是拦截快照）。信封通道已整段退役。
- */
-async function handleIntentConfirm(payload: { text: string }) {
-  if (status.value === 'streaming' || status.value === 'submitted') return
-  if (intentDecisionBusy.value) return
-  const intent = piPendingNewIntent.value
-  if (!intent || pendingIntentDraft.value === null) return
-  if (payload.text.trim() === '') return
-  intentDecisionBusy.value = true
-  try {
-    const confirmArgs: Parameters<typeof postIntentConfirm>[0] = { modeId: intent.modeId }
-    if (intent.profileId) confirmArgs.profileId = intent.profileId
-    const result = await postIntentConfirm(confirmArgs)
-    if (!result.ok) {
-      toast.error(confirmText.value.intentConfirmFailedLine({ msg: result.message }))
-      return
-    }
-    // 确认后暂存转在途（不即时清空）——chip/状态栏持续显示所选 mode。确认即
-    // 物化（确认端点已直写 page-state 标量），在途态仅为显示锚；清偿与回显的
-    // page-state 接线归确认卡归族批次收口。
-    // pending 清空 → dock 收卡 → 输入框回归（全新挂载，无草稿残留）
-    markPiIntentInFlight(intent)
-    pendingIntentDraft.value = null
-    await appendHostMessage([
-      {
-        type: NEW_INTENT_PART_TYPE,
-        data: intentArchiveData(intent, 'confirmed', payload.text)
-      }
-    ])
-    await handleSubmit(payload.text)
-  } finally {
-    intentDecisionBusy.value = false
-  }
-}
-
-function handleIntentCancel(payload: { text: string }) {
-  if (status.value === 'streaming' || status.value === 'submitted') return
-  const intent = piPendingNewIntent.value
-  if (!intent || pendingIntentDraft.value === null) return
-  pendingIntentDraft.value = null
-  // 取消 → chips 回滚回显（清空暂存即回落 active 回显）；dock 收卡后正文回填输入框
-  clearPiPendingNewIntent()
-  void appendHostMessage([
-    {
-      type: NEW_INTENT_PART_TYPE,
-      data: intentArchiveData(intent, 'cancelled', payload.text)
-    }
-  ])
-  void nextTick(() => chatInputRef.value?.restoreDraft(payload.text))
-}
+// ── T61：新建意图确认卡（chip 发起线）——2026-09-27 整段退役 ──────────────────
+//
+// 退役语义 = 发送即物化：chip 武装态在 actuallySend 开头经
+// materializePiPendingIntent 直写 page-state（复用 POST /api/pi/intent-confirm
+// 端点），不拦截、不弹卡；归档 data part（data-new-intent-confirm）随之摘除
+// （active-design.ts / PiChatMessage.vue 同批清理）。确认失败 toast 复用
+// fork confirm 域 intentConfirmFailedLine 键。
 
 async function handleCopyDebug() {
   await copyChatLog(messages.value, chatFailure.value)
@@ -1180,22 +1097,20 @@ function handleClearChat() {
          输入框不渲染 = 从根上消灭未配置发送的死路（spec b）。 -->
     <!-- 2026-09-18 broker P1：pending 决断卡 pinned 挂点（输入区上方，不随消息流
          滚动）——ask/authz 双族未决卡在此承接交互；已决/失效归档在消息流内。
-         批 2（2026-09-21 拍板①）：意图确认卡（chip 发起 ChatNewIntentCard）并入
-         本 dock——凡有未决即出现；意图卡维持仅 idle 可点（拍板⑥，streaming 期
-         由 dock 停止按钮承担取消）。
-         2026-09-27：落点拦截门卡并入本 dock（第三族）——置首渲染（用户刚触发
-         发送的阻塞项），视图取收窄 computed（判别联合分支不走布尔 guard） -->
+         2026-09-27：落点拦截门卡并入本 dock——置首渲染（用户刚触发
+         发送的阻塞项），视图取收窄 computed（判别联合分支不走布尔 guard）。
+         2026-09-27 意图确认卡退役：意图族（ChatNewIntentCard）摘除——发送即
+         物化直写 page-state，dock 只剩 locus + ask/authz 两族。 -->
     <div
       v-if="isGateReady && dockHasDecisions"
       data-test-id="pending-decision-dock"
       class="shrink-0 animate-in fade-in slide-in-from-bottom-2 space-y-2 border-t border-border px-2.5 pt-2.5 pb-2 duration-200 motion-reduce:animate-none"
     >
-      <!-- 落点拦截门确认卡（pinnedDecisions 置首条目的渲染位）——draft 随卡扣留；
-           disable 条件同意图族（status running + 本族 busy 防连点） -->
+      <!-- 落点拦截门确认卡（pinnedDecisions 置首条目的渲染位）——draft 随卡扣留 -->
       <ChatLocusGateCard
         v-if="locusGateCardView"
         :view="locusGateCardView"
-        :disabled="intentCardsDisabled"
+        :disabled="dockCardsDisabled"
         @decide="(decision) => handleLocusGateDecide({ decision })"
         @cancel="handleLocusGateCancel"
       />
@@ -1206,13 +1121,6 @@ function handleClearChat() {
           @ask-submit="handleFormSubmit"
         />
       </template>
-      <ChatNewIntentCard
-        v-if="pendingNewIntentView"
-        :data="pendingNewIntentView"
-        :disabled="intentCardsDisabled"
-        @confirm="handleIntentConfirm"
-        @cancel="handleIntentCancel"
-      />
       <AppTextButton
         v-if="status === 'streaming' || status === 'submitted'"
         :ui="{

@@ -8,17 +8,23 @@
  *  - piStudioManifest：数据源不变（GET /api/pi/studio/manifest），失败按
  *    08 P0-2 纪律显式暴露（piStudioManifestFailed=true → chips 禁用 + 错误条
  *    + 重试），不静默 null 降级。
- *  - piPendingNewIntent：用户手动拨 chip 的未确认暂存（不持久化）——发消息时
- *    ChatPanel 拦为新建意图确认卡；取消回滚后清空，确认发出转入在途。意向在
- *    chips 上的呈现 = 与 piChipEcho 逐项比对，不同的 chip 变色 + Tip 悬停全文提示。
- *  - piInFlightIntent：已确认、待物化的在途意向（不持久化）——确认→落图窗口期
- *    维持 chip/状态栏显示。不触发变色/Tip（已确认非暂存），不拦发送（拦截只读
- *    pending）。
+ *  - piPendingNewIntent：用户手动拨 chip 的未物化暂存（内存态不持久化，
+ *    文档切换时由 ChatPanel 清空防跨文档串味）——发送即物化：发消息时
+ *    ChatPanel 先走 materializePiPendingIntent 直写 page-state（成功才发送，
+ *    失败 fail-closed 不发送），不再拦截弹卡。意向在 chips 上的呈现 =
+ *    与 piChipEcho 逐项比对，不同的 chip 变色 + Tip 悬停全文提示。
+ *
+ * 2026-09-27 意图确认卡退役（发送即物化批）：piInFlightIntent 在途过渡态
+ * 随写穿摘除——确认端点直写 page-state 后不存在「确认→落图窗口期」，
+ * chips 回显（piChipEcho）从硬编码缺省改接 page-state（真源），拉取 /
+ * 乐观更新 / locus preflight 顺手刷新三个写口见下方注。
  */
 
 import { computed, ref } from 'vue'
 
 import type { PiStudioCapabilities, PiStudioManifest } from '@/app/ai/pi-backend/studio/manifest'
+
+import { fetchLocusPageState, type LocusState } from './page-state-client'
 
 // ── manifest（显式失败面） ───────────────────────────────────────────────────
 
@@ -108,9 +114,9 @@ export function applyPiCapabilities(next: PiStudioCapabilities): void {
   piCapabilities.value = next
 }
 
-// ── 未确认新建意向暂存（chips 拨动；不持久化） ───────────────────────────────
+// ── 未物化新建意向暂存（chips 拨动；内存态不持久化，文档切换清空） ─────────────
 
-/** chips 默认态（chips 回显单源在确认卡族批次归族收口——暂存比对用缺省值） */
+/** chips 默认态（page-state 无 modeId 时的缺省回显——缺省链 §2 拍板兜底值） */
 export const PI_DEFAULT_MODE_ID = 'general'
 
 /** chips 选择（两级：mode → profile；type 级已随 T62 删除，无专属逻辑） */
@@ -121,18 +127,28 @@ export interface PiNewIntentSelection {
 
 export const piPendingNewIntent = ref<PiNewIntentSelection | null>(null)
 
-/** 已确认待物化的在途意向（确认→落图窗口期显示锚；不持久化） */
-export const piInFlightIntent = ref<PiNewIntentSelection | null>(null)
-
-/** chips 回显（缺省态）——pending 各字段与它逐项比对出变色锚点 */
-export const piChipEcho = computed<PiNewIntentSelection>(() => ({
+/**
+ * chips 回显真源 = page-state 文档标量（2026-09-27 意图确认卡退役批，E2 债
+ * 清偿——原硬编码缺省）。模块级 ref，三写口：
+ *  1. refreshPiChipEcho：文档就绪 / docUuid 变更时 GET 一次（只读探测——
+ *     调用方须先核 docUuid 已存在，本函数不铸新 docUuid）；GET 失败保持
+ *     现状 + console.warn（兜底缺省即旧行为，不进显式失败面）。
+ *  2. materializePiPendingIntent 成功后乐观更新（免 round-trip，
+ *     applyPiCapabilities 先例）。
+ *  3. locus preflight 顺手刷新：发送前 GET page-state 本就发生，ChatPanel
+ *     拿到 state 时经 syncPiChipEchoFromPageState 同步（零新增请求）。
+ */
+const piPageStateEcho = ref<PiNewIntentSelection>({
   modeId: PI_DEFAULT_MODE_ID,
   profileId: null
-}))
+})
 
-/** chips 显示的单一事实源：未确认意向 > 在途意向 > 回显 */
+/** chips 回显——pending 各字段与它逐项比对出变色锚点 */
+export const piChipEcho = computed<PiNewIntentSelection>(() => piPageStateEcho.value)
+
+/** chips 显示的单一事实源：未物化暂存 > 回显（page-state） */
 export const piChipSelection = computed<PiNewIntentSelection>(
-  () => piPendingNewIntent.value ?? piInFlightIntent.value ?? piChipEcho.value
+  () => piPendingNewIntent.value ?? piChipEcho.value
 )
 
 function sameSelection(a: PiNewIntentSelection, b: PiNewIntentSelection): boolean {
@@ -141,22 +157,74 @@ function sameSelection(a: PiNewIntentSelection, b: PiNewIntentSelection): boolea
 
 /**
  * chips 拨动写口：与回显相同 = 无意图（清空暂存）；不同 = 暂存新建意向，
- * 发消息时由 ChatPanel 拦为确认卡（只拨 chip 浏览不发消息 = 无意图事件）。
+ * 发消息时经 materializePiPendingIntent 发送即物化（只拨 chip 浏览不发消息
+ * = 无意图事件）。
  */
 export function setPiChipSelection(selection: PiNewIntentSelection): void {
   piPendingNewIntent.value = sameSelection(selection, piChipEcho.value) ? null : selection
 }
 
-/** 取消回滚后清空暂存（chips 回落缺省回显）；确认发出走 markPiIntentInFlight */
+/** 清空暂存（chips 回落 page-state 回显）——文档切换时 ChatPanel 调用防串味 */
 export function clearPiPendingNewIntent(): void {
   piPendingNewIntent.value = null
 }
 
+/** echo 直写写口：物化成功后的乐观更新（免 round-trip） */
+export function applyPiChipEcho(selection: PiNewIntentSelection): void {
+  piPageStateEcho.value = selection
+}
+
 /**
- * 确认发出：暂存转在途——chips/状态栏维持显示所选 mode（窗口期显示锚，
- * 确认卡族批次归族时收口清偿时点）。在途不拦发送、不变色（已确认非暂存）。
+ * page-state → echo 归一（GET 到手 / preflight 顺手刷新共用）：state 缺失
+ * 或 modeId 显式清空（null）一律回落缺省链 general + 无 profile——与后端
+ * page-state.ts「缺省链 general 兜底」口径一致。
  */
-export function markPiIntentInFlight(selection: PiNewIntentSelection): void {
-  piInFlightIntent.value = selection
+export function syncPiChipEchoFromPageState(state: LocusState | null): void {
+  piPageStateEcho.value = {
+    modeId: state?.modeId ?? PI_DEFAULT_MODE_ID,
+    profileId: state?.profileId ?? null
+  }
+}
+
+/**
+ * 拉取 page-state 刷新 echo（文档就绪 / docUuid 变更时调用一次）。
+ * 只读探测纪律：调用方先以 readPiDocUuid 核 docUuid 已存在再调——本函数
+ * 不为拉 echo 铸新 docUuid。GET 失败保持现状 + warn（echo 兜底缺省即旧
+ * 行为，不回退到显式失败面）。
+ */
+export async function refreshPiChipEcho(docUuid: string): Promise<void> {
+  const result = await fetchLocusPageState(docUuid)
+  if (result.kind === 'unreachable') {
+    console.warn('[pi-backend] page-state 拉取失败——chips 回显保持现状', result.message)
+    return
+  }
+  syncPiChipEchoFromPageState(result.value.state)
+}
+
+/** intent-confirm 写通道签名（注入用——app 层不得 import components 层
+ *  active-design.ts 的 postIntentConfirm，生产接线在 ChatPanel 显式传入） */
+export type PiIntentConfirmPoster = (args: {
+  modeId: string
+  profileId?: string
+}) => Promise<{ ok: true } | { ok: false; message: string }>
+
+/**
+ * 发送即物化：chip 武装态（piPendingNewIntent 非空）时，发送前直写
+ * page-state（POST /api/pi/intent-confirm，经注入的 poster）。成功 =
+ * 清暂存 + echo 乐观更新；失败 = 暂存保留、回显不动，由调用方 fail-closed
+ * （toast + 草稿回填 + 不发送）。无武装 = 直通 ok。
+ */
+export async function materializePiPendingIntent(
+  post: PiIntentConfirmPoster
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const intent = piPendingNewIntent.value
+  if (!intent) return { ok: true }
+  const result = await post({
+    modeId: intent.modeId,
+    ...(intent.profileId !== null ? { profileId: intent.profileId } : {})
+  })
+  if (!result.ok) return result
+  applyPiChipEcho({ modeId: intent.modeId, profileId: intent.profileId })
   piPendingNewIntent.value = null
+  return { ok: true }
 }
