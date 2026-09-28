@@ -161,6 +161,10 @@ export const askMessageDefaults = {
  * T70：chipsCaptureSelection / chipsCaptureEmpty——「引用画布选区」按钮 +
  * 空选区轻提示（ChatInput attachment 槽；空选区不产生 token）。
  * chipsPendingTip：pending 意向的变色 chip 锚点 Tip 全文（badge 已退役）。
+ * 物料排批：chipsMaterialLabel / chipsMaterialRowPrefix /
+ * chipsMaterialHeightFlow — 输入框下方「Material」chip 排的 section
+ * 标签 + 消息头前缀模板（{label}/{width}/{height} 三占位符）+ HUG 流高
+ * 高度文案。
  */
 export const chipsMessageDefaults = {
   chipsMode: 'Mode',
@@ -171,6 +175,10 @@ export const chipsMessageDefaults = {
   chipsRetry: 'Retry',
   chipsCaptureSelection: 'Reference canvas selection',
   chipsCaptureEmpty: 'Nothing selected on the canvas',
+  // 物料排批：物料排 section 标签 + 武装时拼到消息头的前缀模板（半角括号与 x）
+  chipsMaterialLabel: 'Material',
+  chipsMaterialRowPrefix: 'Material: {label} ({width}x{height})',
+  chipsMaterialHeightFlow: 'flow',
   // T89：skill dropdown trigger + 搜索占位 + 空匹配提示
   chipsSkillChoose: 'Choose a skill',
   chipsSkillSearchPlaceholder: 'Search skills…',

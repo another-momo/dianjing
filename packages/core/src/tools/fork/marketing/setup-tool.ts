@@ -26,7 +26,8 @@ const setupDesignEntries = {
     v.pipe(
       v.string(),
       v.description(
-        'Canvas size override (optional) — pixels: "<width>x" (height grows with content) or "<width>x<height>" (fixed height), e.g. "750x" / "750x2000"; or a platform preset alias from the built-in size library, e.g. "long-image" / "ig-square" / "ig-portrait" / "xhs-cover" / "wechat-cover" / "slides-16x9" / "x-post" / "banner-wide". Unrecognized values return { error: "invalid_canvas" } with the preset id list in the message, and nothing is created. Omit for the default long-image preset (750 wide, height grows with content).'
+        // 14 条物料 id 别名清单——同步手动维护于 MATERIAL_SPECS（同 packages/core/src/tools/fork/marketing/material-specs.ts）；改库后此处需同改。
+        'Canvas size override (optional) — pixels: "<width>x" (height grows with content) or "<width>x<height>" (fixed height), e.g. "750x" / "750x2000"; or a built-in material alias, e.g. "long-image" / "ig-square" / "ig-portrait" / "xhs-cover" / "wechat-cover" / "slides-16x9" / "x-post" / "x-header" / "story-9x16" / "ecommerce-main" / "youtube-thumbnail" / "link-card" / "bilibili-cover" / "a4-print". Unrecognized values return { error: "invalid_canvas" } with the material id list in the message, and nothing is created. Omit for the default long-image material (750 wide, height grows with content). Platform hard constraints (safe area / required elements) attached to a hit material are delivered in the success message, not in this description.'
       )
     )
   )

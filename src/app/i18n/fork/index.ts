@@ -66,7 +66,9 @@ export const forkImageGenMessages = forkI18n('imagegen', imageGenMessageDefaults
 /** T56：ask_user_question 聊天内表单卡片文案域（AskUserQuestionCard） */
 export const forkAskMessages = forkI18n('ask', askMessageDefaults)
 
-/** T61：chips + manifest 失败条文案域（ChatModeChips）；T65：gallery 键随组件退役删除 */
+/** T61：chips + manifest 失败条文案域（ChatModeChips）；T65：gallery 键随组件退役删除；
+ *  物料排批：chips 域新增物料排 section 标签 + 武装时消息头前缀模板 + HUG 高度文案
+ *  （ChatMaterialChips + buildPiMaterialPrefix） */
 export const forkChipsMessages = forkI18n('chips', chipsMessageDefaults)
 
 /** T61→T65：画布工作状态面板文案域（ChatContextBar 三合一：目标卡 / 设计区 / 需求单） */

@@ -48,10 +48,14 @@ export const SETUP_TEXTS = {
   ambiguousBrief: '页面上有多份需求单且未指定 briefId——请询问用户使用哪一份，然后带 briefId 重试。',
   briefNotFound: (briefId: string) =>
     `找不到需求单「${briefId}」——请确认 briefId 是否正确，或先 create_brief。`,
-  invalidCanvas: (canvas: string, presetIds: string) =>
-    `尺寸「${canvas}」无法识别——应为 \`宽x\`（如 750x，高度随内容生长）或 \`宽x高\`（如 750x2000，定高），或平台尺寸库别名。Presets: ${presetIds}`,
-  /** 成功结果锚点行——工作区已落图的事实行 */
-  workspaceCreated: () => '设计工作区已落图——后续回合继续在施工页上按当前模式推进。'
+  invalidCanvas: (canvas: string, specIds: string) =>
+    `尺寸「${canvas}」无法识别——应为 \`宽x\`（如 750x，高度随内容生长）或 \`宽x高\`（如 750x2000，定高），或物料规格库别名。Materials: ${specIds}`,
+  /** 成功结果锚点行——工作区已落图的事实行；命中库条目且该条带 notes
+   *  时追加一行规格要点（just-in-time 投递，安全区/必备要素等平台硬约束） */
+  workspaceCreated: (notes?: string) =>
+    notes
+      ? `设计工作区已落图——后续回合继续在施工页上按当前模式推进。\n平台要点：${notes}`
+      : '设计工作区已落图——后续回合继续在施工页上按当前模式推进。'
 } as const
 
 /**

@@ -22,12 +22,17 @@
  *    页局部，跨页校验不复存在。
  *
  * T65（owner 2026-09-01 拍板 C）：尺寸语义——可选 `canvas` 参数覆盖。
- * 尺寸知识真源 = 同域 sizes.ts 平台尺寸库（平台规格维护在库，不靠模型
- * 记忆）；canvas 接受像素直给或库别名，解析序：像素 `宽x`/`宽x高` >
- * 库别名命中 > invalid_canvas（错误消息附预设 id 速览）；（2026-09-27 起
+ * 尺寸知识真源 = 同域 material-specs.ts 物料规格库（平台规格维护在库，
+ * 不靠模型记忆）；canvas 接受像素直给或库别名，解析序：像素 `宽x`/`宽x高`
+ * > 库别名命中 > invalid_canvas（错误消息附物料 id 速览）；（2026-09-27 起
  * 确认卡尺寸行摘除，来源只剩 agent 按对话/教学显式传）；缺省 = 库兜底
- * 条目 DEFAULT_SIZE_PRESET（长图，750 宽 + HUG）。
- * 落盘 size 语义不变（{width, height|null}，null = HUG）。
+ * 条目 DEFAULT_MATERIAL_SPEC（长图，750 宽 + HUG）。落盘 size 语义不变
+ * （{width, height|null}，null = HUG）。
+ *
+ * 物料 notes（安全区 / 必备要素等平台硬约束）随 setup_design 命中物料的
+ * 成功回执 just-in-time 投递——前置于用户消息，agent 落图前看到。
+ * notes 字段不进工具描述（context 占用）也不进库结构化字段（消费边界），
+ * 仅以回执的单行短文送达；命中无 notes 条目 / 像素直给 / 缺省时不追加。
  */
 
 import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
@@ -49,7 +54,12 @@ import {
   setDesignUniqueId,
   type BriefCandidate
 } from './brief'
-import { DEFAULT_SIZE_PRESET, SIZE_PRESET_IDS, resolveSizeAlias } from './sizes'
+import {
+  DEFAULT_MATERIAL_SPEC,
+  MATERIAL_SPEC_IDS,
+  resolveMaterialAlias,
+  type MaterialSpec
+} from './material-specs'
 import { SETUP_TEXTS } from './texts'
 
 /** 设计根 role 标记值（单源；image-gen/history.ts 的同名本地常量集成时改 import） */
@@ -107,7 +117,8 @@ export interface SetupDesignSuccess {
   size: { width: number; height: number | null }
   briefId: string
   placement: Vector
-  /** 成功结果锚点行（agent 可见——工作区已落图的事实行） */
+  /** 成功结果锚点行（agent 可见——工作区已落图的事实行；命中带 notes 物料时
+   *  追加一行平台要点，回执 just-in-time 投递） */
   message: string
 }
 
@@ -129,24 +140,34 @@ export function isMarketingDesignRoot(node: SceneNode | undefined): node is Scen
 // ── 尺寸与命名 ─────────────────────────────────────────────────────────────
 
 /**
- * 尺寸解析（序 pin 死）：像素直给 `宽x`/`宽x高` > 尺寸库别名命中 >
- * invalid_canvas（消息附预设 id 速览，agent 自愈）；缺省 → 库兜底条目
- * DEFAULT_SIZE_PRESET（长图 750 宽 + HUG）。
+ * 尺寸解析（序 pin 死）：像素直给 `宽x`/`宽x高` > 物料库别名命中 >
+ * invalid_canvas（消息附物料 id 速览，agent 自愈）；缺省 → 库兜底条目
+ * DEFAULT_MATERIAL_SPEC（长图 750 宽 + HUG）。
+ *
+ * 命中库条目时返回该 spec（用于回执 just-in-time 投递 notes）；像素直给
+ * 与缺省路径 spec = null（无 notes 追加）。
  */
-function resolveSize(
-  args: SetupDesignArgs
-): { width: number; height: number | null } | SetupDesignError {
+type ResolvedSize =
+  | { size: { width: number; height: number | null }; spec: MaterialSpec | null }
+  | { error: SetupDesignError }
+
+function resolveSize(args: SetupDesignArgs): ResolvedSize {
   if (args.canvas !== undefined) {
     const parsed = parseCanvasSize(args.canvas)
-    if (parsed) return parsed
-    const preset = resolveSizeAlias(args.canvas)
-    if (preset) return { width: preset.width, height: preset.height }
+    if (parsed) return { size: parsed, spec: null }
+    const spec = resolveMaterialAlias(args.canvas)
+    if (spec) return { size: { width: spec.width, height: spec.height }, spec }
     return {
-      error: 'invalid_canvas',
-      message: SETUP_TEXTS.invalidCanvas(args.canvas, SIZE_PRESET_IDS.join(', '))
+      error: {
+        error: 'invalid_canvas',
+        message: SETUP_TEXTS.invalidCanvas(args.canvas, MATERIAL_SPEC_IDS.join(', '))
+      }
     }
   }
-  return { width: DEFAULT_SIZE_PRESET.width, height: DEFAULT_SIZE_PRESET.height }
+  return {
+    size: { width: DEFAULT_MATERIAL_SPEC.width, height: DEFAULT_MATERIAL_SPEC.height },
+    spec: null
+  }
 }
 
 /**
@@ -220,8 +241,9 @@ export function setupDesign(figma: FigmaAPI, args: SetupDesignArgs): SetupDesign
   }
   const brief = resolution.brief
 
-  const size = resolveSize(args)
-  if ('error' in size) return size
+  const resolved = resolveSize(args)
+  if ('error' in resolved) return resolved.error
+  const { size, spec } = resolved
 
   const name = nextDesignRootName(figma, SETUP_TEXTS.designRootName)
   const position = findPlacementPosition(figma, {
@@ -250,7 +272,7 @@ export function setupDesign(figma: FigmaAPI, args: SetupDesignArgs): SetupDesign
     size,
     briefId: brief.id,
     placement: position,
-    message: SETUP_TEXTS.workspaceCreated()
+    message: SETUP_TEXTS.workspaceCreated(spec?.notes)
   }
 }
 

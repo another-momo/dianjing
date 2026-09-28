@@ -22,6 +22,8 @@
 
 import { computed, ref } from 'vue'
 
+import type { MaterialSpec } from '@open-pencil/core/tools/fork/marketing/material-specs'
+
 import type { PiStudioCapabilities, PiStudioManifest } from '@/app/ai/pi-backend/studio/manifest'
 
 import { fetchLocusPageState, type LocusState } from './page-state-client'
@@ -227,4 +229,47 @@ export async function materializePiPendingIntent(
   applyPiChipEcho({ modeId: intent.modeId, profileId: intent.profileId })
   piPendingNewIntent.value = null
   return { ok: true }
+}
+
+// ── 物料暂存（chips 物料排拨动；内存态不持久化，文档切换清空） ──────────────
+//
+// 用户点输入框下方的物料 chip → 暂存为 armed 态，消息文本前自动追物料提示
+// 行（just-in-time hint），agent 据此按平台规格落图。toggle：同 id 再点 =
+// 清空。文档切换、发送成功路径由 ChatPanel 主动清——locus 门扣留/取消路径
+// 不动 armed 态（用户改主意不发了也要保留臂装）。非物化、不联网——纯内存态。
+export const piPendingMaterial = ref<MaterialSpec | null>(null)
+
+/** toggle：武装或清空（armed 同 id 再点 = 清空；不同 id = 覆盖） */
+export function setPiPendingMaterial(spec: MaterialSpec): void {
+  piPendingMaterial.value = piPendingMaterial.value?.id === spec.id ? null : spec
+}
+
+/** 显式清空（locus 扣留/取消路径不改本态——失败回填保留臂装供重试） */
+export function clearPiPendingMaterial(): void {
+  piPendingMaterial.value = null
+}
+
+/**
+ * 武装态 → 序列化前缀行 + 空行（拼到消息头）。未 armed → 空串。
+ *
+ * `format` 是 i18n 文本模板，三个占位符逐字替换：
+ *   {label}    → spec.label
+ *   {width}    → spec.width（数字）
+ *   {height}   → spec.height 字符串（数字或流高文案「流高」/「flow」）
+ * 当前缀拼到消息头时与正文隔一行（`\n\n`）——agent 看到一行 hint +
+ * 一行消息本体。
+ *
+ * 设计要点：括号 / 标点 / 关键词 全部留给 i18n 文本自带——函数零硬编码
+ * 半角/全角，zh `物料：{label}（{width}×{height}）`、en
+ * `Material: {label} ({width}x{height})` 各自拼。
+ */
+export function buildPiMaterialPrefix(format: { prefix: string; heightFlow: string }): string {
+  const spec = piPendingMaterial.value
+  if (!spec) return ''
+  const heightText = spec.height === null ? format.heightFlow : String(spec.height)
+  const line = format.prefix
+    .replace('{label}', spec.label)
+    .replace('{width}', String(spec.width))
+    .replace('{height}', heightText)
+  return `${line}\n\n`
 }

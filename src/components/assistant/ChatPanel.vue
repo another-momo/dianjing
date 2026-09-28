@@ -39,6 +39,8 @@ import {
   type PiSessionSummary
 } from '@/app/ai/pi-backend/document-key'
 import {
+  buildPiMaterialPrefix,
+  clearPiPendingMaterial,
   clearPiPendingNewIntent,
   materializePiPendingIntent,
   refreshPiChipEcho,
@@ -47,7 +49,7 @@ import {
 } from '@/app/ai/pi-backend/mode-selection'
 import { deriveGateState, type GateState } from '@/app/ai/pi-backend/provider-gate'
 import { getActiveEditorStore } from '@/app/editor/active-store'
-import { useForkConfirm, useForkLocus, useForkPi } from '@/app/i18n/fork'
+import { useForkChips, useForkConfirm, useForkLocus, useForkPi } from '@/app/i18n/fork'
 import { useNotificationMessages } from '@/app/i18n/notifications'
 import { openSettingsDialog } from '@/app/settings/dialog'
 import { appPreferences } from '@/app/settings/preferences/store'
@@ -91,6 +93,7 @@ const notifications = useNotificationMessages()
 const confirmText = useForkConfirm()
 const locusText = useForkLocus()
 const piDialogs = useForkPi()
+const chipsText = useForkChips()
 
 const chat = ref<Chat<UIMessage> | null>(null)
 // T27：提交失败时经此把草稿回填进输入框（PiChatInput 提交即清空——见 restoreDraft）；
@@ -514,6 +517,8 @@ watch(
 // 规制缺省——回显同步回落缺省链，防上一文档 echo 串味到本文档。
 function handleDocSwitched(): void {
   clearPiPendingNewIntent()
+  // 物料排批：内存态不持久化——文档切换清空（与意图暂存同口径，防跨文档串味）
+  clearPiPendingMaterial()
   const docUuid = readPiDocUuid(getActiveEditorStore())
   if (docUuid !== null) {
     void refreshPiChipEcho(docUuid)
@@ -638,20 +643,35 @@ async function actuallySend(text: string, postSendPut?: { engagedPageId: string 
     chatInputRef.value?.restoreDraft(text)
     return
   }
+  // 物料排批：物料 chip 武装态在消息头追加物料提示行（i18n 拼装——前缀
+  // 模板 + 流高高度文本来自 fork chips locale）。前缀拼在 ensureChat 之前
+  // 也即 sendMessage 之前——文本是发出去的最终内容。
+  const materialPrefix = buildPiMaterialPrefix({
+    prefix: chipsText.value.chipsMaterialRowPrefix,
+    heightFlow: chipsText.value.chipsMaterialHeightFlow
+  })
+  const textToSend = materialPrefix ? materialPrefix + text : text
   try {
     // 恒走 ensureChat：transport dirty（如 e2e mock 后注入）时重建会话，
     // 避免持有旧 transport 的 stale Chat
     const currentChat = await ensureChat()
     if (!currentChat) {
+      // ensureChat 失败：armed 不动（用户可重试）；不发就不发
       toast.error(ai.value.chatRequestFailed)
       chatInputRef.value?.restoreDraft(text)
       return
     }
     chat.value = markRaw(currentChat)
-    await currentChat.sendMessage({ text })
+    await currentChat.sendMessage({ text: textToSend })
     // T27：ai SDK 的 sendMessage 内部吞错（错误走 onError + status='error'，
     // 不 reject——node_modules/ai AbstractChat.makeRequest 实证）——失败时回填草稿
-    if (currentChat.status === 'error') chatInputRef.value?.restoreDraft(text)
+    if (currentChat.status === 'error') {
+      // 发送失败：armed 保留供重试（用户改完再发不必重选物料）
+      chatInputRef.value?.restoreDraft(text)
+    } else {
+      // 发送成功：armed 清空——武装态纯发一次性，文档切换 / 重选再武装
+      clearPiPendingMaterial()
+    }
     refreshSessionMeta()
     // sl-w2-locus-gate（§3.1 docUuid 缺失路径）：first-send-no-doc 路径
     // 发送完成后回写 engagedPageId = 发送时刻捕获的视图页（先捕获后发送）。

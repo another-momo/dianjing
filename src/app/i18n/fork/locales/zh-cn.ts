@@ -39,6 +39,10 @@ const zhCN = {
     chipsRetry: '重试',
     chipsCaptureSelection: '引用画布选区',
     chipsCaptureEmpty: '画布上还没有选中节点',
+    // 物料排批：物料排 section 标签 + 武装时拼到消息头的前缀模板（全角括号与 ×）
+    chipsMaterialLabel: '物料',
+    chipsMaterialRowPrefix: '物料：{label}（{width}×{height}）',
+    chipsMaterialHeightFlow: '流高',
     // T89：skill dropdown trigger + 搜索占位 + 空匹配提示
     chipsSkillChoose: '选择技能',
     chipsSkillSearchPlaceholder: '搜索技能…',

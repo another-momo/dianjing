@@ -4,8 +4,8 @@
  * 机制基线（2026-09-27 帧无身份）：modeId/profileId 参数、catalog 注入缝
  * （__catalog / __confirmedNewIntent）、新建意图确认门（awaiting 信封）与
  * 设计身份三元组落盘已整体退役——本文件钉活下来的面：
- *  - 建框契约：缺省长图兜底（尺寸库 DEFAULT_SIZE_PRESET）、显式 canvas
- *    覆盖（像素直给 > 平台库别名 > invalid_canvas，错误消息附预设速览）
+ *  - 建框契约：缺省长图兜底（物料库 DEFAULT_MATERIAL_SPEC）、显式 canvas
+ *    覆盖（像素直给 > 物料库别名 > invalid_canvas，错误消息附物料 id 速览）
  *  - 帧无身份：设计根只落 role 标记 + schemaVersion + uniqueId，三元组键不写
  *  - 命名：最小空闲「营销设计 N」（去重域 = 当前页全部设计根）+ 恒新建
  *  - brief 校验：not-found / none / ambiguous 三态 + 关联设计区登记
@@ -29,6 +29,7 @@ import {
   findBriefZone
 } from '#core/tools/fork/marketing/brief'
 import { readBrief } from '#core/tools/fork/marketing/brief-edit'
+import { DEFAULT_MATERIAL_SPEC, MATERIAL_SPEC_IDS } from '#core/tools/fork/marketing/material-specs'
 import {
   MARKETING_ROLE_ROOT,
   isMarketingDesignRoot,
@@ -40,7 +41,6 @@ import {
   type SetupDesignSuccess
 } from '#core/tools/fork/marketing/setup'
 import { SETUP_TOOLS, setupDesignTool } from '#core/tools/fork/marketing/setup-tool'
-import { DEFAULT_SIZE_PRESET, SIZE_PRESET_IDS } from '#core/tools/fork/marketing/sizes'
 import { SETUP_TEXTS } from '#core/tools/fork/marketing/texts'
 import { PLACEMENT_GAP } from '#core/tools/fork/placement'
 
@@ -260,16 +260,16 @@ describe('setup_design 尺寸解析：canvas 二态（显式覆盖 / 缺省）',
     expect(fixedRoot.primaryAxisSizing).toBe('FIXED')
   })
 
-  test('非法 canvas → invalid_canvas 且无框落地（非数字宽 / 缺 x / 三段 / 空串）；消息附预设速览', () => {
+  test('非法 canvas → invalid_canvas 且无框落地（非数字宽 / 缺 x / 三段 / 空串）；消息附物料速览', () => {
     const { graph, figma, run } = setupPage()
     const before = expectDefined(graph.getNode(figma.currentPage.id)).childIds.length
     for (const bad of ['abc', '750', '750x2000x3', '']) {
       const failure = err(run({ canvas: bad }), 'invalid_canvas')
-      expect(failure.message).toBe(SETUP_TEXTS.invalidCanvas(bad, SIZE_PRESET_IDS.join(', ')))
+      expect(failure.message).toBe(SETUP_TEXTS.invalidCanvas(bad, MATERIAL_SPEC_IDS.join(', ')))
     }
-    // 预设速览 = agent 自愈锚点（id 列表一行流，尺寸库单源）
+    // 物料速览 = agent 自愈锚点（id 列表一行流，物料库单源）
     const unknown = err(run({ canvas: 'myspace' }), 'invalid_canvas')
-    expect(unknown.message).toContain('Presets:')
+    expect(unknown.message).toContain('Materials:')
     expect(unknown.message).toContain('long-image')
     expect(unknown.message).toContain('ig-square')
     expect(expectDefined(graph.getNode(figma.currentPage.id)).childIds.length).toBe(before)
@@ -277,8 +277,8 @@ describe('setup_design 尺寸解析：canvas 二态（显式覆盖 / 缺省）',
   })
 })
 
-describe('setup_design 尺寸解析：canvas 接平台尺寸库（像素直给 > 库别名 > invalid_canvas）', () => {
-  test('库别名命中：id / CJK 俗名 / 比例俗名 → 预设尺寸落框', () => {
+describe('setup_design 尺寸解析：canvas 接物料规格库（像素直给 > 库别名 > invalid_canvas）', () => {
+  test('库别名命中：id / CJK 俗名 / 比例俗名 → 物料尺寸落框', () => {
     const { graph, run } = setupPage()
     const square = ok(run({ canvas: 'ig-square' }))
     expect(square.size).toEqual({ width: 1080, height: 1080 })
@@ -308,13 +308,45 @@ describe('setup_design 尺寸解析：canvas 接平台尺寸库（像素直给 >
     expect(freeHug.size).toEqual({ width: 640, height: null })
   })
 
-  test('缺省 = DEFAULT_SIZE_PRESET 兜底条目（引用库常量，非字面量 750）', () => {
+  test('缺省 = DEFAULT_MATERIAL_SPEC 兜底条目（引用库常量，非字面量 750）', () => {
     const { run } = setupPage()
     const result = ok(run())
     expect(result.size).toEqual({
-      width: DEFAULT_SIZE_PRESET.width,
-      height: DEFAULT_SIZE_PRESET.height
+      width: DEFAULT_MATERIAL_SPEC.width,
+      height: DEFAULT_MATERIAL_SPEC.height
     })
+  })
+})
+
+describe('setup_design 命中物料回执：notes just-in-time 投递', () => {
+  test('命中带 notes 的物料（公众号封面）→ 成功 message 追加一行平台要点', () => {
+    const { run } = setupPage()
+    const result = ok(run({ canvas: 'wechat-cover' }))
+    // 命中带 notes → 追加「平台要点：{notes}」行
+    expect(result.message).toContain(SETUP_TEXTS.workspaceCreated().split('\n')[0])
+    expect(result.message).toContain('平台要点：')
+    expect(result.message).toContain('383')
+  })
+
+  test('命中无 notes 的物料（演示页 16:9）→ 成功 message 不追加平台要点行', () => {
+    const { run } = setupPage()
+    const result = ok(run({ canvas: 'slides-16x9' }))
+    expect(result.message).toBe(SETUP_TEXTS.workspaceCreated())
+    expect(result.message).not.toContain('平台要点：')
+  })
+
+  test('像素直给 → 不追加 notes（即使有同尺寸库条目带 notes）', () => {
+    const { run } = setupPage()
+    const result = ok(run({ canvas: '900x383' }))
+    expect(result.message).toBe(SETUP_TEXTS.workspaceCreated())
+    expect(result.message).not.toContain('平台要点：')
+  })
+
+  test('缺省（不传 canvas）→ 不追加 notes', () => {
+    const { run } = setupPage()
+    const result = ok(run())
+    expect(result.message).toBe(SETUP_TEXTS.workspaceCreated())
+    expect(result.message).not.toContain('平台要点：')
   })
 })
 

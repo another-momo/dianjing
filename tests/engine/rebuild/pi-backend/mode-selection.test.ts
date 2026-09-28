@@ -12,6 +12,8 @@
  *  - echo 真源接线：syncPiChipEchoFromPageState 归一（modeId null → general
  *    缺省链兜底；state null → 缺省）；refreshPiChipEcho GET 成功刷新 /
  *    不可达保持现状（globalThis.fetch 桩，pending-decision.test.ts 先例）。
+ *  - 物料暂存 piPendingMaterial：toggle / 覆盖 / 显式清 + buildPiMaterialPrefix
+ *    序列化（zh 全角 / en 半角 / HUG 流高文案 / `\n\n` 隔行 / 未 armed 空串）。
  *
  * ChatPanel 接线面（toast + restoreDraft + return 不发送）属装配层，不在
  * 本文件覆盖（repo 测试纪律：装配缝配装配面）。
@@ -19,16 +21,22 @@
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 
+import type { MaterialSpec } from '@open-pencil/core/tools/fork/marketing/material-specs'
+
 import {
   PI_DEFAULT_MODE_ID,
   applyPiChipEcho,
+  buildPiMaterialPrefix,
+  clearPiPendingMaterial,
   clearPiPendingNewIntent,
   materializePiPendingIntent,
   piChipEcho,
   piChipSelection,
+  piPendingMaterial,
   piPendingNewIntent,
   refreshPiChipEcho,
   setPiChipSelection,
+  setPiPendingMaterial,
   syncPiChipEchoFromPageState,
   type PiIntentConfirmPoster
 } from '@/app/ai/pi-backend/mode-selection'
@@ -36,6 +44,7 @@ import {
 /** 模块级 ref 跨用例共享——每例归位（暂存清空 + 回显回落缺省） */
 beforeEach(() => {
   clearPiPendingNewIntent()
+  clearPiPendingMaterial()
   applyPiChipEcho({ modeId: PI_DEFAULT_MODE_ID, profileId: null })
 })
 
@@ -171,5 +180,98 @@ describe('refreshPiChipEcho（GET page-state → echo）', () => {
     stubFetch(() => jsonResponse(502, {}))
     await refreshPiChipEcho('doc-uuid-1')
     expect(piChipEcho.value).toEqual({ modeId: 'marketing', profileId: 'p-4' })
+  })
+})
+
+describe('物料暂存 piPendingMaterial（toggle / 显式清 / buildPiMaterialPrefix）', () => {
+  const storySpec: MaterialSpec = {
+    id: 'story-9x16',
+    label: '全屏竖屏',
+    aliases: ['story'],
+    width: 1080,
+    height: 1920
+  }
+  const longImageSpec: MaterialSpec = {
+    id: 'long-image',
+    label: '长图',
+    aliases: ['长图', 'long image'],
+    width: 750,
+    height: null
+  }
+
+  test('未武装 → buildPiMaterialPrefix 返回空串', () => {
+    expect(piPendingMaterial.value).toBeNull()
+    expect(
+      buildPiMaterialPrefix({ prefix: 'Material: {label} ({width}x{height})', heightFlow: 'flow' })
+    ).toBe('')
+  })
+
+  test('setPiPendingMaterial 武装 → piPendingMaterial 持有该 spec', () => {
+    setPiPendingMaterial(storySpec)
+    expect(piPendingMaterial.value).toEqual(storySpec)
+  })
+
+  test('setPiPendingMaterial 同 id 再点 = 清空（toggle 语义）', () => {
+    setPiPendingMaterial(storySpec)
+    expect(piPendingMaterial.value).not.toBeNull()
+    setPiPendingMaterial(storySpec)
+    expect(piPendingMaterial.value).toBeNull()
+  })
+
+  test('setPiPendingMaterial 不同 id 覆盖', () => {
+    setPiPendingMaterial(storySpec)
+    setPiPendingMaterial(longImageSpec)
+    expect(piPendingMaterial.value?.id).toBe('long-image')
+  })
+
+  test('clearPiPendingMaterial 显式清空', () => {
+    setPiPendingMaterial(storySpec)
+    expect(piPendingMaterial.value).not.toBeNull()
+    clearPiPendingMaterial()
+    expect(piPendingMaterial.value).toBeNull()
+  })
+
+  test('buildPiMaterialPrefix 武装定高物料（zh 模板：全角括号、× 乘号）', () => {
+    setPiPendingMaterial(storySpec)
+    const prefix = buildPiMaterialPrefix({
+      prefix: '物料：{label}（{width}×{height}）',
+      heightFlow: '流高'
+    })
+    expect(prefix).toBe('物料：全屏竖屏（1080×1920）\n\n')
+  })
+
+  test('buildPiMaterialPrefix 武装 HUG 物料 → 高度走流高文案', () => {
+    setPiPendingMaterial(longImageSpec)
+    const prefix = buildPiMaterialPrefix({
+      prefix: '物料：{label}（{width}×{height}）',
+      heightFlow: '流高'
+    })
+    expect(prefix).toBe('物料：长图（750×流高）\n\n')
+  })
+
+  test('buildPiMaterialPrefix en 模板（半角括号、x 乘号）', () => {
+    setPiPendingMaterial(storySpec)
+    const prefix = buildPiMaterialPrefix({
+      prefix: 'Material: {label} ({width}x{height})',
+      heightFlow: 'flow'
+    })
+    expect(prefix).toBe('Material: 全屏竖屏 (1080x1920)\n\n')
+  })
+
+  test('buildPiMaterialPrefix 前缀含 \n\n 与消息正文隔行（agent 看到 hint + 正文）', () => {
+    setPiPendingMaterial(storySpec)
+    const prefix = buildPiMaterialPrefix({
+      prefix: 'M: {label} ({width}x{height})',
+      heightFlow: 'flow'
+    })
+    expect(prefix.endsWith('\n\n')).toBe(true)
+  })
+
+  test('文档切换：clearPiPendingMaterial 调用 → armed 清空（与意图暂存同口径）', () => {
+    setPiPendingMaterial(storySpec)
+    expect(piPendingMaterial.value).not.toBeNull()
+    // ChatPanel handleDocSwitched 内调用 clearPiPendingMaterial
+    clearPiPendingMaterial()
+    expect(piPendingMaterial.value).toBeNull()
   })
 })
