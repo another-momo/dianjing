@@ -39,8 +39,11 @@ const zhCN = {
     chipsRetry: '重试',
     chipsCaptureSelection: '引用画布选区',
     chipsCaptureEmpty: '画布上还没有选中节点',
-    // 物料排批：物料排 section 标签 + 武装时拼到消息头的前缀模板（全角括号与 ×）
+    // 物料选择器：dropdown trigger 标签 + 「智能」项 + 智能项副行（默认 = 交给 AI）
     chipsMaterialLabel: '物料',
+    chipsMaterialSmart: '智能',
+    chipsMaterialSmartHint: '交给 AI 按需求决定',
+    // 武装时拼到消息头的前缀模板（全角括号与 ×）+ HUG 流高高度文案
     chipsMaterialRowPrefix: '物料：{label}（{width}×{height}）',
     chipsMaterialHeightFlow: '流高',
     // T89：skill dropdown trigger + 搜索占位 + 空匹配提示
@@ -95,12 +98,8 @@ const zhCN = {
   },
   panels: {
     contextTriggerLabel: '画布状态',
-    contextTriggerDesignLabel: '正在设计：',
-    contextTriggerDesignEmpty: '待新建',
     contextTriggerBriefsLabel: '需求单：',
     contextTriggerBriefsEmpty: '无',
-    designsSection: '设计区',
-    designsEmpty: '当前页还没有设计区——选好模式 / 风格后发送消息即可新建。',
     briefsSection: '本页需求单',
     briefListEmpty: '当前页还没有需求单。',
     briefNew: '新建需求单',
@@ -108,6 +107,7 @@ const zhCN = {
     briefCreate: '创建',
     briefCreateCancel: '取消',
     briefCreateFailed: '新建需求单失败。',
+    briefAmbiguousHint: '当前页已有多份需求单——请从列表选择要编辑的一份。',
     briefDirtyHint: '有未保存的需求单修改。',
     briefDiscardClose: '丢弃并关闭',
     briefKeepEditing: '继续编辑',

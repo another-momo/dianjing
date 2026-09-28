@@ -1,24 +1,21 @@
 <script setup lang="ts">
 /**
- * T65（决策 B1/B2）：画布工作状态面板三合一——当前设计显示 + 设计区列表 +
- * 需求单面板合一，挂在 ChatPanel header（会话下拉旁边）。
+ * T65（决策 B1/B2）：画布工作状态面板——需求单入口，挂在 ChatPanel header
+ * （会话下拉旁边）。
  *
- *  - trigger 按钮 = 双段式状态文案（T66 决策①）：「正在设计：<设计名> |
- *    需求单：<N>」，空值 text-muted 弱色——状态可见性与入口合一。
- *    2026-09-27 单槽退役：当前设计段回落缺省态（恒空）——当前施工面的
- *    权威显示是落点拦截门 + 状态行。2026-09-27 意图确认卡退役：在途意向
- *    显示锚（piInFlightIntent）随发送即物化摘除——chip 武装态直写
- *    page-state，无窗口期可显示；本段维持恒空，回显接线归 chips。
+ *  - trigger = 单段式「需求单：N」（T66 决策① 原设计段随单槽退役恒空；
+ *    2026-09-28 chat-ui-consolidation 收敛——设计区语义已死，trigger
+ *    只承载需求单段，图标换书本与 popover 需求单节一致）。
  *  - 需求单计数口径 = 当前页（拍板⑩沿用 T65 D4；scanCurrentPageBriefs 即面板
  *    列表同一口径），sceneVersion watcher 保持新鲜（locus 同范式）。
- *  - popover 内分节不分 tab：①设计区列表（点击条目 = 定位）②需求单列表 +
- *    新建入口。2026-09-27 单槽退役：「设为当前」切换与「正在设计」徽标摘除
- *    ——落点写通道 = 落点拦截门，画布点选不再是改址手段。
- *  - 需求单详情编辑迁出 popover（T66 决策②）：点击条目 → ChatBriefDialog
- *    独立大面板（素材四能力在那）；popover 不再内嵌详情视图。
+ *  - popover 内单节：需求单列表 + 新建入口。详情编辑迁出 popover（T66 决策②）：
+ *    点击条目 → ChatBriefDialog 独立大面板（素材四能力在那）；popover 不再
+ *    内嵌详情视图。
  *  - 「+ 新建需求单」（T79 U1 推翻 T65 D1）：单按钮 → 桥直调
- *    createBriefOnPage('') 落空 brief → 自动打开 ChatBriefDialog；面板不再
- *    内联内容编辑，无取消/创建双按钮，dirty 守卫随之删除。
+ *    createBriefOnPage('') 落空 brief → 自动打开 ChatBriefDialog。
+ *  - 新建歧义对齐（2026-09-28 chat-ui-consolidation）：当页已多份 brief 时
+ *    点击新建 = 提示从列表选择而非新建第 N+1 份（避免歧义）；当页仅一份
+ *    时点击 = 直开该 brief 的 dialog（用户意图明显是编辑现有而非新建）。
  *  - 列表条目展示 T79 S1 B：name + 内容预览（截首 40 字符；空 brief 隐藏）。
  *
  * 面板纪律（沿 T61）：零自有事实源——打开/保存后重读画布；编辑写回走 core
@@ -26,8 +23,6 @@
  */
 import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
 import { ref, watch } from 'vue'
-
-import type { MarketingDesignRef } from '@open-pencil/core/tools/fork/marketing/setup'
 
 import { getActiveEditorStoreOrNull, useActiveEditorStoreRef } from '@/app/editor/active-store'
 import { useForkPanels } from '@/app/i18n/fork'
@@ -39,7 +34,6 @@ import {
   createBriefOnPage,
   openBriefDialog,
   scanCurrentPageBriefs,
-  scanCurrentPageDesigns,
   type BriefListEntry
 } from './active-design'
 
@@ -49,25 +43,7 @@ const panelsText = useForkPanels()
 const cls = usePopoverUI({ content: 'isolate z-[51] w-80 p-3' })
 const open = ref(false)
 
-// ── ① 设计区列表（当前页；点击 = 定位） ─────────────────────────────────────
-
-const designs = ref<MarketingDesignRef[]>([])
-
-function rescanDesigns() {
-  const store = getActiveEditorStoreOrNull()
-  designs.value = store ? scanCurrentPageDesigns(store) : []
-}
-
-/** 点击条目 = 打开定位 */
-function locateDesign(design: MarketingDesignRef) {
-  const store = getActiveEditorStoreOrNull()
-  if (!store) return
-  store.select([design.rootId])
-  store.zoomToSelection()
-  open.value = false
-}
-
-// ── ② 需求单列表（当前页）+ 新建；详情编辑在 ChatBriefDialog（T66 决策②） ──
+// ── 需求单列表（当前页）+ 新建；详情编辑在 ChatBriefDialog（T66 决策②） ──
 
 const briefs = ref<BriefListEntry[]>([])
 
@@ -77,8 +53,9 @@ function rescanBriefs() {
 }
 
 /**
- * trigger 双段式的需求单计数（T66 决策①）：与面板列表同口径（当前页，
- * scanCurrentPageBriefs）；sceneVersion watcher 保新鲜——图变更即重扫。
+ * trigger 单段式需求单计数（T66 决策①；2026-09-27 设计段收敛）：与面板列表
+ * 同口径（当前页，scanCurrentPageBriefs）；sceneVersion watcher 保新鲜——
+ * 图变更即重扫。
  */
 const briefCount = ref(0)
 const activeStoreRef = useActiveEditorStoreRef()
@@ -104,6 +81,12 @@ watch(
 // 新建需求单（T79 U1 推翻 T65 D1）：单「+ 新建」按钮 → createBriefOnPage('') 立
 // 即落画布空 brief（ContentExample 占位）→ 自动打开 ChatBriefDialog 让用户在
 // dialog 内编辑内容/素材；不再有 popover 内联 textarea + 取消/创建 双按钮。
+//
+// 2026-09-27 chat-ui-consolidation 歧义对齐：
+//  - 当页仅一份 brief → 点击新建 = 直开该 brief 的 dialog（用户意图是编辑
+//    现有，不再造新 brief）。
+//  - 当页 ≥ 2 份 brief → 提示从列表选择，避免歧义与重复创建。
+//  - 当页无 brief → 维持原行为（新建 + 开 dialog）。
 
 const creatingBusy = ref(false)
 
@@ -111,6 +94,17 @@ async function startCreate() {
   if (creatingBusy.value) return
   const store = getActiveEditorStoreOrNull()
   if (!store) return
+  rescanBriefs()
+  const knownBriefs = briefs.value
+  if (knownBriefs.length === 1) {
+    open.value = false
+    openBriefDialog(knownBriefs[0].briefId)
+    return
+  }
+  if (knownBriefs.length > 1) {
+    toast.info(panelsText.value.briefAmbiguousHint)
+    return
+  }
   creatingBusy.value = true
   try {
     const briefId = await createBriefOnPage(store, '')
@@ -133,10 +127,7 @@ function openBriefDetail(briefId: string) {
 
 function handleOpen(value: boolean) {
   open.value = value
-  if (value) {
-    rescanDesigns()
-    rescanBriefs()
-  }
+  if (value) rescanBriefs()
 }
 </script>
 
@@ -151,15 +142,8 @@ function handleOpen(value: boolean) {
           base: 'flex max-w-80 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] hover:bg-hover'
         }"
       >
-        <icon-lucide-pin class="size-3 shrink-0" />
-        <!-- T66 决策①双段式：「当前设计区：X | 需求单：N」；空值 text-muted 弱色。
-             2026-09-27 意图确认卡退役：在途意向显示锚摘除，设计段恒空（权威
-             施工面显示 = 落点拦截门 + 状态行） -->
-        <span class="min-w-0 truncate" data-test-id="chat-context-trigger-design">
-          <span class="text-muted">{{ panelsText.contextTriggerDesignLabel }}</span>
-          <span class="text-muted">{{ panelsText.contextTriggerDesignEmpty }}</span>
-        </span>
-        <span class="shrink-0 text-muted">|</span>
+        <icon-lucide-book-open class="size-3 shrink-0" />
+        <!-- T66 决策① 单段式「需求单：N」；空值 text-muted 弱色 -->
         <span class="shrink-0" data-test-id="chat-context-trigger-briefs">
           <span class="text-muted">{{ panelsText.contextTriggerBriefsLabel }}</span>
           <template v-if="briefCount > 0">{{ briefCount }}</template>
@@ -171,34 +155,8 @@ function handleOpen(value: boolean) {
     <PopoverPortal>
       <PopoverContent side="bottom" align="start" :side-offset="6" :class="cls.content">
         <div data-test-id="chat-context-panel" class="max-h-[70vh] space-y-3 overflow-y-auto">
-          <!-- ① 设计区列表（当前页；点击 = 定位） -->
+          <!-- 需求单列表（当前页）+ 新建入口；条目点击 → ChatBriefDialog（T66） -->
           <div class="space-y-1">
-            <div class="flex items-center gap-2">
-              <icon-lucide-layout-grid class="size-3.5 shrink-0 text-accent" />
-              <span class="text-[12px] font-medium text-surface">{{
-                panelsText.designsSection
-              }}</span>
-            </div>
-
-            <div v-if="designs.length === 0" class="text-[11px] text-muted">
-              {{ panelsText.designsEmpty }}
-            </div>
-
-            <div
-              v-for="design in designs"
-              :key="design.rootId"
-              class="rounded-md border border-border bg-canvas px-2 py-1.5 transition-colors"
-              :data-test-id="`chat-design-item`"
-              :data-design-node-id="design.rootId"
-            >
-              <button type="button" class="block w-full text-left" @click="locateDesign(design)">
-                <span class="min-w-0 truncate text-[11px] text-surface">{{ design.name }}</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- ② 需求单列表（当前页）+ 新建入口；条目点击 → ChatBriefDialog（T66） -->
-          <div class="space-y-1 border-t border-border pt-3">
             <div class="flex items-center gap-2">
               <icon-lucide-book-open class="size-3.5 shrink-0 text-accent" />
               <span class="min-w-0 flex-1 text-[12px] font-medium text-surface">{{

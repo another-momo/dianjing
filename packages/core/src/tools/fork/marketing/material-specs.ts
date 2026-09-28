@@ -6,7 +6,7 @@
  * 消费面：
  *  - setup_design 的 canvas 参数解析（像素直给 > 库别名命中 > invalid_canvas）
  *    与缺省兜底（DEFAULT_MATERIAL_SPEC）；
- *  - 前端 chips 物料排（ChatMaterialChips）直引本表展示可点选物料。
+ *  - 前端物料选择器（ChatMaterialSelect dropdown）直引本表展示可点选物料。
  *
  * notes 准入原则：只填平台硬约束（安全区 / 必备要素 / 拒审规则），人话
  * 一句写完；审美建议（字号 / 配色 / 构图）一律不进——审美归 workflow 与

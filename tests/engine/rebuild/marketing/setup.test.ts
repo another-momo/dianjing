@@ -63,7 +63,7 @@ function err(result: SetupDesignResult, code: SetupDesignErrorCode): SetupDesign
 function setupPage() {
   const { graph, figma } = setupToolTest()
   const brief = createBrief(figma)
-  const run = (args: { briefId?: string; canvas?: string }) =>
+  const run = (args: { briefId?: string; canvas?: string } = {}) =>
     setupDesign(figma, { briefId: brief.id, ...args })
   return { graph, figma, brief, run }
 }

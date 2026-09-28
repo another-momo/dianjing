@@ -338,7 +338,15 @@ async function postSendLocusWrite(postSendPut: { engagedPageId: string }): Promi
   try {
     const store = getActiveEditorStore()
     const docUuid = ensurePiDocUuid(store)
-    await putLocusEngagedPage({ docUuid, engagedPageId: postSendPut.engagedPageId })
+    const put = await putLocusEngagedPage({ docUuid, engagedPageId: postSendPut.engagedPageId })
+    if (put.kind === 'ok') {
+      // 与 GET / silent-init 路径同律维护全局落点状态——缺这一步则首发后
+      // 状态行静默缺席，要等下一次 preflight GET 才冒出来
+      setEngagedPage({
+        id: postSendPut.engagedPageId,
+        name: getEngagedPageName(postSendPut.engagedPageId)
+      })
+    }
   } catch (error) {
     // 发送已成功，PUT 失败只意味着下次发消息触发拦截门再次确认——warn 留痕不阻断
     console.warn('[locus] 发送后落点回写失败', error)

@@ -6,8 +6,12 @@
  *  - 常态化：显示当前落点页名（状态行常驻，不空时才显示）。
  *  - 进行中且落点页 ≠ 视图页：呼吸徽标 + 「正在第X页施工 · 跳转」链接
  *    （点击 = switchPage(engagedPageId) 把视图同步到落点页）。
- *  - 被动入口：当前页 ≠ 落点页时常驻显示「以当前页为施工页」按钮
+ *  - 被动入口：当前页 ≠ 落点页时常驻显示「以当前页为施工页」链接
  *    （点击 = 确认切到当前页，PUT engaged=current）。
+ *
+ * 渲染位置 = header 行内嵌（ChatPanel session bar），非独立行——根 div 无
+ * 外缘 padding（避免双重 padding），被动入口与跳转同款文本链样式，统一
+ * header 内嵌件语言。
  *
  * 显式 emit，不直接走 fetch / store — ChatPanel 装订本组件时三 handler
  * 齐备；本组件只在 props 输入下做派生渲染。
@@ -71,7 +75,7 @@ function handleSetCurrent() {
   <div
     v-if="showLocusName || showRunBuilding || showSetCurrentButton"
     data-test-id="locus-status-row"
-    class="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1 text-[11px] text-muted"
+    class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted"
   >
     <!-- 常态化：当前落点页名（run 不在途 + 视图同步到落点页时显示） -->
     <span
@@ -102,13 +106,13 @@ function handleSetCurrent() {
       </button>
     </span>
 
-    <!-- 被动入口：当前页 ≠ 落点页时常驻显示 -->
+    <!-- 被动入口：当前页 ≠ 落点页时常驻显示；与跳转同款文本链样式（header 内嵌件统一语言） -->
     <button
       v-if="showSetCurrentButton"
       type="button"
       :disabled="disabled"
       data-test-id="locus-status-set-current"
-      class="rounded border border-border px-2 py-0.5 text-[11px] text-surface hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+      class="rounded px-1 text-[11px] text-accent underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-60"
       @click="handleSetCurrent"
     >
       {{ locusText.locusSetCurrentPage({ page: state.viewPageName }) }}

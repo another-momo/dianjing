@@ -14,7 +14,8 @@
  *    ChatPanel actuallySend 开头经 postIntentConfirm 直写 page-state，
  *    不拦截、不弹卡、不产生归档 part；postIntentConfirm 保留为写通道。
  *  - 面板读画布通路：makeFigmaFromStore seam（automation/bridge）+ core
- *    scanMarketingDesigns / brief-edit 读写原语。
+ *    brief-edit 读写原语（设计区列表段随单槽退役摘除——不再消费
+ *    scanMarketingDesigns）。
  */
 
 import { ref } from 'vue'
@@ -25,7 +26,6 @@ import {
   BRIEF_ESTIMATED_HEIGHT,
   BRIEF_WIDTH,
   addBriefMaterialEntry,
-  briefBoundDesignIds,
   createBrief,
   isBrief
 } from '@open-pencil/core/tools/fork/marketing/brief'
@@ -36,8 +36,6 @@ import {
   updateMaterialCaption
 } from '@open-pencil/core/tools/fork/marketing/brief-edit'
 import type { BriefView } from '@open-pencil/core/tools/fork/marketing/brief-edit'
-import { scanMarketingDesigns } from '@open-pencil/core/tools/fork/marketing/setup'
-import type { MarketingDesignRef } from '@open-pencil/core/tools/fork/marketing/setup'
 import { findPlacementPosition } from '@open-pencil/core/tools/fork/placement'
 
 import { makeFigmaFromStore } from '@/app/bridge/figma-factory'
@@ -71,16 +69,9 @@ export async function postIntentConfirm(args: {
 
 // ── 面板读画布通路 ───────────────────────────────────────────────────────────
 
-/** 设计列表面板：扫描当前页营销设计区（core scanMarketingDesigns 复用） */
-export function scanCurrentPageDesigns(store: EditorStore): MarketingDesignRef[] {
-  return scanMarketingDesigns(makeFigmaFromStore(store))
-}
-
 export interface BriefListEntry {
   briefId: string
   name: string
-  /** 读穿比较得出（不存储）：本 brief 绑定条目含 active 设计 */
-  boundDesignIds: string[]
   /** T79 S1 B：brief 内容预览（截取首 ~40 字符，含内容 placeholder 时为空） */
   contentPreview?: string
 }
@@ -111,11 +102,10 @@ export function scanCurrentPageBriefs(store: EditorStore): BriefListEntry[] {
       briefs.push({
         briefId: node.id,
         name: node.name,
-        boundDesignIds: briefBoundDesignIds(node),
         contentPreview
       })
     }
-    // brief 内部递归无害（结构内不会再嵌 brief；同 core scanMarketingDesigns 先例）
+    // brief 内部递归无害（结构内不会再嵌 brief；扫描不递归下钻）
     return undefined
   })
   return briefs

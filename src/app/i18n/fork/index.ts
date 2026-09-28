@@ -67,11 +67,12 @@ export const forkImageGenMessages = forkI18n('imagegen', imageGenMessageDefaults
 export const forkAskMessages = forkI18n('ask', askMessageDefaults)
 
 /** T61：chips + manifest 失败条文案域（ChatModeChips）；T65：gallery 键随组件退役删除；
- *  物料排批：chips 域新增物料排 section 标签 + 武装时消息头前缀模板 + HUG 高度文案
- *  （ChatMaterialChips + buildPiMaterialPrefix） */
+ *  物料选择器（ChatMaterialSelect）：dropdown trigger 标签 + 「智能」项 + 智能项副行 +
+ *  武装时消息头前缀模板 + HUG 高度文案 + buildPiMaterialPrefix 共用前缀模板 */
 export const forkChipsMessages = forkI18n('chips', chipsMessageDefaults)
 
-/** T61→T65：画布工作状态面板文案域（ChatContextBar 三合一：目标卡 / 设计区 / 需求单） */
+/** T61→T65：画布工作状态面板文案域（ChatContextBar 收敛为需求单入口：trigger 单段式 +
+ *  popover 需求单列表 + 新建歧义对齐） */
 export const forkPanelsMessages = forkI18n('panels', panelsMessageDefaults)
 
 /** T61：确认域文案——2026-09-27 意图确认卡退役后余物化失败 toast（ChatPanel

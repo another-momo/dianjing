@@ -94,7 +94,7 @@ import {
 import { getActiveEditorStoreOrNull } from '@/app/editor/active-store'
 import { useForkChips } from '@/app/i18n/fork'
 import { openSettingsDialog } from '@/app/settings/dialog'
-import ChatMaterialChips from '@/components/assistant/ChatMaterialChips.vue'
+import ChatMaterialSelect from '@/components/assistant/ChatMaterialSelect.vue'
 import ChatModeChips from '@/components/assistant/ChatModeChips.vue'
 import ChatNodePreview from '@/components/assistant/ChatNodePreview.vue'
 import { deletionEmptiesDocument } from '@/components/assistant/delete-guard'
@@ -1183,22 +1183,16 @@ defineExpose({ restoreDraft, clearDraft })
           </div>
 
           <template #model>
-            <div class="flex min-w-0 flex-col gap-1">
-              <div class="flex min-w-0 items-center">
-                <div
-                  class="flex min-w-0 items-center gap-1 px-1.5 text-[10px] text-muted"
-                  data-test-id="chat-pi-model-label"
-                >
-                  <icon-lucide-bot class="size-3 shrink-0" />
-                  <span class="truncate">{{ piModelLabel }}</span>
-                  <ChatModeChips :disabled="isStreaming" />
-                </div>
+            <div class="flex min-w-0 items-center">
+              <div
+                class="flex min-w-0 items-center gap-1 px-1.5 text-[10px] text-muted"
+                data-test-id="chat-pi-model-label"
+              >
+                <icon-lucide-bot class="size-3 shrink-0" />
+                <span class="truncate">{{ piModelLabel }}</span>
+                <ChatModeChips :disabled="isStreaming" />
+                <ChatMaterialSelect :disabled="isStreaming" />
               </div>
-              <!-- 物料排批：横向 chip 行（紧贴 model 行下方）；点选即 armed，
-                   发送时 ChatPanel buildPiMaterialPrefix 在消息头拼物料提示行。
-                   overflow-x-auto 让物料超宽可滚——14 条物料横向标准宽度
-                   放不下，但不换行（与正交 mode/profile 设计风格一致）。 -->
-              <ChatMaterialChips :disabled="isStreaming" class="px-1.5" />
             </div>
           </template>
 

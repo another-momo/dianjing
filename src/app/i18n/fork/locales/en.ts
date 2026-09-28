@@ -161,10 +161,10 @@ export const askMessageDefaults = {
  * T70：chipsCaptureSelection / chipsCaptureEmpty——「引用画布选区」按钮 +
  * 空选区轻提示（ChatInput attachment 槽；空选区不产生 token）。
  * chipsPendingTip：pending 意向的变色 chip 锚点 Tip 全文（badge 已退役）。
- * 物料排批：chipsMaterialLabel / chipsMaterialRowPrefix /
- * chipsMaterialHeightFlow — 输入框下方「Material」chip 排的 section
- * 标签 + 消息头前缀模板（{label}/{width}/{height} 三占位符）+ HUG 流高
- * 高度文案。
+ * 物料选择器：chipsMaterialLabel / chipsMaterialSmart / chipsMaterialSmartHint /
+ * chipsMaterialRowPrefix / chipsMaterialHeightFlow——dropdown trigger 标签
+ * + 「智能」项 + 智能项副行 + 武装时消息头前缀模板（{label}/{width}/{height}
+ * 三占位符）+ HUG 流高高度文案（ChatMaterialSelect + buildPiMaterialPrefix）。
  */
 export const chipsMessageDefaults = {
   chipsMode: 'Mode',
@@ -175,8 +175,11 @@ export const chipsMessageDefaults = {
   chipsRetry: 'Retry',
   chipsCaptureSelection: 'Reference canvas selection',
   chipsCaptureEmpty: 'Nothing selected on the canvas',
-  // 物料排批：物料排 section 标签 + 武装时拼到消息头的前缀模板（半角括号与 x）
+  // 物料选择器：dropdown trigger 标签 + 「智能」项 + 智能项副行（默认 = 交给 AI）
   chipsMaterialLabel: 'Material',
+  chipsMaterialSmart: 'Auto',
+  chipsMaterialSmartHint: 'Let AI decide from context',
+  // 武装时拼到消息头的前缀模板（半角括号与 x）+ HUG 流高高度文案
   chipsMaterialRowPrefix: 'Material: {label} ({width}x{height})',
   chipsMaterialHeightFlow: 'flow',
   // T89：skill dropdown trigger + 搜索占位 + 空匹配提示
@@ -253,16 +256,15 @@ export const agentCapabilitiesMessageDefaults = {
  * 详情编辑迁出 popover 进 ChatBriefDialog 大面板（决策②）——briefBack /
  * briefDiscardBack / briefSave 随 popover 详情视图退役，新增 dialog 素材四能力
  * 键组（上传 / 选区添加 / 删除 / 缩略图 caption）。
+ * 2026-09-28 chat-ui-consolidation：trigger 收敛为单段式「需求单：N」（设计段
+ * 随单槽退役恒空被摘）；设计区列表段随之删除——contextTriggerDesignLabel /
+ * contextTriggerDesignEmpty / designsSection / designsEmpty 键随之下游。
+ * 新增 briefAmbiguousHint——当页已多份 brief 时点击新建 = 提示从列表选择。
  */
 export const panelsMessageDefaults = {
   contextTriggerLabel: 'Canvas state',
-  contextTriggerDesignLabel: 'Designing: ',
-  contextTriggerDesignEmpty: 'Not created',
   contextTriggerBriefsLabel: 'Briefs: ',
   contextTriggerBriefsEmpty: 'None',
-  designsSection: 'Design areas',
-  designsEmpty:
-    'No design areas on this page yet — pick a mode / style and send a message to start one.',
   briefsSection: 'Briefs on this page',
   briefListEmpty: 'No briefs on this page yet.',
   briefNew: 'New brief',
@@ -270,6 +272,7 @@ export const panelsMessageDefaults = {
   briefCreate: 'Create',
   briefCreateCancel: 'Cancel',
   briefCreateFailed: 'Failed to create the brief.',
+  briefAmbiguousHint: 'Multiple briefs on this page — pick one from the list.',
   briefDirtyHint: 'Unsaved brief edits.',
   briefDiscardClose: 'Discard & close',
   briefKeepEditing: 'Keep editing',
