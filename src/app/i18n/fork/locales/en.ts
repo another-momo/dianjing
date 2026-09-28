@@ -249,30 +249,21 @@ export const agentCapabilitiesMessageDefaults = {
 } as const
 
 /**
- * T61：设计列表面板 + 需求单面板英文默认值；T65 重写：三合一为画布工作状态
- * 面板（ChatContextBar，决策 B2）——①当前目标卡 ②设计区列表 ③需求单列表。
- * 扫描统一只扫当前页（决策 D4），标题文案明示「当前页面」。
- * T66：trigger 双段式状态文案（决策①，「当前设计区：X | 需求单：N」）；
- * 详情编辑迁出 popover 进 ChatBriefDialog 大面板（决策②）——briefBack /
- * briefDiscardBack / briefSave 随 popover 详情视图退役，新增 dialog 素材四能力
- * 键组（上传 / 选区添加 / 删除 / 缩略图 caption）。
- * 2026-09-28 chat-ui-consolidation：trigger 收敛为单段式「需求单：N」（设计段
- * 随单槽退役恒空被摘）；设计区列表段随之删除——contextTriggerDesignLabel /
- * contextTriggerDesignEmpty / designsSection / designsEmpty 键随之下游。
- * 新增 briefAmbiguousHint——当页已多份 brief 时点击新建 = 提示从列表选择。
+ * T61：设计列表面板 + 需求单面板英文默认值；T65 重写为画布工作状态面板
+ * （ChatContextBar，决策 B2）；T66：详情编辑迁出 popover 进 ChatBriefDialog
+ * 大面板（决策②）。
+ * 2026-09-28 chat-ui-consolidation：设计段随单槽退役恒空被摘。
+ * 2026-09-28 chat-brief-button-relayout：一页一需求单落地为单按钮两态
+ * （新建/编辑）——trigger 计数键、popover 节标题/空态、歧义 toast 键与
+ * T79 内联创建残留键（briefNewPlaceholder/briefCreate/briefCreateCancel）
+ * 一并退役；≥2 份时 popover 列表消歧取代 toast。
  */
 export const panelsMessageDefaults = {
-  contextTriggerLabel: 'Canvas state',
-  contextTriggerBriefsLabel: 'Briefs: ',
-  contextTriggerBriefsEmpty: 'None',
-  briefsSection: 'Briefs on this page',
-  briefListEmpty: 'No briefs on this page yet.',
   briefNew: 'New brief',
-  briefNewPlaceholder: 'Requirement content (optional)…',
-  briefCreate: 'Create',
-  briefCreateCancel: 'Cancel',
+  briefEdit: 'Edit brief',
+  briefDisambiguateHint:
+    'One brief per page — pick one to edit, and delete the extras on the canvas.',
   briefCreateFailed: 'Failed to create the brief.',
-  briefAmbiguousHint: 'Multiple briefs on this page — pick one from the list.',
   briefDirtyHint: 'Unsaved brief edits.',
   briefDiscardClose: 'Discard & close',
   briefKeepEditing: 'Keep editing',

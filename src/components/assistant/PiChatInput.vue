@@ -94,6 +94,7 @@ import {
 import { getActiveEditorStoreOrNull } from '@/app/editor/active-store'
 import { useForkChips } from '@/app/i18n/fork'
 import { openSettingsDialog } from '@/app/settings/dialog'
+import ChatContextBar from '@/components/assistant/ChatContextBar.vue'
 import ChatMaterialSelect from '@/components/assistant/ChatMaterialSelect.vue'
 import ChatModeChips from '@/components/assistant/ChatModeChips.vue'
 import ChatNodePreview from '@/components/assistant/ChatNodePreview.vue'
@@ -994,23 +995,11 @@ defineExpose({ restoreDraft, clearDraft })
           {{ chipsText.chipsRetry }}
         </button>
       </div>
-      <!-- T89：actions 行（采集画布选区 + skill dropdown），位于输入控件上方
-           一处承载两件事。采集按钮永远渲染；skill dropdown trigger 仅在
-           capabilities.agentSkills && skills.length > 0 时渲染 -->
+      <!-- T89：actions 行（skill dropdown + 采集画布选区 + 需求单入口），位于
+           输入控件上方一处承载三件事——2026-09-28 relayout 定序 skill/选区/需求单，
+           需求单入口（ChatContextBar）自 header 迁入本行。采集按钮永远渲染；
+           skill dropdown trigger 仅在 capabilities.agentSkills && skills.length > 0 时渲染 -->
       <div class="mb-2 flex items-center gap-1" data-test-id="chat-actions-row">
-        <button
-          type="button"
-          data-test-id="chat-capture-selection"
-          :disabled="isStreaming"
-          class="flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted hover:border-accent/50 hover:text-surface disabled:cursor-not-allowed disabled:opacity-60"
-          @mousedown.prevent
-          @click="handleCaptureSelection"
-        >
-          <icon-lucide-scan class="size-3 shrink-0" />
-          <span>
-            {{ captureEmptyFlash ? chipsText.chipsCaptureEmpty : chipsText.chipsCaptureSelection }}
-          </span>
-        </button>
         <ComboboxRoot
           v-if="availableSkills.length > 0"
           v-model:open="skillComboboxOpen"
@@ -1065,6 +1054,20 @@ defineExpose({ restoreDraft, clearDraft })
             </ComboboxContent>
           </ComboboxPortal>
         </ComboboxRoot>
+        <button
+          type="button"
+          data-test-id="chat-capture-selection"
+          :disabled="isStreaming"
+          class="flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted hover:border-accent/50 hover:text-surface disabled:cursor-not-allowed disabled:opacity-60"
+          @mousedown.prevent
+          @click="handleCaptureSelection"
+        >
+          <icon-lucide-scan class="size-3 shrink-0" />
+          <span>
+            {{ captureEmptyFlash ? chipsText.chipsCaptureEmpty : chipsText.chipsCaptureSelection }}
+          </span>
+        </button>
+        <ChatContextBar :disabled="isStreaming" />
       </div>
       <form class="relative" @submit="handleSubmit">
         <div

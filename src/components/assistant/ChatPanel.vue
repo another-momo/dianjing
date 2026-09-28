@@ -64,7 +64,6 @@ import Tip from '@/components/ui/overlay/Tip.vue'
 
 import { postIntentConfirm } from './active-design'
 import ChatBriefDialog from './ChatBriefDialog.vue'
-import ChatContextBar from './ChatContextBar.vue'
 import ChatLocusGateCard from './ChatLocusGateCard.vue'
 import ChatLocusStatusRow from './ChatLocusStatusRow.vue'
 import {
@@ -938,8 +937,8 @@ function handleClearChat() {
 <template>
   <div data-test-id="chat-panel" class="flex min-w-0 flex-1 flex-col overflow-hidden select-text">
     <!-- T23 会话栏：族谱查看/切换（docId 未铸造或族为空时菜单内空态项）；
-         T65：旁挂画布工作状态面板（ChatContextBar 三合一，决策 B2——trigger =
-         当前设计名，无 active = 空槽引导） -->
+         右端（ml-auto）= Copy log / Clear 调试按钮（2026-09-28 relayout：
+         从 transcript 下方独立工具行收进 header，面板减一行更清爽）。 -->
     <div
       data-test-id="chat-session-bar"
       class="flex shrink-0 items-center gap-1 border-b border-border px-3 py-1"
@@ -1003,8 +1002,6 @@ function handleClearChat() {
         </DropdownMenuPortal>
       </DropdownMenuRoot>
 
-      <!-- T65：画布工作状态面板（三合一） -->
-      <ChatContextBar :disabled="status === 'streaming' || status === 'submitted'" />
       <!-- sl-w2-locus-gate（§7.3 感知三件套之二）：状态行——run 在途 + 落点页 ≠
            视图页时呼吸徽标 + 跳转；当前页 ≠ 落点页时常驻被动入口。 -->
       <ChatLocusStatusRow
@@ -1013,6 +1010,30 @@ function handleClearChat() {
         @jump="handleLocusJump"
         @set-current="handleLocusSetCurrent"
       />
+
+      <!-- 2026-09-28 relayout：Copy log / Clear 收进 header 右端（原 transcript
+           下方独立工具行退役，条件同原行） -->
+      <div v-if="messages.length > 0 && !dockHasDecisions" class="ml-auto flex items-center gap-1">
+        <AppTextButton
+          :ui="{
+            base: 'flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-hover'
+          }"
+          @click="handleCopyDebug"
+        >
+          <icon-lucide-clipboard-copy v-if="!debugCopied" class="size-3" />
+          <icon-lucide-check v-else class="size-3 text-green-400" />
+          {{ debugCopied ? 'Copied' : 'Copy log' }}
+        </AppTextButton>
+        <AppTextButton
+          :ui="{
+            base: 'flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-hover'
+          }"
+          @click="handleClearChat"
+        >
+          <icon-lucide-trash-2 class="size-3" />
+          Clear
+        </AppTextButton>
+      </div>
     </div>
 
     <ScrollAreaRoot class="relative min-h-0 flex-1">
@@ -1103,32 +1124,6 @@ function handleClearChat() {
         <icon-lucide-arrow-down class="size-4" />
       </IconButton>
     </ScrollAreaRoot>
-
-    <!-- Chat toolbar -->
-    <div
-      v-if="messages.length > 0 && !dockHasDecisions"
-      class="flex shrink-0 items-center gap-1 border-t border-border px-3 py-1"
-    >
-      <AppTextButton
-        :ui="{
-          base: 'flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-hover'
-        }"
-        @click="handleCopyDebug"
-      >
-        <icon-lucide-clipboard-copy v-if="!debugCopied" class="size-3" />
-        <icon-lucide-check v-else class="size-3 text-green-400" />
-        {{ debugCopied ? 'Copied' : 'Copy log' }}
-      </AppTextButton>
-      <AppTextButton
-        :ui="{
-          base: 'flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-hover'
-        }"
-        @click="handleClearChat"
-      >
-        <icon-lucide-trash-2 class="size-3" />
-        Clear
-      </AppTextButton>
-    </div>
 
     <!-- pi-model-explicit-config（§3 落地清单 1）—— 引导门：
          ready 才渲染输入框；loading / needs-setup / needs-credential 三态由派生
