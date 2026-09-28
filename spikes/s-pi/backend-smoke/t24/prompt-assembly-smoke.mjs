@@ -133,7 +133,7 @@ const REFERENCES_INDEX_SECTION = [
   '## 按需参考（load_reference 工具按需读取）',
   'path 参数 = 照抄下行行首 key（含桶前缀）',
   '- base/references/render-jsx.md —— render 工具的 JSX 语法大全（props 全集 / 布局规则 / 禁用项 / 修复纪律）——首次 render 调用前必读',
-  '- base/references/design-basics.md —— 通用设计基础（设计令牌 / 版式 / 组合原语 / 画布预设）——搭建类设计任务开工前必读'
+  '- base/references/design-basics.md —— 通用设计基础（设计令牌 / 版式 / 组合原语 / 物料规格库）——搭建类设计任务开工前必读'
 ].join('\n')
 const EMPTY_SLOT_EXPECTED = `# studio base\n${baseBody}\n\n${REFERENCES_INDEX_SECTION}`
 
