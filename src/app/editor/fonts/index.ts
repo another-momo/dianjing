@@ -77,7 +77,8 @@ export const customFontService = useLocalStorage('op-custom-service:v1', {
 customFontService.value = {
   baseURL: normalizeCustomServiceBase(customFontService.value.baseURL),
   token: customFontService.value.token,
-  enabled: customFontService.value.enabled === true
+  // 持久化 JSON 运行时不保证 boolean（手可改），读出即收编
+  enabled: Boolean(customFontService.value.enabled)
 }
 
 function legacyCatalogMigration(): void {
@@ -166,7 +167,7 @@ watch(
   (settings) => {
     const baseURL = normalizeCustomServiceBase(settings.baseURL)
     const token = settings.token
-    const enabled = settings.enabled === true
+    const enabled = Boolean(settings.enabled)
     // deep watch 每次键入都触发：归一化 (baseURL, token, enabled) 实际变化才动作
     const key = `${enabled}\u0000${baseURL}\u0000${token}`
     if (key === appliedCustomServiceKey) return
