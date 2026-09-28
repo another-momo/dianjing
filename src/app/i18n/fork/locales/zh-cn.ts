@@ -154,11 +154,14 @@ const zhCN = {
     locusGateCancel: '取消',
     // 拦截门不可达（GET/PUT fail-closed 阻塞发送）——toast 文案
     locusGateUnreachable: '施工页状态不可达，请稍后重试。',
+    // 状态行：常态化落点显示（run 不在途 + 视图同步到施工页时显示）
+    locusStatusEngaged: 'AI施工区：{page}',
     // 状态行：run 进行中 + 施工页 ≠ 视图页时的呼吸提示
     locusStatusBuilding: '正在「{page}」施工',
     locusStatusJump: '跳转过去',
-    // 状态行被动入口：当前页 ≠ 施工页时常驻显示，点击即确认切换
-    locusSetCurrentPage: '把施工页切到「{page}」',
+    // 状态行被动入口：当前页 ≠ 施工页时常驻显示，点击即确认切换（2026-09-28
+    // 浓缩为「切换」——施工页名已由同行常态文案给出，按钮不再重复）
+    locusSetCurrentPage: '切换',
     // 设置项：跟随施工页（run 起始自动切到施工页）
     locusFollowToggle: '开始施工时自动切到施工页',
     locusFollowDescription: '启用后，每次 AI 开始施工会自动把视图切到施工页。'

@@ -331,11 +331,14 @@ export const locusMessageDefaults = {
   locusGateCancel: 'Cancel',
   // 拦截门不可达（GET/PUT fail-closed 阻塞发送）——toast 文案
   locusGateUnreachable: 'Working page state is unreachable — please retry.',
+  // 状态行：常态化落点显示（run 不在途 + 视图同步到施工页时显示）
+  locusStatusEngaged: params('AI work area: {page}'),
   // 状态行：run 进行中 + 落点页 ≠ 视图页时的呼吸提示
   locusStatusBuilding: params('Working on page "{page}"'),
   locusStatusJump: 'Jump to it',
-  // 状态行被动入口：当前页 ≠ 落点页时常驻显示，点击即确认切到当前页
-  locusSetCurrentPage: params('Work on "{page}" instead'),
+  // 状态行被动入口：当前页 ≠ 落点页时常驻显示，点击即确认切到当前页（2026-09-28
+  // 浓缩为「Switch」——施工页名已由同行常态文案给出，按钮不再重复）
+  locusSetCurrentPage: 'Switch',
   // 设置项：跟随施工页
   locusFollowToggle: 'Auto-switch to working page when a run starts',
   locusFollowDescription:

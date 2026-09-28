@@ -226,12 +226,11 @@ type LocusPreflight =
 const pendingLocusGate = ref<{ view: LocusGateView; text: string } | null>(null)
 
 // sl-w2-locus-gate（§7.3）：状态行派发状态。runActive 与 engagedPageId/Name
-// 来自 locus-state 全局 ref；viewPageId/Name 来自 store（实时）。
+// 来自 locus-state 全局 ref；viewPageId 来自 store（实时）。
 const locusStatusRowState = computed(() => ({
   engagedPageId: locusStateRefs.engagedPageId.value,
   engagedPageName: locusStateRefs.engagedPageName.value,
   viewPageId: getCurrentViewPageId(),
-  viewPageName: getCurrentViewPageName(),
   runActive: locusStateRefs.runActive.value
 }))
 

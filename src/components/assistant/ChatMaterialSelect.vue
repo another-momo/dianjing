@@ -9,7 +9,8 @@
  *
  * 14 条物料来自 core material-specs，与 setup_design 同一份单源（避免
  * 重复维护导致漂移）。DropdownMenuItem 两行（主行 label + 副行尺寸+notes）
- * ——原 chip 排的悬停提示内容改由菜单副行常驻展示，无需悬停。
+ * ——原 chip 排的悬停提示内容改由菜单副行常驻展示，无需悬停。菜单高度封顶
+ * min(24rem,60vh) 溢出滚动——规格库增长后菜单不顶屏。
  */
 import {
   DropdownMenuContent,
@@ -37,7 +38,7 @@ import { menuItem, useMenuUI } from '@/components/ui/menu/menu'
 const { disabled = false } = defineProps<{ disabled?: boolean }>()
 
 const chipsText = useForkChips()
-const menuCls = useMenuUI({ content: 'min-w-44 max-w-64' })
+const menuCls = useMenuUI({ content: 'max-h-[min(24rem,60vh)] min-w-44 max-w-64 overflow-y-auto' })
 const itemCls = menuItem({ justify: 'start' })
 
 /** 当前 armed id（与逐物料项比对决定 accent 锚点）；null = 智能（未武装） */
