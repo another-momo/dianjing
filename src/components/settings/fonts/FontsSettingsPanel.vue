@@ -14,6 +14,7 @@ import type { FontFamilyOption, WebFontProviderId } from '@open-pencil/core/text
 import {
   clearDownloadedFontCache,
   cnFontsEnabled,
+  customFontService,
   disabledFontFamilies,
   downloadedFontCacheSummary,
   enabledCatalogFamilies,
@@ -23,7 +24,9 @@ import {
   localFontsEnabled,
   onlineFontsEnabled,
   predownloadFallbackFonts,
-  requestLocalFontAccess
+  requestLocalFontAccess,
+  testCustomFontService,
+  type CustomFontServiceTestReason
 } from '@/app/editor/fonts'
 import { useForkFonts } from '@/app/i18n/fork'
 import { matchFontFamilyOrDisplayName } from '@/components/font-picker/font-option-filter'
@@ -121,6 +124,37 @@ async function clearCache() {
 /** 统一批 A：回退包预下载（自 popover 迁入） */
 const fallbackBusy = ref(false)
 const fallbackStatus = ref('')
+
+/** 专属字体服务「测试连接」状态行（成功含收录数 / 失败含用户可读原因） */
+const customTestBusy = ref(false)
+const customTestStatus = ref('')
+
+function customTestReasonMessage(reason: CustomFontServiceTestReason): string {
+  const messages: Record<CustomFontServiceTestReason, string> = {
+    emptyUrl: msgs.value.fontsCustomTestEmptyUrl,
+    unauthorized: msgs.value.fontsCustomTestUnauthorized,
+    badResponse: msgs.value.fontsCustomTestBadResponse,
+    badCatalog: msgs.value.fontsCustomTestBadCatalog,
+    network: msgs.value.fontsCustomTestNetwork
+  }
+  return messages[reason]
+}
+
+async function testCustomConnection(): Promise<void> {
+  customTestBusy.value = true
+  customTestStatus.value = ''
+  try {
+    const result = await testCustomFontService({
+      baseURL: customFontService.value.baseURL,
+      token: customFontService.value.token
+    })
+    customTestStatus.value = result.ok
+      ? msgs.value.fontsCustomConnected({ count: result.count })
+      : msgs.value.fontsCustomFailed({ reason: customTestReasonMessage(result.reason) })
+  } finally {
+    customTestBusy.value = false
+  }
+}
 
 async function downloadFallbacks() {
   fallbackBusy.value = true
@@ -374,6 +408,62 @@ watch([cnFontsEnabled, onlineFontsEnabled, localFontsEnabled], async () => {
           @click="allowLocalFonts"
         >
           {{ msgs.fontsLocalAllow }}
+        </AppButton>
+      </div>
+    </div>
+
+    <!-- 专属字体服务：运行时可配置 provider，独立于在线字体库总开关（不受其门控） -->
+    <div class="flex flex-col gap-2 rounded border border-border p-2" data-test-id="fonts-custom">
+      <div class="flex items-center justify-between gap-2">
+        <div class="min-w-0">
+          <span class="text-[10px] font-medium text-surface">{{ msgs.fontsCustomTitle }}</span>
+          <p class="text-[9px] leading-relaxed text-muted">{{ msgs.fontsCustomDescription }}</p>
+        </div>
+        <AppSwitch
+          v-model="customFontService.enabled"
+          :label="msgs.fontsCustomTitle"
+          data-test-id="fonts-custom-enable"
+        />
+      </div>
+      <label class="flex items-center gap-2 text-[10px]">
+        <span class="shrink-0 text-muted">{{ msgs.fontsCustomBaseUrl }}</span>
+        <input
+          v-model="customFontService.baseURL"
+          type="text"
+          placeholder="https://fonts.example.com"
+          class="min-w-0 flex-1 rounded border border-border bg-input px-2 py-1 text-xs text-surface outline-none placeholder:text-muted"
+          data-test-id="fonts-custom-base"
+        />
+      </label>
+      <label class="flex items-center gap-2 text-[10px]">
+        <span class="shrink-0 text-muted">{{ msgs.fontsCustomToken }}</span>
+        <input
+          v-model="customFontService.token"
+          type="password"
+          autocomplete="off"
+          class="min-w-0 flex-1 rounded border border-border bg-input px-2 py-1 text-xs text-surface outline-none"
+          data-test-id="fonts-custom-token"
+        />
+      </label>
+      <div class="flex items-center justify-end gap-2">
+        <p
+          v-if="customTestStatus"
+          class="min-w-0 flex-1 text-[9px] leading-relaxed text-muted"
+          data-test-id="fonts-custom-status"
+        >
+          {{ customTestStatus }}
+        </p>
+        <AppButton
+          type="button"
+          color="neutral"
+          variant="soft"
+          size="xs"
+          class="shrink-0"
+          :disabled="customTestBusy"
+          data-test-id="fonts-custom-test"
+          @click="testCustomConnection"
+        >
+          {{ msgs.fontsCustomTest }}
         </AppButton>
       </div>
     </div>

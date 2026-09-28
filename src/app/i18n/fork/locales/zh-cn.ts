@@ -240,6 +240,7 @@ const zhCN = {
     fontsCnMasterHint: '独立开关——不受在线字体库总开关影响。',
     fontsCnOffHint: '已停用——中文网字计划的家族从列表与字体选择器中隐藏。',
     fontsUnauditedLicense: '授权：未审计（包内声明：{license}）',
+    fontsSourceCustom: '专属',
     fontsCatalogHint:
       '中文网字计划全量目录。默认关闭——启用的家族出现在字体选择器中，按字符集按需加载子集分片。',
     // 统一批 A：面板扩管提供商单独开关（自 popover 迁入）
@@ -262,7 +263,20 @@ const zhCN = {
     // 统一批 B：本地源应用级开关
     fontsLocalMaster: '系统字体',
     fontsLocalMasterHint: '允许应用枚举并加载本机已安装的字体。关闭后将系统字体视为未安装。',
-    fontsLocalOffHint: '已停用——系统字体从列表与字体选择器中隐藏；CJK 回退链也会跳过它们。'
+    fontsLocalOffHint: '已停用——系统字体从列表与字体选择器中隐藏；CJK 回退链也会跳过它们。',
+    // font-custom-service：专属字体服务区块（运行时可配置 provider，独立于在线字体库总开关）
+    fontsCustomTitle: '专属字体服务',
+    fontsCustomDescription: '连接专属的云端字体库，按需加载',
+    fontsCustomBaseUrl: '服务地址',
+    fontsCustomToken: '访问令牌',
+    fontsCustomTest: '测试连接',
+    fontsCustomConnected: '已连接，收录 {count} 款字体',
+    fontsCustomFailed: '专属字体服务连接失败：{reason}',
+    fontsCustomTestEmptyUrl: '请先填写服务地址',
+    fontsCustomTestUnauthorized: '访问被拒绝，请检查访问令牌',
+    fontsCustomTestBadResponse: '服务响应异常，请检查服务地址',
+    fontsCustomTestBadCatalog: '服务返回的目录格式异常',
+    fontsCustomTestNetwork: '网络错误，无法连接专属字体服务'
   },
   pi: {
     providersTitle: '模型提供方',

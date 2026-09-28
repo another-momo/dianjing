@@ -134,7 +134,9 @@
     "tests/engine/vue/font-picker/use-font-picker-filter.test.ts",
     "packages/core/src/memoize-async.ts",
     "tests/engine/core/memoize-async.test.ts",
-    "src/components/document/OpenDocsConflictDialog.vue"
+    "src/components/document/OpenDocsConflictDialog.vue",
+    "packages/core/src/text/font/custom-service.ts",
+    "tests/engine/text/fonts/custom-service.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -577,9 +579,9 @@
     {
       "id": "P107",
       "file": "packages/core/src/text/fonts.ts",
-      "reason": "T39 字体栈：BUNDLED_FONTS 注册 PuHuiTi 9 字重 + listFamilyOptions 枚举源改 FONT_REGISTRY（font/registry.ts）+ bundled 加载白名单拦截（isBundledFamilyAllowed）；T41：四加载门禁接入 FontFamilyAllowlist + findLocalFont VF 宽松匹配 + VF 跟踪/逐出联动 + registerFontInBrowser VF 字重区间描述符 + ensureFallbackFamilies 停用跳过 + listFamilyOptions includeDisabled（面板用不过滤枚举）；T42：cnFontsEnabled 独立开关（D-a，CDN 枚举/加载与在线 provider 解耦）+ cnFontDescriptor registry 优先 catalog 兜底 + CN_FONT_CATALOG 枚举循环 + setEnabledCatalogFamilies/enabledCatalogFamilies 委托",
+      "reason": "T39 字体栈：BUNDLED_FONTS 注册 PuHuiTi 9 字重 + listFamilyOptions 枚举源改 FONT_REGISTRY（font/registry.ts）+ bundled 加载白名单拦截（isBundledFamilyAllowed）；T41：四加载门禁接入 FontFamilyAllowlist + findLocalFont VF 宽松匹配 + VF 跟踪/逐出联动 + registerFontInBrowser VF 字重区间描述符 + ensureFallbackFamilies 停用跳过 + listFamilyOptions includeDisabled（面板用不过滤枚举）；T42：cnFontsEnabled 独立开关（D-a，CDN 枚举/加载与在线 provider 解耦）+ cnFontDescriptor registry 优先 catalog 兜底 + CN_FONT_CATALOG 枚举循环 + setEnabledCatalogFamilies/enabledCatalogFamilies 委托；font-custom-service (2026-09-28): cnFontDescriptor checks custom-service catalog entries first (raw + normalized family name, custom wins on collision) and listFamilyOptions appends custom entries (source 'custom', displayName, overwrite on name collision); L3 修正（2026-09-28）：custom 族豁免逐族白名单（isCustomOrAllowed 接 loadFont/loadLocalFont/loadCachedFont/loadRemoteFont 四门，枚举不过滤）——disabled 集合混有 web 目录默认关停同名条目会双丢撞名族；门控前确保 catalog 已拉取（文档直加载先于 picker 枚举的错源竞态）",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-30"
+      "lastReviewed": "2026-09-28"
     },
     {
       "id": "P108",
@@ -591,9 +593,9 @@
     {
       "id": "P109",
       "file": "src/app/editor/fonts/index.ts",
-      "reason": "T39 加载链修复（05 册 T1）：systemFontDataCache 会话缓存（CJK fallback 循环不再每次 IPC 拉 ~100MB）+ 浏览器 local-fonts 权限启动同步；T41：disabledFontFamilies localStorage 持久化 + fontListRevision 同步（picker 失效信号）+ listAllFamilies 不过滤枚举（面板数据源，listFamilies 仍过滤供 picker）；T42：cnFontsEnabled（op-cn-fonts-enabled）+ enabledCatalogFamilies（op-font-enabled-catalog:v1）持久化接线 + cnSwitchEpoch（CDN 开关绕过白名单 revision 的 picker 失效补偿）；T50：抽 listTauriMergedFamilies helper 消 listFamilies/listAllFamilies 间 7 行 jscpd 克隆（行为不变，2026-08-31）；2026-09-14 T40 延展：local-fonts 启动同步守卫换 hasWindowGlobal 活探",
+      "reason": "T39 加载链修复（05 册 T1）：systemFontDataCache 会话缓存（CJK fallback 循环不再每次 IPC 拉 ~100MB）+ 浏览器 local-fonts 权限启动同步；T41：disabledFontFamilies localStorage 持久化 + fontListRevision 同步（picker 失效信号）+ listAllFamilies 不过滤枚举（面板数据源，listFamilies 仍过滤供 picker）；T42：cnFontsEnabled（op-cn-fonts-enabled）+ enabledCatalogFamilies（op-font-enabled-catalog:v1）持久化接线 + cnSwitchEpoch（CDN 开关绕过白名单 revision 的 picker 失效补偿）；T50：抽 listTauriMergedFamilies helper 消 listFamilies/listAllFamilies 间 7 行 jscpd 克隆（行为不变，2026-08-31）；2026-09-14 T40 延展：local-fonts 启动同步守卫换 hasWindowGlobal 活探；font-custom-service (2026-09-28): op-custom-service:v1 storage (base normalized on read) + baseFontFetch baseline retention + deep watch wiring (scopeBearerFetch composition and setCustomFontService on normalized (baseURL, token, enabled) change) + testCustomFontService connection probe",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-14"
+      "lastReviewed": "2026-09-28"
     },
     {
       "id": "P110",
@@ -634,9 +636,9 @@
     {
       "id": "P115",
       "file": "packages/core/src/text/font/sources.ts",
-      "reason": "T40 S4：FontFamilySource 联合型加 'cdn'（中文网字计划家族枚举/加载来源标识）；T42：FontFamilyOption 加 catalog?: boolean（cn-catalog 全量目录族标识，面板分组/授权提示用）",
+      "reason": "T40 S4：FontFamilySource 联合型加 'cdn'（中文网字计划家族枚举/加载来源标识）；T42：FontFamilyOption 加 catalog?: boolean（cn-catalog 全量目录族标识，面板分组/授权提示用）；font-custom-service (2026-09-28): FontFamilySource adds 'custom' (custom font service family source) and FontFamilyOption adds displayName? (custom-service catalog display name for picker/filter display)",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-30"
+      "lastReviewed": "2026-09-28"
     },
     {
       "id": "P116",
@@ -857,9 +859,9 @@
     {
       "id": "P155",
       "file": "vite/aliases.ts",
-      "reason": "Batch 1 收口（2026-09-05）：mermaid/beautiful-mermaid 两条 stub 别名由 src/app/shell/markdown/index.ts（已删 ghost，export default undefined）改指 vite/empty-node-module.ts——同为空模块汇，语义不变；上游 v2（vue-stream-markdown 2.0.0-beta.2 无 mermaid 依赖）本无此二别名，本地 1.0.4 链 @stream-markdown/mermaid 的动态 import(\"mermaid\") 仍需汇流",
+      "reason": "Batch 1 收口（2026-09-05）：mermaid/beautiful-mermaid 两条 stub 别名由 src/app/shell/markdown/index.ts（已删 ghost，export default undefined）改指 vite/empty-node-module.ts——同为空模块汇，语义不变；上游 v2（vue-stream-markdown 2.0.0-beta.2 无 mermaid 依赖）本无此二别名，本地 1.0.4 链 @stream-markdown/mermaid 的动态 import(\"mermaid\") 仍需汇流；font-custom-service (2026-09-28): pin @open-pencil/core/text to packages/core/src/text/index.ts — bare specifier resolved via package exports to dist/text (vite optimizeDeps bundles it as a separate instance), splitting fontManager/allowlist singletons from #core/text src imports; exact alias unifies them",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-05"
+      "lastReviewed": "2026-09-28"
     },
     {
       "id": "P156",
@@ -2289,23 +2291,23 @@
     {
       "id": "P367",
       "file": "src/components/font-picker/FontPicker.vue",
-      "reason": "字体扩 scope 批 E1（2026-09-25）：#item slot 改用 cnCatalogEntry 行标签（displayName ?? family），catalog 行展示中文名但加载/启用/持久化仍键 css family",
+      "reason": "字体扩 scope 批 E1（2026-09-25）：#item slot 改用 cnCatalogEntry 行标签（displayName ?? family），catalog 行展示中文名但加载/启用/持久化仍键 css family；font-custom-service (2026-09-28): source 'custom' items render the dedicated badge label instead of the raw source id",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-25"
+      "lastReviewed": "2026-09-28"
     },
     {
       "id": "P369",
       "file": "src/app/i18n/fork/locales/en.ts",
-      "reason": "字体扩 scope 批 D+E2（2026-09-25）：fontsProvidersOptInHint 新增英文文案；fontsUnauditedLicense 词序降级为 'License: unaudited (package declares {license})'；skill 读侧管理面批 A（2026-09-25）：agentCapabilities 域增 installedSkillsTitle/Description/Empty/SourceUser/SourceBuiltin/EnabledLabel/DisabledLabel 七键（已安装 skill 列表分组文案）；skill 写侧管理面批 B（2026-09-25）：同域增 DeleteLabel/DeleteAction/ConfirmTitle/ConfirmDescription/ConfirmAction/ConfirmCancel/DeleteFailed/DiagnosticsTitle/DiagnosticParseFailed/DiagnosticNameInvalid/DiagnosticNoDescription/DiagnosticShadowedByUser 共 12 键（分层删除对话框 + 诊断块四码文案）",
+      "reason": "字体扩 scope 批 D+E2（2026-09-25）：fontsProvidersOptInHint 新增英文文案；fontsUnauditedLicense 词序降级为 'License: unaudited (package declares {license})'；skill 读侧管理面批 A（2026-09-25）：agentCapabilities 域增 installedSkillsTitle/Description/Empty/SourceUser/SourceBuiltin/EnabledLabel/DisabledLabel 七键（已安装 skill 列表分组文案）；skill 写侧管理面批 B（2026-09-25）：同域增 DeleteLabel/DeleteAction/ConfirmTitle/ConfirmDescription/ConfirmAction/ConfirmCancel/DeleteFailed/DiagnosticsTitle/DiagnosticParseFailed/DiagnosticNameInvalid/DiagnosticNoDescription/DiagnosticShadowedByUser 共 12 键（分层删除对话框 + 诊断块四码文案）；font-custom-service (2026-09-28): fontsMessageDefaults adds fontsSourceCustom + fontsCustom* block (title/description/baseUrl/token/test/connected/failed + five test reason keys)",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-25"
+      "lastReviewed": "2026-09-28"
     },
     {
       "id": "P370",
       "file": "src/app/i18n/fork/locales/zh-cn.ts",
-      "reason": "字体扩 scope 批 D+E2（2026-09-25）：fontsProvidersOptInHint 新增中文文案；fontsUnauditedLicense 词序降级为 '授权：未审计（包内声明：{license}）'；skill 读侧管理面批 A（2026-09-25）：agentCapabilities 域增 installedSkillsTitle/Description/Empty/SourceUser/SourceBuiltin/EnabledLabel/DisabledLabel 七键（已安装 skill 列表分组文案）；skill 写侧管理面批 B（2026-09-25）：同域增 DeleteLabel/DeleteAction/ConfirmTitle/ConfirmDescription/ConfirmAction/ConfirmCancel/DeleteFailed/DiagnosticsTitle/DiagnosticParseFailed/DiagnosticNameInvalid/DiagnosticNoDescription/DiagnosticShadowedByUser 共 12 键（分层删除对话框 + 诊断块四码文案）",
+      "reason": "字体扩 scope 批 D+E2（2026-09-25）：fontsProvidersOptInHint 新增中文文案；fontsUnauditedLicense 词序降级为 '授权：未审计（包内声明：{license}）'；skill 读侧管理面批 A（2026-09-25）：agentCapabilities 域增 installedSkillsTitle/Description/Empty/SourceUser/SourceBuiltin/EnabledLabel/DisabledLabel 七键（已安装 skill 列表分组文案）；skill 写侧管理面批 B（2026-09-25）：同域增 DeleteLabel/DeleteAction/ConfirmTitle/ConfirmDescription/ConfirmAction/ConfirmCancel/DeleteFailed/DiagnosticsTitle/DiagnosticParseFailed/DiagnosticNoDescription/DiagnosticShadowedByUser 共 12 键（分层删除对话框 + 诊断块四码文案）；font-custom-service (2026-09-28): fonts segment adds fontsSourceCustom + fontsCustom* block mirroring the en defaults",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-25"
+      "lastReviewed": "2026-09-28"
     },
     {
       "id": "P371",

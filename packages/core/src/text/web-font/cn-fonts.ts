@@ -353,6 +353,11 @@ export class CnFontSubsetResolver {
         }
       })()
       this.indexPromises.set(url, promise)
+      // 失败（null）不记忆，index/css/piece 三层同款：null 条目留在图里会让
+      // 「下一轮重试」零网络命中缓存的 null 永不自愈——瞬态限流/抖动须可重试
+      void promise.then((dirs) => {
+        if (dirs === null) this.indexPromises.delete(url)
+      })
     }
     return promise
   }
@@ -371,6 +376,9 @@ export class CnFontSubsetResolver {
         }
       })()
       this.pieceListPromises.set(cssURL, promise)
+      void promise.then((parsed) => {
+        if (parsed === null) this.pieceListPromises.delete(cssURL)
+      })
     }
     return promise
   }
@@ -392,6 +400,9 @@ export class CnFontSubsetResolver {
         }
       })()
       this.piecePromises.set(url, promise)
+      void promise.then((buffer) => {
+        if (buffer === null) this.piecePromises.delete(url)
+      })
     }
     return promise
   }

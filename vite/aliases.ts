@@ -40,6 +40,13 @@ export function createOpenPencilAliases(rootDir: string) {
     { find: /^@open-pencil\/vue$/, replacement: resolve(rootDir, 'packages/vue/src/index.ts') },
     { find: '@open-pencil/vue', replacement: resolve(rootDir, 'packages/vue/src') },
     { find: /^@open-pencil\/core$/, replacement: resolve(rootDir, 'packages/core/src/index.ts') },
+    // `@open-pencil/core/text` 裸 spec 会命中 package.json exports 指到 dist/text（dev 下被
+    // optimizeDeps 预打包成独立实例），与 core 内部 #core/text 互导（src）分裂成两份
+    // fontManager/allowlist 单例——字体 provider 配置与枚举错接。精确 alias 钉到 src。
+    {
+      find: /^@open-pencil\/core\/text$/,
+      replacement: resolve(rootDir, 'packages/core/src/text/index.ts')
+    },
     { find: '@open-pencil/core', replacement: resolve(rootDir, 'packages/core/src') },
     {
       find: 'opentype.js',

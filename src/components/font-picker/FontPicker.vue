@@ -12,11 +12,13 @@ import {
   localFontAccessState,
   requestLocalFontAccess
 } from '@/app/editor/fonts'
+import { useForkFonts } from '@/app/i18n/fork'
 import { matchFontFamilyOrDisplayName } from '@/components/font-picker/font-option-filter'
 import { usePopoverUI } from '@/components/ui/overlay/popover'
 import { useSelectUI } from '@/components/ui/select/select'
 
 const { panels } = useI18n()
+const forkMsgs = useForkFonts()
 const { label: labelProp } = defineProps<{ label?: string }>()
 const label = computed(() => labelProp ?? panels.value.fontFamily)
 const modelValue = defineModel<string>({ required: true })
@@ -107,7 +109,7 @@ function rowLabel(family: string, source: string): string {
         <span
           class="font-sans ml-auto shrink-0 rounded bg-input px-1.5 py-0.5 text-[9px] uppercase text-muted"
         >
-          {{ source }}
+          {{ source === 'custom' ? forkMsgs.fontsSourceCustom : source }}
         </span>
       </div>
     </template>

@@ -8,12 +8,20 @@ export interface FontInfo {
 }
 
 export type LocalFontAccessState = 'unsupported' | 'prompt' | 'granted' | 'denied'
-export type FontFamilySource = 'local' | 'bundled' | 'cdn' | 'fallback' | WebFontProviderId
+export type FontFamilySource =
+  | 'local'
+  | 'bundled'
+  | 'cdn'
+  | 'custom'
+  | 'fallback'
+  | WebFontProviderId
 export type FontLoadedSource = FontFamilySource | 'cache' | 'registered'
 
 export interface FontFamilyOption {
   family: string
   source: FontFamilySource
+  /** 专属字体服务族的自定义显示名（custom-service catalog 条目携带；展示用，family 身份不变） */
+  displayName?: string
   /** T42：中文网字计划全量目录族（cn-catalog.ts，默认停用 opt-in；区别于 registry 精选 CDN 族） */
   catalog?: boolean
 }

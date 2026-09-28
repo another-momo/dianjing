@@ -195,6 +195,56 @@ describe('CnFontSubsetResolver', () => {
     expect(newCalls.filter((url) => url.endsWith('result.css'))).toEqual([])
   })
 
+  test('transient piece failures are not memoized; the next round retries and heals', async () => {
+    const calls: string[] = []
+    let failOnce = true
+    const fetcher = async (url: string) => {
+      calls.push(url)
+      if (url.endsWith('/dist/index.json')) {
+        return new Response(JSON.stringify(['Mock-Regular']), { status: 200 })
+      }
+      if (url.endsWith('/result.css')) return new Response(FIXTURE_CSS, { status: 200 })
+      if (url.endsWith('.woff2')) {
+        // bbbb 片首轮 404（瞬态限流/抖动），次轮恢复
+        if (failOnce && url.endsWith('bbbb2222.woff2')) {
+          return new Response('nope', { status: 404 })
+        }
+        return new Response(new Uint8Array([1, 2, 3, 4]), { status: 200 })
+      }
+      return new Response('not found', { status: 404 })
+    }
+    const resolver = new CnFontSubsetResolver({ fetcher })
+    const first = await resolver.fetch('Mock Kai', descriptor, 'Regular', '你中')
+    // 你 → bbbb 片失败不记覆盖；中 → aaaa 成功
+    expect(first?.coveredCharacters.sort()).toEqual(['中'])
+
+    failOnce = false
+    const second = await resolver.fetch('Mock Kai', descriptor, 'Regular', '你中')
+    expect(second?.coveredCharacters.sort()).toEqual(['中', '你'])
+    expect(calls.filter((url) => url.endsWith('bbbb2222.woff2'))).toHaveLength(2)
+  })
+
+  test('transient index.json failure is not memoized either', async () => {
+    let indexCalls = 0
+    let fail = true
+    const fetcher = async (url: string) => {
+      if (url.endsWith('/dist/index.json')) {
+        indexCalls++
+        if (fail) return new Response('boom', { status: 500 })
+        return new Response(JSON.stringify(['Mock-Regular']), { status: 200 })
+      }
+      if (url.endsWith('/result.css')) return new Response(FIXTURE_CSS, { status: 200 })
+      if (url.endsWith('.woff2')) return new Response(new Uint8Array([1]), { status: 200 })
+      return new Response('not found', { status: 404 })
+    }
+    const resolver = new CnFontSubsetResolver({ fetcher })
+    expect(await resolver.fetch('Mock Kai', descriptor, 'Regular', '你')).toBeNull()
+    fail = false
+    const healed = await resolver.fetch('Mock Kai', descriptor, 'Regular', '你')
+    expect(healed?.coveredCharacters).toEqual(['你'])
+    expect(indexCalls).toBe(2)
+  })
+
   test('piece cache serves bytes without network', async () => {
     const store = new Map<string, ArrayBuffer>()
     const cache: CnFontPieceCache = {

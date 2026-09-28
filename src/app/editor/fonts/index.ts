@@ -6,10 +6,15 @@ import {
   DEFAULT_WEB_FONT_PROVIDER_SETTINGS,
   WEB_FONT_PROVIDER_IDS,
   collectGraphFontRequirements,
+  customServiceCatalogURL,
   fontManager,
   missingGraphFontScripts,
+  normalizeCustomServiceBase,
+  parseCustomServiceCatalog,
+  scopeBearerFetch,
   type FontFamilyOption,
   type LocalFontAccessState,
+  type WebFontFetch,
   type WebFontProviderId
 } from '@open-pencil/core/text'
 import type { SceneGraph } from '@open-pencil/scene-graph'
@@ -58,6 +63,22 @@ export const disabledFontFamilies = useLocalStorage<string[]>('op-font-disabled-
 export const enabledCatalogFamilies = useLocalStorage<string[]>('op-font-enabled-catalog:v1', [])
 export const cnFontsEnabled = useLocalStorage('op-cn-fonts-enabled', true)
 export const fontListRevision = ref(0)
+
+/**
+ * 专属字体服务（外部分发服务）配置：服务地址 + 访问令牌 + 启用开关，
+ * 独立于「在线字体服务」总开关。读出即过 normalizeCustomServiceBase——
+ * 把 catalog 全地址（…/catalog.json）粘进地址栏的历史值启动时一次性归一。
+ */
+export const customFontService = useLocalStorage('op-custom-service:v1', {
+  baseURL: '',
+  token: '',
+  enabled: false
+})
+customFontService.value = {
+  baseURL: normalizeCustomServiceBase(customFontService.value.baseURL),
+  token: customFontService.value.token,
+  enabled: customFontService.value.enabled === true
+}
 
 function legacyCatalogMigration(): void {
   const current = enabledCatalogFamilies.value
@@ -126,7 +147,42 @@ function configureTauriFontCache() {
 }
 
 configureTauriFontCache()
-if (!isTauri()) fontManager.setWebFontFetch(browserWebFontFetch)
+/**
+ * 启动基线 fetcher 原值（浏览器 = browserWebFontFetch / Tauri = tauriFetch）：
+ * 专属字体服务 watch 在其上组合 scopeBearerFetch，退栈恢复本值——
+ * 本引用不得被后续 setWebFontFetch 覆盖。
+ */
+const baseFontFetch: WebFontFetch = isTauri() ? tauriFetch : browserWebFontFetch
+if (!isTauri()) fontManager.setWebFontFetch(baseFontFetch)
+
+// 专属字体服务的直连通路：https 校验 / 8MB 响应上限 / Bearer 注入都在
+// scopeBearerFetch 内实现（browser-fetch.ts 冻结不改动），浏览器形态走全局 fetch。
+const customDirectFetch: WebFontFetch = IS_TAURI ? tauriFetch : (url, init) => fetch(url, init)
+
+let appliedCustomServiceKey: string | null = null
+
+watch(
+  customFontService,
+  (settings) => {
+    const baseURL = normalizeCustomServiceBase(settings.baseURL)
+    const token = settings.token
+    const enabled = settings.enabled === true
+    // deep watch 每次键入都触发：归一化 (baseURL, token, enabled) 实际变化才动作
+    const key = `${enabled}\u0000${baseURL}\u0000${token}`
+    if (key === appliedCustomServiceKey) return
+    appliedCustomServiceKey = key
+    if (enabled && baseURL && token) {
+      fontManager.setWebFontFetch(
+        scopeBearerFetch(baseURL, token, customDirectFetch, baseFontFetch)
+      )
+      fontManager.setCustomFontService({ baseURL, token, enabled: true })
+    } else {
+      fontManager.setWebFontFetch(baseFontFetch)
+      fontManager.setCustomFontService(null)
+    }
+  },
+  { deep: true, immediate: true }
+)
 
 // T40 S5：cn-font piece 级磁盘缓存（IndexedDB，200MB LRU；idb 缺失自动降级内存）。
 // 与 Tauri 请求级缓存并存——前者服务 CDN 子集片（URL 键），后者服务 unifont 请求。
@@ -205,6 +261,40 @@ export async function clearDownloadedFontCache(): Promise<void> {
   configureTauriFontCache()
   if (!isTauri()) return
   await clearTauriDownloadedFontCache()
+}
+
+/** 「测试连接」失败原因码（文案映射在消费端 i18n seam，禁堆栈/URL 细节） */
+export type CustomFontServiceTestReason =
+  | 'emptyUrl'
+  | 'unauthorized'
+  | 'badResponse'
+  | 'badCatalog'
+  | 'network'
+
+/**
+ * 「测试连接」探测：取 catalog.json（走 scoped fetch 通路，https/8MB/Bearer
+ * 守卫与运行时同款），成功返回目录条目数，失败返回结构化原因码。
+ */
+export async function testCustomFontService(config: {
+  baseURL: string
+  token: string
+}): Promise<{ ok: true; count: number } | { ok: false; reason: CustomFontServiceTestReason }> {
+  const baseURL = normalizeCustomServiceBase(config.baseURL)
+  if (!baseURL) return { ok: false, reason: 'emptyUrl' }
+  try {
+    const fetcher = scopeBearerFetch(baseURL, config.token, customDirectFetch, baseFontFetch)
+    const url = customServiceCatalogURL({ baseURL, token: config.token, enabled: true })
+    const response = await fetcher(url)
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, reason: 'unauthorized' }
+    }
+    if (!response.ok) return { ok: false, reason: 'badResponse' }
+    const parsed: unknown = await response.json()
+    if (!Array.isArray(parsed)) return { ok: false, reason: 'badCatalog' }
+    return { ok: true, count: parseCustomServiceCatalog(parsed).length }
+  } catch {
+    return { ok: false, reason: 'network' }
+  }
 }
 
 export async function predownloadFallbackFonts() {

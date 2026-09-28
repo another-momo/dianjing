@@ -381,6 +381,7 @@ export const fontsMessageDefaults = {
   fontsCnMasterHint: 'Independent switch — not affected by the online font libraries toggle.',
   fontsCnOffHint: 'Off — Chinese Fonts CDN families are hidden from the list and picker.',
   fontsUnauditedLicense: params('License: unaudited (package declares {license})'),
+  fontsSourceCustom: 'Custom',
   fontsCatalogHint:
     'Full Chinese Fonts CDN catalog. Off by default — enabled families appear in the picker and load subset pieces on demand.',
   // 统一批 A：面板扩管提供商单独开关（自 popover 迁入）
@@ -407,7 +408,20 @@ export const fontsMessageDefaults = {
   fontsLocalMasterHint:
     'Allow the app to enumerate and load fonts installed on this device. Turn this off to treat system fonts as not installed.',
   fontsLocalOffHint:
-    'Off — system fonts are hidden from the list and picker; CJK fallback chain will skip them.'
+    'Off — system fonts are hidden from the list and picker; CJK fallback chain will skip them.',
+  // font-custom-service：专属字体服务区块（运行时可配置 provider，独立于在线字体库总开关）
+  fontsCustomTitle: 'Custom Font Service',
+  fontsCustomDescription: 'Connect your own cloud font library, loaded on demand.',
+  fontsCustomBaseUrl: 'Service URL',
+  fontsCustomToken: 'Access token',
+  fontsCustomTest: 'Test connection',
+  fontsCustomConnected: params('Connected, {count} families available'),
+  fontsCustomFailed: params('Custom font service connection failed: {reason}'),
+  fontsCustomTestEmptyUrl: 'Enter a service URL first.',
+  fontsCustomTestUnauthorized: 'Access denied — check your access token.',
+  fontsCustomTestBadResponse: 'Unexpected service response — check the service URL.',
+  fontsCustomTestBadCatalog: 'The service returned an unexpected catalog format.',
+  fontsCustomTestNetwork: 'Network error — could not reach the custom font service.'
 } as const
 
 /** ux-polish⑤（2026-09-09）：画布工具条「添加图片」文案域（Toolbar 按钮 / useAddImage 失败 toast） */
