@@ -20,12 +20,18 @@
  *    write() 以 in-flight 消息整体 replace 末条，外部塞入的消息会被顶掉）。
  *  - 重载降级：会话内 resolved map 灭失后，由 formId（'authz-'+toolCallId）
  *    反查同消息 bash 工具 part 的终态推导出「已执行/未执行」弱化归档。
+ *
+ * 第三族未决（locus 落点拦截门）：前端自产、非 part-backed——不经
+ * collectPinnedDecisions 收集，由 ChatPanel 把 pre-send 拦截到的卡视图拼进
+ * dock（见 LocusDecisionView）。
  */
 import { getToolName, isToolUIPart } from 'ai'
 import type { UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { reactive } from 'vue'
 
 import type { BashAuthzRequest, InstallSkillAuthzRequest } from '@/app/ai/pi-backend/authz-guard'
+
+import type { LocusGateView } from './locus'
 
 /** 后端直推的未决授权请求 data part 类型（冻结契约） */
 export const AUTHZ_REQUEST_PART_TYPE = 'data-authz-request'
@@ -243,7 +249,14 @@ export interface AuthzDecisionView {
   expiredHint?: 'executed' | 'blocked' | null
 }
 
-export type PendingDecisionView = AskDecisionView | AuthzDecisionView
+/** locus 落点拦截门卡（第三族未决）——前端自产、非 part-backed：pre-send 拦截时由
+ *  ChatPanel 拼进 dock 置首，不经 collectPinnedDecisions；决断/取消即收卡，无归档。 */
+export interface LocusDecisionView {
+  kind: 'locus'
+  view: LocusGateView
+}
+
+export type PendingDecisionView = AskDecisionView | AuthzDecisionView | LocusDecisionView
 
 /**
  * pinned 未决收集（ChatPanel dock 数据源）——只喂末条 assistant 消息的 parts：

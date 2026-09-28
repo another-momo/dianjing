@@ -320,18 +320,15 @@ export const confirmMessageDefaults = {
  * 拦截门二选一（视图页与落点页不一致时）：
  *  - engaged = 现有落点页（用户可能不在该页）
  *  - view    = 当前视图页（用户发消息时所在）
- * 「留下 / 过去」为二选一按钮——拍板口径保留为产品语言，
- * 不引入内部机制词（「落点门」「施工页」）。
+ * 「留下 / 过去」为二选一按钮，另附取消（收卡不发送）——拍板口径保留为
+ * 产品语言，不引入内部机制词（「落点门」「施工页」）。
  */
 export const locusMessageDefaults = {
   locusSwitchPrompt: params('Switch the working page from "{engaged}" to "{view}"?'),
   locusSwitchStay: params('Stay on "{engaged}"'),
   locusSwitchGo: params('Switch to "{view}"'),
-  // 悬空变体：旧落点页已删 / 状态腐烂再初始化 / 落点未设置 —— 单按钮确认
-  locusOrphanPrompt: params(
-    'Working page was deleted or unset — confirm to switch it to "{view}"?'
-  ),
-  locusOrphanConfirm: 'Confirm switch',
+  // 拦截门卡取消按钮：收卡 + 草稿回填输入框（零网络动作）
+  locusGateCancel: 'Cancel',
   // 拦截门不可达（GET/PUT fail-closed 阻塞发送）——toast 文案
   locusGateUnreachable: 'Working page state is unreachable — please retry.',
   // 状态行：run 进行中 + 落点页 ≠ 视图页时的呼吸提示

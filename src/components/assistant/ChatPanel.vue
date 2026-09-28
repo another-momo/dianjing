@@ -309,12 +309,11 @@ async function applyLocusIntercept(
         postSendPut: { engagedPageId: currentPageId }
       }
     case 'gate-resolve': {
-      const engagedPageName =
-        intercept.engagedPageId === '' ? '' : getEngagedPageName(intercept.engagedPageId)
+      // 仅剩 switch 单变体（落点未设置 / 悬空由判定层静默放行，不进卡）——
+      // engagedPageId 恒非空、页恒在，页名恒可解析
       const view: LocusGateView = {
         viewPageName,
-        engagedPageName,
-        reason: intercept.reason
+        engagedPageName: getEngagedPageName(intercept.engagedPageId)
       }
       return { kind: 'gate', view, text }
     }
@@ -375,14 +374,25 @@ const status = computed(() => chat.value?.status ?? 'ready')
 // 批 2（2026-09-21 拍板①）：意图确认族（chip 发起 + AI 提议两线）并入本 dock——
 // dock 语义扩为「凡有未决即出现」（不限 streaming、不限末条消息）；ask/authz
 // 收集口径不变（其未决本就只在在途 run 存在），意图族收集见下方两段 computed。
+//
+// 2026-09-27：locus 落点拦截门并入本 dock（第三族，前端自产、非 part-backed）——
+// idle 态 pre-send 触发、置首（用户刚点了发送的阻塞项），不受 streaming/submitted
+// 状态门限制；草稿随卡扣留（dock 独占形态下输入框整棵摘除，文本只活在 pending 里）。
 const pinnedDecisions = computed<PendingDecisionView[]>(() => {
+  const out: PendingDecisionView[] = []
+  const gate = pendingLocusGate.value
+  if (gate) out.push({ kind: 'locus', view: gate.view })
   const s = status.value
-  if (s !== 'streaming' && s !== 'submitted') return []
+  if (s !== 'streaming' && s !== 'submitted') return out
   const msgs = messages.value
   const last = msgs[msgs.length - 1]
-  if (!last || last.role !== 'assistant') return []
-  return collectPinnedDecisions(last.parts, answeredFormIds.value)
+  if (!last || last.role !== 'assistant') return out
+  out.push(...collectPinnedDecisions(last.parts, answeredFormIds.value))
+  return out
 })
+
+/** dock 模板收窄对象（判别联合分支禁布尔 computed guard——返回收窄对象供模板直取） */
+const locusGateCardView = computed<LocusGateView | null>(() => pendingLocusGate.value?.view ?? null)
 
 // ── 批 2：意图确认族 dock 收集（两线合一） ─────────────────────────────────
 //
@@ -405,13 +415,11 @@ const pendingNewIntentView = computed<NewIntentPartData | null>(() => {
   }
 })
 
-/** dock 门态：凡有未决即出现（ask/authz 在途 + 意图确认卡 + 落点拦截门）；出现即
- *  输入区摘除（dock 独占形态——拍板②：意图卡不破例，草稿随卡编辑） */
+/** dock 门态：凡有未决即出现（locus 拦截门 + ask/authz 在途已并入 pinnedDecisions，
+ *  意图确认卡单列）；出现即输入区摘除（dock 独占形态——拍板②：意图卡不破例，
+ *  草稿随卡编辑） */
 const dockHasDecisions = computed(
-  () =>
-    pinnedDecisions.value.length > 0 ||
-    pendingNewIntentView.value !== null ||
-    pendingLocusGate.value !== null
+  () => pinnedDecisions.value.length > 0 || pendingNewIntentView.value !== null
 )
 
 /** 意图决断在途锁（POST await 期间防连点；卡面 disabled 合成条件之一） */
@@ -421,6 +429,7 @@ const intentCardsDisabled = computed(
 )
 
 function pinnedDecisionKey(view: PendingDecisionView): string {
+  if (view.kind === 'locus') return 'locus-gate'
   return view.kind === 'ask' ? `ask-${view.part.toolCallId}` : view.request.formId
 }
 function isStreamingMessage(message: UIMessage, index: number): boolean {
@@ -613,8 +622,9 @@ async function handleSubmit(text: string) {
     return
   }
   if (preflight.kind === 'gate') {
+    // 草稿随卡扣留：dock 独占形态下输入框整棵摘除，文本只活在 pending 里——
+    // 取消 / 发送失败时才回填（restoreDraft 归决断路径负责）
     pendingLocusGate.value = { view: preflight.view, text }
-    chatInputRef.value?.restoreDraft(text)
     return
   }
   // preflight.kind === 'proceed'
@@ -649,10 +659,8 @@ async function actuallySend(text: string, postSendPut?: { engagedPageId: string 
   }
 }
 
-/** 拦截门决断二选一 / 单按钮确认。 */
-async function handleLocusGateDecide(payload: {
-  decision: 'go' | 'stay' | 'confirm'
-}): Promise<void> {
+/** 拦截门决断二选一。 */
+async function handleLocusGateDecide(payload: { decision: 'go' | 'stay' }): Promise<void> {
   const pending = pendingLocusGate.value
   if (!pending) return
   if (status.value === 'streaming' || status.value === 'submitted') return
@@ -660,10 +668,11 @@ async function handleLocusGateDecide(payload: {
   const store = getActiveEditorStore()
   const currentPageId = getCurrentViewPageId()
   const docUuid = ensurePiDocUuid(store)
-  if (payload.decision === 'go' || payload.decision === 'confirm') {
+  if (payload.decision === 'go') {
     // 切到当前视图页：PUT engaged = view；维护全局 ref；view 已是当前页无需 switch
     const put = await putLocusEngagedPage({ docUuid, engagedPageId: currentPageId })
     if (put.kind === 'unreachable') {
+      // pending 已清空、dock 已收（await 期间输入框重挂）——草稿回填，文本不吃
       toast.error(locusText.value.locusGateUnreachable)
       chatInputRef.value?.restoreDraft(pending.text)
       return
@@ -677,6 +686,14 @@ async function handleLocusGateDecide(payload: {
     }
   }
   void actuallySend(pending.text)
+}
+
+/** 拦截门取消：收卡 + 草稿回填输入框（dock 摘除后输入框重挂，nextTick 落回填），零网络动作。 */
+function handleLocusGateCancel(): void {
+  const pending = pendingLocusGate.value
+  if (!pending) return
+  pendingLocusGate.value = null
+  void nextTick(() => chatInputRef.value?.restoreDraft(pending.text))
 }
 
 /** 拉当前 engagedPageId（用于 'stay' 路径：拉回视图） */
@@ -1165,34 +1182,36 @@ function handleClearChat() {
          滚动）——ask/authz 双族未决卡在此承接交互；已决/失效归档在消息流内。
          批 2（2026-09-21 拍板①）：意图确认卡（chip 发起 ChatNewIntentCard）并入
          本 dock——凡有未决即出现；意图卡维持仅 idle 可点（拍板⑥，streaming 期
-         由 dock 停止按钮承担取消） -->
+         由 dock 停止按钮承担取消）。
+         2026-09-27：落点拦截门卡并入本 dock（第三族）——置首渲染（用户刚触发
+         发送的阻塞项），视图取收窄 computed（判别联合分支不走布尔 guard） -->
     <div
       v-if="isGateReady && dockHasDecisions"
       data-test-id="pending-decision-dock"
       class="shrink-0 animate-in fade-in slide-in-from-bottom-2 space-y-2 border-t border-border px-2.5 pt-2.5 pb-2 duration-200 motion-reduce:animate-none"
     >
-      <PendingDecisionCard
-        v-for="view in pinnedDecisions"
-        :key="pinnedDecisionKey(view)"
-        :decision="view"
-        @ask-submit="handleFormSubmit"
+      <!-- 落点拦截门确认卡（pinnedDecisions 置首条目的渲染位）——draft 随卡扣留；
+           disable 条件同意图族（status running + 本族 busy 防连点） -->
+      <ChatLocusGateCard
+        v-if="locusGateCardView"
+        :view="locusGateCardView"
+        :disabled="intentCardsDisabled"
+        @decide="(decision) => handleLocusGateDecide({ decision })"
+        @cancel="handleLocusGateCancel"
       />
+      <template v-for="view in pinnedDecisions" :key="pinnedDecisionKey(view)">
+        <PendingDecisionCard
+          v-if="view.kind !== 'locus'"
+          :decision="view"
+          @ask-submit="handleFormSubmit"
+        />
+      </template>
       <ChatNewIntentCard
         v-if="pendingNewIntentView"
         :data="pendingNewIntentView"
         :disabled="intentCardsDisabled"
         @confirm="handleIntentConfirm"
         @cancel="handleIntentCancel"
-      />
-      <!-- sl-w2-locus-gate（§3.1）：落点拦截门确认卡——与 ask/authz/intent
-           同属 dock 形态，复用现有「凡有未决即出现」语义。pin 在输入区上方。
-           disable 条件同意图族（status running + 本族 busy 防连点） -->
-      <ChatLocusGateCard
-        v-if="pendingLocusGate"
-        :view="pendingLocusGate.view"
-        :disabled="intentCardsDisabled"
-        @decide="(decision) => handleLocusGateDecide({ decision })"
-        @confirm="handleLocusGateDecide({ decision: 'confirm' })"
       />
       <AppTextButton
         v-if="status === 'streaming' || status === 'submitted'"

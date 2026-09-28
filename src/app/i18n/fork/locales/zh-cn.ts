@@ -147,15 +147,14 @@ const zhCN = {
   },
   // 落点拦截门与感知三件套（sl-w2-locus-gate，§3 + §7.3）
   // engaged = 现有落点页（用户可能不在该页），view = 当前视图页（用户所在）
-  // 二选一：留在当前视图页（不动落点，视图切回 engaged）/ 把落点切到当前视图页
-  // 按钮文案用产品语言，不引入内部机制词。
+  // 二选一：留在当前视图页（不动落点，视图切回 engaged）/ 把落点切到当前视图页，
+  // 另附取消（收卡不发送）。按钮文案用产品语言，不引入内部机制词。
   locus: {
     locusSwitchPrompt: '本轮施工页将由「{engaged}」切换到「{view}」？',
     locusSwitchStay: '留在「{engaged}」',
     locusSwitchGo: '切到「{view}」',
-    // 悬空变体：旧施工页已删 / 状态腐烂再初始化 / 落点未设置 —— 单按钮确认
-    locusOrphanPrompt: '原施工页已删除或未设置——确认把施工页切到「{view}」？',
-    locusOrphanConfirm: '确认切换',
+    // 拦截门卡取消按钮：收卡 + 草稿回填输入框（零网络动作）
+    locusGateCancel: '取消',
     // 拦截门不可达（GET/PUT fail-closed 阻塞发送）——toast 文案
     locusGateUnreachable: '施工页状态不可达，请稍后重试。',
     // 状态行：run 进行中 + 施工页 ≠ 视图页时的呼吸提示

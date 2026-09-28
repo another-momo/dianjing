@@ -3,11 +3,11 @@
  *
  * 覆盖矩阵（§3.1 全部变体）：
  *  - docUuid 缺失 → first-send-no-doc（不读 GET，捕获 currentPageId）
- *  - 真首跑（state 缺省 + hasSession=false）→ silent-init
- *  - 腐烂再初始化（state 缺省 + hasSession=true）→ gate-resolve orphan（无上一屏）
+ *  - 落点未设置（state 缺省 / engagedPageId 空串）→ silent-init（不论 hasSession——
+ *    「从未设置」与「真首跑」同口径静默，hasSession 分档已退役）
+ *  - 悬空（engaged 在页列表查无）→ silent-init（静默重锚到当前页）
  *  - 视图页 == 落点页 → same-page（零动作）
- *  - 视图页 ≠ 落点页（页仍存在）→ gate-resolve switch
- *  - 悬空（engaged 在页列表查无）→ gate-resolve orphan（含 reason 区分）
+ *  - 视图页 ≠ 落点页（页仍存在）→ gate-resolve（switch 单变体）
  *  - 空字符串 engaged 等价 null（防御性归一）
  *
  * 防御性解析（parseLocusGetResponse）：
@@ -137,7 +137,7 @@ describe('resolveLocusIntercept — 初始化分支', () => {
     ).toEqual({ kind: 'silent-init', currentPageId: PAGE_B })
   })
 
-  test('腐烂再初始化（state 缺省 + hasSession=true） → gate-resolve orphan（无上一屏）', () => {
+  test('落点未设置 + hasSession=true（曾有族谱） → 同口径 silent-init（hasSession 分档退役）', () => {
     expect(
       resolveLocusIntercept({
         currentPageId: PAGE_B,
@@ -145,15 +145,10 @@ describe('resolveLocusIntercept — 初始化分支', () => {
         response: makeResponse(null, true),
         docUuidPresent: true
       })
-    ).toEqual({
-      kind: 'gate-resolve',
-      currentPageId: PAGE_B,
-      engagedPageId: '',
-      reason: 'orphan'
-    })
+    ).toEqual({ kind: 'silent-init', currentPageId: PAGE_B })
   })
 
-  test('engagedPageId = 空字符串等价于 null（防御性归一） → 真首跑 silent-init', () => {
+  test('engagedPageId = 空字符串等价于 null（防御性归一） → silent-init', () => {
     expect(
       resolveLocusIntercept({
         currentPageId: PAGE_B,
@@ -164,7 +159,7 @@ describe('resolveLocusIntercept — 初始化分支', () => {
     ).toEqual({ kind: 'silent-init', currentPageId: PAGE_B })
   })
 
-  test('engagedPageId = 空字符串 + hasSession=true → gate orphan', () => {
+  test('engagedPageId = 空字符串 + hasSession=true → 同口径 silent-init', () => {
     expect(
       resolveLocusIntercept({
         currentPageId: PAGE_B,
@@ -172,16 +167,11 @@ describe('resolveLocusIntercept — 初始化分支', () => {
         response: makeResponse({ modeId: null, profileId: null, engagedPageId: '' }, true),
         docUuidPresent: true
       })
-    ).toEqual({
-      kind: 'gate-resolve',
-      currentPageId: PAGE_B,
-      engagedPageId: '',
-      reason: 'orphan'
-    })
+    ).toEqual({ kind: 'silent-init', currentPageId: PAGE_B })
   })
 })
 
-describe('resolveLocusIntercept — same-page / gate-switch 分支', () => {
+describe('resolveLocusIntercept — same-page / gate-resolve 分支', () => {
   test('视图页 == engagedPageId → same-page（零动作）', () => {
     expect(
       resolveLocusIntercept({
@@ -193,7 +183,7 @@ describe('resolveLocusIntercept — same-page / gate-switch 分支', () => {
     ).toEqual({ kind: 'same-page' })
   })
 
-  test('视图页 ≠ engagedPageId（页存在） → gate-resolve switch（两按钮形态）', () => {
+  test('视图页 ≠ engagedPageId（页存在） → gate-resolve（弹卡二选一）', () => {
     expect(
       resolveLocusIntercept({
         currentPageId: PAGE_B,
@@ -204,12 +194,11 @@ describe('resolveLocusIntercept — same-page / gate-switch 分支', () => {
     ).toEqual({
       kind: 'gate-resolve',
       currentPageId: PAGE_B,
-      engagedPageId: PAGE_A,
-      reason: 'switch'
+      engagedPageId: PAGE_A
     })
   })
 
-  test('悬空（engaged 在页列表查无） → gate-resolve orphan（仅确认按钮）', () => {
+  test('悬空（engaged 在页列表查无，原施工页已删） → silent-init（静默重锚）', () => {
     expect(
       resolveLocusIntercept({
         currentPageId: PAGE_B,
@@ -220,12 +209,7 @@ describe('resolveLocusIntercept — same-page / gate-switch 分支', () => {
         ),
         docUuidPresent: true
       })
-    ).toEqual({
-      kind: 'gate-resolve',
-      currentPageId: PAGE_B,
-      engagedPageId: 'page-deleted',
-      reason: 'orphan'
-    })
+    ).toEqual({ kind: 'silent-init', currentPageId: PAGE_B })
   })
 
   test('空 pageList（极异常：文档无任何页） + state 缺省 + 无 session → silent-init', () => {

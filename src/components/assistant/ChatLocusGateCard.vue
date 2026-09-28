@@ -2,17 +2,16 @@
 /**
  * 2026-09-27 sl-w2-locus-gate：落点拦截门确认卡（§3.1）——
  * 复用现有确认卡族渲染形态（与 ChatNewIntentCard
- * 对齐：虚线边框、无填充、系统样式），不新开模态。两变体：
- *
- *  - `switch`：视图页 ≠ 落点页（页仍存在）—— 两按钮「留在原施工页 / 切到当前页」
- *  - `orphan`：落点页缺失（腐烂 / 悬空 / 首跑后 re-init）—— 单按钮「确认切换」
+ * 对齐：虚线边框、无填充、系统样式），不新开模态。单变体：
+ * 视图页 ≠ 落点页（落点页仍在）——「取消 / 留在落点页 / 切到当前页」三按钮。
+ * （落点未设置 / 悬空不弹卡——判定层静默重锚后直接放行。）
  *
  * 行为统一收口于上层（ChatPanel.handleSubmit）：本组件只承担文案渲染与
- * 事件 emit；按钮按下 → emit 决断 → 上层写 PUT / switchPage 后放行发送。
+ * 事件 emit；decide → 上层写 PUT / switchPage 后放行发送；cancel → 上层收卡
+ * 并把草稿回填输入框（零网络动作）。
  *
- * 本卡不写归档 part（决断即 PUT 写回，无槽位可回指）
- * part——落点是文档级标量（page-state/<docUuid>.json），机制真源在后端
- * 端点直写，不进消息流（§6.3「确认即物化」：确认端点直写唯一存储）。
+ * 本卡不写归档 part——落点是文档级标量（page-state/<docUuid>.json），机制真源
+ * 在后端端点直写，不进消息流（§6.3「确认即物化」：确认端点直写唯一存储）。
  */
 import { computed } from 'vue'
 
@@ -26,25 +25,22 @@ const { view, disabled = false } = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  /** switch 变体二选一：'go' = 切到当前视图页（PUT engaged=view + 发）/ 'stay' = 留在落点页（switchPage 视图切回 engaged + 发） */
+  /** 二选一：'go' = 切到当前视图页（PUT engaged=view + 发）/ 'stay' = 留在落点页（switchPage 视图切回 engaged + 发） */
   decide: [decision: 'go' | 'stay']
-  /** orphan 变体单按钮确认：即 'go' 语义 */
-  confirm: []
+  /** 取消：收卡 + 草稿回填输入框，零网络动作 */
+  cancel: []
 }>()
 
 const locusText = useForkLocus()
 
 const isLocked = computed(() => disabled)
 
-const prompt = computed(() => {
-  if (view.reason === 'switch') {
-    return locusText.value.locusSwitchPrompt({
-      engaged: view.engagedPageName,
-      view: view.viewPageName
-    })
-  }
-  return locusText.value.locusOrphanPrompt({ view: view.viewPageName })
-})
+const prompt = computed(() =>
+  locusText.value.locusSwitchPrompt({
+    engaged: view.engagedPageName,
+    view: view.viewPageName
+  })
+)
 
 function handleGo() {
   if (isLocked.value) return
@@ -56,9 +52,9 @@ function handleStay() {
   emit('decide', 'stay')
 }
 
-function handleConfirm() {
+function handleCancel() {
   if (isLocked.value) return
-  emit('confirm')
+  emit('cancel')
 }
 </script>
 
@@ -66,7 +62,6 @@ function handleConfirm() {
   <!-- 系统样式（虚线边框无填充）——与 ChatNewIntentCard 对齐 -->
   <div
     data-test-id="locus-gate-card"
-    :data-reason="view.reason"
     class="space-y-2 rounded-md border border-dashed border-border px-3 py-2.5"
   >
     <div class="flex items-center gap-2">
@@ -74,7 +69,16 @@ function handleConfirm() {
       <span class="text-[12px] font-medium text-surface">{{ prompt }}</span>
     </div>
 
-    <div v-if="view.reason === 'switch'" class="flex items-center justify-end gap-2">
+    <div class="flex items-center justify-end gap-2">
+      <button
+        type="button"
+        :disabled="isLocked"
+        data-test-id="locus-gate-cancel"
+        class="rounded-md border border-border px-2.5 py-1 text-[11px] text-muted hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+        @click="handleCancel"
+      >
+        {{ locusText.locusGateCancel }}
+      </button>
       <button
         type="button"
         :disabled="isLocked"
@@ -92,18 +96,6 @@ function handleConfirm() {
         @click="handleGo"
       >
         {{ locusText.locusSwitchGo({ view: view.viewPageName }) }}
-      </button>
-    </div>
-
-    <div v-else class="flex items-center justify-end gap-2">
-      <button
-        type="button"
-        :disabled="isLocked"
-        data-test-id="locus-gate-confirm"
-        class="rounded-md bg-accent px-2.5 py-1 text-[11px] text-white hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
-        @click="handleConfirm"
-      >
-        {{ locusText.locusOrphanConfirm }}
       </button>
     </div>
   </div>

@@ -9,11 +9,13 @@
  *  - `first-send-no-doc`     docUuid 不存在（首开消息）—— 无值可比，不拦；上层
  *                            先捕获 currentPageId 再发送，发送后 PUT 写回
  *                            engagedPageId（防竞态：捕获先于发送）。
- *  - `silent-init`           GET 成功 + state 缺省 + hasSession=false
- *                            （真首跑）—— 静默 PUT engagedPageId = currentPageId
- *                            后放行；纯流程不弹卡。
- *  - `gate-resolve`          GET 成功 + 视图页与落点页不一致（含悬空变体）——
- *                            弹卡让用户二选一；reason 区分文案与按钮形态。
+ *  - `silent-init`           GET 成功 + 落点未设置（state 缺省 / engagedPageId 空串）
+ *                            或落点悬空（原施工页已删、页列表查无）—— 静默 PUT
+ *                            engagedPageId = currentPageId 后放行；纯流程不弹卡。
+ *                            hasSession 仍保留在 GET 响应契约里（网络层照常解析），
+ *                            判定层不再按它分支——「从未设置」与「真首跑」同口径静默。
+ *  - `gate-resolve`          GET 成功 + 视图页与落点页不一致（落点页仍在）——
+ *                            弹卡让用户二选一。
  *  - `same-page`             视图页 == 落点页 —— 直接放行，零动作。
  *
  * 端点不可达（GET / PUT 抛出或非 2xx）由 fetchLocusPageState / putLocusEngagedPage
@@ -38,18 +40,17 @@ export interface LocusGetResponse {
 export type LocusIntercept =
   /** 视图页 == 落点页 —— 直接放行，零动作。 */
   | { kind: 'same-page' }
-  /** 真首跑（state 缺省 + 无 session）—— 静默 PUT engaged=view 后放行。 */
+  /** 落点未设置（state 缺省 / 空串，不论 hasSession）或悬空（原施工页已删）——
+   *  静默 PUT engaged=view 后放行。 */
   | { kind: 'silent-init'; currentPageId: string }
   /** docUuid 不存在（首开消息）—— 不读 GET，先捕获 currentPageId 再发送；
    *  发送完成后 PUT engagedPageId = 捕获值。 */
   | { kind: 'first-send-no-doc'; currentPageId: string }
-  /** 弹卡二选一：reason='switch' = 正常换页（两按钮），reason='orphan' =
-   *  悬空 / 落点未设置（仅确认切到当前页）。 */
+  /** 弹卡二选一：视图页 ≠ 落点页且落点页仍在 —— 留在落点页 / 切到当前页。 */
   | {
       kind: 'gate-resolve'
       currentPageId: string
       engagedPageId: string
-      reason: 'switch' | 'orphan'
     }
 
 /** 上层调用 fetchLocusPageState / putLocusEngagedPage 的网络结果。 */
@@ -57,17 +58,12 @@ export type LocusNetworkResult<T> =
   | { kind: 'ok'; value: T }
   | { kind: 'unreachable'; message: string }
 
-/** 拦截门确认卡变体：switch = 视图页 ≠ 落点页（页仍在）；orphan = 落点页缺失 */
-export type LocusGateReason = 'switch' | 'orphan'
-
 /** 拦截门确认卡渲染视图（ChatLocusGateCard props / ChatPanel 构造共用契约） */
 export interface LocusGateView {
   /** 当前视图页名（用户发消息时所在的页） */
   viewPageName: string
-  /** 现有落点页名；orphan 变体可为空字符串（落点未设置 / 已删） */
+  /** 现有落点页名——gate-resolve 仅剩 switch 单变体（落点页恒在），页名恒可解析 */
   engagedPageName: string
-  /** switch：两按钮形态；orphan：单按钮确认 */
-  reason: LocusGateReason
 }
 
 /** GET 响应探测形状——具名结构替代 Record<string, unknown> 强转（门禁禁宽断言） */
@@ -134,35 +130,21 @@ export function resolveLocusIntercept(args: {
   }
   const engaged = args.response.state?.engagedPageId ?? null
   if (engaged === null || engaged === '') {
-    // 落点缺省——分档仅看 hasSession：曾有族谱 = 视同换页（不能静默重锚，
-    // 否则用户已被旧浏览页污染）；无族谱 = 真首跑，静默写回。
-    if (!args.response.hasSession) {
-      return { kind: 'silent-init', currentPageId: args.currentPageId }
-    }
-    return {
-      kind: 'gate-resolve',
-      currentPageId: args.currentPageId,
-      engagedPageId: '',
-      reason: 'orphan'
-    }
+    // 落点从未设置——不论 hasSession 同口径静默（「从未设置」与「真首跑」同义放行）
+    return { kind: 'silent-init', currentPageId: args.currentPageId }
   }
   if (engaged === args.currentPageId) {
     return { kind: 'same-page' }
   }
-  // engaged 非空且与视图不一致——悬空（页列表查无）→ orphan；否则正常换页。
+  // engaged 非空且与视图不一致——悬空（原施工页已删，页列表查无）同口径静默重锚；
+  // 落点页仍在 → 弹卡二选一。
   if (!args.pageList.includes(engaged)) {
-    return {
-      kind: 'gate-resolve',
-      currentPageId: args.currentPageId,
-      engagedPageId: engaged,
-      reason: 'orphan'
-    }
+    return { kind: 'silent-init', currentPageId: args.currentPageId }
   }
   return {
     kind: 'gate-resolve',
     currentPageId: args.currentPageId,
-    engagedPageId: engaged,
-    reason: 'switch'
+    engagedPageId: engaged
   }
 }
 
