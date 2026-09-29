@@ -195,13 +195,19 @@ describe('scopeBearerFetch', () => {
 
 /**
  * 共享 disabled 集合注入口（local-source-gate.test.ts 的 probe 模式）：私有 allowlist
- * 的 replaceDisabled 是公开方法，经结构化类型探入。漏斗改造后 setFontFamilyEnabled
- * 对专属目录族路由进专属关停集合——表达「共享集合撞名」必须直注共享集合。
+ * 的 replaceDisabled 是公开方法，经结构化类型单次断言探入。漏斗改造后
+ * setFontFamilyEnabled 对专属目录族路由进专属关停集合——表达「共享集合撞名」
+ * 必须直注共享集合。
  */
-function injectSharedDisabled(manager: FontManager, families: string[]): void {
-  const probe = manager as unknown as {
-    allowlist: { replaceDisabled(families: Iterable<string>): void }
+interface FontManagerAllowlistProbe {
+  allowlist: {
+    replaceDisabled(families: Iterable<string>): void
+    isEnabled(family: string): boolean
   }
+}
+
+function injectSharedDisabled(manager: FontManager, families: string[]): void {
+  const probe = manager as FontManagerAllowlistProbe
   probe.allowlist.replaceDisabled(families)
 }
 
@@ -462,9 +468,8 @@ describe('custom family per-family switches', () => {
 
     expect(manager.isFontFamilyEnabled('Lato')).toBe(false)
     expect(manager.disabledFontFamilies()).toEqual([])
-    const allowlist = (manager as unknown as { allowlist: { isEnabled(family: string): boolean } })
-      .allowlist
-    expect(allowlist.isEnabled('Lato')).toBe(true)
+    const probe = manager as FontManagerAllowlistProbe
+    expect(probe.allowlist.isEnabled('Lato')).toBe(true)
   })
 
   test('setCustomDisabledFontFamilies batch-syncs and skips identical replay', async () => {

@@ -678,21 +678,24 @@ export class FontManager {
   }
 
   async loadLocalFont(family: string, style = 'Regular'): Promise<ArrayBuffer | null> {
-    // 本地总开关加载侧闸：与枚举（关停视为未安装）、回退链同语义——demand 候选单
-    // 无条件带 local，不在此闸会让关停后旧文档直加载静默绕过（缓存命中也一并拒）
-    if (!this.localFontsEnabled) return null
     if (!(await this.isCustomOrAllowed(family))) return null
     const cacheKey = `${family}|${style}`
     const loaded = this.loadedFamilies.get(cacheKey)
     if (loaded) {
+      // 本地总开关：已入账的 local 源视为未安装拒用；bundled 等其他源不受影响
+      if (!this.localFontsEnabled && this.loadedFontSource(family, style) === 'local') return null
       this.registerFontInCanvasKit(family, loaded)
       return loaded
     }
 
-    const hostBuffer = await this.loadHostFont(family, style)
-    if (hostBuffer) return this.registerAndCache(family, style, hostBuffer, 'local')
-    const localBuffer = await this.findLocalFont(family, style)
-    if (localBuffer) return this.registerAndCache(family, style, localBuffer, 'local')
+    // 本地总开关只闸宿主/系统字体通路——bundled 兜底（本函数尾部）恒可加载：
+    // 它是标尺/节点标签等内置文字的渲染主干字形来源，闸死会全灭（2026-09-29 实证）
+    if (this.localFontsEnabled) {
+      const hostBuffer = await this.loadHostFont(family, style)
+      if (hostBuffer) return this.registerAndCache(family, style, hostBuffer, 'local')
+      const localBuffer = await this.findLocalFont(family, style)
+      if (localBuffer) return this.registerAndCache(family, style, localBuffer, 'local')
+    }
 
     const bundledURL = BUNDLED_FONTS[cacheKey]
     if (!bundledURL) return null

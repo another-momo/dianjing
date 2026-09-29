@@ -10,8 +10,10 @@
  * 「视为未安装」语义对齐），picker 不枚举、回退链不拼装本地段。
  *
  * 加载侧补钉（font-gate-semantics 修 B）：demand 候选单无条件带 local，枚举/回退
- * 两处闸挡不住旧文档直加载——loadLocalFont 入口补闸后「视为未安装」才完整成立，
- * 已入缓存的本地族在开关关停后同样拒载。
+ * 两处闸挡不住旧文档直加载——loadLocalFont 补闸后「视为未安装」才完整成立。
+ * 闸位教训（2026-09-29 实证）：闸不能放函数入口——bundled 兜底在同一函数尾部，
+ * 入口闸会连带打死内置字体（标尺/节点标签全灭）。正确闸位 = 只闸宿主/系统通路，
+ * bundled 恒可加载；缓存命中按已入账源判定（local 源拒、bundled 源放行）。
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -106,12 +108,22 @@ describe('FontManager 本地字体应用级开关（统一批 B）', () => {
     expect(before?.byteLength).toBe(4)
 
     manager.setLocalFontsEnabled(false)
-    // 同族同样式：loadedFamilies 已有缓存——闸在缓存查询之前才算「视为未安装」
+    // 同族同样式：loadedFamilies 已有缓存——按已入账源（local）判定仍拒载
     const closed = await manager.loadLocalFont('Gate Sans')
     expect(closed).toBeNull()
 
     manager.setLocalFontsEnabled(true)
     const reopened = await manager.loadLocalFont('Gate Sans')
     expect(reopened?.byteLength).toBe(4)
+  })
+
+  test('本地总开关不闸 bundled 兜底（渲染主干字形来源恒可加载）', async () => {
+    const manager = new FontManager()
+    manager.setLocalFontsEnabled(false)
+    // bundled 兜底与宿主/系统通路同处 loadLocalFont——闸位必须在两通路之间，
+    // 入口闸曾连带打死内置字体（标尺/节点标签全灭，2026-09-29 实证）
+    const buffer = await manager.loadLocalFont('Inter', 'Regular')
+    expect(buffer).not.toBeNull()
+    expect(manager.loadedFontSource('Inter', 'Regular')).toBe('bundled')
   })
 })
