@@ -15,6 +15,7 @@ import {
   LOCAL_AUTOMATION_URL_KEY,
   LOCAL_AUTOMATION_APP_VERSION_KEY
 } from './src/app/orchestration/runtime-globals'
+import { viteBuildTarget } from './src/app/shell/support/baseline'
 import { createOpenPencilAliases } from './vite/aliases'
 import {
   localAutomationRoute,
@@ -59,6 +60,8 @@ export default defineConfig(async ({ command }) => ({
   ],
   clearScreen: false,
   build: {
+    // Syntax is lowered to the supported browser baseline; APIs are not polyfilled.
+    target: viteBuildTarget(),
     chunkSizeWarningLimit: 2500
   },
   server: createDevServerOptions(host, __dirname)

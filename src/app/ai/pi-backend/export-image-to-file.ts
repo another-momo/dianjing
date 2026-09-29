@@ -4,7 +4,7 @@
  *
  * 形态 = customTools 包装层（不新做 core 工具）：
  *   桥调 core 既有 export_image（vector/export.ts：bounds 计算/scale/maxEdge/
- *   多格式/节点查找全复用）拿 base64 → decodeBase64 → 路径判定（写侧，
+ *   多格式/节点查找全复用）拿 base64 → toUint8Array 解码 → 路径判定（写侧，
  *   与 load_image 同判定服务 decidePath——broker P0-1 收编在
  *   ./path-decision.ts，本工具调 write facet）→ fs.writeFile → 返回 file_path。
  *
@@ -25,9 +25,8 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { defineTool, type AgentToolResult } from '@earendil-works/pi-coding-agent'
+import { toUint8Array } from 'js-base64'
 import { Type } from 'typebox'
-
-import { decodeBase64 } from '@open-pencil/core/bytes'
 
 import { createBridgeCaller } from './image-gen/bridge-call'
 import { type LoadImageToolDeps } from './load-image'
@@ -116,7 +115,7 @@ export function createExportImageToFileTool(deps: ExportImageToFileToolDeps) {
       if (typeof base64 !== 'string' || base64.length === 0) {
         return toToolResult({ error: 'Export failed: bridge returned no image data.' })
       }
-      const bytes = decodeBase64(base64)
+      const bytes = toUint8Array(base64)
       const format = params.format ?? 'PNG'
       const ext = FORMAT_TO_EXT[format] ?? 'png'
       const width = typeof exported.width === 'number' ? exported.width : 0

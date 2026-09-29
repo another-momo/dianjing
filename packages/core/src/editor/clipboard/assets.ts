@@ -1,7 +1,7 @@
 import { getWorldMatrix } from '@open-pencil/scene-graph/coordinate'
 import Matrix from '@open-pencil/scene-graph/matrix'
 
-import { isRasterImageMime, isSVGImageFile, isSupportedImageFile } from '#core/bytes'
+import { isRasterImageMime, isSVGImageFile, isSupportedImageFile } from '#core/bytes/image-mime'
 import { resolvePasteTarget } from '#core/editor/clipboard/paste-target'
 import type { EditorContext } from '#core/editor/types'
 import { computeImageHash } from '#core/figma-api'

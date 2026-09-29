@@ -26,11 +26,11 @@
  * canvaskit wasm（compose-backdrop 的 sampler 注入同款先例）。
  */
 
+import { isValid, toUint8Array } from 'js-base64'
 import * as v from 'valibot'
 
 import type { Size, Vector } from '@open-pencil/scene-graph/primitives'
 
-import { decodeBase64 } from '#core/bytes'
 import { type FigmaAPI } from '#core/figma-api'
 import { createSVGNodesFromImport, prepareSVGImport } from '#core/io/formats/svg'
 import { type ImageGenResult } from '#core/tools/fork/image-gen/requests'
@@ -117,7 +117,7 @@ async function decodeAndCheckPixels(
   args: PlaceImageFromBytesArgs,
   decodeRaster: (bytes: Uint8Array) => Promise<Size | null>
 ): Promise<CheckedRaster | { error: string }> {
-  const bytes = decodeBase64(args.image_data)
+  const bytes = toUint8Array(args.image_data)
   const decoded = await decodeRaster(bytes)
   if (!decoded) return { error: 'File is corrupted or not a valid image.' }
   const pixels = decoded.width * decoded.height
@@ -189,7 +189,7 @@ function placeSVGAsNewNode(
   args: PlaceImageFromBytesArgs,
   parent: NodeProxy | null
 ): Record<string, unknown> {
-  const source = new TextDecoder().decode(decodeBase64(args.image_data))
+  const source = new TextDecoder().decode(toUint8Array(args.image_data))
   const data = prepareSVGImport(source)
   if (!data) {
     return { error: 'SVG could not be vectorized (no supported shape elements found).' }
@@ -238,6 +238,10 @@ export async function placeImageFromBytes(
   args: PlaceImageFromBytesArgs,
   deps: PlaceImageFromBytesDeps = {}
 ): Promise<Record<string, unknown>> {
+  // base64 合法性门：三条路径（replace fill / SVG 矢量化 / 光栅新建）都从
+  // args.image_data 解码，入口一处拦截——垃圾字节报真实原因，不落到下游
+  // 嗅探闸的「corrupted」失真文案
+  if (!isValid(args.image_data)) return { error: 'Invalid base64 image data.' }
   const decodeRaster = deps.decodeRaster ?? defaultDecodeRaster
   if (args.replace_id) return replaceNodeFill(figma, args, decodeRaster)
 

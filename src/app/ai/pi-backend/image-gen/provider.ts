@@ -36,7 +36,8 @@
  * error.message），不含请求头。
  */
 
-import { decodeBase64 } from '@open-pencil/core/bytes'
+import { isValid, toUint8Array } from 'js-base64'
+
 import type {
   ImageGenProvider,
   ImageGenRequest,
@@ -68,7 +69,10 @@ async function extractImageBytes(
 ): Promise<Uint8Array> {
   const item = data.data?.[0]
   if (!item) throw new Error('Image API returned no image data')
-  if (item.b64_json) return decodeBase64(item.b64_json)
+  if (item.b64_json) {
+    if (!isValid(item.b64_json)) throw new TypeError('Invalid Base64 string')
+    return toUint8Array(item.b64_json)
+  }
   if (item.url) {
     const response = await fetchImpl(item.url, { signal })
     if (!response.ok) throw new Error(`Download generated image: ${response.status}`)

@@ -26,7 +26,8 @@
 //  - 网络断开 / 5xx / 401：throw new Error(message) 让上层走 try/catch，
 //    与 tauri invoke reject 语义对齐。
 
-import { decodeBase64, encodeBase64 } from '@open-pencil/core/bytes'
+import { fromUint8Array, toUint8Array } from 'js-base64'
+
 import { hasWindowGlobal } from '@open-pencil/core/constants'
 
 import { RUNTIME_AUTOMATION_TOKEN_KEY } from '@/app/orchestration/runtime-globals'
@@ -131,9 +132,12 @@ export async function chooseElectronOpenPaths(
 /** Electron 形态下经 main 写文件（避免渲染层受 sandbox 限制）。 */
 export async function writeElectronFile(path: string, data: Uint8Array): Promise<void> {
   if (!isElectron()) return
-  // base64 编解码统一走 core/bytes 单源（js-base64 直转 Uint8Array，不经
-  // 字符串中间态——无 String.fromCharCode.apply 大文件 RangeError 风险）
-  await postJSON<WriteFileResponse>('/__dianjing/file-write', { path, data: encodeBase64(data) })
+  // base64 编解码直连 js-base64 字节面 API（fromUint8Array/toUint8Array，
+  // 不经字符串中间态——无 String.fromCharCode.apply 大文件 RangeError 风险）
+  await postJSON<WriteFileResponse>('/__dianjing/file-write', {
+    path,
+    data: fromUint8Array(data)
+  })
 }
 
 /** Electron 形态下经 main 读文件回 Uint8Array（用于打开文件闭环）。 */
@@ -143,7 +147,7 @@ export async function readElectronFile(
   if (!isElectron()) return null
   // main 已用 statSync 校验存在 + isFile()，落到本函数仍 try/catch 兜 500
   const result = await postJSON<ReadFileResponse>('/__dianjing/file-read', { path })
-  return { name: result.name, data: decodeBase64(result.data) }
+  return { name: result.name, data: toUint8Array(result.data) }
 }
 
 /** Electron 形态下推 OS 级最近文件清单（喂 app.addRecentDocument）。 */

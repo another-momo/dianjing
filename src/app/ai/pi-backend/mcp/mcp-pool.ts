@@ -8,6 +8,7 @@
  */
 
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import { isValid, toUint8Array } from 'js-base64'
 
 import {
   detectExtensionFromMagic,
@@ -482,27 +483,7 @@ export class MCPClientPool {
           this.downloadsRoot
         ) {
           // Decode base64 binary content and save to downloads root
-          try {
-            const buffer = Buffer.from(block.data, 'base64')
-            const ext = detectExtensionFromMagic(buffer) || '.bin'
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-            const safeName = sanitizeFilename(proxyName)
-            const filename = `${safeName}_${timestamp}${ext}`
-            const saved = saveBinaryResponse(
-              this.downloadsRoot,
-              filename,
-              buffer,
-              block.mimeType ?? null
-            )
-            if (saved.type === 'file_download') {
-              parts.push(
-                `[${block.type.charAt(0).toUpperCase() + block.type.slice(1)} saved: ${saved.path} (${saved.sizeHuman})]`
-              )
-            }
-          } catch {
-            // Base64 decode failed — skip this block
-            this.debug('base64 decode failed, skipping block')
-          }
+          this.saveMediaBlock(block.type, block.data, block.mimeType, proxyName, parts)
         }
       }
 
@@ -519,6 +500,40 @@ export class MCPClientPool {
         isError: true,
         sourceSlug: slug
       }
+    }
+  }
+
+  /**
+   * Decode a base64 media block (image/audio) from an external MCP payload and
+   * save it to the session downloads root. Failures (including invalid base64)
+   * skip the block without failing the whole tool call.
+   */
+  private saveMediaBlock(
+    kind: string,
+    data: string,
+    mimeType: string | undefined,
+    proxyName: string,
+    parts: string[]
+  ): void {
+    if (!this.downloadsRoot) return
+    try {
+      // 外部 MCP 报文：isValid 门在前——垃圾 payload 直接跳过该块，
+      // 不经宽容解码静默产出坏文件
+      if (!isValid(data)) throw new TypeError('Invalid Base64 string')
+      const buffer = toUint8Array(data)
+      const ext = detectExtensionFromMagic(buffer) || '.bin'
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      const safeName = sanitizeFilename(proxyName)
+      const filename = `${safeName}_${timestamp}${ext}`
+      const saved = saveBinaryResponse(this.downloadsRoot, filename, buffer, mimeType ?? null)
+      if (saved.type === 'file_download') {
+        parts.push(
+          `[${kind.charAt(0).toUpperCase() + kind.slice(1)} saved: ${saved.path} (${saved.sizeHuman})]`
+        )
+      }
+    } catch {
+      // Base64 decode failed — skip this block
+      this.debug('base64 decode failed, skipping block')
     }
   }
 

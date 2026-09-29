@@ -19,8 +19,9 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { fromUint8Array } from 'js-base64'
+
 import { FigmaAPI, SceneGraph } from '@open-pencil/core'
-import { encodeBase64 } from '@open-pencil/core/bytes'
 import {
   placeImageFromBytes,
   placeImageFromBytesTool,
@@ -41,7 +42,7 @@ function setup() {
 function rasterArgs(overrides: Partial<PlaceImageFromBytesArgs> = {}): PlaceImageFromBytesArgs {
   return {
     name: 'logo.png',
-    image_data: encodeBase64(RASTER_BYTES),
+    image_data: fromUint8Array(RASTER_BYTES),
     mime: 'image/png',
     ...overrides
   }
@@ -193,7 +194,7 @@ describe('replace_id 路径', () => {
     const target = graph.createNode('RECTANGLE', pageId, { name: 't', width: 100, height: 100 })
     const result = (await placeImageFromBytes(figma, {
       name: 'icon.svg',
-      image_data: encodeBase64(SVG_BYTES),
+      image_data: fromUint8Array(SVG_BYTES),
       mime: 'image/svg+xml',
       replace_id: target.id
     })) as { error?: string }
@@ -206,7 +207,7 @@ describe('SVG 新建路径（真实矢量化，无 canvaskit 依赖）', () => {
     const { graph, figma, pageId } = setup()
     const result = (await placeImageFromBytes(figma, {
       name: 'icon.svg',
-      image_data: encodeBase64(SVG_BYTES),
+      image_data: fromUint8Array(SVG_BYTES),
       mime: 'image/svg+xml'
     })) as { id: string; width: number; height: number; imageHash: string | null }
     const node = graph.getNode(result.id)
@@ -228,7 +229,7 @@ describe('SVG 新建路径（真实矢量化，无 canvaskit 依赖）', () => {
     )
     const result = (await placeImageFromBytes(figma, {
       name: 'text.svg',
-      image_data: encodeBase64(textOnly),
+      image_data: fromUint8Array(textOnly),
       mime: 'image/svg+xml'
     })) as { id?: string; error?: string }
     expect(result.error).toBeUndefined()
@@ -245,7 +246,7 @@ describe('SVG 新建路径（真实矢量化，无 canvaskit 依赖）', () => {
     )
     const result = (await placeImageFromBytes(figma, {
       name: 'empty.svg',
-      image_data: encodeBase64(empty),
+      image_data: fromUint8Array(empty),
       mime: 'image/svg+xml'
     })) as { error?: string }
     expect(result.error).toContain('vectorized')

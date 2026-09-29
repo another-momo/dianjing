@@ -18,8 +18,8 @@ const styles = computed(() => {
 </script>
 
 <template>
-  <div v-if="!dismissed" data-slot="banner" :class="styles.root">
-    <span data-slot="banner-content" :class="styles.content"><slot /></span>
+  <div v-if="!dismissed" :class="styles.root" data-slot="banner" role="status">
+    <span :class="styles.content"><slot /></span>
     <button
       v-if="storageKey"
       data-slot="banner-dismiss"

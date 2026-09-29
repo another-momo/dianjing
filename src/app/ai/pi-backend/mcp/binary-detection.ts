@@ -11,6 +11,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { fromUint8Array, isValid, toUint8Array } from 'js-base64'
+
 // ============================================================
 // Constants
 // ============================================================
@@ -86,7 +88,7 @@ export const MIME_TO_EXT: Record<string, string> = {
  * misclassifying international text (accented chars, emojis, CJK) as binary.
  * Only ASCII bytes (0x00-0x7F) are analyzed for printability.
  */
-export function looksLikeBinary(buffer: Buffer): boolean {
+export function looksLikeBinary(buffer: Uint8Array): boolean {
   // Check first 8KB for binary indicators
   const sample = buffer.slice(0, 8192)
 
@@ -116,7 +118,7 @@ export function looksLikeBinary(buffer: Buffer): boolean {
  * Inspects first bytes of buffer to identify common file formats.
  * Returns extension with dot (e.g., '.pdf') or empty string if unknown.
  */
-export function detectExtensionFromMagic(buffer: Buffer): string {
+export function detectExtensionFromMagic(buffer: Uint8Array): string {
   if (buffer.length < 8) return ''
 
   for (const sig of MAGIC_SIGNATURES) {
@@ -130,7 +132,7 @@ export function detectExtensionFromMagic(buffer: Buffer): string {
 /**
  * Get file extension from MIME type, with optional magic byte fallback.
  */
-export function getMimeExtension(mimeType: string | null, buffer?: Buffer): string {
+export function getMimeExtension(mimeType: string | null, buffer?: Uint8Array): string {
   if (mimeType) {
     const normalized = (mimeType.toLowerCase().split(';')[0] ?? '').trim()
     const ext = MIME_TO_EXT[normalized]
@@ -172,7 +174,7 @@ const DATA_URL_RE = /^data:([^;,]+);base64,(.+)$/s
  * Result of extracting base64-encoded binary from a string.
  */
 export interface Base64ExtractionResult {
-  buffer: Buffer
+  buffer: Uint8Array
   mimeType: string | null
   /** File extension (with dot) derived from MIME or magic bytes */
   ext: string
@@ -217,7 +219,8 @@ function extractFromDataURL(dataURLMatch: RegExpMatchArray): Base64ExtractionRes
   if (payload.length < MIN_BASE64_LENGTH) return null
 
   try {
-    const decoded = Buffer.from(payload, 'base64')
+    if (!isValid(payload)) throw new TypeError('Invalid Base64 string')
+    const decoded = toUint8Array(payload)
     if (decoded.length < MIN_DECODED_SIZE) return null
 
     // For known binary MIME types, trust the MIME — skip looksLikeBinary check
@@ -233,7 +236,7 @@ function extractFromDataURL(dataURLMatch: RegExpMatchArray): Base64ExtractionRes
 /**
  * Path B: extract from a raw base64 blob.
  * Strict canonicalization pipeline — rejects anything that isn't structurally
- * valid base64. Eliminates false positives from Node's lenient Buffer.from().
+ * valid base64. Eliminates false positives from the lenient decoder.
  */
 function extractFromRawBase64(trimmed: string): Base64ExtractionResult | null {
   if (trimmed.length < MIN_BASE64_LENGTH) return null
@@ -262,18 +265,19 @@ function extractFromRawBase64(trimmed: string): Base64ExtractionResult | null {
       ? normalized
       : normalized + '='.repeat((4 - (normalized.length % 4)) % 4)
 
-  // Step 5: Decode
-  let decoded: Buffer
+  // Step 5: Decode (isValid gate first — reject, not silently mangle)
+  let decoded: Uint8Array
   try {
-    decoded = Buffer.from(padded, 'base64')
+    if (!isValid(padded)) throw new TypeError('Invalid Base64 string')
+    decoded = toUint8Array(padded)
   } catch {
     return null
   }
   if (decoded.length < MIN_DECODED_SIZE) return null
 
   // Step 6: Canonical roundtrip — re-encode and compare to padded input.
-  // Catches any input that Node's lenient decoder silently mangled.
-  if (decoded.toString('base64') !== padded) return null
+  // Catches any input the lenient decoder would silently mangle.
+  if (fromUint8Array(decoded) !== padded) return null
 
   // Step 7: Binary-likeness check (unchanged)
   if (!looksLikeBinary(decoded)) return null
@@ -333,7 +337,7 @@ export interface BinaryDownloadError {
 export function saveBinaryResponse(
   sessionPath: string,
   filename: string,
-  buffer: Buffer,
+  buffer: Uint8Array,
   mimeType: string | null
 ): BinaryDownloadResult | BinaryDownloadError {
   const downloadsDir = join(sessionPath, 'downloads')

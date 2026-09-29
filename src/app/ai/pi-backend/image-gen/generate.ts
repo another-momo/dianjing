@@ -43,9 +43,9 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { defineTool, type AgentToolResult } from '@earendil-works/pi-coding-agent'
+import { fromUint8Array, isValid, toUint8Array } from 'js-base64'
 import { Type } from 'typebox'
 
-import { decodeBase64, encodeBase64 } from '@open-pencil/core/bytes'
 import {
   parseImageGenRequests,
   type ImageGenProvider,
@@ -248,7 +248,10 @@ async function runBeginPhase(
       items.push({
         req,
         begin: begin as BeginPayload,
-        images: (begin.images ?? []).map((b64) => decodeBase64(b64))
+        images: (begin.images ?? []).map((b64) => {
+          if (!isValid(b64)) throw new TypeError('Invalid Base64 string')
+          return toUint8Array(b64)
+        })
       })
     } catch (error) {
       items.push({ req, error: toErrorMessage(error) })
@@ -334,7 +337,7 @@ async function runCommitPhase(
     try {
       const commit = (await callBridge(
         COMMIT_TOOL,
-        { id: item.begin.id, image_data: encodeBase64(item.gen.bytes) },
+        { id: item.begin.id, image_data: fromUint8Array(item.gen.bytes) },
         target
       )) as CommitPayload
       if (commit.error || !commit.id) {

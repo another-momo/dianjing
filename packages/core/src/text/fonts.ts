@@ -2,7 +2,7 @@
 
 import type { CanvasKit, TypefaceFontProvider } from 'canvaskit-wasm'
 
-import type { SceneGraph } from '@open-pencil/scene-graph'
+import type { FontVariation, SceneGraph } from '@open-pencil/scene-graph'
 
 import { hasWindowGlobal, IS_BROWSER } from '#core/constants'
 import { parseFontStyle } from '#core/text/face'
@@ -28,6 +28,7 @@ import {
   weightToStyle
 } from '#core/text/font/style'
 import { FULL_WEIGHT_RANGE, sniffVariableFont } from '#core/text/font/variable'
+import { namedInstanceVariations } from '#core/text/font/variation'
 
 export * from '#core/text/font/allowlist'
 export * from '#core/text/font/custom-service'
@@ -37,13 +38,16 @@ export * from '#core/text/font/style'
 export * from '#core/text/font/memory'
 export * from '#core/text/font/variable'
 export { fontFamilyDisplayName, fontRegistryEntry } from '#core/text/font/registry'
+export * from '#core/text/font/variation'
 import { fontFallbackEntry } from '#core/text/fallbacks'
 import type { FontFallbackScript } from '#core/text/fallbacks'
+import { UnsupportedFontFormatError } from '#core/text/font/sources'
 import type {
   DownloadedFontCache,
   FontFamilyOption,
   FontInfo,
   FontLoadedSource,
+  FontUnavailableReason,
   HostFontLoader,
   LocalFontAccessState
 } from '#core/text/font/sources'
@@ -94,8 +98,10 @@ interface RenderAliasEntry {
 export class FontManager {
   private loadedFamilies = new Map<string, ArrayBuffer>()
   private loadedFamilySources = new Map<string, FontLoadedSource>()
+  private unavailableFaces = new Map<string, FontUnavailableReason>()
   private supplementalFamilyData = new Map<string, ArrayBuffer[]>()
   private remoteCoverage = new Map<string, Set<string>>()
+  private instanceVariations = new WeakMap<ArrayBuffer, Map<string, FontVariation[] | null>>()
   private blockedNodeIds = new Set<string>()
   private fontProvider: TypefaceFontProvider | null = null
   private fontProviders = new Set<TypefaceFontProvider>()
@@ -835,6 +841,11 @@ export class FontManager {
     return this.loadedFamilySources.get(`${family}|${style}`) ?? null
   }
 
+  /** Why the host could not load an installed face, when it reported a reason. */
+  unavailableReason(family: string, style: string): FontUnavailableReason | null {
+    return this.unavailableFaces.get(`${family}|${style}`) ?? null
+  }
+
   isLoaded(family: string): boolean {
     return [...this.loadedFamilies.keys()].some((k) => k.startsWith(`${family}|`))
   }
@@ -856,6 +867,19 @@ export class FontManager {
     const data = this.loadedFamilies.get(key) ?? null
     if (data) this.fontMemory.touch(key)
     return data
+  }
+
+  /** Axis coordinates for `style` when the loaded face is a variable font, otherwise `null`. */
+  namedInstanceVariations(family: string, style: string): FontVariation[] | null {
+    const data = this.loadedData(family, style)
+    if (!data) return null
+    let byStyle = this.instanceVariations.get(data)
+    if (!byStyle) {
+      byStyle = new Map()
+      this.instanceVariations.set(data, byStyle)
+    }
+    if (!byStyle.has(style)) byStyle.set(style, namedInstanceVariations(data, style))
+    return byStyle.get(style) ?? null
   }
 
   renderFamily(family: string, _style: string): string {
@@ -1101,9 +1125,16 @@ export class FontManager {
 
   private async loadHostFont(family: string, style: string): Promise<ArrayBuffer | null> {
     if (!this.hostFontLoader) return null
+    const key = `${family}|${style}`
     try {
-      return await this.hostFontLoader(family, style)
+      const data = await this.hostFontLoader(family, style)
+      if (data) this.unavailableFaces.delete(key)
+      return data
     } catch (e) {
+      if (e instanceof UnsupportedFontFormatError) {
+        this.unavailableFaces.set(key, e.reason)
+        return null
+      }
       console.warn(`Host fallback font load failed for "${family}" ${style}:`, e)
       return null
     }

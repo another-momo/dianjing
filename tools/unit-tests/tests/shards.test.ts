@@ -18,8 +18,10 @@ async function discover(pattern: string): Promise<string[]> {
   return files.map((file) => file.replaceAll('\\', '/'))
 }
 
-test('every engine and package-local test belongs to exactly one shard', async () => {
+test('every app, engine and package-local test belongs to exactly one shard', async () => {
   const discovered = [
+    ...(await discover('tests/app/**/*.test.ts')),
+    ...(await discover('tests/integration/**/*.test.ts')),
     ...(await discover('tests/engine/**/*.test.ts')),
     ...(await discover('packages/*/tests/**/*.test.ts'))
   ]

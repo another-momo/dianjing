@@ -16,7 +16,7 @@
  *  - Content-Length 预检 + 流式累计双闸——前者挡诚实大头、后者挡说谎头。
  */
 
-import { decodeBase64 } from '@open-pencil/core/bytes'
+import { isValid, toUint8Array } from 'js-base64'
 
 export interface FetchImageFromURLOptions {
   /** 字节上限（必填；生产调用点显式传 LOAD_IMAGE_MAX_BYTES，模块内不复制常量） */
@@ -120,7 +120,8 @@ function fetchDataURL(rawURL: string, maxBytes: number): FetchImageResult {
   }
   let bytes: Uint8Array
   try {
-    bytes = decodeBase64(payload)
+    if (!isValid(payload)) throw new TypeError('Invalid Base64 string')
+    bytes = toUint8Array(payload)
   } catch {
     return { ok: false, error: 'Invalid base64 payload in data: URL.' }
   }

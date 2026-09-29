@@ -1,9 +1,10 @@
+import { isValid, toUint8Array } from 'js-base64'
+
 import type { Fill, SceneGraph, SceneNode } from '@open-pencil/scene-graph'
+import { parseColor } from '@open-pencil/scene-graph/color'
 import { computeImageHash } from '@open-pencil/scene-graph/images'
 import type { Size } from '@open-pencil/scene-graph/primitives'
 
-import { decodeBase64 } from '#core/bytes'
-import { parseColor } from '#core/color'
 import { createRasterImageFill } from '#core/tools/shared/image-fill'
 import { createFlattenedVectorFrameChildren } from '#core/vector/vectorize/placement'
 import {
@@ -81,7 +82,8 @@ function decodeImageDataURI(href: string): Uint8Array | null {
   const match = /^data:image\/(?:png|jpeg|webp|gif|bmp);base64,([\s\S]+)$/.exec(href.trim())
   if (!match?.[1]) return null
   try {
-    return decodeBase64(match[1])
+    if (!isValid(match[1])) throw new TypeError('Invalid Base64 string')
+    return toUint8Array(match[1])
   } catch {
     return null
   }

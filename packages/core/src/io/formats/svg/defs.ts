@@ -1,10 +1,15 @@
+import { fromUint8Array } from 'js-base64'
+
 import type { Effect, Fill, SceneGraph, SceneNode } from '@open-pencil/scene-graph'
+import {
+  colorToHex,
+  colorToDisplayCSS,
+  getDefaultRenderColorSpace,
+  type RenderColorSpace
+} from '@open-pencil/scene-graph/color'
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
-import { detectImageMime, encodeBase64 } from '#core/bytes'
-import { colorToHex } from '#core/color'
-import { colorToDisplayCSS, getDefaultRenderColorSpace } from '#core/color/management'
-import type { RenderColorSpace } from '#core/color/management'
+import { detectImageMime } from '#core/bytes/image-mime'
 
 import { svg, type SVGNode } from './node'
 import { round } from './paths'
@@ -110,7 +115,7 @@ function createImagePattern(
   if (!data) return null
 
   const id = nextDefId(ctx, 'img')
-  const base64 = encodeBase64(data)
+  const base64 = fromUint8Array(data)
   const mime = detectImageMime(data)
 
   return {

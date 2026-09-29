@@ -9,11 +9,11 @@ import type {
 } from 'canvaskit-wasm'
 
 import type { SceneNode } from '@open-pencil/scene-graph'
+import { resolveRGBAForPreview } from '@open-pencil/scene-graph/color'
+import { resolveNodeTextDirection } from '@open-pencil/scene-graph/text-direction'
 
-import { resolveRGBAForPreview } from '#core/color/management'
 import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '#core/constants'
 import { transformTextCase } from '#core/text/case'
-import { resolveNodeTextDirection } from '#core/text/direction'
 import { fontManager, weightToStyle } from '#core/text/fonts'
 import {
   fontCoverageDemand,
@@ -203,9 +203,13 @@ function canObserveGlyphCoverage(r: FontReadinessRenderer): r is TextRenderer {
 export function nodeFontReadiness(r: FontReadinessRenderer, node: SceneNode): NodeFontReadiness {
   if (node.type !== 'TEXT') return 'ready'
   const faces = requiredFacesReadiness(r, node)
-  if (faces !== 'ready') return faces
-  if (!node.text || !canObserveGlyphCoverage(r)) return 'ready'
-  return observedGlyphReadiness(r, node)
+  if (faces === 'pending' || faces === 'exhausted') return faces
+  if (!node.text || !canObserveGlyphCoverage(r)) return faces
+  const glyphs = observedGlyphReadiness(r, node)
+  // Substituted text still needs script fallbacks (for example CJK) for glyphs the substitute
+  // lacks, but stays visible when none can be found.
+  if (faces === 'substituted') return glyphs === 'pending' ? 'pending' : 'substituted'
+  return glyphs
 }
 
 export function isNodeFontLoaded(r: FontReadinessRenderer, node: SceneNode): boolean {
@@ -289,17 +293,25 @@ function getParagraphTextAlign(
   }
 }
 
+/** Explicit axes win over the named-instance axes of a variable face (`implicit`). */
 export function textFontVariations(
-  variations: SceneNode['fontVariations'] | undefined
+  variations: SceneNode['fontVariations'] | undefined,
+  implicit: SceneNode['fontVariations'] | null = null
 ): TextFontVariations[] | undefined {
-  if (!variations || variations.length === 0) return undefined
-  return variations.map((variation) => ({ axis: variation.axis, value: variation.value }))
+  const explicitAxes = new Set(variations?.map((variation) => variation.axis))
+  const merged = [
+    ...(implicit ?? []).filter((variation) => !explicitAxes.has(variation.axis)),
+    ...(variations ?? [])
+  ]
+  if (merged.length === 0) return undefined
+  return merged.map((variation) => ({ axis: variation.axis, value: variation.value }))
 }
 
 /**
  * T41（D-b 收口）：VF 家族的 wght 轴自动注入。家族已加载可变字体且调用方未显式
  * 给 wght 轴时，按 fontWeight 合流一个 wght variation（clamp 到 fvar 区间）；
- * 显式 variations（FIG 导入语义）优先，不被覆盖。
+ * 显式 variations（FIG 导入语义）优先，不被覆盖。命名实例合流后的轴同样优先——
+ * 注入仅在合流结果缺 wght 轴时兜底（woff2 等上游解析器读不出 fvar 的容器）。
  * 机制实证：workbench/probe-t41-variable-font.mjs（0.41.1，墨量 ×2.81）。
  */
 export function withWeightAxisVariation(
@@ -416,7 +428,10 @@ function pushStyleRun(
     fontVariations: withWeightAxisVariation(
       runFamily,
       runWeight,
-      textFontVariations(style.fontVariations ?? node.fontVariations)
+      textFontVariations(
+        style.fontVariations ?? node.fontVariations,
+        fontManager.namedInstanceVariations(runFamily, weightToStyle(runWeight, runItalic))
+      )
     ),
     fontFeatures: textFontFeatures(style.fontFeatures ?? node.fontFeatures),
     letterSpacing: style.letterSpacing ?? (node.letterSpacing || 0),
@@ -518,7 +533,13 @@ export function buildParagraph(
     fontVariations: withWeightAxisVariation(
       node.fontFamily || DEFAULT_FONT_FAMILY,
       node.fontWeight,
-      textFontVariations(node.fontVariations)
+      textFontVariations(
+        node.fontVariations,
+        fontManager.namedInstanceVariations(
+          node.fontFamily || DEFAULT_FONT_FAMILY,
+          weightToStyle(node.fontWeight, node.italic)
+        )
+      )
     ),
     fontFeatures: textFontFeatures(node.fontFeatures),
     letterSpacing: node.letterSpacing || 0,

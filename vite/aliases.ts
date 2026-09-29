@@ -15,6 +15,10 @@ export function createOpenPencilAliases(rootDir: string) {
       replacement: resolve(rootDir, 'packages/dom-css/src/browser.ts')
     },
     {
+      find: /^@open-pencil\/dom-css\/export$/,
+      replacement: resolve(rootDir, 'packages/dom-css/src/export.ts')
+    },
+    {
       find: /^@open-pencil\/dom-css\/jsx-runtime$/,
       replacement: resolve(rootDir, 'packages/dom-css/src/jsx/runtime.ts')
     },
@@ -46,6 +50,12 @@ export function createOpenPencilAliases(rootDir: string) {
     {
       find: /^@open-pencil\/core\/text$/,
       replacement: resolve(rootDir, 'packages/core/src/text/index.ts')
+    },
+    // `/bytes` 同理（2026-09-29 合并 #771 后）：上游删了 bytes barrel，精确 alias
+    // 直钉 image-mime——裸 spec 否则落到 src/bytes/ 目录无可解析入口
+    {
+      find: /^@open-pencil\/core\/bytes$/,
+      replacement: resolve(rootDir, 'packages/core/src/bytes/image-mime.ts')
     },
     { find: '@open-pencil/core', replacement: resolve(rootDir, 'packages/core/src') },
     {

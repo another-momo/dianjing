@@ -10,7 +10,8 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { decodeBase64 } from '@open-pencil/core/bytes'
+import { fromUint8Array, toUint8Array } from 'js-base64'
+
 import type {
   ImageGenProvider,
   ImageGenRequest
@@ -123,7 +124,7 @@ describe('transparent_background local 路径（seedream = transparentSupport=lo
     const commitCall = calls.find((c) => c.tool === 'image_gen_commit')
     if (!commitCall) throw new Error('expected image_gen_commit call')
     const imageB64 = String((commitCall.args as { image_data: string }).image_data)
-    const decoded = __test__.decodePNGRgba8(decodeBase64(imageB64))
+    const decoded = __test__.decodePNGRgba8(toUint8Array(imageB64))
     expect(decoded.colorType).toBe(6) // RGBA
     expect(decoded.width).toBe(16)
     expect(decoded.height).toBe(16)
@@ -226,7 +227,7 @@ describe('transparent_background local 路径（seedream = transparentSupport=lo
     if (!commitCall) throw new Error('expected image_gen_commit call')
     const imageB64 = String((commitCall.args as { image_data: string }).image_data)
     // 原 bytes 回退——base64 后内容应该和 badBytes 一致
-    expect(imageB64).toBe(Buffer.from(badBytes).toString('base64'))
+    expect(imageB64).toBe(fromUint8Array(badBytes))
 
     const details = result.details as {
       results: Array<{ transparent?: boolean | 'failed' }>

@@ -15,7 +15,8 @@ import {
   type FontFamilyOption,
   type LocalFontAccessState,
   type WebFontFetch,
-  type WebFontProviderId
+  type WebFontProviderId,
+  UnsupportedFontFormatError
 } from '@open-pencil/core/text'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
@@ -411,6 +412,8 @@ function clearTextPictures(graph: SceneGraph, nodeIds: string[]): void {
 // reference lets registerAndCache dedupe and skips re-registration.
 const systemFontDataCache = new Map<string, ArrayBuffer | null>()
 
+type NativeFontLoadError = { code?: 'not-found' | 'unsupported-format' | 'failed' }
+
 async function loadSystemFont(family: string, style = 'Regular'): Promise<ArrayBuffer | null> {
   if (!isTauri()) return null
   const key = `${family}|${style}`
@@ -418,14 +421,16 @@ async function loadSystemFont(family: string, style = 'Regular'): Promise<ArrayB
   if (cached !== undefined) return cached
   try {
     const { invoke } = await import('@tauri-apps/api/core')
-    const data = await invoke<ArrayBuffer>('load_system_font', {
-      family,
-      style
-    })
+    const data = await invoke<ArrayBuffer>('load_system_font', { family, style })
     const buffer = data.byteLength === 0 ? null : data
     systemFontDataCache.set(key, buffer)
     return buffer
-  } catch {
+  } catch (error) {
+    // 不支持的字形容器不缓存——抛出由 fontManager 记录不可用原因（字体状态条展示），
+    // 重试仍可经 demand 链再触发；其余失败（含 not-found）缓存 null 防 IPC 重拉。
+    if ((error as NativeFontLoadError | null)?.code === 'unsupported-format') {
+      throw new UnsupportedFontFormatError(family, style)
+    }
     systemFontDataCache.set(key, null)
     return null
   }

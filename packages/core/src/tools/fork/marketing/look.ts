@@ -9,12 +9,13 @@
  *   供 pi-backend 媒体登记层（src/app/ai/pi-backend/media-output.ts）识别并转媒体块。
  */
 
+import { fromUint8Array } from 'js-base64'
 import * as v from 'valibot'
 
 import type { Fill, SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
-import { detectImageMime, encodeBase64 } from '#core/bytes'
+import { detectImageMime } from '#core/bytes/image-mime'
 import { isRendererDead } from '#core/canvas'
 import type { TileWorldBounds } from '#core/canvas/renderer/tiles/geometry'
 import type { FigmaAPI } from '#core/figma-api'
@@ -351,7 +352,7 @@ export const lookTool = defineTool({
     if (focus) noteParts.push(`Focus: ${focus}.`)
 
     return {
-      base64: encodeBase64(image.data),
+      base64: fromUint8Array(image.data),
       mimeType: image.mimeType,
       byteLength: image.data.length,
       channel: 'A' as const,

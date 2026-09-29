@@ -11,9 +11,9 @@
  * tool-handlers.ts 的 ALL_TOOLS 分发不受影响）。
  */
 
+import { fromUint8Array, isValid, toUint8Array } from 'js-base64'
 import * as v from 'valibot'
 
-import { decodeBase64, encodeBase64 } from '#core/bytes'
 import { defineTool } from '#core/tools/schema'
 
 import { beginImageGen, commitImageGen } from './apply'
@@ -75,7 +75,7 @@ export const imageGenBegin = defineTool({
         canvasWidth: result.canvasWidth,
         canvasHeight: result.canvasHeight,
         replaced: result.replaced,
-        images: result.images.map((bytes) => encodeBase64(bytes)),
+        images: result.images.map((bytes) => fromUint8Array(bytes)),
         ...(result.note ? { note: result.note } : {})
       }
     } catch (error) {
@@ -95,6 +95,7 @@ export const imageGenCommit = defineTool({
     image_data: v.pipe(v.string(), v.description('Base64-encoded generated image bytes'))
   }),
   execute: (figma, { id, image_data }) => {
-    return commitImageGen(figma, id, decodeBase64(image_data))
+    if (!isValid(image_data)) return { error: 'Invalid base64 image data.' }
+    return commitImageGen(figma, id, toUint8Array(image_data))
   }
 })

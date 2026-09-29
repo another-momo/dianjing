@@ -32,6 +32,7 @@ export const UNIT_TEST_GROUPS = {
   ],
   editor: [
     'packages/core/tests',
+    'tests/engine/bytes',
     'tests/engine/clipboard',
     'tests/engine/core',
     'tests/engine/editor',
@@ -41,7 +42,6 @@ export const UNIT_TEST_GROUPS = {
   fig: [
     'packages/fig/tests',
     'packages/kiwi/tests',
-    'tests/engine/bytes',
     'tests/engine/figma',
     'tests/engine/io',
     'tests/engine/kiwi'

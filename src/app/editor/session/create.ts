@@ -29,6 +29,7 @@ import {
 } from '@/app/editor/session/modules'
 import { createInitialAppEditorState, type AppEditorState } from '@/app/editor/session/types'
 import { notificationMessages } from '@/app/i18n/notifications'
+import { createDeferred } from '@/app/runtime/deferred'
 import { toast } from '@/app/shell/ui'
 import { IS_TAURI } from '@/constants'
 
@@ -55,7 +56,7 @@ export function createEditorStore(initialGraph?: SceneGraph) {
             height: hasWindowGlobal() ? window.innerHeight : 1080
           }
   })
-  const canvasReadiness = Promise.withResolvers<undefined>()
+  const canvasReadiness = createDeferred<undefined>()
   const io = new IORegistry(BUILTIN_IO_FORMATS)
   bindClipboardNotifications(editor)
 

@@ -53,6 +53,7 @@
 - 测试不读真实 env/浏览器全局，走注入与桩（引擎测试）。
 - 第一方运行时校验用 Valibot；Zod 只留在要求它的 SDK 集成边界，不并行维护双 schema。
 - 多行 prompt 组合用 `dedent` 包，不手写转义换行串；成段散文留在属主 Markdown 源，组合不复制（studio 谱系同此原则）。
+- Base64 一律 `js-base64` 直连：字节面 `toUint8Array`/`fromUint8Array`、文本面 `encode`/`decode`，解码外部输入（剪贴板、导入文件、工具参数）先过 `isValid` 门；禁再包一层、禁 `atob`/`btoa`/`Buffer` 做 Base64（`open-pencil/no-hand-rolled-base64` 强制）。
 - Window API 增强归编译边界：app 声明在 `src/global.d.ts`、包级 DOM 缺口在属包 `global.d.ts`；禁在 spec 或实现模块里 `declare global`。
 - import 禁 `../` 逃逸 alias 根（`#tests/../vite` 式）；模块归属错位修归属，不修路径。
 - vite.config.ts 加载链文件禁 `@/` alias：链 = vite.config → `vite/automation` + pi-backend/bridge 两个 vite-plugin → 其传递 import（如 `src/app/bridge/server/paths.ts`）——Storybook/vite config loader 不注册别名。用相对 import：单个 `../` 直接写，`../../` 逐行注 `// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports`。

@@ -22,7 +22,7 @@ import LibraryUpdateReviewDialog from '@/components/libraries/review/LibraryUpda
 import RecoveryDialog from '@/components/recovery/RecoveryDialog.vue'
 import SettingsDialog from '@/components/settings/SettingsDialog.vue'
 import AppShell from '@/components/shell/AppShell.vue'
-import AppToast from '@/components/shell/AppToast.vue'
+import Toaster from '@/components/shell/Toaster.vue'
 
 const store = useEditorStore()
 const { updates, locale } = useI18n()
@@ -61,7 +61,7 @@ onMounted(() => {
       <OpenDocsConflictDialog />
       <PublishLibraryDialog />
       <LibraryUpdateReviewDialog />
-      <AppToast />
+      <Toaster />
     </TooltipProvider>
   </MotionConfig>
 </template>

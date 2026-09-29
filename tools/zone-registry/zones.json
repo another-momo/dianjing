@@ -237,13 +237,6 @@
       "lastReviewed": "2026-09-14"
     },
     {
-      "id": "P9",
-      "file": "src/main.ts",
-      "reason": "remove PWA registration (localhost serve form) T19: main.ts 调 attachPiBackendTransport（flag 门控 pi transport override）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
-    },
-    {
       "id": "P10",
       "file": "vite.config.ts",
       "reason": "remove openPencilPwaPlugin (vite/pwa.ts deleted) T19: 注册 piBackendPlugin T20: 插件改为 spawn 独立后端进程 + server.proxy 转发 /api/pi-chat（不再挂中间件）；env 读取收口至 src/app/orchestration/env.ts（orchestration-consolidation 2026-09-14）",
@@ -309,9 +302,9 @@
     {
       "id": "P19",
       "file": "tools/unit-tests/src/shards.ts",
-      "reason": "app group: drop acp/tauri dirs, add tests/engine/rebuild；2026-09-08 上游合并：上游扩 app group（acp/cli/collab/tauri）未采——四目录均为 fork deletedPaths；按其归组语义吸收既有未覆盖目录：core→editor、bytes/library→scene（新版严格分片测试要求每测试恰好一片） ｜ 2026-09-18 重锚 PR715 新结构：保持 fork 七组（app/dom/editor/fig/render/scene/vue），登记 packages/<owner>/tests 与 tests/app、tests/integration 守卫路径；不取上游 cli/mcp 组（包不存在）；同日清理分组来源死引用注释——packages/docs/development/testing.md 已随 docs 站删除，分组规范改注释内联声明；serial.ts 去 HEAVY 双写改 import isHeavyUnitTest（serial.ts 属 ownedRoot 新增文件免登记）",
+      "reason": "app group: drop acp/tauri dirs, add tests/engine/rebuild；2026-09-08 上游合并：上游扩 app group（acp/cli/collab/tauri）未采——四目录均为 fork deletedPaths；按其归组语义吸收既有未覆盖目录：core→editor、bytes/library→scene（新版严格分片测试要求每测试恰好一片） ｜ 2026-09-18 重锚 PR715 新结构：保持 fork 七组（app/dom/editor/fig/render/scene/vue），登记 packages/<owner>/tests 与 tests/app、tests/integration 守卫路径；不取上游 cli/mcp 组（包不存在）；同日清理分组来源死引用注释——packages/docs/development/testing.md 已随 docs 站删除，分组规范改注释内联声明；serial.ts 去 HEAVY 双写改 import isHeavyUnitTest（serial.ts 属 ownedRoot 新增文件免登记）；2026-09-29 合并：上游新增 tests/engine/bytes/（image-mime 测试）归 editor 组（core 字节工具语义）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-18"
+      "lastReviewed": "2026-09-29"
     },
     {
       "id": "P20",
@@ -593,7 +586,7 @@
     {
       "id": "P109",
       "file": "src/app/editor/fonts/index.ts",
-      "reason": "T39 加载链修复（05 册 T1）：systemFontDataCache 会话缓存（CJK fallback 循环不再每次 IPC 拉 ~100MB）+ 浏览器 local-fonts 权限启动同步；T41：disabledFontFamilies localStorage 持久化 + fontListRevision 同步（picker 失效信号）+ listAllFamilies 不过滤枚举（面板数据源，listFamilies 仍过滤供 picker）；T42：cnFontsEnabled（op-cn-fonts-enabled）+ enabledCatalogFamilies（op-font-enabled-catalog:v1）持久化接线 + cnSwitchEpoch（CDN 开关绕过白名单 revision 的 picker 失效补偿）；T50：抽 listTauriMergedFamilies helper 消 listFamilies/listAllFamilies 间 7 行 jscpd 克隆（行为不变，2026-08-31）；2026-09-14 T40 延展：local-fonts 启动同步守卫换 hasWindowGlobal 活探；font-custom-service (2026-09-28): op-custom-service:v1 storage (base normalized on read) + baseFontFetch baseline retention + deep watch wiring (scopeBearerFetch composition and setCustomFontService on normalized (baseURL, token, enabled) change) + testCustomFontService connection probe；font-gate-semantics C (2026-09-29)：customDisabledFontFamilies（op-custom-font-disabled:v1）持久化接线——并入白名单 watch 推入 setCustomDisabledFontFamilies，fontListRevision 合成沿用",
+      "reason": "T39 加载链修复（05 册 T1）：systemFontDataCache 会话缓存（CJK fallback 循环不再每次 IPC 拉 ~100MB）+ 浏览器 local-fonts 权限启动同步；T41：disabledFontFamilies localStorage 持久化 + fontListRevision 同步（picker 失效信号）+ listAllFamilies 不过滤枚举（面板数据源，listFamilies 仍过滤供 picker）；T42：cnFontsEnabled（op-cn-fonts-enabled）+ enabledCatalogFamilies（op-font-enabled-catalog:v1）持久化接线 + cnSwitchEpoch（CDN 开关绕过白名单 revision 的 picker 失效补偿）；T50：抽 listTauriMergedFamilies helper 消 listFamilies/listAllFamilies 间 7 行 jscpd 克隆（行为不变，2026-08-31）；2026-09-14 T40 延展：local-fonts 启动同步守卫换 hasWindowGlobal 活探；font-custom-service (2026-09-28): op-custom-service:v1 storage (base normalized on read) + baseFontFetch baseline retention + deep watch wiring (scopeBearerFetch composition and setCustomFontService on normalized (baseURL, token, enabled) change) + testCustomFontService connection probe；font-gate-semantics C (2026-09-29)：customDisabledFontFamilies（op-custom-font-disabled:v1）持久化接线——并入白名单 watch 推入 setCustomDisabledFontFamilies，fontListRevision 合成沿用；2026-09-29 合并：loadSystemFont 不受支持格式抛 UnsupportedFontFormatError 且不缓存（状态条依赖抛错），其余失败照旧缓存 null（CJK IPC 环路防护不变）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-29"
     },
@@ -622,7 +615,7 @@
     {
       "id": "P113",
       "file": "packages/core/src/text/fonts.ts",
-      "reason": "T40 内存治理（13 册 §3 策略 A）：FontMemoryLedger 入账/touch + 50MB 默认预算 LRU 逐出（loadedFamilies/supplementalFamilyData/remoteCoverage/loadedFamilySources 同步释放 + document.fonts.delete）+ 逐出联动 onFontEvicted 挂钩（防 resolver 残留 'loaded' 快照致永不重载）+ fontMemoryStats 指标；S4 cn-font 路由（loadCnFontSubset：注册表 cdn 家族走中文网字计划子集，失败回退 unifont 链 D-g；在线 provider 全关时 CDN 不触网不枚举）",
+      "reason": "T40 内存治理（13 册 §3 策略 A）：FontMemoryLedger 入账/touch + 50MB 默认预算 LRU 逐出（loadedFamilies/supplementalFamilyData/remoteCoverage/loadedFamilySources 同步释放 + document.fonts.delete）+ 逐出联动 onFontEvicted 挂钩（防 resolver 残留 'loaded' 快照致永不重载）+ fontMemoryStats 指标；S4 cn-font 路由（loadCnFontSubset：注册表 cdn 家族走中文网字计划子集，失败回退 unifont 链 D-g；在线 provider 全关时 CDN 不触网不枚举）；2026-09-29 合并 #773：上游 sniffVariableFont/FULL_WEIGHT_RANGE/namedInstanceVariations 与 MemoryLedger 并存 union import，isVariableFont 死码不引（export * 仍透出）",
       "disposition": "permanent",
       "lastReviewed": "2026-08-30"
     },
@@ -664,7 +657,7 @@
     {
       "id": "P119",
       "file": "packages/core/src/canvas/text/index.ts",
-      "reason": "T40 修复：CDN 互斥分片 alias 注入段落 fontFamilies 回退链（同名多片被 CanvasKit 塌缩成单 typeface）；alias 列表进 fontFamilyCache 键；T41：withWeightAxisVariation——VF 家族按 fontWeight 自动注入 wght 轴（显式 fontVariations 优先，clamp 至 fvar 区间）",
+      "reason": "T40 修复：CDN 互斥分片 alias 注入段落 fontFamilies 回退链（同名多片被 CanvasKit 塌缩成单 typeface）；alias 列表进 fontFamilyCache 键；T41：withWeightAxisVariation——VF 家族按 fontWeight 自动注入 wght 轴（显式 fontVariations 优先，clamp 至 fvar 区间）；2026-09-29 合并 #773：吸收上游 textFontVariations（显式轴 ⊕ 命名实例轴），与 withWeightAxisVariation 组成三层——显式 > 命名实例 > wght 注入兜底；上游 sfntTable 读不了 woff2 容器（CDN 切片），兜底层保留",
       "disposition": "permanent",
       "lastReviewed": "2026-08-30"
     },
@@ -692,7 +685,7 @@
     {
       "id": "P124",
       "file": "oxlint.json",
-      "reason": "T47：no-console off override 扩至 tools/**/*.mjs——workbench/ 迁入 tools/rebuild/ 的 .mjs 核验/构建脚本带入 lint 视野；tools/**/*.ts 本已 off，.mjs 同为 CLI 脚本口径一致",
+      "reason": "T47：no-console off override 扩至 tools/**/*.mjs——workbench/ 迁入 tools/rebuild/ 的 .mjs 核验/构建脚本带入 lint 视野；tools/**/*.ts 本已 off，.mjs 同为 CLI 脚本口径一致；2026-09-29 合并 #745/#771：吸收 eslint-plugin-compat jsPlugin + settings.browsers 基线（chrome111/edge111/ff128/safari16.4）+ compat/compat error；拒收上游 no-mcp-*/no-cli-*/no-bun-globals-in-cli 五条规则引用（mcp/cli 两包俱裁撤死面，定义留 tools/lint plugin.ts follow 上游不引用）",
       "disposition": "permanent",
       "lastReviewed": "2026-08-31"
     },
@@ -700,9 +693,10 @@
       "id": "P130",
       "file": "packages/core/src/bytes/index.ts",
       "reason": "T55（2026-09-01）：detectImageMime 自 image-mime 共享模块再导出（look 移植依赖；svg/defs 消克隆同步换引）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-01",
-      "task": "T55"
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-29",
+      "task": "T55",
+      "retiredReason": "merge-upstream-14（2026-09-29）：上游 #771 删除 bytes/index.ts barrel 与 ./bytes 子路径；窗口裁定 = ./bytes 导出直挂 image-mime.ts（core/package.json 子路径重指），barrel 文件删除，patch 随锚退役"
     },
     {
       "id": "P131",
@@ -859,9 +853,9 @@
     {
       "id": "P155",
       "file": "vite/aliases.ts",
-      "reason": "Batch 1 收口（2026-09-05）：mermaid/beautiful-mermaid 两条 stub 别名由 src/app/shell/markdown/index.ts（已删 ghost，export default undefined）改指 vite/empty-node-module.ts——同为空模块汇，语义不变；上游 v2（vue-stream-markdown 2.0.0-beta.2 无 mermaid 依赖）本无此二别名，本地 1.0.4 链 @stream-markdown/mermaid 的动态 import(\"mermaid\") 仍需汇流；font-custom-service (2026-09-28): pin @open-pencil/core/text to packages/core/src/text/index.ts — bare specifier resolved via package exports to dist/text (vite optimizeDeps bundles it as a separate instance), splitting fontManager/allowlist singletons from #core/text src imports; exact alias unifies them",
+      "reason": "Batch 1 收口（2026-09-05）：mermaid/beautiful-mermaid 两条 stub 别名由 src/app/shell/markdown/index.ts（已删 ghost，export default undefined）改指 vite/empty-node-module.ts——同为空模块汇，语义不变；上游 v2（vue-stream-markdown 2.0.0-beta.2 无 mermaid 依赖）本无此二别名，本地 1.0.4 链 @stream-markdown/mermaid 的动态 import(\"mermaid\") 仍需汇流；font-custom-service (2026-09-28): pin @open-pencil/core/text to packages/core/src/text/index.ts — bare specifier resolved via package exports to dist/text (vite optimizeDeps bundles it as a separate instance), splitting fontManager/allowlist singletons from #core/text src imports; exact alias unifies them；2026-09-29 合并 #771：/bytes barrel 删除后补同款精确 alias 直钉 bytes/image-mime.ts",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-28"
+      "lastReviewed": "2026-09-29"
     },
     {
       "id": "P156",
@@ -1197,7 +1191,7 @@
     {
       "id": "P206",
       "file": "tools/i18n/mixed-script-baseline.txt",
-      "reason": "T98：域下线配套——剔除 ja 110 条 + zh-cn diagnostics 域 9 条死 baseline 条目；2026-09-14 合并：摘 ja:ai.copyACPLog/credentials.settingsTitle/rememberDevice 三条 stale",
+      "reason": "T98：域下线配套——剔除 ja 110 条 + zh-cn diagnostics 域 9 条死 baseline 条目；2026-09-14 合并：摘 ja:ai.copyACPLog/credentials.settingsTitle/rememberDevice 三条 stale；2026-09-29 合并：上游 ja 块 135 条 + zh-cn:fonts.downloadFallbackPacksDescription 经 check:i18n 判 stale 全剔（与 T98 剔除同理）；仅吸收 zh-cn:fonts.unsupportedFormat（上游 zh 译文拉丁+CJK 混排有效）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-14"
     },
@@ -1816,8 +1810,9 @@
       "id": "P298",
       "file": "packages/core/src/bytes/index.ts",
       "reason": "添加图片配套件 3/4（2026-09-19，「添加图片报错已定性」预研结案）：统一图片入口清单自 image-mime 再导出（RASTER_IMAGE_MIME_TYPES/IMAGE_FILE_ACCEPT/repairImageMime/isSupportedImageFile/isSVGImageFile/SVG_IMAGE_MIME_TYPE）——AVIF 摘出（canvaskit 0.41.1 无解码器假支持）、BMP 补入",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-19"
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-29",
+      "retiredReason": "merge-upstream-14（2026-09-29）：同 P130——barrel 退役，统一图片入口清单由 image-mime.ts 经 ./bytes 子路径直供，消费方 import 路径不变"
     },
     {
       "id": "P299",
@@ -2089,36 +2084,41 @@
       "id": "P339",
       "file": "src/components/ui/feedback/AppBanner.vue",
       "reason": "2026-09-21 合并 v0.15.1 修红：#716 带入的 AppBanner 以 testId prop 渲染 data-test-id，触 check:arch 共享层禁生产 test-id 规则（CI 35563778185）——改 data-slot 解剖（banner/banner-content/banner-dismiss），testId prop 摘除，消费方与 stories 同批剥属性",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-21"
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-29",
+      "retiredReason": "merge-upstream-14（2026-09-29）：幻影退役——AppBanner.vue 冲突重放后与上游头字节一致（上游 a029e267c 同改吸收，role=status 与 data-slot 解剖上游自带），与 P340-343 同族"
     },
     {
       "id": "P340",
       "file": "src/components/ui/feedback/banner.ts",
       "reason": "2026-09-21 合并 v0.15.1 修红：#716 带入的 AppBanner 以 testId prop 渲染 data-test-id，触 check:arch 共享层禁生产 test-id 规则（CI 35563778185）——改 data-slot 解剖（banner/banner-content/banner-dismiss），testId prop 摘除，消费方与 stories 同批剥属性",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-21"
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-29",
+      "retiredReason": "merge-upstream-14（2026-09-29）：幻影退役——上游 a029e267c（updater 进度 UI 清 AppToast 批）对 banner.ts 做出与本 patch 字节一致的修改，合并后文件与上游头零 diff，登记失去意义"
     },
     {
       "id": "P341",
       "file": "src/components/FileApiBanner.vue",
       "reason": "2026-09-21 合并 v0.15.1 修红：#716 带入的 AppBanner 以 testId prop 渲染 data-test-id，触 check:arch 共享层禁生产 test-id 规则（CI 35563778185）——改 data-slot 解剖（banner/banner-content/banner-dismiss），testId prop 摘除，消费方与 stories 同批剥属性",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-21"
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-29",
+      "retiredReason": "merge-upstream-14（2026-09-29）：幻影退役——同 P340，FileApiBanner.vue 与上游头字节一致（上游同改吸收）"
     },
     {
       "id": "P342",
       "file": "src/components/canvas/ColorSpaceBanner.vue",
       "reason": "2026-09-21 合并 v0.15.1 修红：#716 带入的 AppBanner 以 testId prop 渲染 data-test-id，触 check:arch 共享层禁生产 test-id 规则（CI 35563778185）——改 data-slot 解剖（banner/banner-content/banner-dismiss），testId prop 摘除，消费方与 stories 同批剥属性",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-21"
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-29",
+      "retiredReason": "merge-upstream-14（2026-09-29）：幻影退役——同 P340，ColorSpaceBanner.vue 与上游头字节一致（上游同改吸收）"
     },
     {
       "id": "P343",
       "file": "src/components/ui/feedback/AppBanner.stories.ts",
       "reason": "2026-09-21 合并 v0.15.1 修红：#716 带入的 AppBanner 以 testId prop 渲染 data-test-id，触 check:arch 共享层禁生产 test-id 规则（CI 35563778185）——改 data-slot 解剖（banner/banner-content/banner-dismiss），testId prop 摘除，消费方与 stories 同批剥属性",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-21"
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-29",
+      "retiredReason": "merge-upstream-14（2026-09-29）：幻影退役——同 P340，AppBanner.stories.ts 与上游头字节一致（上游同改吸收）"
     },
     {
       "id": "P344",
@@ -2272,7 +2272,7 @@
     {
       "id": "P364",
       "file": "packages/vue/src/i18n/locales/zh-cn/fonts.json",
-      "reason": "字体控管统一批（2026-09-25）：popover 降级中文配对（同 messages/fonts.ts）；fonts-panel-layering（2026-09-29）：同批剪 popover 专属键中文配对（同 P363 键面）",
+      "reason": "字体控管统一批（2026-09-25）：popover 降级中文配对（同 messages/fonts.ts）；fonts-panel-layering（2026-09-29）：同批剪 popover 专属键中文配对（同 P363 键面）；2026-09-29 合并：吸收上游 unsupportedFormat/unsupportedFormatShort 键（zh 译文照搬上游），unsupportedFormat 混排已登记 mixed-script baseline",
       "disposition": "permanent",
       "lastReviewed": "2026-09-29"
     },
@@ -2427,6 +2427,34 @@
       "disposition": "permanent",
       "lastReviewed": "2026-09-29",
       "task": "font-panel-ux"
+    },
+    {
+      "id": "P386",
+      "file": "src/boot.ts",
+      "reason": "P9 随迁（2026-09-29 合并 #745）：上游把启动序列抽进 boot()，attachPiBackendTransport 与 SPLASH_VISIBLE_MS 启动过渡页退场时序块随迁此文件；main.ts 随上游薄闸化逐字节一致；PWA 注册块（virtual:pwa-register，!IS_TAURI 分支）随迁此处续摘——本地 serve 形态不要 PWA（P9 原旨，P9 退役）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-29"
+    },
+    {
+      "id": "P387",
+      "file": "src/app/shell/support/gate.ts",
+      "reason": "2026-09-29 合并 #745：desktopFacts() 摘除 Tauri plugin-os/api 动态 import——Electron 壳不打包 Tauri 插件，固定返回 platform:'unknown'，公告退化 UA 描述引擎",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-29"
+    },
+    {
+      "id": "P388",
+      "file": "src/app/shell/support/guidance.ts",
+      "reason": "2026-09-29 合并 #745：issue 上报版本号全局名 __OPENPENCIL_APP_VERSION__ → __DIANJING_APP_VERSION__（品牌全局，与 vite define 对齐）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-29"
+    },
+    {
+      "id": "P389",
+      "file": "src/app/shell/support/render.ts",
+      "reason": "2026-09-29 合并 #745 独立 review 修复：renderSupportNotice 摘除 #boot-splash——品牌 splash 是 #app 平级兄弟（fixed 全屏遮罩、挂载后驻留数秒），replaceChildren 清不到，不摘则启动失败通告被 splash 盖住不可见",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-29"
     }
   ],
   "deletedPaths": [
@@ -2621,7 +2649,16 @@
     "src/components/assistant/ChatAwaitingIntentCard.vue",
     "src/components/assistant/ChatSetActiveDesignCard.vue",
     "tests/engine/rebuild/marketing/active-design.test.ts",
-    "tests/engine/rebuild/chat/intent-cards.test.ts"
+    "tests/engine/rebuild/chat/intent-cards.test.ts",
+    "packages/core/AGENTS.md",
+    "packages/fig/AGENTS.md",
+    "packages/harness/AGENTS.md",
+    "packages/scene-graph/AGENTS.md",
+    "packages/vue/AGENTS.md",
+    "src/AGENTS.md",
+    "tests/AGENTS.md",
+    "tools/AGENTS.md",
+    ".github/workflows/pr-title.yml"
   ],
   "upstreamMergeTarball": []
 }

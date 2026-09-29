@@ -33,9 +33,8 @@ import { readFileSync, statSync } from 'node:fs'
 import { basename } from 'node:path'
 
 import { defineTool, type AgentToolResult } from '@earendil-works/pi-coding-agent'
+import { fromUint8Array } from 'js-base64'
 import { Type } from 'typebox'
-
-import { encodeBase64 } from '@open-pencil/core/bytes'
 
 import { fetchImageFromURL } from './fetch-image-url'
 import {
@@ -242,7 +241,7 @@ function buildBridgeArgs(
   mime: string,
   placement: LoadImagePlacement
 ): Record<string, unknown> {
-  const bridgeArgs: Record<string, unknown> = { name, image_data: encodeBase64(bytes), mime }
+  const bridgeArgs: Record<string, unknown> = { name, image_data: fromUint8Array(bytes), mime }
   if (placement.replace_id) bridgeArgs.replace_id = placement.replace_id
   if (placement.parent_id) bridgeArgs.parent_id = placement.parent_id
   if (placement.x !== undefined) bridgeArgs.x = placement.x
