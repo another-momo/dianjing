@@ -23,6 +23,8 @@ import { mkdirSync, mkdtempSync, rmSync, truncateSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { toUint8Array } from 'js-base64'
+
 import {
   createLoadImageTool,
   LOAD_IMAGE_MAX_BYTES,
@@ -294,7 +296,7 @@ describe('桥缝', () => {
     expect(args.x).toBe(10)
     expect(args.y).toBe(20)
     // base64 解码回原字节（字节面正确性）
-    expect(Buffer.from(String(args.image_data), 'base64')).toEqual(Buffer.from(PNG_BYTES))
+    expect(Buffer.from(toUint8Array(String(args.image_data)))).toEqual(Buffer.from(PNG_BYTES))
   })
 
   test('桥结果 {error}（如像素超限）原样透传', async () => {
@@ -368,7 +370,7 @@ describe('URL 分支', () => {
     expect(stub.calls).toHaveLength(1)
     expect(stub.calls[0]?.args.name).toBe('photo.png')
     expect(stub.calls[0]?.args.mime).toBe('image/png')
-    expect(Buffer.from(String(stub.calls[0]?.args.image_data), 'base64')).toEqual(
+    expect(Buffer.from(toUint8Array(String(stub.calls[0]?.args.image_data)))).toEqual(
       Buffer.from(PNG_BYTES)
     )
   })

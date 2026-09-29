@@ -49,6 +49,5 @@ export async function boot(): Promise<void> {
   const failure = bootErrors.stop()
   if (failure) {
     await reportBootFailure(failure.error)
-    return
   }
 }

@@ -23,6 +23,8 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { fromUint8Array } from 'js-base64'
+
 import { fetchImageFromURL } from '@/app/ai/pi-backend/fetch-image-url'
 
 // ── 测试桩形态 ──
@@ -44,7 +46,7 @@ function inputURL(input: unknown): string {
 
 /** PNG 真实 magic bytes（8 字节） */
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-const PNG_B64 = Buffer.from(PNG_BYTES).toString('base64')
+const PNG_B64 = fromUint8Array(PNG_BYTES)
 
 /** 构造流式响应（按需给 status / headers / chunks） */
 function streamResponse(
@@ -122,7 +124,7 @@ describe('data: URL 错误面', () => {
   test('data: URL 字节超 maxBytes → too large error', async () => {
     // 100 字节 PNG 假装（base64 串长 ≈ 136 字符；设 maxBytes = 50 即拒）
     const fake = new Uint8Array(100)
-    const b64 = Buffer.from(fake).toString('base64')
+    const b64 = fromUint8Array(fake)
     const result = await fetchImageFromURL(`data:image/png;base64,${b64}`, {
       maxBytes: 50
     })

@@ -21,6 +21,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { fromUint8Array } from 'js-base64'
+
 const REPO = 'another-momo/dianjing'
 const DEFAULT_BRANCH = 'rebuild/mode-arch'
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
@@ -104,7 +106,7 @@ for (const line of files) {
     continue
   }
   const localBlob = git(`rev-parse "HEAD:${path}"`).trim()
-  const content = gitBytes(`cat-file blob ${localBlob}`).toString('base64')
+  const content = fromUint8Array(gitBytes(`cat-file blob ${localBlob}`))
   const blob = ghAPI('POST', `repos/${REPO}/git/blobs`, {
     content,
     encoding: 'base64'

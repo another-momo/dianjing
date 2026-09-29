@@ -9,6 +9,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { fromUint8Array } from 'js-base64'
 import { Value } from 'typebox/value'
 
 import { parseImageGenRequests } from '@open-pencil/core/tools/fork/image-gen/requests'
@@ -103,7 +104,7 @@ const SEEDREAM_CREDENTIALS = {
 }
 
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47])
-const B64_RESPONSE = { data: [{ b64_json: Buffer.from(PNG_BYTES).toString('base64') }] }
+const B64_RESPONSE = { data: [{ b64_json: fromUint8Array(PNG_BYTES) }] }
 
 interface GenerationsRequestBody {
   background?: string

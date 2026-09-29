@@ -494,30 +494,16 @@ function addStyledRuns(
   if (pos < text.length) addParagraphText(builder, node, text.slice(pos))
 }
 
-export function buildParagraph(
+function buildBaseTextStyle(
   r: TextRenderer,
   node: ParagraphNode,
-  color?: Float32Array,
-  { halfLeading = false, foregroundPaint }: ParagraphBuildOptions = {}
-): Paragraph {
+  baseColor: Float32Array,
+  baseFontSize: number,
+  fontFamilies: (primary: string, weight: number, italic?: boolean) => string[],
+  halfLeading: boolean
+) {
   const ck = r.ck
-  const baseColor = color ?? ck.BLACK
-  const baseFontSize = node.fontSize || DEFAULT_FONT_SIZE
-  const cjkFallbacks = fontManager.getCJKFallbackFamilies()
-  const arabicFallbacks = fontManager.getArabicFallbackFamilies()
-  const textDirection = resolveNodeTextDirection(node)
-
-  const truncateOpts = buildTruncateOpts(node, baseFontSize)
-
-  const fontFamilies = (primary: string, weight: number, italic = false) =>
-    resolveParagraphFontFamilies(
-      primary,
-      weightToStyle(weight, italic),
-      arabicFallbacks,
-      cjkFallbacks
-    )
-
-  const baseTextStyle = {
+  return {
     color: baseColor,
     fontFamilies: fontFamilies(
       node.fontFamily || DEFAULT_FONT_FAMILY,
@@ -550,6 +536,39 @@ export function buildParagraph(
     heightMultiplier: node.lineHeight ? node.lineHeight / baseFontSize : undefined,
     halfLeading
   }
+}
+
+export function buildParagraph(
+  r: TextRenderer,
+  node: ParagraphNode,
+  color?: Float32Array,
+  { halfLeading = false, foregroundPaint }: ParagraphBuildOptions = {}
+): Paragraph {
+  const ck = r.ck
+  const baseColor = color ?? ck.BLACK
+  const baseFontSize = node.fontSize || DEFAULT_FONT_SIZE
+  const cjkFallbacks = fontManager.getCJKFallbackFamilies()
+  const arabicFallbacks = fontManager.getArabicFallbackFamilies()
+  const textDirection = resolveNodeTextDirection(node)
+
+  const truncateOpts = buildTruncateOpts(node, baseFontSize)
+
+  const fontFamilies = (primary: string, weight: number, italic = false) =>
+    resolveParagraphFontFamilies(
+      primary,
+      weightToStyle(weight, italic),
+      arabicFallbacks,
+      cjkFallbacks
+    )
+
+  const baseTextStyle = buildBaseTextStyle(
+    r,
+    node,
+    baseColor,
+    baseFontSize,
+    fontFamilies,
+    halfLeading
+  )
   const paraStyle = new ck.ParagraphStyle({
     textAlign: getParagraphTextAlign(ck, node),
     textDirection: textDirection === 'RTL' ? ck.TextDirection.RTL : ck.TextDirection.LTR,

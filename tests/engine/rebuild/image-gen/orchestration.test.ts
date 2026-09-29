@@ -7,6 +7,8 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { fromUint8Array } from 'js-base64'
+
 import type { ImageGenProvider } from '@open-pencil/core/tools/fork/image-gen/requests'
 
 import type { ImageGenCredentialStore } from '@/app/ai/pi-backend/image-gen/credentials'
@@ -147,7 +149,7 @@ describe('createImageGenTool 编排', () => {
     // commit 携带 base64 图像字节
     const commits = calls.filter((call) => call.tool === 'image_gen_commit')
     expect(commits).toHaveLength(2)
-    expect(commits[0].args.image_data).toBe(Buffer.from(GEN_BYTES).toString('base64'))
+    expect(commits[0].args.image_data).toBe(fromUint8Array(GEN_BYTES))
 
     const details = result.details as {
       generated: number

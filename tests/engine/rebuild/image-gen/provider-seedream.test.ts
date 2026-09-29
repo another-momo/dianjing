@@ -18,6 +18,8 @@
 
 import { describe, expect, test } from 'bun:test'
 
+import { fromUint8Array } from 'js-base64'
+
 import { createProviderFor } from '@/app/ai/pi-backend/image-gen/factory'
 import { createSeedreamImageGenProvider } from '@/app/ai/pi-backend/image-gen/provider-seedream'
 import {
@@ -36,7 +38,7 @@ const SEEDREAM_CREDENTIALS = {
   apiKey: 'sk-test-seedream-key'
 }
 
-const B64_RESPONSE = { data: [{ b64_json: Buffer.from(PNG_BYTES).toString('base64') }] }
+const B64_RESPONSE = { data: [{ b64_json: fromUint8Array(PNG_BYTES) }] }
 
 /** Seedream /images/generations 请求体（钉扎用命名类型）。
  * T77 P3 共用约定：无 response_format 字段。 */

@@ -16,6 +16,8 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { fromUint8Array } from 'js-base64'
+
 import {
   createImageGenProvider,
   IMAGE_GEN_DEFAULT_TIMEOUT_MS
@@ -33,7 +35,7 @@ const CREDENTIALS = {
   apiKey: 'sk-test-image-key'
 }
 
-const B64_RESPONSE = { data: [{ b64_json: Buffer.from(PNG_BYTES).toString('base64') }] }
+const B64_RESPONSE = { data: [{ b64_json: fromUint8Array(PNG_BYTES) }] }
 
 /** OpenAI 兼容 /images/generations 请求体（钉扎用命名类型）。
  * T77 P3：response_format 字段移除——反向钉扎在断言侧（见下）。 */

@@ -18,6 +18,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { fromUint8Array } from 'js-base64'
+
 import { createExportImageToFileTool } from '@/app/ai/pi-backend/export-image-to-file'
 import { formatImageGenDateBucket } from '@/app/ai/pi-backend/paths'
 
@@ -43,7 +45,7 @@ function exportBridge(
 ): BridgeStub {
   return bridgeStub(
     {
-      base64: Buffer.from(EXPORT_BYTES).toString('base64'),
+      base64: fromUint8Array(EXPORT_BYTES),
       mimeType: 'image/png',
       byteLength: EXPORT_BYTES.byteLength,
       width: 640,
@@ -104,7 +106,7 @@ describe('默认落点与命名', () => {
   test('format=JPG → 桥参数透传 + 默认文件名 .jpg', async () => {
     const stub = exportBridge({
       result: {
-        base64: Buffer.from(EXPORT_BYTES).toString('base64'),
+        base64: fromUint8Array(EXPORT_BYTES),
         mimeType: 'image/jpeg',
         width: 100,
         height: 50

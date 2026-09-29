@@ -5,6 +5,8 @@
  */
 import { describe, expect, it } from 'bun:test'
 
+import { encode, fromUint8Array } from 'js-base64'
+
 import { extractBase64Binary } from '@/app/ai/pi-backend/mcp/binary-detection'
 
 // Helper: generate a real base64-encoded binary payload
@@ -14,7 +16,7 @@ function makeRealBase64(byteLength: number): string {
   for (let i = 0; i < byteLength; i++) {
     buf[i] = (i * 7 + 13) % 256 // deterministic pseudo-random, includes nulls
   }
-  return buf.toString('base64')
+  return fromUint8Array(buf)
 }
 
 describe('extractBase64Binary() — false positive regression (#344)', () => {
@@ -95,7 +97,7 @@ describe('extractBase64Binary() — true positives', () => {
     const buf = Buffer.alloc(256)
     for (let i = 0; i < 256; i++) buf[i] = (i * 7 + 13) % 256
     // Convert to URL-safe: + → -, / → _
-    const urlSafe = buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_')
+    const urlSafe = fromUint8Array(buf).replace(/\+/g, '-').replace(/\//g, '_')
     const result = extractBase64Binary(urlSafe)
     expect(result).not.toBeNull()
     expect(result?.source).toBe('raw-base64')
@@ -121,7 +123,7 @@ describe('extractBase64Binary() — edge cases', () => {
     // Encode plain ASCII text as base64 — it should pass charset/roundtrip
     // but fail looksLikeBinary()
     const textPayload = 'Hello World, this is just plain text content. '.repeat(10)
-    const b64 = Buffer.from(textPayload).toString('base64')
+    const b64 = encode(textPayload)
     expect(extractBase64Binary(b64)).toBeNull()
   })
 
@@ -139,7 +141,7 @@ describe('extractBase64Binary() — edge cases', () => {
   it('preserves Path A (data URL) detection', () => {
     const buf = Buffer.alloc(256)
     for (let i = 0; i < 256; i++) buf[i] = (i * 7 + 13) % 256
-    const dataURL = `data:application/octet-stream;base64,${buf.toString('base64')}`
+    const dataURL = `data:application/octet-stream;base64,${fromUint8Array(buf)}`
     const result = extractBase64Binary(dataURL)
     expect(result).not.toBeNull()
     expect(result?.source).toBe('data-url')

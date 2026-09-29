@@ -9,6 +9,8 @@
 
 import { describe, expect, test } from 'bun:test'
 
+import { encode, fromUint8Array, toUint8Array } from 'js-base64'
+
 import {
   detectExtensionFromMagic,
   extractBase64Binary,
@@ -21,9 +23,8 @@ import {
 // ============================================================
 
 // Minimal valid PNG (1x1 transparent pixel) — real binary content
-const MINIMAL_PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-  'base64'
+const MINIMAL_PNG = toUint8Array(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 )
 
 // Large PNG-like binary: PNG magic + binary junk with null bytes (>= 256 base64 chars, >= 128 decoded bytes)
@@ -50,15 +51,15 @@ const LARGE_PDF_BINARY = (() => {
   for (let i = 0; i < 300; i++) junk[i] = i % 256 // includes 0x00 at i=0, 256, etc.
   return Buffer.concat([header, junk])
 })()
-const LARGE_PDF_BASE64 = LARGE_PDF_BINARY.toString('base64')
+const LARGE_PDF_BASE64 = fromUint8Array(LARGE_PDF_BINARY)
 
 // Plain text encoded as base64 (should NOT be detected as binary)
-const TEXT_AS_BASE64 = Buffer.from(
+const TEXT_AS_BASE64 = encode(
   'Hello, this is a plain text message that is not binary at all. '.repeat(10)
-).toString('base64')
+)
 
 // Short base64 (below threshold)
-const SHORT_BASE64 = Buffer.from('Hello').toString('base64') // "SGVsbG8="
+const SHORT_BASE64 = encode('Hello') // "SGVsbG8="
 
 // ============================================================
 // looksLikeBinary
@@ -89,7 +90,7 @@ describe('looksLikeBinary', () => {
   })
 
   test('passes base64 text as non-binary (all printable ASCII)', () => {
-    const buf = Buffer.from(MINIMAL_PNG.toString('base64'), 'utf-8')
+    const buf = Buffer.from(fromUint8Array(MINIMAL_PNG), 'utf-8')
     expect(looksLikeBinary(buf)).toBe(false)
   })
 
@@ -109,7 +110,7 @@ describe('looksLikeBinary', () => {
 
 describe('extractBase64Binary (data URL)', () => {
   test('extracts data:image/png;base64 with binary payload', () => {
-    const dataURL = `data:image/png;base64,${LARGE_PNG_BINARY.toString('base64')}`
+    const dataURL = `data:image/png;base64,${fromUint8Array(LARGE_PNG_BINARY)}`
     const result = extractBase64Binary(dataURL)
     expect(result).not.toBeNull()
     expect(result?.source).toBe('data-url')
@@ -129,7 +130,7 @@ describe('extractBase64Binary (data URL)', () => {
 
   test('rejects data:text/plain;base64 (decoded is not binary)', () => {
     const textContent = 'Hello, this is plain text. '.repeat(20)
-    const dataURL = `data:text/plain;base64,${Buffer.from(textContent).toString('base64')}`
+    const dataURL = `data:text/plain;base64,${encode(textContent)}`
     const result = extractBase64Binary(dataURL)
     expect(result).toBeNull()
   })
@@ -155,7 +156,7 @@ describe('extractBase64Binary (raw base64)', () => {
   })
 
   test('extracts long raw base64 that decodes to binary (PNG)', () => {
-    const b64 = LARGE_PNG_BINARY.toString('base64')
+    const b64 = fromUint8Array(LARGE_PNG_BINARY)
     expect(b64.length).toBeGreaterThan(256)
     const result = extractBase64Binary(b64)
     expect(result).not.toBeNull()
@@ -176,7 +177,7 @@ describe('extractBase64Binary (raw base64)', () => {
 
   test('rejects JSON containing base64 field (braces break charset ratio)', () => {
     const json = JSON.stringify({
-      data: LARGE_PNG_BINARY.toString('base64'),
+      data: fromUint8Array(LARGE_PNG_BINARY),
       type: 'image',
       metadata: { width: 1, height: 1 }
     })
