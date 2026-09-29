@@ -43,7 +43,7 @@
 
 ## 5. 高发门禁坑（写代码时防一手）
 
-历史 CI 红的高频成因，皆为可机械判定的硬规则——写时避开，别等门禁拦：
+历史 CI 红 / 实测静默失效的高频成因，皆为可机械判定的硬规则——写时避开，别等门禁拦：
 
 - 禁 `as unknown as` 双断言；要精确类型用单断言或 helper（lint 硬规则）。
 - 会被 node/测试环境加载的模块，访问 `window`/`document` 等浏览器全局前先 `typeof` 守卫（lint + 引擎测试）。
@@ -60,6 +60,7 @@
 - type-aware `no-unnecessary-condition` 狙 Record 防御性索引访问：非 noUncheckedIndexedAccess 配置下索引访问类型恒非空，`current?.x` / `if (!x)` 皆报「不必要」；「`| undefined` 注解 + 非空初值」会被 CFA 赋值窄化窄回非空照狙——用 `in` 守卫产真并型。
 - `.vue` SFC 不进 type-aware 覆盖——同一段防御写法在 .vue 里全绿、抽纯成 .ts 即被狙；.vue → .ts 抽纯后按 .ts 口径逐文件过 `--type-aware`。
 - `check:quick` 的 typecheck 段（tsgo）同样不覆盖 `.vue`——SFC 内消费已退役字段/类型改名在 check:quick 全绿下潜伏，只有 `check:vue`（vue-tsc ×2）能兜；.vue 触面的改动收口前必跑 check:vue 或交 L2/CI。
+- `.vue` import 断链连 check:vue 也兜不住——shim 吞 TS2307：删文件/改名后 .vue 侧的失效 import 全门禁静默，只能靠 review 与实测兜。
 - no-nested-ternary 的「加括号」修法会被 oxfmt 重新展开回无括号形（格式器归化优先级高于括号保留）——唯一格式器稳定解 = 抽归化助手/显式分支；lint 结构红修完必须 oxfmt 后再复 lint。
 - 手跑 oxfmt 必须走 `node_modules/.bin` 钉版 exe 禁 bunx、首参必须带 `.oxfmtrc.json`——bunx 全局缓存副本与钉版同版本号不同构建、括号行为分叉，bunx 过格式的文件 CI format 照红；缺省配置 ≠ 项目配置。
 - 禁依赖命令管道承接门禁/推送类命令的语义（`cmd | tail && break` 式）——管道吞 exit code 造成假绿/假 break、`| head` 的 SIGPIPE 会杀长驻进程（vite）；一律裸跑，长输出走后台日志文件翻页。
@@ -74,6 +75,7 @@
 - 悬浮提示禁用 native `title` 属性（check:arch 硬拦）——一律 Tip 组件包裹。
 - 工具 description 里的禁令必须配显式 GO 从句（「用户显式给出 X 时即调用」）——纯负面戒律会被模型误读成拒绝依据。
 - vue 模板判别联合分支禁布尔 computed guard——`v-if="isX"` 不收窄联合，模板取成员独有字段即 TS2339（.vue 盲区下只有 check:vue 能兜）；用返回收窄对象的 computed（`xRequest = computed<X | null>(() => …)`），模板改取收窄对象。
+- 偏好 store（useLocalStorage）的 value 是 Vue reactive proxy——禁 structuredClone 整体拷贝后赋回（proxy 抛 DataCloneError，赋值中断、开关静默失效）；改值一律展开式局部替换（逐键赋新值）。
 - 对外文本面（UI 文案 / 对话框 / 错误提示 + prompt / skill 文档 / 工具描述）禁内部坐标：仓内路径行号、内部 slug / workstream 名、机制名（T 号 / 门禁项 / zone 编号）、BOARD / 决策 log / 讨论稿 / commit 引用、协作机制术语——用户与 agent 可见文本用对方语言（工具用 agent 可见名、设置项用 UI 名）。
 
 ## 6. 测试纪律

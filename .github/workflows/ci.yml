@@ -101,7 +101,7 @@ jobs:
       - name: Detect duplicated product code
         run: bun run test:dupes
 
-  # Fork-owned governance checks (docs/rebuild discipline + zone registry).
+  # Fork-owned governance checks (rebuild narrative bindings + zone registry).
   # P32: these were documented as CI-enforced since Phase 0 but were never
   # actually wired — T09 retrofit. Scripts use only node builtins, so no
   # bun install is needed; check:zones needs upstream/master for merge-base.
