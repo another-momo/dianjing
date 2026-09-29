@@ -139,6 +139,12 @@ export class FontManager {
   private customServiceCatalogPromise: Promise<CustomFontServiceCatalogEntry[]> | null = null
   /** picker 失效信号补偿：allowlist commit 有同态不空转守卫，config 变更经本地 epoch 并入 revision（cnSwitchEpoch 同款） */
   private customServiceEpoch = 0
+  /**
+   * 专属族逐族关停集合（存原始 family 名；空 = 专属族默认全开）。与共享 disabled
+   * 集合隔离：撞名族（专属 Lato vs Google Lato）的开关互不污染，面板行开关经
+   * isFontFamilyEnabled/setFontFamilyEnabled 按源路由进本集合。
+   */
+  private customDisabledFamilies = new Set<string>()
   /** 最近一次注入的 web 字体 fetcher（目录懒加载沿用；缺省回退全局 fetch） */
   private webFontFetch: WebFontFetch | null = null
 
@@ -282,12 +288,35 @@ export class FontManager {
     this.allowlist.replaceEnabledCatalog(families)
   }
 
-  /** 返回 false = bundled 锁定族，操作未生效（D-d 恒开） */
+  /**
+   * 返回 false = bundled 锁定族，操作未生效（D-d 恒开）。专属族写专属关停集合
+   * （原始名）而非共享 disabled 集合——共享集合混有 web 目录默认关停的同名条目，
+   * 写入会让撞名语境互相污染；同态重放不 bump revision（allowlist commit 同守卫）。
+   */
   setFontFamilyEnabled(family: string, enabled: boolean): boolean {
+    if (this.isCustomServiceFamily(family)) {
+      const wasDisabled = this.isCustomFamilyDisabled(family)
+      if (enabled && !wasDisabled) return true // 已开再开，同态
+      if (!enabled && wasDisabled) return true // 已关再关，同态
+      if (enabled) {
+        // 开：raw + normalizeFontFamily 双删——持久化恢复的历史条目可能存归一名
+        this.customDisabledFamilies.delete(family)
+        const normalized = normalizeFontFamily(family)
+        if (normalized !== family) this.customDisabledFamilies.delete(normalized)
+      } else {
+        // 关：写原始名（双查口径下归一名查询同样命中）
+        this.customDisabledFamilies.add(family)
+      }
+      this.customServiceEpoch++
+      return true
+    }
     return this.allowlist.setEnabled(family, enabled)
   }
 
   isFontFamilyEnabled(family: string): boolean {
+    // 专属族查专属关停集合（默认开）；其余来源维持共享 allowlist 判定。
+    // 撞名族的面板开关由此自动按源路由，共享集合的污染条目不再让专属行显示态说谎。
+    if (this.isCustomServiceFamily(family)) return !this.isCustomFamilyDisabled(family)
     return this.allowlist.isEnabled(family)
   }
 
@@ -297,6 +326,29 @@ export class FontManager {
 
   disabledFontFamilies(): string[] {
     return this.allowlist.listDisabled()
+  }
+
+  /** 专属族关停集合清单（面板回写持久化用，与 disabledFontFamilies 同型） */
+  customDisabledFontFamilies(): string[] {
+    return [...this.customDisabledFamilies]
+  }
+
+  /**
+   * 专属族关停集合批量同步（app 层 localStorage watch 推入，setDisabledFontFamilies
+   * 同模式）：全量替换 + 同态不空转；变化经 customServiceEpoch 并入 revision
+   * （allowlist revision 为类内私有不可外部 bump，FontManager 侧既有 epoch 补偿
+   * 通路即本仓 revision 变化机制）。
+   */
+  setCustomDisabledFontFamilies(families: string[]): void {
+    const next = new Set(families)
+    if (
+      next.size === this.customDisabledFamilies.size &&
+      [...next].every((family) => this.customDisabledFamilies.has(family))
+    ) {
+      return
+    }
+    this.customDisabledFamilies = next
+    this.customServiceEpoch++
   }
 
   /** catalog 族已启用清单（T42 D-c，面板回写持久化用） */
@@ -452,9 +504,11 @@ export class FontManager {
       byFamily.set(font.family, { family: font.family, source: 'local' })
     }
     // 专属字体服务族枚举：启用且有目录时追加（撞名自定义胜的枚举侧体现——
-    // 同名族覆盖内置条目）。自定义族不过逐族白名单：服务本身即整体 opt-in，
-    // disabled 集合混有 web 目录默认关停的同名条目，逐族过滤会让撞名自定义族静默消失
+    // 同名族覆盖内置条目）。逐族过滤查专属关停集合（默认开），不查共享 disabled
+    // 集合——它混有 web 目录默认关停的同名条目，逐族查共享集合会让撞名自定义族
+    // 静默消失；includeDisabled（管理面板）不过滤，与各源同构
     for (const entry of await this.customServiceFamilyOptions()) {
+      if (!includeDisabled && !this.isFontFamilyEnabled(entry.family)) continue
       byFamily.set(entry.family, {
         family: entry.family,
         source: 'custom',
@@ -586,9 +640,17 @@ export class FontManager {
     return normalized !== family && this.customServiceCatalog.has(normalized)
   }
 
+  /** 专属族关停判定：原始名 + normalizeFontFamily 名双查（与 isCustomServiceFamily 同口径） */
+  private isCustomFamilyDisabled(family: string): boolean {
+    if (this.customDisabledFamilies.has(family)) return true
+    const normalized = normalizeFontFamily(family)
+    return normalized !== family && this.customDisabledFamilies.has(normalized)
+  }
+
   /**
-   * 加载门控：专属目录族豁免逐族白名单（服务即整体 opt-in——用户显式配置并启用；
-   * disabled 集合混有 web 目录默认关停的同名条目，逐族门控会让撞名族加载静默被拒）。
+   * 加载门控：专属目录族查专属逐族开关（服务整体 opt-in 默认开，用户可在面板逐族
+   * 关停）；共享 disabled 集合不参与专属族判定——它混有 web 目录默认关停的同名
+   * 条目，参与会让撞名族加载被无关条目静默拒绝。非专属族维持 allowlist 判定。
    * 门控前确保目录已拉取：文档打开直加载可能先于 picker 枚举，不等待会让自定义族
    * 落入 registry/catalog/unifont 错源并被 loadedData 缓存粘住。
    */
@@ -596,7 +658,8 @@ export class FontManager {
     if (this.customServiceConfig?.enabled && this.customServiceCatalog.size === 0) {
       await this.customServiceFamilyOptions()
     }
-    return this.isCustomServiceFamily(family) || this.allowlist.isEnabled(family)
+    if (this.isCustomServiceFamily(family)) return !this.isCustomFamilyDisabled(family)
+    return this.allowlist.isEnabled(family)
   }
 
   async fetchBundledFont(url: string): Promise<ArrayBuffer | null> {

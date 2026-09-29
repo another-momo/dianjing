@@ -14,6 +14,7 @@ import type { FontFamilyOption, WebFontProviderId } from '@open-pencil/core/text
 import {
   clearDownloadedFontCache,
   cnFontsEnabled,
+  customDisabledFontFamilies,
   customFontService,
   disabledFontFamilies,
   downloadedFontCacheSummary,
@@ -62,11 +63,12 @@ const statusFilter = ref<'all' | 'enabled' | 'disabled'>('all')
 const requestingLocal = ref(false)
 const localAccess = ref(localFontAccessState())
 
-type SourceGroup = 'bundled' | 'cdn' | 'catalog' | 'online' | 'local'
-const GROUP_ORDER: SourceGroup[] = ['bundled', 'cdn', 'catalog', 'online', 'local']
-/** 长列表组默认折叠；bundled/cdn 族少默认展开 */
+type SourceGroup = 'bundled' | 'custom' | 'cdn' | 'catalog' | 'online' | 'local'
+const GROUP_ORDER: SourceGroup[] = ['bundled', 'custom', 'cdn', 'catalog', 'online', 'local']
+/** 长列表组默认折叠；bundled/custom/cdn 族少默认展开 */
 const collapsed = reactive<Record<SourceGroup, boolean>>({
   bundled: false,
+  custom: false,
   cdn: false,
   catalog: true,
   online: true,
@@ -76,6 +78,7 @@ const collapsed = reactive<Record<SourceGroup, boolean>>({
 const RENDER_PAGE = 100
 const renderLimits = reactive<Record<SourceGroup, number>>({
   bundled: RENDER_PAGE,
+  custom: RENDER_PAGE,
   cdn: RENDER_PAGE,
   catalog: RENDER_PAGE,
   online: RENDER_PAGE,
@@ -172,22 +175,25 @@ async function downloadFallbacks() {
 function groupOf(option: FontFamilyOption): SourceGroup {
   if (option.source === 'bundled') return 'bundled'
   if (option.source === 'cdn') return option.catalog ? 'catalog' : 'cdn'
+  if (option.source === 'custom') return 'custom'
   if (option.source === 'local') return 'local'
   return 'online'
 }
 
 const groupLabels = computed<Record<SourceGroup, string>>(() => ({
   bundled: msgs.value.fontsSourceBundled,
+  custom: msgs.value.fontsSourceCustom,
   cdn: msgs.value.fontsSourceCdn,
   catalog: msgs.value.fontsSourceCatalog,
   online: msgs.value.fontsSourceOnline,
   local: msgs.value.fontsSourceLocal
 }))
 
-// 响应式依赖锚点：白名单两集合变更时重算（核心语义判定走 core，单一真源）
+// 响应式依赖锚点：白名单两集合 + 专属关停集合变更时重算（核心语义判定走 core，单一真源）
 const enabledStateVersion = computed(() => [
   disabledFontFamilies.value,
-  enabledCatalogFamilies.value
+  enabledCatalogFamilies.value,
+  customDisabledFontFamilies.value
 ])
 
 function isLocked(family: string): boolean {
@@ -214,10 +220,11 @@ function displayNameOf(family: string): string | undefined {
   return fontFamilyDisplayName(family)
 }
 
-/** 开关经 core 写入（catalog/普通分流在 allowlist 内），再回写持久化 ref */
+/** 开关经 core 写入（catalog/普通/专属分流在 core 按源路由），再回写持久化 ref */
 function syncPersisted(): void {
   disabledFontFamilies.value = fontManager.disabledFontFamilies()
   enabledCatalogFamilies.value = fontManager.enabledCatalogFamilies()
+  customDisabledFontFamilies.value = fontManager.customDisabledFontFamilies()
 }
 
 function toggle(family: string, enabled: boolean): void {

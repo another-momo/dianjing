@@ -81,6 +81,16 @@ customFontService.value = {
   enabled: Boolean(customFontService.value.enabled)
 }
 
+/**
+ * 专属字体服务逐族关停清单（默认空 = 专属族全开）。与共享 disabled 清单
+ * （op-font-disabled-families:v1）隔离——撞名族（专属 Lato vs Google Lato）
+ * 的开关互不污染；core 侧按源路由写入专属关停集合。
+ */
+export const customDisabledFontFamilies = useLocalStorage<string[]>(
+  'op-custom-font-disabled:v1',
+  []
+)
+
 function legacyCatalogMigration(): void {
   const current = enabledCatalogFamilies.value
   const sanitized = sanitizeLegacyCatalogFamilies(current)
@@ -97,10 +107,11 @@ legacyCatalogMigration()
 let cnSwitchEpoch = 0
 
 watch(
-  [disabledFontFamilies, enabledCatalogFamilies, cnFontsEnabled],
-  ([disabled, enabledCatalog, cnEnabled]) => {
+  [disabledFontFamilies, enabledCatalogFamilies, customDisabledFontFamilies, cnFontsEnabled],
+  ([disabled, enabledCatalog, customDisabled, cnEnabled]) => {
     fontManager.setDisabledFontFamilies(disabled)
     fontManager.setEnabledCatalogFamilies(enabledCatalog)
+    fontManager.setCustomDisabledFontFamilies(customDisabled)
     if (cnEnabled !== fontManager.isCnFontsEnabled()) cnSwitchEpoch++
     fontManager.setCnFontsEnabled(cnEnabled)
     fontListRevision.value = fontManager.fontAllowlistRevision() + cnSwitchEpoch
