@@ -615,6 +615,9 @@ export class FontManager {
   }
 
   async loadLocalFont(family: string, style = 'Regular'): Promise<ArrayBuffer | null> {
+    // 本地总开关加载侧闸：与枚举（关停视为未安装）、回退链同语义——demand 候选单
+    // 无条件带 local，不在此闸会让关停后旧文档直加载静默绕过（缓存命中也一并拒）
+    if (!this.localFontsEnabled) return null
     if (!(await this.isCustomOrAllowed(family))) return null
     const cacheKey = `${family}|${style}`
     const loaded = this.loadedFamilies.get(cacheKey)
@@ -983,7 +986,9 @@ export class FontManager {
     const descriptor =
       this.cnFontDescriptor(family) ??
       (normalized !== family ? this.cnFontDescriptor(normalized) : undefined)
-    if (!descriptor || !this.cnFontsEnabled) return null
+    // 专属目录族豁免 cnFontsEnabled：专属服务有独立总开关（服务即整体 opt-in），
+    // 中文 CDN 开关只管内置目录——复用同一分片管线不该让两个来源开关互相株连
+    if (!descriptor || (!this.cnFontsEnabled && !this.isCustomServiceFamily(family))) return null
 
     const result = await cnFontSubsetResolver.fetch(family, descriptor, style, requestedCharacters)
     if (!result || result.pieces.length === 0) return null

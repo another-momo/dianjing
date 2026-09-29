@@ -8,6 +8,10 @@
  * 设计目的：本批把本地（系统）字体归入与在线 / CDN 同形的「来源开关」语义——
  * 开关管「要不要」、权限管「能不能」；关停时本地族视为未安装（与单族关停
  * 「视为未安装」语义对齐），picker 不枚举、回退链不拼装本地段。
+ *
+ * 加载侧补钉（font-gate-semantics 修 B）：demand 候选单无条件带 local，枚举/回退
+ * 两处闸挡不住旧文档直加载——loadLocalFont 入口补闸后「视为未安装」才完整成立，
+ * 已入缓存的本地族在开关关停后同样拒载。
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -92,5 +96,22 @@ describe('FontManager 本地字体应用级开关（统一批 B）', () => {
 
     // 防止 unused warning
     void beforeChain
+  })
+
+  test('关停时 loadLocalFont 直加载拒载（含缓存命中），重开恢复', async () => {
+    const manager = new FontManager()
+    manager.setHostFontLoader(async () => new Uint8Array([1, 2, 3, 4]).buffer)
+
+    const before = await manager.loadLocalFont('Gate Sans')
+    expect(before?.byteLength).toBe(4)
+
+    manager.setLocalFontsEnabled(false)
+    // 同族同样式：loadedFamilies 已有缓存——闸在缓存查询之前才算「视为未安装」
+    const closed = await manager.loadLocalFont('Gate Sans')
+    expect(closed).toBeNull()
+
+    manager.setLocalFontsEnabled(true)
+    const reopened = await manager.loadLocalFont('Gate Sans')
+    expect(reopened?.byteLength).toBe(4)
   })
 })

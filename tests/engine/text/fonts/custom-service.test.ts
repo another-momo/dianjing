@@ -352,4 +352,29 @@ describe('FontManager custom service integration', () => {
     expect(urls[0]).toBe(`${SERVICE_BASE}/catalog.json`)
     expect(urls.some((url) => url.endsWith('/abc.woff2'))).toBe(true)
   })
+
+  test('custom families load with the CN master switch off (switches never cross-gate)', async () => {
+    const catalog = [{ package: '@acme/display', family: 'Acme Serif', latestVersion: '1.2.0' }]
+    const css =
+      '@font-face{font-family:"Acme Serif";font-weight:400;font-style:normal;' +
+      'unicode-range:U+0000-00FF;src:url("./abc.woff2") format("woff2")}'
+    const urls: string[] = []
+    const upstream: WebFontFetch = async (url) => {
+      urls.push(url)
+      if (url.endsWith('/catalog.json')) return jsonResponse(catalog)
+      if (url.endsWith('/dist/index.json')) return jsonResponse(['AcmeSerif-Regular'])
+      if (url.endsWith('/result.css')) return new Response(css)
+      if (url.endsWith('/abc.woff2')) return new Response(new Uint8Array([0, 1, 2, 3]))
+      return new Response('not found', { status: 404 })
+    }
+    const manager = new FontManager()
+    manager.setWebFontFetch(scopeBearerFetch(SERVICE_BASE, 'tok', upstream, upstream))
+    manager.setCustomFontService({ baseURL: SERVICE_BASE, token: 'tok', enabled: true })
+    // 中文 CDN 总开关只管内置目录：关停不得株连专属服务（两者复用同一分片管线，
+    // 门控须按来源各归各的开关）
+    manager.setCnFontsEnabled(false)
+    const buffer = await manager.loadRemoteFont('Acme Serif', 'Regular', 'A')
+    expect(buffer?.byteLength).toBe(4)
+    expect(urls.some((url) => url.endsWith('/abc.woff2'))).toBe(true)
+  })
 })
