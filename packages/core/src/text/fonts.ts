@@ -425,6 +425,14 @@ export class FontManager {
     this.webFonts.resetFailures(family, style)
   }
 
+  /**
+   * 清在线 provider 枚举失败记录（字体设置面板「重试」按钮用）：下次枚举立即
+   * 重发请求，不等失败 TTL（60s）。
+   */
+  resetWebFontEnumerationFailures(): void {
+    this.webFonts.resetEnumerationFailures()
+  }
+
   async loadCachedFont(
     family: string,
     style = 'Regular',

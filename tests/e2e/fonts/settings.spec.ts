@@ -2,9 +2,7 @@ import { expect, test } from '@playwright/test'
 
 import { CanvasHelper } from '#tests/helpers/canvas'
 
-test('font settings popover exposes web font access without desktop-only cache actions', async ({
-  page
-}) => {
+test('font settings gear opens the settings dialog fonts section directly', async ({ page }) => {
   await page.goto('/')
   const canvas = new CanvasHelper(page)
   await canvas.waitForInit()
@@ -38,31 +36,24 @@ test('font settings popover exposes web font access without desktop-only cache a
     return store ? [...store.state.selectedIds] : []
   })
   expect(selected).toHaveLength(1)
-  const fontSettings = page.getByRole('button', { name: 'Font settings' })
+
+  // 齿轮按钮无中间 popover：悬浮出 Tip，点击直开设置对话框字体分区
+  const fontSettings = page.getByRole('button', { name: 'Open font settings' })
   await expect(fontSettings).toHaveAttribute('data-test-id', 'font-settings-trigger')
   await fontSettings.hover()
-  await expect(page.locator('[role=tooltip]').filter({ hasText: 'Font settings' })).toBeVisible()
+  await expect(
+    page.locator('[role=tooltip]').filter({ hasText: 'Open font settings' })
+  ).toBeVisible()
   await fontSettings.click()
-  await expect(page.locator('[role=tooltip]').filter({ hasText: 'Font settings' })).toHaveCount(0)
 
-  await expect(page.getByText('Allow browser access to local fonts')).toBeVisible()
-  await expect(page.getByTestId('font-settings-request-access')).toBeVisible()
-  await expect(page.getByTestId('font-settings-toggle-online-fonts')).toHaveText('Disable')
-  await expect(page.getByTestId('font-settings-provider-google')).toBeChecked()
-  await expect(page.getByTestId('font-settings-provider-fontsource')).toBeChecked()
-  await expect(page.getByTestId('font-settings-provider-bunny')).not.toBeChecked()
-  await expect(page.getByTestId('font-settings-provider-fontshare')).not.toBeChecked()
-  await page.getByTestId('font-settings-toggle-online-fonts').click()
-  await expect(page.getByTestId('font-settings-toggle-online-fonts')).toHaveText('Enable')
-  await expect(page.getByTestId('font-settings-provider-google')).toBeDisabled()
-  await page.getByTestId('font-settings-toggle-online-fonts').click()
-  await expect(page.getByTestId('font-settings-toggle-online-fonts')).toHaveText('Disable')
-  await expect(page.getByTestId('font-settings-download-fallbacks')).toHaveCount(0)
-  await expect(page.getByTestId('font-settings-refresh-cache')).toHaveCount(0)
-  await expect(page.getByTestId('font-settings-clear-cache')).toHaveCount(0)
-  await expect(page.getByText('Download CJK and Arabic fallbacks')).toHaveCount(0)
+  const fontsPanel = page.getByTestId('settings-fonts-panel')
+  await expect(fontsPanel).toBeVisible()
+  // 管理功能只在设置面板（popover 已摘除）：提供商开关与维护区都在此
+  await expect(fontsPanel.getByTestId('fonts-providers')).toBeVisible()
+  await expect(fontsPanel.getByTestId('fonts-fallback-download')).toBeVisible()
+  await expect(fontsPanel.getByTestId('fonts-cache-clear')).toBeVisible()
 
   await page.keyboard.press('Escape')
-  await expect(page.getByTestId('font-settings-panel')).toBeHidden()
+  await expect(fontsPanel).toBeHidden()
   await expect(typography).toBeVisible()
 })

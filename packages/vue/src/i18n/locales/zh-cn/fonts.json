@@ -2,12 +2,6 @@
   "selectAffectedLayers": "选择受影响图层",
   "affectedLayer": "1 个受影响图层",
   "affectedLayerCount": "{count} 个受影响图层",
-  "localFonts": "本地字体",
-  "onlineFonts": "在线字体",
-  "systemFontAccess": "系统字体访问",
-  "systemFontsAvailable": "系统字体可用。",
-  "allowBrowserFontAccess": "缺少系统字体时，允许浏览器访问字体。",
-  "settingsTitle": "字体设置",
   "issueFound": "1 个字体样式不可用或已被替换",
   "issuesFound": "{count} 个字体样式不可用或已被替换",
   "retry": "重试字体",
@@ -15,7 +9,5 @@
   "expandIssues": "显示字体问题",
   "collapseIssues": "隐藏字体问题",
   "noSubstitute": "没有可用的替代字体",
-  "popoverSummaryTitle": "字体设置",
-  "popoverSummaryHint": "在字体设置中管理提供商、后备字体包与缓存。",
   "openSettings": "打开字体设置"
 }

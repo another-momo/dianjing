@@ -31,6 +31,9 @@ import {
 } from '@/app/editor/fonts'
 import { useForkFonts } from '@/app/i18n/fork'
 import { matchFontFamilyOrDisplayName } from '@/components/font-picker/font-option-filter'
+import SettingsGroup from '@/components/settings/layout/SettingsGroup.vue'
+import SettingsRow from '@/components/settings/layout/SettingsRow.vue'
+import SettingsSection from '@/components/settings/layout/SettingsSection.vue'
 import AppButton from '@/components/ui/button/AppButton.vue'
 import Tip from '@/components/ui/overlay/Tip.vue'
 import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
@@ -47,12 +50,16 @@ import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
  *   + 组级批量启停（锁定族跳过）+ 搜索跨组过滤自动展开。
  *
  * 统一批（owner /goal）：
- * - A. 面板统一管理面——popover 三家独有能力（提供商单独开关、回退包预下载、
- *   缓存管理）迁入；
+ * - A. 面板统一管理面——提供商单独开关、回退包预下载、缓存管理迁入；
  * - B. 本地源应用级开关（默认开）——开关管「要不要」、权限管「能不能」；
  * - C. google provider 全形态放行（2026-09-26 起：上游桌面限定失去意义——
  *   Google Fonts 静态资源自带 CORS，浏览器形态可用；默认仍关，不可达网络靠
  *   既有 6s 枚举超时兜底，不卡 picker）。
+ *
+ * 面板分层（fonts-panel-layering）：「来源」「维护」两个 SettingsSection——
+ * 四个来源总开关各占一行，从属配置内联在主开关行下方、主开关关时隐藏
+ * （专属服务的地址/令牌不再恒可见）；在线组空态分「提供商全关」与
+ * 「枚举失败或为空」两档，后者带重试按钮（清枚举失败记录后重拉）。
  */
 const msgs = useForkFonts()
 
@@ -93,7 +100,30 @@ function setProviderEnabled(provider: WebFontProviderId, enabled: boolean) {
   fontProviderSettings.value = { ...fontProviderSettings.value, [provider]: enabled }
 }
 
-/** 统一批 A：缓存管理（自 popover 迁入） */
+/** 在线组空态分档：提供商全关 → 指引去上方开启；有提供商开 → 枚举失败/为空 + 重试 */
+const anyProviderEnabled = computed(() =>
+  WEB_FONT_PROVIDER_IDS.some((provider) => providerEnabled.value[provider])
+)
+
+/** 在线枚举为空（主开关开但原始枚举无在线族；搜索/筛选造成的空组不算——那是过滤伪影） */
+const onlineEnumerationEmpty = computed(
+  () => onlineFontsEnabled.value && !families.value.some((option) => groupOf(option) === 'online')
+)
+
+/** 在线组重试：清枚举失败记录（不等失败 TTL）后重拉枚举 */
+const retryingOnline = ref(false)
+
+async function retryOnlineEnumeration(): Promise<void> {
+  retryingOnline.value = true
+  try {
+    fontManager.resetWebFontEnumerationFailures()
+    families.value = await listAllFamilies()
+  } finally {
+    retryingOnline.value = false
+  }
+}
+
+/** 缓存管理（自 popover 迁入） */
 const cacheCount = ref(0)
 const cacheByteLength = ref(0)
 const cacheBusy = ref(false)
@@ -124,7 +154,7 @@ async function clearCache() {
   }
 }
 
-/** 统一批 A：回退包预下载（自 popover 迁入） */
+/** 回退包预下载（自 popover 迁入） */
 const fallbackBusy = ref(false)
 const fallbackStatus = ref('')
 
@@ -272,8 +302,20 @@ const grouped = computed<GroupView[]>(() => {
     groups.set(group, [...(groups.get(group) ?? []), option])
   }
   return GROUP_ORDER.flatMap((group) => {
-    const options = groups.get(group)
-    if (!options) return []
+    let options = groups.get(group)
+    if (!options) {
+      // 在线组空态：主开关开且枚举为空时组头恒渲染（组头下方出状态行而不是整组
+      // 消失）；搜索/状态筛选期间维持消失——过滤伪影不是枚举失败
+      if (
+        group !== 'online' ||
+        !onlineEnumerationEmpty.value ||
+        searching.value ||
+        statusFilter.value !== 'all'
+      ) {
+        return []
+      }
+      options = []
+    }
     // 搜索时展开全部命中；否则尊重折叠态并按 renderLimits 截断
     const isCollapsed = !searching.value && collapsed[group]
     const limit = searching.value ? options.length : renderLimits[group]
@@ -325,9 +367,11 @@ onMounted(async () => {
   }
 })
 
-// 来源总开关变更 → 重拉枚举：core 按开关门禁 CDN/在线族（D-a），
-// 面板列表口径与 fontsOnlineOffHint / fontsCnOffHint 一致（关停来源的家族从列表消失）
-watch([cnFontsEnabled, onlineFontsEnabled, localFontsEnabled], async () => {
+// 来源总开关/提供商开关变更 → 重拉枚举：core 按开关门禁 CDN/在线族（D-a），
+// 面板列表口径与 fontsOnlineOffHint / fontsCnOffHint 一致（关停来源的家族从列表消失）；
+// 提供商开关经 app 层 watch 只更新 core 启用集合——面板不重拉的话，新启用提供商的
+// 家族要滞留到下次打开面板才出现
+watch([cnFontsEnabled, onlineFontsEnabled, localFontsEnabled, fontProviderSettings], async () => {
   families.value = await listAllFamilies()
   localAccess.value = localFontAccessState()
 })
@@ -342,227 +386,215 @@ watch([cnFontsEnabled, onlineFontsEnabled, localFontsEnabled], async () => {
       </p>
     </div>
 
-    <!-- T42：来源开关区（CDN 独立开关可见落点，与在线库总开关解耦） -->
-    <div class="flex flex-col gap-2 rounded border border-border p-2" data-test-id="fonts-sources">
-      <!-- 统一批 B：本地源应用级开关（默认开）；关停时本地族从枚举与回退链消失 -->
-      <div class="flex items-center justify-between gap-2">
-        <div class="min-w-0">
-          <span class="text-[10px] font-medium text-surface">{{ msgs.fontsLocalMaster }}</span>
-          <p class="text-[9px] leading-relaxed text-muted">{{ msgs.fontsLocalMasterHint }}</p>
-          <p
-            v-if="!localFontsEnabled"
-            class="text-[9px] leading-relaxed text-muted"
-            data-test-id="fonts-local-off-hint"
+    <SettingsSection>
+      <template #title>{{ msgs.fontsSourcesSection }}</template>
+      <SettingsGroup data-test-id="fonts-sources">
+        <!-- 本地源应用级开关（默认开）；关停时本地族从枚举与回退链消失 -->
+        <SettingsRow :label="msgs.fontsLocalMaster" :description="msgs.fontsLocalMasterHint">
+          <template #description>
+            <p
+              v-if="!localFontsEnabled"
+              class="text-[10px] leading-relaxed text-muted"
+              data-test-id="fonts-local-off-hint"
+            >
+              {{ msgs.fontsLocalOffHint }}
+            </p>
+          </template>
+          <AppSwitch
+            v-model="localFontsEnabled"
+            :label="msgs.fontsLocalMaster"
+            data-test-id="fonts-local-master"
+          />
+        </SettingsRow>
+        <!-- 从属块：本地授权（主开关开且权限未授予/被拒时出现） -->
+        <div
+          v-if="localFontsEnabled && localAccess !== 'granted' && localAccess !== 'unsupported'"
+          class="flex items-center justify-between gap-2 px-3 py-2.5"
+          data-test-id="fonts-local-access"
+        >
+          <p class="text-[10px] text-muted">{{ msgs.fontsLocalAccessPrompt }}</p>
+          <AppButton
+            type="button"
+            color="neutral"
+            variant="soft"
+            size="xs"
+            :disabled="requestingLocal"
+            data-test-id="fonts-local-allow"
+            @click="allowLocalFonts"
           >
-            {{ msgs.fontsLocalOffHint }}
-          </p>
+            {{ msgs.fontsLocalAllow }}
+          </AppButton>
         </div>
-        <AppSwitch
-          v-model="localFontsEnabled"
-          :label="msgs.fontsLocalMaster"
-          data-test-id="fonts-local-master"
-        />
-      </div>
-      <div class="flex items-center justify-between gap-2 border-t border-border pt-2">
-        <div class="min-w-0">
-          <span class="text-[10px] font-medium text-surface">{{ msgs.fontsOnlineMaster }}</span>
-          <p class="text-[9px] leading-relaxed text-muted">{{ msgs.fontsOnlineMasterHint }}</p>
-          <p
-            v-if="!onlineFontsEnabled"
-            class="text-[9px] leading-relaxed text-muted"
-            data-test-id="fonts-online-off-hint"
+
+        <SettingsRow :label="msgs.fontsOnlineMaster" :description="msgs.fontsOnlineMasterHint">
+          <template #description>
+            <p
+              v-if="!onlineFontsEnabled"
+              class="text-[10px] leading-relaxed text-muted"
+              data-test-id="fonts-online-off-hint"
+            >
+              {{ msgs.fontsOnlineOffHint }}
+            </p>
+          </template>
+          <AppSwitch
+            v-model="onlineFontsEnabled"
+            :label="msgs.fontsOnlineMaster"
+            data-test-id="fonts-online-master"
+          />
+        </SettingsRow>
+        <!-- 从属块：四家提供商单独开关（主开关开时出现；缩进与主行区分） -->
+        <div
+          v-if="onlineFontsEnabled"
+          class="flex flex-col gap-1.5 py-2.5 pl-7 pr-3"
+          data-test-id="fonts-providers"
+        >
+          <p class="text-[10px] leading-relaxed text-muted">{{ msgs.fontsProvidersHint }}</p>
+          <p class="text-[10px] leading-relaxed text-muted">
+            {{ msgs.fontsProvidersOptInHint }}
+          </p>
+          <label
+            v-for="provider in WEB_FONT_PROVIDER_IDS"
+            :key="provider"
+            class="flex items-center justify-between gap-2 text-[10px]"
           >
-            {{ msgs.fontsOnlineOffHint }}
-          </p>
+            <span class="text-muted">{{ WEB_FONT_PROVIDER_LABELS[provider] }}</span>
+            <input
+              type="checkbox"
+              class="size-3 accent-accent disabled:opacity-50"
+              :checked="providerEnabled[provider]"
+              :data-test-id="`fonts-provider-${provider}`"
+              @change="setProviderEnabled(provider, ($event.target as HTMLInputElement).checked)"
+            />
+          </label>
         </div>
-        <AppSwitch
-          v-model="onlineFontsEnabled"
-          :label="msgs.fontsOnlineMaster"
-          data-test-id="fonts-online-master"
-        />
-      </div>
-      <div class="flex items-center justify-between gap-2">
-        <div class="min-w-0">
-          <span class="text-[10px] font-medium text-surface">{{ msgs.fontsCnMaster }}</span>
-          <p class="text-[9px] leading-relaxed text-muted">{{ msgs.fontsCnMasterHint }}</p>
-          <p
-            v-if="!cnFontsEnabled"
-            class="text-[9px] leading-relaxed text-muted"
-            data-test-id="fonts-cn-off-hint"
+
+        <SettingsRow :label="msgs.fontsCnMaster" :description="msgs.fontsCnMasterHint">
+          <template #description>
+            <p
+              v-if="!cnFontsEnabled"
+              class="text-[10px] leading-relaxed text-muted"
+              data-test-id="fonts-cn-off-hint"
+            >
+              {{ msgs.fontsCnOffHint }}
+            </p>
+          </template>
+          <AppSwitch
+            v-model="cnFontsEnabled"
+            :label="msgs.fontsCnMaster"
+            data-test-id="fonts-cn-master"
+          />
+        </SettingsRow>
+
+        <SettingsRow :label="msgs.fontsCustomTitle" :description="msgs.fontsCustomDescription">
+          <AppSwitch
+            v-model="customFontService.enabled"
+            :label="msgs.fontsCustomTitle"
+            data-test-id="fonts-custom-enable"
+          />
+        </SettingsRow>
+        <!-- 从属块：专属字体服务配置（主开关开时才出现，不再恒可见） -->
+        <div
+          v-if="customFontService.enabled"
+          class="flex flex-col gap-2 px-3 py-2.5"
+          data-test-id="fonts-custom"
+        >
+          <label class="flex items-center gap-2 text-[10px]">
+            <span class="shrink-0 text-muted">{{ msgs.fontsCustomBaseUrl }}</span>
+            <input
+              v-model="customFontService.baseURL"
+              type="text"
+              placeholder="https://fonts.example.com"
+              class="min-w-0 flex-1 rounded border border-border bg-input px-2 py-1 text-xs text-surface outline-none placeholder:text-muted"
+              data-test-id="fonts-custom-base"
+            />
+          </label>
+          <label class="flex items-center gap-2 text-[10px]">
+            <span class="shrink-0 text-muted">{{ msgs.fontsCustomToken }}</span>
+            <input
+              v-model="customFontService.token"
+              type="password"
+              autocomplete="off"
+              class="min-w-0 flex-1 rounded border border-border bg-input px-2 py-1 text-xs text-surface outline-none"
+              data-test-id="fonts-custom-token"
+            />
+          </label>
+          <div class="flex items-center justify-end gap-2">
+            <p
+              v-if="customTestStatus"
+              class="min-w-0 flex-1 text-[9px] leading-relaxed text-muted"
+              data-test-id="fonts-custom-status"
+            >
+              {{ customTestStatus }}
+            </p>
+            <AppButton
+              type="button"
+              color="neutral"
+              variant="soft"
+              size="xs"
+              class="shrink-0"
+              :disabled="customTestBusy"
+              data-test-id="fonts-custom-test"
+              @click="testCustomConnection"
+            >
+              {{ msgs.fontsCustomTest }}
+            </AppButton>
+          </div>
+        </div>
+      </SettingsGroup>
+    </SettingsSection>
+
+    <SettingsSection>
+      <template #title>{{ msgs.fontsMaintenanceSection }}</template>
+      <SettingsGroup>
+        <SettingsRow :label="msgs.fontsFallbackTitle" :description="msgs.fontsFallbackHint">
+          <template #description>
+            <p
+              v-if="fallbackStatus"
+              class="text-[10px] leading-relaxed text-muted"
+              data-test-id="fonts-fallback-status"
+            >
+              {{ fallbackStatus }}
+            </p>
+          </template>
+          <AppButton
+            type="button"
+            color="primary"
+            variant="solid"
+            size="xs"
+            :disabled="fallbackBusy"
+            data-test-id="fonts-fallback-download"
+            @click="downloadFallbacks"
           >
-            {{ msgs.fontsCnOffHint }}
-          </p>
-        </div>
-        <AppSwitch
-          v-model="cnFontsEnabled"
-          :label="msgs.fontsCnMaster"
-          data-test-id="fonts-cn-master"
-        />
-      </div>
-      <div
-        v-if="localAccess !== 'granted' && localAccess !== 'unsupported'"
-        class="flex items-center justify-between gap-2 border-t border-border pt-2"
-        data-test-id="fonts-local-access"
-      >
-        <p class="text-[10px] text-muted">{{ msgs.fontsLocalAccessPrompt }}</p>
-        <AppButton
-          type="button"
-          color="neutral"
-          variant="soft"
-          size="xs"
-          :disabled="requestingLocal"
-          data-test-id="fonts-local-allow"
-          @click="allowLocalFonts"
+            {{ fallbackBusy ? msgs.fontsFallbackDownloading : msgs.fontsFallbackDownload }}
+          </AppButton>
+        </SettingsRow>
+        <SettingsRow
+          :label="msgs.fontsCacheTitle"
+          :description="msgs.fontsCacheSummary({ count: cacheCount, size: cacheSizeLabel })"
         >
-          {{ msgs.fontsLocalAllow }}
-        </AppButton>
-      </div>
-    </div>
-
-    <!-- 专属字体服务：运行时可配置 provider，独立于在线字体库总开关（不受其门控） -->
-    <div class="flex flex-col gap-2 rounded border border-border p-2" data-test-id="fonts-custom">
-      <div class="flex items-center justify-between gap-2">
-        <div class="min-w-0">
-          <span class="text-[10px] font-medium text-surface">{{ msgs.fontsCustomTitle }}</span>
-          <p class="text-[9px] leading-relaxed text-muted">{{ msgs.fontsCustomDescription }}</p>
-        </div>
-        <AppSwitch
-          v-model="customFontService.enabled"
-          :label="msgs.fontsCustomTitle"
-          data-test-id="fonts-custom-enable"
-        />
-      </div>
-      <label class="flex items-center gap-2 text-[10px]">
-        <span class="shrink-0 text-muted">{{ msgs.fontsCustomBaseUrl }}</span>
-        <input
-          v-model="customFontService.baseURL"
-          type="text"
-          placeholder="https://fonts.example.com"
-          class="min-w-0 flex-1 rounded border border-border bg-input px-2 py-1 text-xs text-surface outline-none placeholder:text-muted"
-          data-test-id="fonts-custom-base"
-        />
-      </label>
-      <label class="flex items-center gap-2 text-[10px]">
-        <span class="shrink-0 text-muted">{{ msgs.fontsCustomToken }}</span>
-        <input
-          v-model="customFontService.token"
-          type="password"
-          autocomplete="off"
-          class="min-w-0 flex-1 rounded border border-border bg-input px-2 py-1 text-xs text-surface outline-none"
-          data-test-id="fonts-custom-token"
-        />
-      </label>
-      <div class="flex items-center justify-end gap-2">
-        <p
-          v-if="customTestStatus"
-          class="min-w-0 flex-1 text-[9px] leading-relaxed text-muted"
-          data-test-id="fonts-custom-status"
-        >
-          {{ customTestStatus }}
-        </p>
-        <AppButton
-          type="button"
-          color="neutral"
-          variant="soft"
-          size="xs"
-          class="shrink-0"
-          :disabled="customTestBusy"
-          data-test-id="fonts-custom-test"
-          @click="testCustomConnection"
-        >
-          {{ msgs.fontsCustomTest }}
-        </AppButton>
-      </div>
-    </div>
-
-    <!-- 统一批 A：提供商单独开关（自 popover 迁入） -->
-    <div
-      class="flex flex-col gap-2 rounded border border-border p-2"
-      data-test-id="fonts-providers"
-    >
-      <div class="min-w-0">
-        <span class="text-[10px] font-medium text-surface">{{ msgs.fontsProvidersTitle }}</span>
-        <p class="text-[9px] leading-relaxed text-muted">{{ msgs.fontsProvidersHint }}</p>
-        <p class="text-[9px] leading-relaxed text-muted">{{ msgs.fontsProvidersOptInHint }}</p>
-      </div>
-      <label
-        v-for="provider in WEB_FONT_PROVIDER_IDS"
-        :key="provider"
-        class="flex items-center justify-between gap-2 text-[10px]"
-      >
-        <span class="text-muted">{{ WEB_FONT_PROVIDER_LABELS[provider] }}</span>
-        <input
-          type="checkbox"
-          class="size-3 accent-accent disabled:opacity-50"
-          :checked="providerEnabled[provider]"
-          :disabled="!onlineFontsEnabled"
-          :data-test-id="`fonts-provider-${provider}`"
-          @change="setProviderEnabled(provider, ($event.target as HTMLInputElement).checked)"
-        />
-      </label>
-    </div>
-
-    <!-- 统一批 A：回退包预下载（自 popover 迁入） -->
-    <div
-      class="flex items-center justify-between gap-2 rounded border border-border p-2"
-      data-test-id="fonts-fallback"
-    >
-      <div class="min-w-0">
-        <span class="text-[10px] font-medium text-surface">{{ msgs.fontsFallbackTitle }}</span>
-        <p class="text-[9px] leading-relaxed text-muted">{{ msgs.fontsFallbackHint }}</p>
-        <p
-          v-if="fallbackStatus"
-          class="text-[9px] leading-relaxed text-muted"
-          data-test-id="fonts-fallback-status"
-        >
-          {{ fallbackStatus }}
-        </p>
-      </div>
-      <AppButton
-        type="button"
-        color="primary"
-        variant="solid"
-        size="xs"
-        :disabled="fallbackBusy"
-        data-test-id="fonts-fallback-download"
-        @click="downloadFallbacks"
-      >
-        {{ fallbackBusy ? msgs.fontsFallbackDownloading : msgs.fontsFallbackDownload }}
-      </AppButton>
-    </div>
-
-    <!-- 统一批 A：缓存管理（自 popover 迁入） -->
-    <div
-      class="flex items-center justify-between gap-2 rounded border border-border p-2"
-      data-test-id="fonts-cache"
-    >
-      <div class="min-w-0">
-        <span class="text-[10px] font-medium text-surface">{{ msgs.fontsCacheTitle }}</span>
-        <p class="text-[9px] leading-relaxed text-muted">
-          {{ msgs.fontsCacheSummary({ count: cacheCount, size: cacheSizeLabel }) }}
-        </p>
-        <p
-          v-if="cacheStatus"
-          class="text-[9px] leading-relaxed text-muted"
-          data-test-id="fonts-cache-status"
-        >
-          {{ cacheStatus }}
-        </p>
-      </div>
-      <div class="flex shrink-0 items-center gap-1">
-        <AppButton
-          type="button"
-          color="neutral"
-          variant="soft"
-          size="xs"
-          :disabled="cacheBusy"
-          data-test-id="fonts-cache-clear"
-          @click="clearCache"
-        >
-          {{ msgs.fontsCacheClear }}
-        </AppButton>
-      </div>
-    </div>
+          <template #description>
+            <p
+              v-if="cacheStatus"
+              class="text-[10px] leading-relaxed text-muted"
+              data-test-id="fonts-cache-status"
+            >
+              {{ cacheStatus }}
+            </p>
+          </template>
+          <AppButton
+            type="button"
+            color="neutral"
+            variant="soft"
+            size="xs"
+            :disabled="cacheBusy"
+            data-test-id="fonts-cache-clear"
+            @click="clearCache"
+          >
+            {{ msgs.fontsCacheClear }}
+          </AppButton>
+        </SettingsRow>
+      </SettingsGroup>
+    </SettingsSection>
 
     <div class="flex items-center gap-2">
       <input
@@ -623,28 +655,28 @@ watch([cnFontsEnabled, onlineFontsEnabled, localFontsEnabled], async () => {
               {{ view.enabledCount }}/{{ view.options.length }}
             </span>
           </button>
-          <AppButton
-            v-if="view.group !== 'bundled'"
-            type="button"
-            color="neutral"
-            variant="soft"
-            size="xs"
-            :data-test-id="`fonts-group-enable-${view.group}`"
-            @click="setGroupEnabled(view.options, true)"
-          >
-            {{ msgs.fontsEnableAll }}
-          </AppButton>
-          <AppButton
-            v-if="view.group !== 'bundled'"
-            type="button"
-            color="neutral"
-            variant="soft"
-            size="xs"
-            :data-test-id="`fonts-group-disable-${view.group}`"
-            @click="setGroupEnabled(view.options, false)"
-          >
-            {{ msgs.fontsDisableAll }}
-          </AppButton>
+          <template v-if="view.group !== 'bundled' && view.options.length > 0">
+            <AppButton
+              type="button"
+              color="neutral"
+              variant="soft"
+              size="xs"
+              :data-test-id="`fonts-group-enable-${view.group}`"
+              @click="setGroupEnabled(view.options, true)"
+            >
+              {{ msgs.fontsEnableAll }}
+            </AppButton>
+            <AppButton
+              type="button"
+              color="neutral"
+              variant="soft"
+              size="xs"
+              :data-test-id="`fonts-group-disable-${view.group}`"
+              @click="setGroupEnabled(view.options, false)"
+            >
+              {{ msgs.fontsDisableAll }}
+            </AppButton>
+          </template>
         </div>
         <p
           v-if="view.group === 'catalog' && !view.isCollapsed"
@@ -652,6 +684,25 @@ watch([cnFontsEnabled, onlineFontsEnabled, localFontsEnabled], async () => {
         >
           {{ msgs.fontsCatalogHint }}
         </p>
+        <!-- 在线组空态：提供商全关 → 指引开启；有提供商开但枚举为空 → 重试 -->
+        <template v-if="view.group === 'online' && view.options.length === 0">
+          <p class="text-[9px] leading-relaxed text-muted" data-test-id="fonts-online-empty-hint">
+            {{ anyProviderEnabled ? msgs.fontsOnlineEmptyEnum : msgs.fontsOnlineEmptyProvidersOff }}
+          </p>
+          <AppButton
+            v-if="anyProviderEnabled"
+            type="button"
+            color="neutral"
+            variant="soft"
+            size="xs"
+            class="self-start"
+            :disabled="retryingOnline"
+            data-test-id="fonts-online-retry"
+            @click="retryOnlineEnumeration"
+          >
+            {{ msgs.fontsRetryEnumeration }}
+          </AppButton>
+        </template>
         <div
           v-for="option in view.visible"
           :key="option.family"

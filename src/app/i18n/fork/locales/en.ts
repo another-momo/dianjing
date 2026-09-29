@@ -421,7 +421,14 @@ export const fontsMessageDefaults = {
   fontsCustomTestUnauthorized: 'Access denied — check your access token.',
   fontsCustomTestBadResponse: 'Unexpected service response — check the service URL.',
   fontsCustomTestBadCatalog: 'The service returned an unexpected catalog format.',
-  fontsCustomTestNetwork: 'Network error — could not reach the custom font service.'
+  fontsCustomTestNetwork: 'Network error — could not reach the custom font service.',
+  // fonts-panel-layering：面板分层（来源/维护 section）与在线组空态（提供商全关 / 枚举失败）
+  fontsSourcesSection: 'Sources',
+  fontsMaintenanceSection: 'Maintenance',
+  fontsOnlineEmptyProvidersOff:
+    'Online font libraries are on, but every provider is off — enable at least one provider above.',
+  fontsOnlineEmptyEnum: 'Enumeration failed or returned no families.',
+  fontsRetryEnumeration: 'Retry'
 } as const
 
 /** ux-polish⑤（2026-09-09）：画布工具条「添加图片」文案域（Toolbar 按钮 / useAddImage 失败 toast） */

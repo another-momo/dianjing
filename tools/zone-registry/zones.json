@@ -579,7 +579,7 @@
     {
       "id": "P107",
       "file": "packages/core/src/text/fonts.ts",
-      "reason": "T39 字体栈：BUNDLED_FONTS 注册 PuHuiTi 9 字重 + listFamilyOptions 枚举源改 FONT_REGISTRY（font/registry.ts）+ bundled 加载白名单拦截（isBundledFamilyAllowed）；T41：四加载门禁接入 FontFamilyAllowlist + findLocalFont VF 宽松匹配 + VF 跟踪/逐出联动 + registerFontInBrowser VF 字重区间描述符 + ensureFallbackFamilies 停用跳过 + listFamilyOptions includeDisabled（面板用不过滤枚举）；T42：cnFontsEnabled 独立开关（D-a，CDN 枚举/加载与在线 provider 解耦）+ cnFontDescriptor registry 优先 catalog 兜底 + CN_FONT_CATALOG 枚举循环 + setEnabledCatalogFamilies/enabledCatalogFamilies 委托；font-custom-service (2026-09-28): cnFontDescriptor checks custom-service catalog entries first (raw + normalized family name, custom wins on collision) and listFamilyOptions appends custom entries (source 'custom', displayName, overwrite on name collision); L3 修正（2026-09-28）：custom 族豁免逐族白名单（isCustomOrAllowed 接 loadFont/loadLocalFont/loadCachedFont/loadRemoteFont 四门，枚举不过滤）——disabled 集合混有 web 目录默认关停同名条目会双丢撞名族；门控前确保 catalog 已拉取（文档直加载先于 picker 枚举的错源竞态）；font-gate-semantics (2026-09-29)：loadCnFontSubset 门控豁免专属目录族（cnFontsEnabled 只管内置目录不株连专属服务）；loadLocalFont 补本地总开关闸（枚举/回退/直加载「视为未安装」三处对齐；闸位教训：入口闸曾连带闸死同函数尾部 bundled 兜底致标尺/节点标签全灭（用户实证）——正确闸位只闸宿主/系统通路，bundled 恒可载，缓存命中按已入账源判定 local 拒 bundled 放行）；font-gate-semantics C (2026-09-29)：专属族逐族开关——isCustomOrAllowed 收窄（专属族不再整体豁免，改查专属关停集合 customDisabledFamilies）+ isFontFamilyEnabled/setFontFamilyEnabled 按源路由（专属族写专属集合，不污染共享 disabled 集合，撞名族开关互不串扰）+ setCustomDisabledFontFamilies 批量同步（变化经 customServiceEpoch 并入 revision）+ listFamilyOptions custom 循环逐族过滤（includeDisabled 面板路径不过滤）",
+      "reason": "T39 字体栈：BUNDLED_FONTS 注册 PuHuiTi 9 字重 + listFamilyOptions 枚举源改 FONT_REGISTRY（font/registry.ts）+ bundled 加载白名单拦截（isBundledFamilyAllowed）；T41：四加载门禁接入 FontFamilyAllowlist + findLocalFont VF 宽松匹配 + VF 跟踪/逐出联动 + registerFontInBrowser VF 字重区间描述符 + ensureFallbackFamilies 停用跳过 + listFamilyOptions includeDisabled（面板用不过滤枚举）；T42：cnFontsEnabled 独立开关（D-a，CDN 枚举/加载与在线 provider 解耦）+ cnFontDescriptor registry 优先 catalog 兜底 + CN_FONT_CATALOG 枚举循环 + setEnabledCatalogFamilies/enabledCatalogFamilies 委托；font-custom-service (2026-09-28): cnFontDescriptor checks custom-service catalog entries first (raw + normalized family name, custom wins on collision) and listFamilyOptions appends custom entries (source 'custom', displayName, overwrite on name collision); L3 修正（2026-09-28）：custom 族豁免逐族白名单（isCustomOrAllowed 接 loadFont/loadLocalFont/loadCachedFont/loadRemoteFont 四门，枚举不过滤）——disabled 集合混有 web 目录默认关停同名条目会双丢撞名族；门控前确保 catalog 已拉取（文档直加载先于 picker 枚举的错源竞态）；font-gate-semantics (2026-09-29)：loadCnFontSubset 门控豁免专属目录族（cnFontsEnabled 只管内置目录不株连专属服务）；loadLocalFont 补本地总开关闸（枚举/回退/直加载「视为未安装」三处对齐；闸位教训：入口闸曾连带闸死同函数尾部 bundled 兜底致标尺/节点标签全灭（用户实证）——正确闸位只闸宿主/系统通路，bundled 恒可载，缓存命中按已入账源判定 local 拒 bundled 放行）；font-gate-semantics C (2026-09-29)：专属族逐族开关——isCustomOrAllowed 收窄（专属族不再整体豁免，改查专属关停集合 customDisabledFamilies）+ isFontFamilyEnabled/setFontFamilyEnabled 按源路由（专属族写专属集合，不污染共享 disabled 集合，撞名族开关互不串扰）+ setCustomDisabledFontFamilies 批量同步（变化经 customServiceEpoch 并入 revision）+ listFamilyOptions custom 循环逐族过滤（includeDisabled 面板路径不过滤）；font-enum-retry (2026-09-29)：resetWebFontEnumerationFailures() 薄委托——清在线 provider 枚举失败记录（面板「重试」按钮通路，不等失败 TTL）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-29"
     },
@@ -2250,43 +2250,46 @@
       "id": "P361",
       "file": "src/components/font-settings/FontSettingsPopover.vue",
       "reason": "字体控管统一批（2026-09-25）：字体 popover 降级为只读状态摘要 + 本地授权按钮 + 设置深链（管理面迁白名单面板）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-25"
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-29",
+      "retiredReason": "fonts-panel-layering（2026-09-29）：设计面板字体 popover 整体摘除（内容只剩摘要+深链，管理功能已在设置面板）——TypographySection 内联齿轮图标按钮直进设置面板 fonts 分区，文件删除入 deletedPaths"
     },
     {
       "id": "P362",
       "file": "src/components/font-settings/use.ts",
       "reason": "字体控管统一批（2026-09-25）：popover composable 同步瘦身——仅留本地字体访问状态与授权请求",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-25"
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-29",
+      "retiredReason": "fonts-panel-layering（2026-09-29）：仅服务 popover（唯一消费点 FontSettingsPopover.vue 已摘除），随之删除入 deletedPaths；钉扎测试 font.test.ts 同批退役"
     },
     {
       "id": "P363",
       "file": "packages/vue/src/i18n/messages/fonts.ts",
-      "reason": "字体控管统一批（2026-09-25）：popover 降级：新增摘要/深链键并剪管理面遗留孤儿键",
+      "reason": "字体控管统一批（2026-09-25）：popover 降级：新增摘要/深链键并剪管理面遗留孤儿键；fonts-panel-layering（2026-09-29）：popover 摘除后剪专属键 settingsTitle/localFonts/onlineFonts/systemFontAccess/systemFontsAvailable/allowBrowserFontAccess/popoverSummaryTitle/popoverSummaryHint（openSettings 保留，内联齿轮按钮复用）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-25"
+      "lastReviewed": "2026-09-29"
     },
     {
       "id": "P364",
       "file": "packages/vue/src/i18n/locales/zh-cn/fonts.json",
-      "reason": "字体控管统一批（2026-09-25）：popover 降级中文配对（同 messages/fonts.ts）",
+      "reason": "字体控管统一批（2026-09-25）：popover 降级中文配对（同 messages/fonts.ts）；fonts-panel-layering（2026-09-29）：同批剪 popover 专属键中文配对（同 P363 键面）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-25"
+      "lastReviewed": "2026-09-29"
     },
     {
       "id": "P365",
       "file": "tests/engine/app/settings/font.test.ts",
       "reason": "字体控管统一批（2026-09-25）：popover composable 钉扎随瘦身改写（缓存/回退/提供商钉扎移除）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-25"
+      "disposition": "revoked",
+      "lastReviewed": "2026-09-29",
+      "retiredReason": "fonts-panel-layering（2026-09-29）：被钉扎的 useFontSettings composable 随 popover 摘除而删除，钉扎测试失去对象，文件删除入 deletedPaths"
     },
     {
       "id": "P366",
       "file": "packages/core/src/text/web-fonts.ts",
-      "reason": "字体扩 scope 批 D（2026-09-25）：DEFAULT_WEB_FONT_PROVIDER_SETTINGS 四 provider 默认全关（google/fontsource 由 true 翻 false；存量 localStorage 不动）",
+      "reason": "字体扩 scope 批 D（2026-09-25）：DEFAULT_WEB_FONT_PROVIDER_SETTINGS 四 provider 默认全关（google/fontsource 由 true 翻 false；存量 localStorage 不动）；font-enum-retry（2026-09-29）：枚举失败不再当成功空清单永久缓存——familiesCache 只存成功结果 + familiesFailedAt 失败记录（TTL 60s 内短路返回空清单，过期重发），catch 与 unifont 吞错（throwOnError:false 返回 undefined）双路都记失败，失败时清 familiesPromises/unifontPromises 让重试真正重发（init 失败的 unifont 实例永远返回 undefined）；setEnabled 同值重设也清失败记录（显式重试意图）+ resetEnumerationFailures()（面板重试按钮通路）+ TTL 构造参数（测试注入，生产默认 60s）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-25"
+      "lastReviewed": "2026-09-29"
     },
     {
       "id": "P367",
@@ -2298,16 +2301,16 @@
     {
       "id": "P369",
       "file": "src/app/i18n/fork/locales/en.ts",
-      "reason": "字体扩 scope 批 D+E2（2026-09-25）：fontsProvidersOptInHint 新增英文文案；fontsUnauditedLicense 词序降级为 'License: unaudited (package declares {license})'；skill 读侧管理面批 A（2026-09-25）：agentCapabilities 域增 installedSkillsTitle/Description/Empty/SourceUser/SourceBuiltin/EnabledLabel/DisabledLabel 七键（已安装 skill 列表分组文案）；skill 写侧管理面批 B（2026-09-25）：同域增 DeleteLabel/DeleteAction/ConfirmTitle/ConfirmDescription/ConfirmAction/ConfirmCancel/DeleteFailed/DiagnosticsTitle/DiagnosticParseFailed/DiagnosticNameInvalid/DiagnosticNoDescription/DiagnosticShadowedByUser 共 12 键（分层删除对话框 + 诊断块四码文案）；font-custom-service (2026-09-28): fontsMessageDefaults adds fontsSourceCustom + fontsCustom* block (title/description/baseUrl/token/test/connected/failed + five test reason keys)",
+      "reason": "字体扩 scope 批 D+E2（2026-09-25）：fontsProvidersOptInHint 新增英文文案；fontsUnauditedLicense 词序降级为 'License: unaudited (package declares {license})'；skill 读侧管理面批 A（2026-09-25）：agentCapabilities 域增 installedSkillsTitle/Description/Empty/SourceUser/SourceBuiltin/EnabledLabel/DisabledLabel 七键（已安装 skill 列表分组文案）；skill 写侧管理面批 B（2026-09-25）：同域增 DeleteLabel/DeleteAction/ConfirmTitle/ConfirmDescription/ConfirmAction/ConfirmCancel/DeleteFailed/DiagnosticsTitle/DiagnosticParseFailed/DiagnosticNameInvalid/DiagnosticNoDescription/DiagnosticShadowedByUser 共 12 键（分层删除对话框 + 诊断块四码文案）；font-custom-service (2026-09-28): fontsMessageDefaults adds fontsSourceCustom + fontsCustom* block (title/description/baseUrl/token/test/connected/failed + five test reason keys); fonts-panel-layering (2026-09-29): fontsMessageDefaults adds fontsSourcesSection/fontsMaintenanceSection/fontsOnlineEmptyProvidersOff/fontsOnlineEmptyEnum/fontsRetryEnumeration (panel section titles + online group empty states + retry button)",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-28"
+      "lastReviewed": "2026-09-29"
     },
     {
       "id": "P370",
       "file": "src/app/i18n/fork/locales/zh-cn.ts",
-      "reason": "字体扩 scope 批 D+E2（2026-09-25）：fontsProvidersOptInHint 新增中文文案；fontsUnauditedLicense 词序降级为 '授权：未审计（包内声明：{license}）'；skill 读侧管理面批 A（2026-09-25）：agentCapabilities 域增 installedSkillsTitle/Description/Empty/SourceUser/SourceBuiltin/EnabledLabel/DisabledLabel 七键（已安装 skill 列表分组文案）；skill 写侧管理面批 B（2026-09-25）：同域增 DeleteLabel/DeleteAction/ConfirmTitle/ConfirmDescription/ConfirmAction/ConfirmCancel/DeleteFailed/DiagnosticsTitle/DiagnosticParseFailed/DiagnosticNoDescription/DiagnosticShadowedByUser 共 12 键（分层删除对话框 + 诊断块四码文案）；font-custom-service (2026-09-28): fonts segment adds fontsSourceCustom + fontsCustom* block mirroring the en defaults",
+      "reason": "字体扩 scope 批 D+E2（2026-09-25）：fontsProvidersOptInHint 新增中文文案；fontsUnauditedLicense 词序降级为 '授权：未审计（包内声明：{license}）'；skill 读侧管理面批 A（2026-09-25）：agentCapabilities 域增 installedSkillsTitle/Description/Empty/SourceUser/SourceBuiltin/EnabledLabel/DisabledLabel 七键（已安装 skill 列表分组文案）；skill 写侧管理面批 B（2026-09-25）：同域增 DeleteLabel/DeleteAction/ConfirmTitle/ConfirmDescription/ConfirmAction/ConfirmCancel/DeleteFailed/DiagnosticsTitle/DiagnosticParseFailed/DiagnosticNoDescription/DiagnosticShadowedByUser 共 12 键（分层删除对话框 + 诊断块四码文案）；font-custom-service (2026-09-28): fonts segment adds fontsSourceCustom + fontsCustom* block mirroring the en defaults; fonts-panel-layering (2026-09-29): fonts segment adds fontsSourcesSection/fontsMaintenanceSection/fontsOnlineEmptyProvidersOff/fontsOnlineEmptyEnum/fontsRetryEnumeration zh pairs (pure CJK, no mixed-script baseline entries)",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-28"
+      "lastReviewed": "2026-09-29"
     },
     {
       "id": "P371",
@@ -2400,6 +2403,30 @@
       "disposition": "permanent",
       "lastReviewed": "2026-09-27",
       "task": "state-layering-locus-gate"
+    },
+    {
+      "id": "P383",
+      "file": "src/components/properties/TypographySection.vue",
+      "reason": "fonts-panel-layering（2026-09-29）：设计面板字体 popover 摘除，原位内联齿轮 IconButton（IconButton 内建 Tip 悬浮提示，label 复用 fonts.openSettings），click 直调 openSettingsDialog('fonts')，保留 data-test-id=font-settings-trigger",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-29",
+      "task": "font-panel-ux"
+    },
+    {
+      "id": "P384",
+      "file": "tests/engine/text/fonts/web-fonts.test.ts",
+      "reason": "font-enum-retry（2026-09-29）：枚举失败缓存钉扎 describe——TTL 过期重试 / TTL 内不重发请求 / setEnabled 同值重设强制重试 / 成功结果永久缓存（注入 remoteFetch + familiesFailureTtlMs 构造参数）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-29",
+      "task": "font-panel-ux"
+    },
+    {
+      "id": "P385",
+      "file": "tests/e2e/fonts/settings.spec.ts",
+      "reason": "font-panel-ux（2026-09-29）：popover 摘除后重写——缺字横幅段保留，popover 段（request-access/provider 开关等 test-id 已于 2026-09-25 统一批 A 死亡）改写为齿轮 IconButton 直开设置对话框字体分区（悬浮 Tip + 管理件只在设置面板的反向断言）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-29",
+      "task": "font-panel-ux"
     }
   ],
   "deletedPaths": [
@@ -2425,6 +2452,9 @@
     "src/components/CollabPanel",
     "src/components/settings/provider/StockPhotoKeysSection.vue",
     "src/components/settings/vectorize/VectorizeSettingsSection.vue",
+    "src/components/font-settings/FontSettingsPopover.vue",
+    "src/components/font-settings/use.ts",
+    "tests/engine/app/settings/font.test.ts",
     "src/app/ai/acp",
     "src/app/collab/awareness.ts",
     "src/app/collab/local-awareness.ts",

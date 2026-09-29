@@ -121,6 +121,19 @@ export interface ResolvedWebFont {
 }
 
 /**
+ * 枚举失败记录的 TTL（毫秒）：provider 不可达（超时/网络抖动）时既不能把失败
+ * 当成功空清单永久缓存，也不能每次打开 picker 都重新拖满 6s 枚举超时——失败后
+ * TTL 内直接返回空清单，过期后才重发请求。用户显式动作（来源开关重设 / 面板
+ * 「重试」按钮）可立即清除失败记录。
+ */
+export const WEB_FONT_FAMILIES_FAILURE_TTL_MS = 60_000
+
+export interface WebFontResolverOptions {
+  /** 枚举失败记录 TTL（毫秒）；仅测试注入用，生产默认走 WEB_FONT_FAMILIES_FAILURE_TTL_MS */
+  familiesFailureTtlMs?: number
+}
+
+/**
  * 在线字体解析器（unifont 四 provider）。
  *
  * T40 S2（13 册 Phase 0）：浏览器端不再要求 remoteFetch 代理——Google Fonts /
@@ -135,14 +148,24 @@ export class WebFontResolver {
   private unifontPromises = new Map<WebFontProviderId, Promise<WebUnifont>>()
   private familiesCache = new Map<WebFontProviderId, string[]>()
   private familiesPromises = new Map<WebFontProviderId, Promise<string[]>>()
+  /** 枚举失败记录（值 = 失败时刻）：TTL 内 listFamilies 短路返回空清单，不写成功缓存 */
+  private familiesFailedAt = new Map<WebFontProviderId, number>()
+  private readonly familiesFailureTtlMs: number
   private failedFonts = new Set<string>()
   private fontPromises = new Map<string, Promise<ArrayBuffer[]>>()
   private remoteFetch: WebFontFetch | null = null
   private fetchProxyQueue: Promise<void> = Promise.resolve()
 
+  constructor(options: WebFontResolverOptions = {}) {
+    this.familiesFailureTtlMs = options.familiesFailureTtlMs ?? WEB_FONT_FAMILIES_FAILURE_TTL_MS
+  }
+
   setEnabled(settings: Partial<Record<WebFontProviderId, boolean>>): void {
     this.enabled = new Set(WEB_FONT_PROVIDER_IDS.filter((provider) => settings[provider] === true))
     this.failedFonts.clear()
+    // 用户扳动开关 = 显式重试意图：即使 settings 值不变也清枚举失败记录，
+    // 让「关掉再打开」/「同值重设」立即重新枚举，不等 TTL
+    this.familiesFailedAt.clear()
   }
 
   setRemoteFetch(fetcher: WebFontFetch | null): void {
@@ -150,7 +173,13 @@ export class WebFontResolver {
     this.unifontPromises.clear()
     this.familiesPromises.clear()
     this.familiesCache.clear()
+    this.familiesFailedAt.clear()
     this.failedFonts.clear()
+  }
+
+  /** 清枚举失败记录（字体设置面板「重试」按钮通路）：下次 listFamilies 立即重发请求，不等 TTL */
+  resetEnumerationFailures(): void {
+    this.familiesFailedAt.clear()
   }
 
   resetFailures(family?: string, style?: string): void {
@@ -173,6 +202,9 @@ export class WebFontResolver {
   async listFamilies(provider: WebFontProviderId): Promise<string[]> {
     const cached = this.familiesCache.get(provider)
     if (cached) return cached
+
+    const failedAt = this.familiesFailedAt.get(provider)
+    if (failedAt !== undefined && Date.now() - failedAt < this.familiesFailureTtlMs) return []
 
     let promise = this.familiesPromises.get(provider)
     if (!promise) {
@@ -261,15 +293,31 @@ export class WebFontResolver {
     try {
       const unifont = await this.unifont(provider)
       const listedFamilies = await this.withFetchProxy(() => unifont.listFonts())
-      const families = listedFamilies
-        ? [...new Set(listedFamilies)].sort((a, b) => a.localeCompare(b))
-        : []
+      // unifont 配 throwOnError:false 会吞掉 provider 初始化/枚举错误并返回 undefined
+      // ——undefined = provider 不可用（网络失败被吞），与「合法空清单」（[]，truthy）
+      // 必须区分：前者记失败待重试，后者才允许永久缓存。
+      if (!listedFamilies) {
+        this.recordFamiliesFailure(provider)
+        return []
+      }
+      const families = [...new Set(listedFamilies)].sort((a, b) => a.localeCompare(b))
       this.familiesCache.set(provider, families)
       return families
     } catch {
-      this.familiesCache.set(provider, [])
+      this.recordFamiliesFailure(provider)
       return []
     }
+  }
+
+  /**
+   * 记录枚举失败：TTL 内 listFamilies 短路返回空清单（不写成功缓存）；同时清
+   * in-flight promise 与 unifont 实例缓存——init 失败的 unifont（provider 被摘除）
+   * 永远返回 undefined，不清掉 TTL 过期后的重试只会复用死实例再失败一次。
+   */
+  private recordFamiliesFailure(provider: WebFontProviderId): void {
+    this.familiesFailedAt.set(provider, Date.now())
+    this.familiesPromises.delete(provider)
+    this.unifontPromises.delete(provider)
   }
 
   private async fetchFromProvider(

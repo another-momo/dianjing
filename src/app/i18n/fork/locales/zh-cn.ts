@@ -276,7 +276,14 @@ const zhCN = {
     fontsCustomTestUnauthorized: '访问被拒绝，请检查访问令牌',
     fontsCustomTestBadResponse: '服务响应异常，请检查服务地址',
     fontsCustomTestBadCatalog: '服务返回的目录格式异常',
-    fontsCustomTestNetwork: '网络错误，无法连接专属字体服务'
+    fontsCustomTestNetwork: '网络错误，无法连接专属字体服务',
+    // fonts-panel-layering：面板分层（来源/维护 section）与在线组空态（提供商全关 / 枚举失败）
+    fontsSourcesSection: '来源',
+    fontsMaintenanceSection: '维护',
+    fontsOnlineEmptyProvidersOff:
+      '在线字体库已开启，但四个提供商全部关闭——请先在上方启用至少一个提供商。',
+    fontsOnlineEmptyEnum: '枚举失败或列表为空。',
+    fontsRetryEnumeration: '重试'
   },
   pi: {
     providersTitle: '模型提供方',
