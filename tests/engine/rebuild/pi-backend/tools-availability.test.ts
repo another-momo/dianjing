@@ -29,7 +29,7 @@ test('mutating 桥工具串行化：暴露面 mutates 为真者 executionMode = 
   for (const tool of tools) {
     const def = ALL_TOOLS.find((candidate) => candidate.name === tool.name)
     expect(def).toBeDefined()
-    if (!def!.mutates) continue
+    if (!def?.mutates) continue
     mutatingCount++
     expect(tool.executionMode).toBe('sequential')
   }
@@ -42,5 +42,5 @@ test('只读桥工具保持并行：mutates 为假者不带 executionMode', () =
   // describe 是 mutation:'none' 的代表件（纯读，见 core describe/index.ts）
   const readonlyTool = tools.find((tool) => tool.name === 'describe')
   expect(readonlyTool).toBeDefined()
-  expect(readonlyTool!.executionMode).toBeUndefined()
+  expect(readonlyTool?.executionMode).toBeUndefined()
 })
