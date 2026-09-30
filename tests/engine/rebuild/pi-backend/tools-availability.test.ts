@@ -22,3 +22,25 @@ test('eval 对 agent 隐藏：createOpenPencilTools 不含 eval', () => {
 test('eval 对宿主保留：ALL_TOOLS 仍含 eval（桥探针经 ALL_TOOLS.find 直调）', () => {
   expect(ALL_TOOLS.some((tool) => tool.name === 'eval')).toBe(true)
 })
+
+test('mutating 桥工具串行化：暴露面 mutates 为真者 executionMode = sequential', () => {
+  const tools = createOpenPencilTools()
+  let mutatingCount = 0
+  for (const tool of tools) {
+    const def = ALL_TOOLS.find((candidate) => candidate.name === tool.name)
+    expect(def).toBeDefined()
+    if (!def!.mutates) continue
+    mutatingCount++
+    expect(tool.executionMode).toBe('sequential')
+  }
+  // 面内确有 mutating 工具（否则断言空转）
+  expect(mutatingCount).toBeGreaterThan(0)
+})
+
+test('只读桥工具保持并行：mutates 为假者不带 executionMode', () => {
+  const tools = createOpenPencilTools()
+  // describe 是 mutation:'none' 的代表件（纯读，见 core describe/index.ts）
+  const readonlyTool = tools.find((tool) => tool.name === 'describe')
+  expect(readonlyTool).toBeDefined()
+  expect(readonlyTool!.executionMode).toBeUndefined()
+})

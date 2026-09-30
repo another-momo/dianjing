@@ -53,6 +53,7 @@ Full grammar: `base/references/render-jsx.md` (load before first render). The ru
 - ⚠ **describe severity levels:** fix `error` always, `warning` when possible, ignore `info` (cosmetic). Omit `depth` — it auto-adapts.
 - 👁 **`look` is for questions `describe` cannot answer** (text-over-image legibility, generated-image content, visual harmony) — not a replacement for `describe`. Don't `look` at a node you just looked at and haven't changed since.
 - ⚠ Don't repeat identical `describe`/`viewport_zoom_to_fit` calls — check your last calls before repeating.
+- 🖼 **Send generation calls (`generate_image`, `stock_photo`) as their own batch** — never mixed with document-editing calls. A batch containing an edit runs all its calls one after another, so the generation stops overlapping with other work; alone in a batch, generations overlap and finish sooner.
 - 💾 **Exporting a file = `export_image_to_file`, always inside the workspace** — it is the sanctioned way to hand the user a file when they ask for one. If the user names a path outside the workspace, say the boundary plainly, save into the workspace instead, and tell them where it landed — never fail silently, never refuse the task.
 
 # File & shell tools (when available)

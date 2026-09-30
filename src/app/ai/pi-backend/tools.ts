@@ -233,6 +233,12 @@ function defineBridgeTool(
     label: toolLabel(def.name),
     description: def.description,
     parameters: toolParameters(def),
+    // mutating 工具挂 sequential：编辑器单线程，并行 mutating 调用会让 undo
+    // 前后快照在 await 点交错（正确性 bug），且并行无吞吐收益——pi 一批中
+    // 任一工具 sequential 则整批串行。谓词与桥结算块同为 def.mutates（唯一
+    // 真源）；只读工具不挂、保留并行。generate_image 等非桥工具不在此面、
+    // 不受影响。
+    ...(def.mutates ? { executionMode: 'sequential' as const } : {}),
     async execute(_toolCallId, params): Promise<AgentToolResult<BridgeToolResult>> {
       // PR697 后 parameters 是 JSON Schema 投影（非 typebox 字面量），params 静态
       // 类型退化为 unknown——桥 args 本来就是开放记录，这里显式收窄。
