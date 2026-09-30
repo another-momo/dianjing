@@ -136,7 +136,8 @@
     "tests/engine/core/memoize-async.test.ts",
     "src/components/document/OpenDocsConflictDialog.vue",
     "packages/core/src/text/font/custom-service.ts",
-    "tests/engine/text/fonts/custom-service.test.ts"
+    "tests/engine/text/fonts/custom-service.test.ts",
+    "tests/engine/layout/yoga-lifecycle.test.ts"
   ],
   "stubs": ["src/app/collab/use.ts"],
   "pendingReclass": [],
@@ -2467,6 +2468,13 @@
       "id": "P391",
       "file": "tests/engine/text/fonts/loading.test.ts",
       "reason": "随 P390 移植：内容哈希去重钉扎三例——逐出后重载同字节零注册（providerRegisteredBytes 台账不双计）/同族名不同字节照常注册（分片语义不受影响）/去重按 provider 隔离（attach 新 provider 照常回放）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-30"
+    },
+    {
+      "id": "P392",
+      "file": "packages/core/src/layout.ts",
+      "reason": "computeLayoutInternal 补 try/finally：calculateLayout/applyYogaLayout 抛错路径整树仍按序 freeYogaTree（断孤儿化→随机 finalize 误杀链）；finally 内吞异常记日志防掩盖原始异常（lite 胶水无幂等补丁，free 可再抛）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-30"
     }

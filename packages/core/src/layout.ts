@@ -51,9 +51,19 @@ function computeLayoutInternal(graph: SceneGraph, frameId: string): void {
     frame.layoutMode === 'GRID'
       ? buildGridTree(graph, frame, rootDirection)
       : buildYogaTree(graph, frame, rootDirection)
-  yogaRoot.calculateLayout(undefined, undefined, yogaDirection)
-  applyYogaLayout(graph, frame, yogaRoot, computeLayoutInternal)
-  freeYogaTree(yogaRoot)
+  try {
+    yogaRoot.calculateLayout(undefined, undefined, yogaDirection)
+    applyYogaLayout(graph, frame, yogaRoot, computeLayoutInternal)
+  } finally {
+    // lite 胶水无属主校验/幂等补丁：calculateLayout 抛错场景（测量回调在字体
+    // churn 期可抛）下堆可能已腐败，free 可能再抛——吞掉记日志，绝不允许
+    // finally 的二次异常掩盖原始异常（原始现场诊断价值最高）。
+    try {
+      freeYogaTree(yogaRoot)
+    } catch (cleanupError) {
+      console.error('[layout] freeYogaTree failed during cleanup', cleanupError)
+    }
+  }
 }
 function resolveComputedLayoutDirection(
   graph: SceneGraph,
