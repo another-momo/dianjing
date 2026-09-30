@@ -107,6 +107,10 @@ export class FontManager {
   private fontProviders = new Set<TypefaceFontProvider>()
   private registrationGeneration = 0
   private providerRegistrations = new WeakMap<TypefaceFontProvider, Map<string, Set<ArrayBuffer>>>()
+  /** 同一 ArrayBuffer 的内容哈希缓存（fontContentHash 的快路径） */
+  private fontDataHashes = new WeakMap<ArrayBuffer, string>()
+  /** 按 provider × 家族的内容哈希注册表——逐出→重载同字节的复用判据（见 registerFontInProvider） */
+  private providerRegistrationHashes = new WeakMap<TypefaceFontProvider, Map<string, Set<string>>>()
   private localFonts: FontInfo[] | null = null
   private localFontAccessState: LocalFontAccessState = IS_BROWSER ? 'prompt' : 'unsupported'
   private downloadedFontCache: DownloadedFontCache | null = null
@@ -180,10 +184,12 @@ export class FontManager {
       this.fontProviders.clear()
       this.fontProvider = null
       this.providerRegistrations = new WeakMap()
+      this.providerRegistrationHashes = new WeakMap()
       return
     }
     this.fontProviders.delete(provider)
     this.providerRegistrations.delete(provider)
+    this.providerRegistrationHashes.delete(provider)
     if (this.fontProvider === provider) {
       this.fontProvider = Array.from(this.fontProviders).at(-1) ?? null
     }
@@ -195,6 +201,29 @@ export class FontManager {
 
   generation(): number {
     return this.registrationGeneration
+  }
+
+  /** WASM 侧注册字节合计（跨全部 provider）——逐出只释放 JS 侧，注册进 provider 的字节不卸载；测试与诊断的观测口。 */
+  providerRegisteredBytes(): number {
+    return this.collectProviderRegistrationTotals().bytes
+  }
+
+  private collectProviderRegistrationTotals(): { families: number; pieces: number; bytes: number } {
+    let families = 0
+    let pieces = 0
+    let bytes = 0
+    for (const provider of this.fontProviders) {
+      const registrations = this.providerRegistrations.get(provider)
+      if (!registrations) continue
+      for (const dataSet of registrations.values()) {
+        families++
+        for (const data of dataSet) {
+          pieces++
+          bytes += data.byteLength
+        }
+      }
+    }
+    return { families, pieces, bytes }
   }
 
   blockNodesUntilFontsResolve(nodeIds: readonly string[]): void {
@@ -1335,17 +1364,45 @@ export class FontManager {
     const registrations = this.providerRegistrations.get(provider) ?? new Map()
     const registeredData = registrations.get(family)
     if (registeredData?.has(data)) return true
+    // 内容去重：逐出只释放 JS 侧，provider 里的同字节注册仍在册（无 unregister）
+    // ——重载拿到新 ArrayBuffer 身份会绕过上面的按 buffer 去重，这正是逐出/重载
+    // 泵的 WASM 泄漏本体（复测轮 10：注册台账 1.75GB 里 ~2/3 是同字节重复副本）。
+    // 按内容哈希命中即复用旧注册，零新增 WASM 副本；台账不双计。
+    const hash = this.fontContentHash(data)
+    const providerHashes = this.providerRegistrationHashes.get(provider) ?? new Map()
+    const familyHashes = providerHashes.get(family)
+    if (familyHashes?.has(hash)) return true
     try {
       provider.registerFont(data, family)
       const familyRegistrations = registeredData ?? new Set<ArrayBuffer>()
       familyRegistrations.add(data)
       registrations.set(family, familyRegistrations)
       this.providerRegistrations.set(provider, registrations)
+      const newFamilyHashes = familyHashes ?? new Set<string>()
+      newFamilyHashes.add(hash)
+      providerHashes.set(family, newFamilyHashes)
+      this.providerRegistrationHashes.set(provider, providerHashes)
       this.registrationGeneration++
       return true
     } catch {
       return false
     }
+  }
+
+  /** 同一 ArrayBuffer 的内容哈希缓存——鲸键全量 FNV 每个 buffer 只算一次 */
+  private fontContentHash(data: ArrayBuffer): string {
+    const cached = this.fontDataHashes.get(data)
+    if (cached) return cached
+    const bytes = new Uint8Array(data)
+    let h1 = 0x811c9dc5
+    let h2 = 0x85ebca6b
+    for (const byte of bytes) {
+      h1 = Math.imul(h1 ^ byte, 0x01000193)
+      h2 = Math.imul(h2 ^ byte, 0x27d4eb2f)
+    }
+    const hash = `${data.byteLength}:${(h1 >>> 0).toString(36)}-${(h2 >>> 0).toString(36)}`
+    this.fontDataHashes.set(data, hash)
+    return hash
   }
 
   private registerFontInBrowser(

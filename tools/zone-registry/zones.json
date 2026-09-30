@@ -2455,6 +2455,20 @@
       "reason": "2026-09-29 合并 #745 独立 review 修复：renderSupportNotice 摘除 #boot-splash——品牌 splash 是 #app 平级兄弟（fixed 全屏遮罩、挂载后驻留数秒），replaceChildren 清不到，不摘则启动失败通告被 splash 盖住不可见",
       "disposition": "permanent",
       "lastReviewed": "2026-09-29"
+    },
+    {
+      "id": "P390",
+      "file": "packages/core/src/text/fonts.ts",
+      "reason": "移植 mode-arch 字体内容哈希去重（e0f1f004b+4740ad6ff for-of 折叠）：逐出→重载同字节复用在册注册，断 WASM 泵燃料——fontContentHash 全量 FNV 双种子（fontDataHashes WeakMap 每 buffer 只算一次）+ providerRegistrationHashes 按 provider × 家族复用判据，registerFontInProvider 内容哈希命中即免注册；provider 生命周期对称维护（detach 整体重置/单删同步清哈希表）；移植 providerRegisteredBytes()/collectProviderRegistrationTotals 观测口（lite 无压实栈，注释按 lite 口径）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-30"
+    },
+    {
+      "id": "P391",
+      "file": "tests/engine/text/fonts/loading.test.ts",
+      "reason": "随 P390 移植：内容哈希去重钉扎三例——逐出后重载同字节零注册（providerRegisteredBytes 台账不双计）/同族名不同字节照常注册（分片语义不受影响）/去重按 provider 隔离（attach 新 provider 照常回放）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-30"
     }
   ],
   "deletedPaths": [
