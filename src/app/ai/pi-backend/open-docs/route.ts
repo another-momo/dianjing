@@ -25,7 +25,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import * as v from 'valibot'
 
-import { PayloadTooLargeError, readBody, sendJSON, sendPayloadTooLarge } from '../http-utils'
+import { parsePostBody, sendJSON } from '../http-utils'
 import type { OpenDocsGuard } from './guard'
 
 const docUuidSchema = v.pipe(v.string(), v.minLength(1, 'docUuid 不能为空'))
@@ -48,21 +48,17 @@ const releaseBodySchema = v.object({
   windowId: windowIdSchema
 })
 
-async function readJSONBody(
-  req: IncomingMessage,
-  res: ServerResponse
-): Promise<{ ok: true; body: unknown } | { ok: false }> {
-  try {
-    const body: unknown = JSON.parse(await readBody(req))
-    return { ok: true, body }
-  } catch (error) {
-    if (error instanceof PayloadTooLargeError) {
-      sendPayloadTooLarge(req, res)
-    } else {
-      res.writeHead(400).end('Bad Request: invalid JSON')
-    }
-    return { ok: false }
-  }
+/** safeParse + 400 hint 公共尾（jscpd 0 阈值纪律）：形状不合法即写 400 并返 null。 */
+function parseBodyOrSendError<S extends v.GenericSchema>(
+  res: ServerResponse,
+  schema: S,
+  body: unknown,
+  hint: string
+): v.InferOutput<S> | null {
+  const parseResult = v.safeParse(schema, body)
+  if (parseResult.success) return parseResult.output
+  sendJSON(res, 400, { error: hint })
+  return null
 }
 
 async function handleClaim(
@@ -70,20 +66,16 @@ async function handleClaim(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<void> {
-  if (req.method !== 'POST') {
-    res.writeHead(405).end('Method Not Allowed')
-    return
-  }
-  const parsed = await readJSONBody(req, res)
-  if (!parsed.ok) return
-  const parseResult = v.safeParse(claimBodySchema, parsed.body)
-  if (!parseResult.success) {
-    sendJSON(res, 400, {
-      error: 'open-docs claim body 形状不合法：需 { docUuid, windowId, force?: boolean }'
-    })
-    return
-  }
-  const { docUuid, windowId, force } = parseResult.output
+  const body = await parsePostBody(req, res)
+  if (body === null) return
+  const parsed = parseBodyOrSendError(
+    res,
+    claimBodySchema,
+    body,
+    'open-docs claim body 形状不合法：需 { docUuid, windowId, force?: boolean }'
+  )
+  if (parsed === null) return
+  const { docUuid, windowId, force } = parsed
   try {
     const result = guard.claim(docUuid, windowId, { force: force === true })
     if (result.ok) {
@@ -106,20 +98,16 @@ async function handleHeartbeat(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<void> {
-  if (req.method !== 'POST') {
-    res.writeHead(405).end('Method Not Allowed')
-    return
-  }
-  const parsed = await readJSONBody(req, res)
-  if (!parsed.ok) return
-  const parseResult = v.safeParse(heartbeatBodySchema, parsed.body)
-  if (!parseResult.success) {
-    sendJSON(res, 400, {
-      error: 'open-docs heartbeat body 形状不合法：需 { docUuid, windowId, force?: boolean }'
-    })
-    return
-  }
-  const { docUuid, windowId, force } = parseResult.output
+  const body = await parsePostBody(req, res)
+  if (body === null) return
+  const parsed = parseBodyOrSendError(
+    res,
+    heartbeatBodySchema,
+    body,
+    'open-docs heartbeat body 形状不合法：需 { docUuid, windowId, force?: boolean }'
+  )
+  if (parsed === null) return
+  const { docUuid, windowId, force } = parsed
   try {
     const ok = guard.heartbeat(docUuid, windowId, { force: force === true })
     if (ok) {
@@ -142,20 +130,16 @@ async function handleRelease(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<void> {
-  if (req.method !== 'POST') {
-    res.writeHead(405).end('Method Not Allowed')
-    return
-  }
-  const parsed = await readJSONBody(req, res)
-  if (!parsed.ok) return
-  const parseResult = v.safeParse(releaseBodySchema, parsed.body)
-  if (!parseResult.success) {
-    sendJSON(res, 400, {
-      error: 'open-docs release body 形状不合法：需 { docUuid, windowId }'
-    })
-    return
-  }
-  const { docUuid, windowId } = parseResult.output
+  const body = await parsePostBody(req, res)
+  if (body === null) return
+  const parsed = parseBodyOrSendError(
+    res,
+    releaseBodySchema,
+    body,
+    'open-docs release body 形状不合法：需 { docUuid, windowId }'
+  )
+  if (parsed === null) return
+  const { docUuid, windowId } = parsed
   try {
     // release 即便失败（已是他人占着 / 自己已不持）也返 204——
     // 调用方已声明「我要关了」，服务端据此宽容收尾；非 204 反而会让
