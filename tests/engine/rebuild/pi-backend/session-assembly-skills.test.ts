@@ -9,8 +9,8 @@
  * 路径去重，套件模式下 assembly.ts 与本测试的 SDK specifier 绑定都归
  * 首个加载者的桩所有，file URL / 查询串 / createRequire 均绕不过
  * （2026-10-01 逐项实证）。故真 SDK 段（真扫 SKILL.md fixture + 真
- * formatSkillsForPrompt）移入干净子进程执行（helpers/
- * real-skills-section-probe.ts），本进程零 mock：真 studio registry 经真
+ * formatSkillsForPrompt）移入干净子进程执行（helpers.ts 末尾探针段，
+ * import.meta.main 入口），本进程零 mock：真 studio registry 经真
  * createActiveDesignHost 组装回合，钩子工厂直取直调。断言为存在性口径
  * （非逐字节）：
  *  - 含 '<available_skills'——SDK 升级改清单段口径或拼回通路断裂 → 红；
@@ -31,7 +31,7 @@ import { createTurnAssemblyExtension } from '@/app/ai/pi-backend/session/assembl
 import { getStudioRegistry } from '@/app/ai/pi-backend/studio'
 
 const SKILL_NAME = 'pin-check'
-const PROBE_SCRIPT = join(import.meta.dir, 'helpers', 'real-skills-section-probe.ts')
+const PROBE_SCRIPT = join(import.meta.dir, 'helpers.ts')
 
 function writeFixture(rootDir: string): void {
   // 用户层资产双源：studio base（registry 加载）+ skill（SDK loader 扫描）

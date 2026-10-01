@@ -83,3 +83,47 @@ export function bridgeStub(
   }
   return { calls, callBridge }
 }
+
+// ── 真 SDK skills 探针（子进程入口；import 本模块时惰性不执行）────────────
+// 用法：bun helpers.ts <workspaceDir> <agentDir> <skillsDir>
+// stdout 回传 JSON：{ names: 扫描到的 skill 名清单, section: formatSkillsForPrompt 产物 }。
+// 存在理由：bun 模块注册表按解析路径去重，mock.module 生效后同进程内
+// specifier / file URL / 查询串 / createRequire 拿到的都是桩（2026-10-01
+// 逐项实证）——钉真 SDK 行为只能换干净子进程（父进程 mock 注册表不遗传）。
+// 选项镜像 session/assembly.ts 生产装配（trust 关 + 上下文/模板/扩展全关 +
+// 单源 additionalSkillPaths）——漂移由消费测试的断言暴露。
+if (import.meta.main) {
+  const {
+    DefaultResourceLoader,
+    formatSkillsForPrompt,
+    SettingsManager
+    // 子进程内无 mock——specifier 直取真模块
+  } = await import('@earendil-works/pi-coding-agent')
+  const [workspaceDir, agentDir, skillsDir] = process.argv.slice(2)
+  if (!workspaceDir || !agentDir || !skillsDir) {
+    throw new Error('usage: bun helpers.ts <workspaceDir> <agentDir> <skillsDir>')
+  }
+  const settingsManager = SettingsManager.create(workspaceDir, agentDir, {
+    projectTrusted: false
+  })
+  settingsManager.applyOverrides({ enableInstallTelemetry: false })
+  const loader = new DefaultResourceLoader({
+    cwd: workspaceDir,
+    agentDir,
+    systemPrompt: '',
+    settingsManager,
+    noContextFiles: true,
+    noSkills: false,
+    noPromptTemplates: true,
+    noExtensions: true,
+    additionalSkillPaths: [skillsDir]
+  })
+  await loader.reload()
+  const skills = loader.getSkills().skills
+  process.stdout.write(
+    JSON.stringify({
+      names: skills.map((skill) => skill.name),
+      section: formatSkillsForPrompt(skills)
+    })
+  )
+}
