@@ -84,10 +84,40 @@ export class PiBackendChatTransport implements ChatTransport<UIMessage> {
   }
 }
 
+/**
+ * SSE 帧解析 → ReadableStream<UIMessageChunk>，入口带 rAF 合批闸。
+ *
+ * 闸语义：帧到先攒 frameBatch，下一动画帧统一 enqueue（`if (!rafId)` 单闸
+ * 守卫）——SDK 的 read() await 阻塞在闸上，一帧最多放行一批，下游 UI 状态
+ * 写入频率收敛到帧率（改写轮帧连发不再逐帧触发 Vue flush）。放行前一路攒、
+ * 不丢序；坏帧跳过纪律不变。
+ *
+ * 尾帧与清理对称性：close 路径（[DONE] / 源流 done / abort 静默收束）先
+ * flush 残余攒帧再 close——尾帧不丢；cancel 路径对称 cancelAnimationFrame
+ * 并放行挂起的 pull，不留悬空等待。
+ */
 function parseSSEChunkStream(body: ReadableStream<Uint8Array>): ReadableStream<UIMessageChunk> {
   const reader = body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
+  const frameBatch: UIMessageChunk[] = []
+  let rafId: number | null = null
+  let gateWaiter: (() => void) | null = null
+
+  const cancelGate = (): void => {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId)
+      rafId = null
+    }
+  }
+
+  const releaseBatch = (controller: ReadableStreamDefaultController<UIMessageChunk>): void => {
+    rafId = null
+    for (const chunk of frameBatch.splice(0)) controller.enqueue(chunk)
+    gateWaiter?.()
+    gateWaiter = null
+  }
+
   return new ReadableStream<UIMessageChunk>({
     async pull(controller) {
       for (;;) {
@@ -99,22 +129,37 @@ function parseSSEChunkStream(body: ReadableStream<Uint8Array>): ReadableStream<U
           if (dataLine) {
             const data = dataLine.slice(5).trimStart()
             if (data === '[DONE]') {
+              // 尾帧保护：close 前放行残余攒帧，挂起闸对称取消
+              cancelGate()
+              releaseBatch(controller)
               controller.close()
               return
             }
             // T27：坏帧（代理串扰/后端半截写）跳过即可——单帧损坏不应击穿整段流
             try {
-              controller.enqueue(JSON.parse(data) as UIMessageChunk)
+              frameBatch.push(JSON.parse(data) as UIMessageChunk)
+              if (rafId === null) {
+                rafId = requestAnimationFrame(() => releaseBatch(controller))
+              }
             } catch {
               console.warn('[pi-transport] 跳过无法解析的 SSE 帧（已丢弃该帧，流继续）')
             }
           }
           continue
         }
+        if (rafId !== null) {
+          // 闸挂起中：read() await 阻塞在此，rAF 放行（攒帧已 enqueue）后本批结束
+          await new Promise<void>((resolve) => {
+            gateWaiter = resolve
+          })
+          return
+        }
         let value: Uint8Array | undefined
         try {
           const read = await reader.read()
           if (read.done) {
+            cancelGate()
+            releaseBatch(controller)
             controller.close()
             return
           }
@@ -125,9 +170,12 @@ function parseSSEChunkStream(body: ReadableStream<Uint8Array>): ReadableStream<U
           // 'BodyStreamBuffer was aborted'）——不区分形状一律视为取消，静默 close
           // 流、止于源头截断此通道，杜绝 abort 形状再冒泡成上游 stream error。
           if (isAbortLikeError(error)) {
+            cancelGate()
+            releaseBatch(controller)
             controller.close()
             return
           }
+          cancelGate()
           controller.error(error)
           return
         }
@@ -135,6 +183,9 @@ function parseSSEChunkStream(body: ReadableStream<Uint8Array>): ReadableStream<U
       }
     },
     cancel(reason) {
+      cancelGate()
+      gateWaiter?.()
+      gateWaiter = null
       void reader.cancel(reason)
     }
   })

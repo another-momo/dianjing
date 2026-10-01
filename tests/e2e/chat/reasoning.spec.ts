@@ -15,6 +15,8 @@ test('expand while thinking auto-collapses but preserves manual opening', async 
   await expect(trigger).toHaveAttribute('aria-expanded', 'true')
   await finishReasoning(page)
   await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  // 收起即真卸载：自动收起后正文节点从 DOM 摘除（reka unmountOnHide 默认 true）
+  await expect(page.locator('[data-slot="chat-reasoning-content"]')).toHaveCount(0)
   await chat.submit('Inspect it again')
   await expect(trigger).toHaveAttribute('aria-expanded', 'true')
   await trigger.click()
@@ -76,14 +78,9 @@ test('reasoning preferences use AI settings and persist across reload', async ({
   await expect(trigger).toHaveAttribute('aria-expanded', 'true')
   await trigger.click()
   await expect(trigger).toHaveAttribute('aria-expanded', 'false')
-  await expect
-    .poll(() =>
-      page
-        .locator('[data-slot="chat-reasoning-content"]')
-        .evaluate((element) => getComputedStyle(element).animationName)
-    )
-    .toBe('collapsible-up')
-  await expect(page.locator('[data-slot="chat-reasoning-content"]')).toBeHidden()
+  // 收起即真卸载：离场过渡结束后正文节点从 DOM 摘除（reka unmountOnHide 默认
+  // true）——hidden 滞留 DOM 是聊天 DOM 无界增长的头部来源，此处钉节点计数 0
+  await expect(page.locator('[data-slot="chat-reasoning-content"]')).toHaveCount(0)
   await page.reload()
   await chat.chatTab.click()
   await page.getByTestId('provider-settings-trigger').click()

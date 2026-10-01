@@ -64,7 +64,6 @@ function updateOpen(value: boolean): void {
 <template>
   <CollapsibleRoot
     :open="open"
-    :unmount-on-hide="false"
     class="rounded-lg border border-border bg-canvas"
     @update:open="updateOpen"
   >

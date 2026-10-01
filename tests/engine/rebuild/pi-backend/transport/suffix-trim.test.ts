@@ -18,7 +18,7 @@ import type { UIMessage } from 'ai'
 
 import { PiBackendChatTransport, trimToLastUserSuffix } from '@/app/ai/pi-backend/transport'
 
-import { restoreFetch, stubFetch, type FetchCall } from './helpers'
+import { restoreFetch, stubFetch, type FetchCall } from '../helpers'
 
 afterEach(restoreFetch)
 

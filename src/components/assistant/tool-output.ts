@@ -7,6 +7,11 @@
  * 直渲）。模型通道裁剪见 pi-backend/media-output.ts（sanitize 双函数）。
  *
  * 从 ChatMessage.vue 抽出以便单测（tool-state.ts 同模式先例）。
+ *
+ * 展开态输出上界：JSON 序列化后超 200 行按行边界截断，尾注标注截去的字符
+ * 量——折叠态本就零 DOM（unmountOnHide 默认 true），此上界只封展开瞬态的长
+ * 输出（大文件 read / 长 JSON 结果整段灌进 <pre>）。errorText / error 字段
+ * 透传路径不裁：错误文本非 JSON 序列化产物，且需完整可读。
  */
 
 import { isMediaToolOutput } from '@/app/ai/pi-backend/media-output'
@@ -17,8 +22,19 @@ export type ToolOutputDisplayInput = {
   output?: unknown
 }
 
+/** 展开态正文行数上界 */
+const MAX_DISPLAY_LINES = 200
+
 function hasErrorOutput(output: unknown): output is { error: string } {
   return typeof output === 'object' && output !== null && 'error' in output
+}
+
+/** 行数上界截断：保前 MAX_DISPLAY_LINES 行，尾注标注截去的字符量 */
+function capDisplayLines(text: string): string {
+  const lines = text.split('\n')
+  if (lines.length <= MAX_DISPLAY_LINES) return text
+  const kept = lines.slice(0, MAX_DISPLAY_LINES).join('\n')
+  return `${kept}\n已截断 ${text.length - kept.length} 字符`
 }
 
 export function displayToolOutput(part: ToolOutputDisplayInput): string {
@@ -27,7 +43,9 @@ export function displayToolOutput(part: ToolOutputDisplayInput): string {
   const output = part.output
   if (isMediaToolOutput(output)) {
     const { base64, ...rest } = output
-    return JSON.stringify({ ...rest, base64: `[omitted ${base64.length} chars]` }, null, 2)
+    return capDisplayLines(
+      JSON.stringify({ ...rest, base64: `[omitted ${base64.length} chars]` }, null, 2)
+    )
   }
-  return JSON.stringify(output, null, 2)
+  return capDisplayLines(JSON.stringify(output, null, 2))
 }

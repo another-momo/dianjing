@@ -9,6 +9,8 @@
  *   omit base64 键——模型已从 content[0].image 拿到真图，占位符是纯噪音；
  *   UI 通道 sanitizeMediaToolOutput 保留占位符的既有语义不回归（look.test.ts
  *   钉扎不动）。
+ * - 展开态行数上界：JSON 序列化后超 200 行按行边界截断 + 尾注标注截去字符
+ *   量（折叠态零 DOM，上界只封展开瞬态）；errorText 透传路径不裁。
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -62,6 +64,56 @@ describe('T92 displayToolOutput (tool card expansion)', () => {
       output: { error: 'Node not found' }
     })
     expect(text).toBe('Node not found')
+  })
+})
+
+describe('T92 displayToolOutput 展开态行数上界', () => {
+  test('超 200 行截断：保前 200 行，尾注标注截去字符量', () => {
+    const output = { lines: Array.from({ length: 300 }, (_, i) => `line-${i}`) }
+    const fullText = JSON.stringify(output, null, 2)
+    const kept = fullText.split('\n').slice(0, 200).join('\n')
+    const text = displayToolOutput({ state: 'output-available', output })
+
+    expect(text).toBe(`${kept}\n已截断 ${fullText.length - kept.length} 字符`)
+    expect(text.split('\n')).toHaveLength(201)
+    expect(text).toContain('line-197')
+    expect(text).not.toContain('line-198')
+  })
+
+  test('恰好 200 行不截断（上界含边界）', () => {
+    const output = Array.from({ length: 198 }, (_, i) => `item-${i}`)
+    const text = displayToolOutput({ state: 'output-available', output })
+
+    expect(text).toBe(JSON.stringify(output, null, 2))
+    expect(text.split('\n')).toHaveLength(200)
+  })
+
+  test('media 输出行数未超上界：base64 占位语义不变（不二次截断）', () => {
+    const output = { base64: 'aGk=', mimeType: 'image/png', note: 'ok' }
+    const text = displayToolOutput({ state: 'output-available', output })
+
+    expect(text).toContain('[omitted 4 chars]')
+    expect(text).not.toContain('已截断')
+  })
+
+  test('media 输出超上界同样截断（先裁 base64 再施行数上界）', () => {
+    const output = {
+      base64: 'aGk=',
+      mimeType: 'image/png',
+      lines: Array.from({ length: 300 }, (_, i) => `line-${i}`)
+    }
+    const text = displayToolOutput({ state: 'output-available', output })
+
+    expect(text.split('\n')).toHaveLength(201)
+    expect(text).toContain('已截断 ')
+    expect(text).toContain('"image/png"')
+  })
+
+  test('errorText 透传路径不施行数上界（错误文本需完整可读）', () => {
+    const errorText = 'boom '.repeat(2000)
+    const text = displayToolOutput({ state: 'output-error', errorText, output: undefined })
+
+    expect(text).toBe(errorText)
   })
 })
 

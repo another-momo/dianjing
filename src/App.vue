@@ -15,6 +15,7 @@ import { toast } from '@/app/shell/ui'
 import { scheduleStartupUpdateCheck } from '@/app/shell/updater'
 import { kickSyncEngine } from '@/app/storage/sync'
 import { prepareForReload } from '@/app/tabs'
+import { startDomMeters } from '@/components/assistant/dom-meters'
 import OpenDocsConflictDialog from '@/components/document/OpenDocsConflictDialog.vue'
 import UnsavedChangesDialog from '@/components/document/UnsavedChangesDialog.vue'
 import PublishLibraryDialog from '@/components/libraries/PublishLibraryDialog.vue'
@@ -46,6 +47,7 @@ onMounted(() => {
   toast.setupGlobalErrorHandler()
   scheduleStartupUpdateCheck(updates)
   void kickSyncEngine()
+  startDomMeters()
 })
 </script>
 

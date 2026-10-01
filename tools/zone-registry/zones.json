@@ -2498,6 +2498,22 @@
       "reason": "随 P209 后续收敛：旧 chat 栈选区引用通路整体退役（生产调用方清零，现行选区引用走 selection-capture）——appendReferencedNodeContext / resolveReferencedNodes / MAX_REFERENCED_NODES / ReferencedNode 全删；仅存 stripReferencedNodeContext + REFERENCED_NODE_CONTEXT_MARKER（历史消息展示卫生，fork/presentation.ts 在用），用例改由 MARKER 字面量构造输入",
       "disposition": "permanent",
       "lastReviewed": "2026-10-01"
+    },
+    {
+      "id": "P396",
+      "file": "src/App.vue",
+      "reason": "chat-dom-governance 批A（2026-10-01）：onMounted 挂 startDomMeters()——DOM 节点水表（文档级 + 聊天转录子树两笔分账，60s 采样 + 5%/10% 变化门控 + 5min 心跳，经 diagnostics 台账记账，仪器模块落 src/components/assistant/dom-meters.ts）；app 级观测服务与 kickSyncEngine 同层注册",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-01",
+      "task": "chat-dom-governance"
+    },
+    {
+      "id": "P397",
+      "file": "tests/e2e/chat/reasoning.spec.ts",
+      "reason": "chat-dom-governance 批A（2026-10-01）：reasoning 折叠回 unmountOnHide 默认值（收起即真卸载）后，收起态断言改钉正文节点计数 0（toHaveCount(0) 确定性断言，替代卸载形态下会等一个永不复现元素的 animationName poll）——while-thinking 自动收起 + 手动收起两路径",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-01",
+      "task": "chat-dom-governance"
     }
   ],
   "deletedPaths": [

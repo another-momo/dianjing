@@ -12,7 +12,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 
 import { PiBackendChatTransport } from '@/app/ai/pi-backend/transport'
 
-import { restoreFetch, stubFetch, type FetchCall } from './helpers'
+import { restoreFetch, stubFetch, type FetchCall } from '../helpers'
 
 afterEach(restoreFetch)
 
