@@ -42,3 +42,72 @@ test('prepared imported documents replace the live graph only after staging', as
   expect(liveEditor.state.currentPageId).toBe(page.id)
   liveEditor.dispose()
 })
+
+// docUuid 图替换 merge 保留三态矩阵（2026-09-30 方案定稿）：导入自带不动 /
+// 导入缺 + 旧图有 → 保留 / 双缺 no-op——已铸未落盘的 docUuid 挺过图替换，
+// page-state 与会话族不再成孤儿。
+const DOC_NAMESPACE = 'openpencil.ai'
+const DOC_ENTRY_KEY = 'openpencil.ai/docId'
+
+function setRootDocUuid(graph: SceneGraph, value: string): void {
+  graph.updateNode(graph.rootId, {
+    pluginData: [{ pluginId: DOC_NAMESPACE, key: DOC_ENTRY_KEY, value }]
+  })
+}
+
+function readRootDocUuid(graph: SceneGraph): string | null {
+  return (
+    graph
+      .getNode(graph.rootId)
+      ?.pluginData.find((entry) => entry.pluginId === DOC_NAMESPACE && entry.key === DOC_ENTRY_KEY)
+      ?.value ?? null
+  )
+}
+
+function makeImportedGraph(): SceneGraph {
+  const imported = new SceneGraph()
+  const page = imported.getPages()[0]
+  if (!page) throw new Error('Expected imported page')
+  imported.updateNode(page.id, { name: 'Imported' })
+  return imported
+}
+
+test('graph replace preserves the live docUuid when the imported graph lacks one', async () => {
+  const liveGraph = new SceneGraph()
+  setRootDocUuid(liveGraph, 'live-doc-uuid')
+  const liveEditor = createEditor({ graph: liveGraph, skipInitialGraphSetup: true })
+  const imported = makeImportedGraph()
+
+  await applyImportedDocument(liveEditor, imported)
+
+  expect(liveEditor.graph).toBe(imported)
+  expect(readRootDocUuid(liveEditor.graph)).toBe('live-doc-uuid')
+  liveEditor.dispose()
+})
+
+test('imported graph docUuid wins over the live one (file persisted identity first)', async () => {
+  const liveGraph = new SceneGraph()
+  setRootDocUuid(liveGraph, 'live-doc-uuid')
+  const liveEditor = createEditor({ graph: liveGraph, skipInitialGraphSetup: true })
+  const imported = makeImportedGraph()
+  setRootDocUuid(imported, 'file-doc-uuid')
+
+  await applyImportedDocument(liveEditor, imported)
+
+  expect(liveEditor.graph).toBe(imported)
+  expect(readRootDocUuid(liveEditor.graph)).toBe('file-doc-uuid')
+  liveEditor.dispose()
+})
+
+test('graph replace is a no-op for docUuid when neither graph has one', async () => {
+  const liveGraph = new SceneGraph()
+  const liveEditor = createEditor({ graph: liveGraph, skipInitialGraphSetup: true })
+  const imported = makeImportedGraph()
+
+  await applyImportedDocument(liveEditor, imported)
+
+  expect(liveEditor.graph).toBe(imported)
+  expect(readRootDocUuid(liveEditor.graph)).toBeNull()
+  expect(imported.getNode(imported.rootId)?.pluginData).toEqual([])
+  liveEditor.dispose()
+})

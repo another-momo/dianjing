@@ -2477,6 +2477,20 @@
       "reason": "computeLayoutInternal 补 try/finally：calculateLayout/applyYogaLayout 抛错路径整树仍按序 freeYogaTree（断孤儿化→随机 finalize 误杀链）；finally 内吞异常记日志防掩盖原始异常（lite 胶水无幂等补丁，free 可再抛）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-30"
+    },
+    {
+      "id": "P393",
+      "file": "src/app/document/io/imported-document.ts",
+      "reason": "applyImportedDocument 在 replaceGraph 前对根 pluginData 做 docUuid merge 保留（三态：导入自带→导入胜不动 / 导入缺+旧图有→append 保留 / 双缺 no-op）——import 管线整段重写根 pluginData 使已铸未落盘 uuid 随旧图静默丢弃，page-state/会话族索引成孤儿、下次发送重铸即二次初始化；四条加载链全收束此函数，一处补丁全盖",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-30"
+    },
+    {
+      "id": "P394",
+      "file": "tests/engine/app/document/io/imported-document.test.ts",
+      "reason": "随 P393 钉扎：docUuid merge 保留三态矩阵——导入缺+旧图有→旧值保留（挺过图替换）/ 导入自带→导入胜（文件持久身份优先）/ 双缺 no-op（pluginData 零污染）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-09-30"
     }
   ],
   "deletedPaths": [

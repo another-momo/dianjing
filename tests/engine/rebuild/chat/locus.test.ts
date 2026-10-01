@@ -2,7 +2,6 @@
  * 2026-09-27 sl-w2-locus-gate：落点拦截门纯逻辑层单测。
  *
  * 覆盖矩阵（§3.1 全部变体）：
- *  - docUuid 缺失 → first-send-no-doc（不读 GET，捕获 currentPageId）
  *  - 落点未设置（state 缺省 / engagedPageId 空串）→ silent-init（不论 hasSession——
  *    「从未设置」与「真首跑」同口径静默，hasSession 分档已退役）
  *  - 悬空（engaged 在页列表查无）→ silent-init（静默重锚到当前页）
@@ -102,37 +101,13 @@ describe('parseLocusGetResponse', () => {
   })
 })
 
-describe('resolveLocusIntercept — docUuid 缺失分支', () => {
-  test('docUuid 缺失 → first-send-no-doc（不论 GET 结果）', () => {
-    const intercept = resolveLocusIntercept({
-      currentPageId: PAGE_B,
-      pageList: [PAGE_A, PAGE_B],
-      response: makeResponse({ modeId: 'm1', profileId: null, engagedPageId: PAGE_A }, true),
-      docUuidPresent: false
-    })
-    expect(intercept).toEqual({ kind: 'first-send-no-doc', currentPageId: PAGE_B })
-  })
-
-  test('docUuid 缺失 + state 缺省 + 无 session → 仍是 first-send-no-doc（首开路径优先）', () => {
-    expect(
-      resolveLocusIntercept({
-        currentPageId: PAGE_B,
-        pageList: [PAGE_A, PAGE_B],
-        response: makeResponse(null, false),
-        docUuidPresent: false
-      })
-    ).toEqual({ kind: 'first-send-no-doc', currentPageId: PAGE_B })
-  })
-})
-
 describe('resolveLocusIntercept — 初始化分支', () => {
   test('真首跑（state 缺省 + hasSession=false） → silent-init', () => {
     expect(
       resolveLocusIntercept({
         currentPageId: PAGE_B,
         pageList: [PAGE_A, PAGE_B],
-        response: makeResponse(null, false),
-        docUuidPresent: true
+        response: makeResponse(null, false)
       })
     ).toEqual({ kind: 'silent-init', currentPageId: PAGE_B })
   })
@@ -142,8 +117,7 @@ describe('resolveLocusIntercept — 初始化分支', () => {
       resolveLocusIntercept({
         currentPageId: PAGE_B,
         pageList: [PAGE_A, PAGE_B],
-        response: makeResponse(null, true),
-        docUuidPresent: true
+        response: makeResponse(null, true)
       })
     ).toEqual({ kind: 'silent-init', currentPageId: PAGE_B })
   })
@@ -153,8 +127,7 @@ describe('resolveLocusIntercept — 初始化分支', () => {
       resolveLocusIntercept({
         currentPageId: PAGE_B,
         pageList: [PAGE_A, PAGE_B],
-        response: makeResponse({ modeId: null, profileId: null, engagedPageId: '' }, false),
-        docUuidPresent: true
+        response: makeResponse({ modeId: null, profileId: null, engagedPageId: '' }, false)
       })
     ).toEqual({ kind: 'silent-init', currentPageId: PAGE_B })
   })
@@ -164,8 +137,7 @@ describe('resolveLocusIntercept — 初始化分支', () => {
       resolveLocusIntercept({
         currentPageId: PAGE_B,
         pageList: [PAGE_A, PAGE_B],
-        response: makeResponse({ modeId: null, profileId: null, engagedPageId: '' }, true),
-        docUuidPresent: true
+        response: makeResponse({ modeId: null, profileId: null, engagedPageId: '' }, true)
       })
     ).toEqual({ kind: 'silent-init', currentPageId: PAGE_B })
   })
@@ -177,8 +149,7 @@ describe('resolveLocusIntercept — same-page / gate-resolve 分支', () => {
       resolveLocusIntercept({
         currentPageId: PAGE_A,
         pageList: [PAGE_A, PAGE_B],
-        response: makeResponse({ modeId: null, profileId: null, engagedPageId: PAGE_A }, true),
-        docUuidPresent: true
+        response: makeResponse({ modeId: null, profileId: null, engagedPageId: PAGE_A }, true)
       })
     ).toEqual({ kind: 'same-page' })
   })
@@ -188,8 +159,7 @@ describe('resolveLocusIntercept — same-page / gate-resolve 分支', () => {
       resolveLocusIntercept({
         currentPageId: PAGE_B,
         pageList: [PAGE_A, PAGE_B, PAGE_C],
-        response: makeResponse({ modeId: null, profileId: null, engagedPageId: PAGE_A }, true),
-        docUuidPresent: true
+        response: makeResponse({ modeId: null, profileId: null, engagedPageId: PAGE_A }, true)
       })
     ).toEqual({
       kind: 'gate-resolve',
@@ -206,8 +176,7 @@ describe('resolveLocusIntercept — same-page / gate-resolve 分支', () => {
         response: makeResponse(
           { modeId: null, profileId: null, engagedPageId: 'page-deleted' },
           true
-        ),
-        docUuidPresent: true
+        )
       })
     ).toEqual({ kind: 'silent-init', currentPageId: PAGE_B })
   })
@@ -218,8 +187,7 @@ describe('resolveLocusIntercept — same-page / gate-resolve 分支', () => {
       resolveLocusIntercept({
         currentPageId: PAGE_A,
         pageList: [],
-        response: makeResponse(null, false),
-        docUuidPresent: true
+        response: makeResponse(null, false)
       })
     ).toEqual({ kind: 'silent-init', currentPageId: PAGE_A })
   })

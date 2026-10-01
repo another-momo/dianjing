@@ -6,9 +6,6 @@
  * 拿到结果后自行走 PUT / switchPage / 放行发送等动作。
  *
  * 判定变体（与 §3.1 一一对应）：
- *  - `first-send-no-doc`     docUuid 不存在（首开消息）—— 无值可比，不拦；上层
- *                            先捕获 currentPageId 再发送，发送后 PUT 写回
- *                            engagedPageId（防竞态：捕获先于发送）。
  *  - `silent-init`           GET 成功 + 落点未设置（state 缺省 / engagedPageId 空串）
  *                            或落点悬空（原施工页已删、页列表查无）—— 静默 PUT
  *                            engagedPageId = currentPageId 后放行；纯流程不弹卡。
@@ -49,9 +46,6 @@ export type LocusIntercept =
   /** 落点未设置（state 缺省 / 空串，不论 hasSession）或悬空（原施工页已删）——
    *  静默 PUT engaged=view 后放行。 */
   | { kind: 'silent-init'; currentPageId: string }
-  /** docUuid 不存在（首开消息）—— 不读 GET，先捕获 currentPageId 再发送；
-   *  发送完成后 PUT engagedPageId = 捕获值。 */
-  | { kind: 'first-send-no-doc'; currentPageId: string }
   /** 弹卡二选一：视图页 ≠ 落点页且落点页仍在 —— 留在落点页 / 切到当前页。 */
   | {
       kind: 'gate-resolve'
@@ -77,18 +71,14 @@ export interface LocusGateView {
  *                       悬空检测的唯一来源；空数组 = 文档无任何页（极异常路径，
  *                       上层若触发 silent-init 即可放行）。
  * @param response       GET /api/pi/page-state 已解析响应（端点已 2xx）。
- * @param docUuidPresent 文档根 sharedPluginData 是否有 openpencil.ai/docId 条目
- *                       ——首开消息路径判定。true = 曾 AI 交互过；false = 首开。
+ *                       docUuid 由上层 preflight 即时铸造保证在先（2026-09-30
+ *                       docUuid 铸造时机批），本函数不再按「文档是否已铸」分支。
  */
 export function resolveLocusIntercept(args: {
   currentPageId: string
   pageList: readonly string[]
   response: LocusGetResponse
-  docUuidPresent: boolean
 }): LocusIntercept {
-  if (!args.docUuidPresent) {
-    return { kind: 'first-send-no-doc', currentPageId: args.currentPageId }
-  }
   const engaged = args.response.state?.engagedPageId ?? null
   if (engaged === null || engaged === '') {
     // 落点从未设置——不论 hasSession 同口径静默（「从未设置」与「真首跑」同义放行）

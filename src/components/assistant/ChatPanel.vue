@@ -214,11 +214,7 @@ void locusRunTracker.runStartedPageId
 // sl-w2-locus-gate（§3.1）：发送前落点拦截门——返回 proceed / gate / block。
 // 抽为独立函数便于 review（gate 弹卡 + send 放行的双路径汇合一处）。
 type LocusPreflight =
-  | {
-      kind: 'proceed'
-      /** first-send-no-doc 路径：发送完成后 PUT engagedPageId = 捕获值（防竞态：捕获先于发送）。 */
-      postSendPut?: { engagedPageId: string }
-    }
+  | { kind: 'proceed' }
   | { kind: 'gate'; view: LocusGateView; text: string }
   | { kind: 'block'; message: string }
 
@@ -258,19 +254,13 @@ async function preflightLocusGate(text: string): Promise<LocusPreflight> {
   const currentPageId = getCurrentViewPageId()
   if (currentPageId === '') {
     // 视图页瞬态为空——判定层约定上层守卫（locus.ts resolveLocusIntercept
-    // docblock）：空 id 放行会让 postSend PUT 写入空落点 / gate-resolve 弹卡
+    // docblock）：空 id 放行会让 silent-init PUT 写入空落点 / gate-resolve 弹卡
     // 页名解析为空串。fail-closed：toast 请重试（瞬态自愈），不发送。
     return { kind: 'block', message: locusText.value.locusGateUnreachable }
   }
-  const docUuidPresent = hasPiDocId(store)
-  if (!docUuidPresent) {
-    // 首开消息：先捕获 currentPageId（防竞态），发送后再 PUT。
-    // docUuid 在 ensurePiDocUuid 路径下随发送铸入根节点——postSendLocusWrite 发送完成后重读。
-    return {
-      kind: 'proceed',
-      postSendPut: { engagedPageId: currentPageId }
-    }
-  }
+  // docUuid 即时铸造（2026-09-30 docUuid 铸造时机批）：首跑在此铸入根节点，
+  // materialize 的 probe 随后读得到、GET page-state 有了键——不再 defer 到
+  // 发送后回写（defer 语义下首跑 + 选模式组合被 fail-closed 物化锁死）。
   const docUuid = ensurePiDocUuid(store)
   const result = await fetchLocusPageState(docUuid)
   if (result.kind === 'unreachable') {
@@ -279,8 +269,7 @@ async function preflightLocusGate(text: string): Promise<LocusPreflight> {
   const intercept = resolveLocusIntercept({
     currentPageId,
     pageList: getPageList(),
-    response: result.value,
-    docUuidPresent: true
+    response: result.value
   })
   // 维护 engagedPage 全局状态——GET 成功后即时刷新（PUT 后同样刷新）。
   setEngagedPage({
@@ -314,11 +303,6 @@ async function applyLocusIntercept(
       setEngagedPage({ id: currentPageId, name: viewPageName })
       return { kind: 'proceed' }
     }
-    case 'first-send-no-doc':
-      return {
-        kind: 'proceed',
-        postSendPut: { engagedPageId: currentPageId }
-      }
     case 'gate-resolve': {
       // 仅剩 switch 单变体（落点未设置 / 悬空由判定层静默放行，不进卡）——
       // engagedPageId 恒非空、页恒在，页名恒可解析
@@ -328,26 +312,6 @@ async function applyLocusIntercept(
       }
       return { kind: 'gate', view, text }
     }
-  }
-}
-
-/** 发送完成后落点回写（first-send-no-doc 路径）——再读 docUuid（已铸） */
-async function postSendLocusWrite(postSendPut: { engagedPageId: string }): Promise<void> {
-  try {
-    const store = getActiveEditorStore()
-    const docUuid = ensurePiDocUuid(store)
-    const put = await putLocusEngagedPage({ docUuid, engagedPageId: postSendPut.engagedPageId })
-    if (put.kind === 'ok') {
-      // 与 GET / silent-init 路径同律维护全局落点状态——缺这一步则首发后
-      // 状态行静默缺席，要等下一次 preflight GET 才冒出来
-      setEngagedPage({
-        id: postSendPut.engagedPageId,
-        name: getEngagedPageName(postSendPut.engagedPageId)
-      })
-    }
-  } catch (error) {
-    // 发送已成功，PUT 失败只意味着下次发消息触发拦截门再次确认——warn 留痕不阻断
-    console.warn('[locus] 发送后落点回写失败', error)
   }
 }
 
@@ -639,11 +603,11 @@ async function handleSubmit(text: string) {
     return
   }
   // preflight.kind === 'proceed'
-  await actuallySend(text, preflight.postSendPut)
+  await actuallySend(text)
 }
 
 /** 拦截门放行后真正执行 sendMessage——handleSubmit / handleLocusGateDecide 共用。 */
-async function actuallySend(text: string, postSendPut?: { engagedPageId: string }): Promise<void> {
+async function actuallySend(text: string): Promise<void> {
   clearChatFailure()
   // 发送即物化（2026-09-27 意图确认卡退役批）：chip 武装态（piPendingNewIntent
   // 非空）→ 先 POST /api/pi/intent-confirm 直写 page-state 再发送——成功即清
@@ -685,9 +649,6 @@ async function actuallySend(text: string, postSendPut?: { engagedPageId: string 
       clearPiPendingMaterial()
     }
     refreshSessionMeta()
-    // sl-w2-locus-gate（§3.1 docUuid 缺失路径）：first-send-no-doc 路径
-    // 发送完成后回写 engagedPageId = 发送时刻捕获的视图页（先捕获后发送）。
-    if (postSendPut) await postSendLocusWrite(postSendPut)
   } catch (e) {
     console.error('Chat error:', e)
     toast.error(ai.value.chatRequestFailed)

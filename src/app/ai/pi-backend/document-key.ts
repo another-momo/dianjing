@@ -14,11 +14,12 @@
  *  - 历史回填：loadPiChatHistory 在 Chat 创建且本地无消息时被 transports.ts
  *    调用，采用后端解析出的族内最新 sessionId。
  *
- * 铸造时机 = 首次发送（getPiRequestContext），**不是** Chat 创建时：
- * import 元数据应用（packages/core/src/kiwi/fig/import.ts:50-60）会整体重写
- * 根节点 pluginData 数组——加载窗口内铸造的 docId 会被后到的导入冲掉
- * （T22 实施实测）。因此历史回填路径只读不铸；前缀也不按 store 缓存，
- * 每次发送读当时根节点，躲开图替换/导入覆盖的时序窗。
+ * 铸造时机 = 用户发起 AI 交互（首跑 preflight / 发送路径 ensure），**不是**
+ * Chat 创建时：import 元数据应用（packages/core/src/kiwi/fig/import.ts:50-60）
+ * 会整体重写根节点 pluginData 数组——加载窗口内铸造的 docId 会被后到的导入
+ * 冲掉（T22 实施实测；ChatPanel 挂载早于导入落定，Chat 创建/挂载点不构成
+ * 安全铸造点）。因此历史回填路径只读不铸；前缀也不按 store 缓存，
+ * 每次交互读当时根节点，躲开图替换/导入覆盖的时序窗。
  *
  * 会话缓存为 per-store WeakMap（运行期语义，与旧 ToolLoop 的 currentChatMessages
  * 同生命周期）；持久化事实源 = 后端 index.json 前缀族谱。
