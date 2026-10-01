@@ -6,7 +6,8 @@
  * homeDir 注入 root（好测 ~ 展开命中凭据的情形）。
  *
  * 覆盖 17 用例：read 5 件 + 5 关键放行 + edit/write + grep 6 形态 + ls/find/bash/custom + 非 string path；
- * 2026-09-18 P0-3 追加读侧敏感名单扩面用例（.ssh/.aws/.env/.pem 命中与不命中、写侧面不动）。
+ * 2026-09-18 P0-3 追加读侧敏感名单扩面用例（.ssh/.aws/.env/.pem 命中与不命中、写侧面不动）；
+ * 另含 bridge.json 落点三形态用例（env 源透传，fixture 注入防读真实环境）。
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -16,6 +17,7 @@ import { createKeyGuardHandler } from '@/app/ai/pi-backend/key-guard'
 // A线尾单件1：名单源收编 path-decision.ts（单一真源）——导出钉扎改从该档 import；
 // 下方 handler 行为用例全部不动 = key-guard 读侧等价回归
 import { protectedCredentialFiles, protectedWriteRoots } from '@/app/ai/pi-backend/path-decision'
+import { resolveAppDataRoot } from '@/app/orchestration/app-data'
 
 // fixture 用 resolve 把假根钉成真绝对路径——resolve 在 Win/mac/linux 都带系统正确
 // 前缀（Windows 加盘符，POSIX 保留 /），与 handler 内 isAbsolute→resolve 路径
@@ -33,6 +35,16 @@ const KEY_ENV = resolve(ROOT, 'key-env')
 const PI_BACKEND_TOKEN = resolve(ROOT, 'pi-backend-token')
 // 2026-09-29 缺口 2.1 补登：桥发现文件（rootDir 直下第六件，明文桥鉴权 token）
 const BRIDGE_JSON = resolve(ROOT, 'bridge.json')
+// bridge.json 落点三形态（env fixture 注入防读真实环境；平台默认形 = rootDir
+// 被搬走时桥仍落 resolveAppDataRoot 的落点）
+const ENV_FIXTURE = {
+  APPDATA: '/fixture/appdata-roaming',
+  XDG_CONFIG_HOME: '/fixture/xdg-config'
+}
+const PLATFORM_BRIDGE_JSON = join(resolveAppDataRoot(ENV_FIXTURE, process.platform), 'bridge.json')
+const LEGACY_MCP_JSON = resolve(ROOT, 'mcp.json')
+const PLATFORM_LEGACY_MCP_JSON = join(resolveAppDataRoot(ENV_FIXTURE, process.platform), 'mcp.json')
+const BRIDGE_OVERRIDE_JSON = resolve('/fixture/bridge-iso', 'bridge.json')
 
 const READ_DENY_REASON =
   'Access denied: this path stores API credentials/tokens and is protected from agent access. ' +
@@ -55,14 +67,17 @@ function makeHandler() {
 }
 
 describe('protectedCredentialFiles', () => {
-  test('六件绝对路径单源——与 paths.ts resolver 同根', () => {
-    expect(protectedCredentialFiles(ROOT)).toEqual([
+  test('六件绝对路径单源——与 paths.ts resolver 同根（+ 平台默认 bridge.json 形）', () => {
+    expect(protectedCredentialFiles(ROOT, ENV_FIXTURE)).toEqual([
       KEY_ENV,
       PI_BACKEND_TOKEN,
       AUTH_JSON,
       IMAGE_GEN_JSON,
       MCP_CONNECTIONS_JSON,
-      BRIDGE_JSON
+      BRIDGE_JSON,
+      LEGACY_MCP_JSON,
+      PLATFORM_BRIDGE_JSON,
+      PLATFORM_LEGACY_MCP_JSON
     ])
   })
 })
@@ -139,6 +154,54 @@ describe('createKeyGuardHandler — read / edit / write 路径守卫', () => {
     // key-env 与 pi-backend-token 在 rootDir 直接，不在 pi-agent/ 下——
     // facet 不命中，凭据命中 reason 仍 = WRITE_DENY_REASON
     expect(handler({ toolName: 'write', input: { path: KEY_ENV } })).toEqual({
+      block: true,
+      reason: WRITE_DENY_REASON
+    })
+  })
+})
+
+describe('createKeyGuardHandler — bridge.json 落点三形态（env 透传）', () => {
+  test('read DIANJING_BRIDGE_DISCOVERY_PATH override 落点 → block（dev 形态隔离落点）', () => {
+    const handler = createKeyGuardHandler({
+      rootDir: ROOT,
+      cwd: WORKSPACE,
+      homeDir: ROOT,
+      env: { DIANJING_BRIDGE_DISCOVERY_PATH: BRIDGE_OVERRIDE_JSON }
+    })
+    expect(handler({ toolName: 'read', input: { path: BRIDGE_OVERRIDE_JSON } })).toEqual({
+      block: true,
+      reason: READ_DENY_REASON
+    })
+  })
+
+  test('grep 搜根 = override 落点父目录 → block（祖先向捞出发现文件）', () => {
+    const handler = createKeyGuardHandler({
+      rootDir: ROOT,
+      cwd: WORKSPACE,
+      homeDir: ROOT,
+      env: { DIANJING_BRIDGE_DISCOVERY_PATH: BRIDGE_OVERRIDE_JSON }
+    })
+    expect(
+      handler({ toolName: 'grep', input: { pattern: 'x', path: resolve('/fixture/bridge-iso') } })
+    ).toEqual({
+      block: true,
+      reason: READ_DENY_REASON
+    })
+  })
+
+  test('rootDir 被搬走：平台默认 bridge.json 仍 block（read/write 两 facet）', () => {
+    const movedRoot = resolve('/fixture/kg-moved-root')
+    const handler = createKeyGuardHandler({
+      rootDir: movedRoot,
+      cwd: resolve(movedRoot, 'workspace'),
+      homeDir: ROOT,
+      env: ENV_FIXTURE
+    })
+    expect(handler({ toolName: 'read', input: { path: PLATFORM_BRIDGE_JSON } })).toEqual({
+      block: true,
+      reason: READ_DENY_REASON
+    })
+    expect(handler({ toolName: 'write', input: { path: PLATFORM_BRIDGE_JSON } })).toEqual({
       block: true,
       reason: WRITE_DENY_REASON
     })

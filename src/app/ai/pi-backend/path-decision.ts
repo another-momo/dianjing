@@ -29,6 +29,10 @@
 import { homedir } from 'node:os'
 import { sep } from 'node:path'
 
+// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
+import { resolveAppDataRoot } from '../../orchestration/app-data'
+// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
+import { readBridgeDiscoveryPathOverride, type EnvSource } from '../../orchestration/env'
 import { normalizePathDual } from './path-normalize'
 import {
   resolveAgentDir,
@@ -46,6 +50,12 @@ export interface PathDecisionOptions {
   /** 相对路径解析基点（缺省 = workspace 目录，与 session cwd 同点） */
   cwd?: string
   homeDir?: string
+  /**
+   * env 源（缺省 process.env）——bridge.json 落点解析要读
+   * DIANJING_BRIDGE_DISCOVERY_PATH 与平台 appData 环境变量（APPDATA /
+   * XDG_CONFIG_HOME）；测试注入 fixture 防读真实环境。
+   */
+  env?: EnvSource
 }
 
 export type PathDecision =
@@ -89,6 +99,14 @@ const MCP_CONNECTIONS_FILENAME = 'mcp-connections.json'
  */
 const BRIDGE_DISCOVERY_FILENAME = 'bridge.json'
 
+/**
+ * 桥发现文件旧名（bridge/server/paths.ts LEGACY_DISCOVERY_FILENAME 同值，
+ * 本地复刻字面量的理由同上条）——旧版安装残留于平台默认目录，同含明文
+ * 桥鉴权 token；读侧兼容回退只在「无 override 且缺 bridge.json」时落此名，
+ * 故无 override 形态。
+ */
+const LEGACY_BRIDGE_DISCOVERY_FILENAME = 'mcp.json'
+
 /** `<base>${sep}<name>` —— 名单路径拼接（rootDir 与 filenames 单源全在 paths.ts） */
 function joinWithSep(base: string, name: string): string {
   return `${base}${sep}${name}`
@@ -102,11 +120,15 @@ function joinWithSep(base: string, name: string): string {
  *    凭据防线收编；mcp-connections/store.ts）
  *  - key-env（自助注入文件，代码只读不写）
  *  - pi-backend-token（standalone 模式鉴权 token）
- *  - bridge.json（桥发现文件，rootDir 直下：明文桥鉴权 token，写盘单源
- *    bridge/server/discovery.ts——2026-09-29 现状稿缺口 2.1 补登，此前不在
- *    任何 deny 名单属漏网实证）
+ *  - bridge.json（桥发现文件：明文桥鉴权 token，写盘单源
+ *    bridge/server/discovery.ts——真实落点与 pi-backend rootDir 可解耦，
+ *    三形态覆盖见 bridgeDiscoveryCredentialPaths）
+ *
+ * env：env 源（undefined 缺省 = process.env）——bridge.json 落点三形态解析
+ * 用（读 DIANJING_BRIDGE_DISCOVERY_PATH + 平台 appData 环境变量）；测试注入
+ * fixture 防读真实环境。
  */
-export function protectedCredentialFiles(rootDir: string): string[] {
+export function protectedCredentialFiles(rootDir: string, env?: EnvSource): string[] {
   const agentDir = resolveAgentDir(rootDir)
   return [
     resolveKeyEnvPath(rootDir),
@@ -114,8 +136,40 @@ export function protectedCredentialFiles(rootDir: string): string[] {
     joinWithSep(agentDir, 'auth.json'),
     joinWithSep(agentDir, IMAGE_GEN_CREDENTIAL_FILENAME),
     joinWithSep(agentDir, MCP_CONNECTIONS_FILENAME),
-    joinWithSep(rootDir, BRIDGE_DISCOVERY_FILENAME)
+    ...bridgeDiscoveryCredentialPaths(rootDir, env)
   ]
+}
+
+/**
+ * bridge.json（桥发现文件）落点三形态——与写盘侧 bridge/server/paths.ts
+ * getDiscoveryPath() 的解析语义对齐（override 优先，缺省平台默认
+ * appDataRoot；该真实落点由桥侧独立解析，与 pi-backend rootDir 可解耦）：
+ *  - rootDir 形（缺省）：rootDir 与平台状态根同源（resolveAppDataRoot /
+ *    Electron userData）时即唯一真实落点；
+ *  - DIANJING_BRIDGE_DISCOVERY_PATH override 形（dev 形态桥发现文件隔离在
+ *    tmp 子目录，vite 插件把该 env 注入 pi-backend 子进程——守卫进程同 env
+ *    读得到）；读取复用桥侧同款 reader（trim/空串归 null 语义同源）；
+ *  - 平台默认形：rootDir 被搬走（DIANJING_ROOT_DIR override / Electron
+ *    smoke 钉 userData）时桥仍落 resolveAppDataRoot——守卫侧用同一单源函数
+ *    复算保证同源（两侧进程继承同一父 env，APPDATA/XDG_CONFIG_HOME 同值）。
+ *
+ * Set 去重：缺省形态三形收敛为一条，名单不重复登记。rootDir 形恒保留
+ * （override 在场时 rootDir 下的同名文件多挡不漏，fail-safe）。
+ *
+ * 旧名 mcp.json 随两侧落点（rootDir 形 + 平台默认形）同补——override 形态
+ * 下读侧不回退旧名，不盖。
+ */
+function bridgeDiscoveryCredentialPaths(rootDir: string, env: EnvSource): string[] {
+  const appDataRoot = resolveAppDataRoot(env)
+  const locations = new Set<string>([
+    joinWithSep(rootDir, BRIDGE_DISCOVERY_FILENAME),
+    joinWithSep(rootDir, LEGACY_BRIDGE_DISCOVERY_FILENAME),
+    joinWithSep(appDataRoot, BRIDGE_DISCOVERY_FILENAME),
+    joinWithSep(appDataRoot, LEGACY_BRIDGE_DISCOVERY_FILENAME)
+  ])
+  const override = readBridgeDiscoveryPathOverride(env)
+  if (override) locations.add(override)
+  return [...locations]
 }
 
 /**
@@ -211,9 +265,12 @@ export function decidePath(input: string, opts: PathDecisionOptions): PathDecisi
   const insideWorkspace = compare === workspaceCompare || compare.startsWith(workspaceCompare + '/')
 
   if (opts.facet === 'read') {
-    // 凭据六件（文件级精确命中——后代形态不存在，hitsProtectedRoot 同算法复用）
+    // 凭据六件（文件级精确命中——后代形态不存在，hitsProtectedRoot 同算法复用；
+    // env 透传 = bridge.json 落点三形态解析，undefined 缺省走 process.env）
     const credentialCompare = new Set(
-      protectedCredentialFiles(opts.rootDir).map((p) => normalizePathDual(p, cwd, homeDir).compare)
+      protectedCredentialFiles(opts.rootDir, opts.env).map(
+        (p) => normalizePathDual(p, cwd, homeDir).compare
+      )
     )
     if (hitsProtectedRoot(compare, credentialCompare)) {
       return {

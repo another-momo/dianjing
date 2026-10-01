@@ -1,9 +1,19 @@
 import { expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { createEditor } from '@open-pencil/core/editor'
 import { SceneGraph } from '@open-pencil/scene-graph'
 
-import { applyImportedDocument } from '@/app/document/io/imported-document'
+import {
+  PI_DOC_ENTRY_KEY as DOC_KEY_ENTRY_KEY,
+  PI_DOC_NAMESPACE as DOC_KEY_NAMESPACE
+} from '@/app/ai/pi-backend/document-key'
+import {
+  applyImportedDocument,
+  PI_DOC_ENTRY_KEY as IO_ENTRY_KEY,
+  PI_DOC_NAMESPACE as IO_NAMESPACE
+} from '@/app/document/io/imported-document'
 import { createEditorPreparationController } from '@/app/editor/preparation/controller'
 import { createInitialAppEditorState } from '@/app/editor/session/types'
 
@@ -110,4 +120,27 @@ test('graph replace is a no-op for docUuid when neither graph has one', async ()
   expect(readRootDocUuid(liveEditor.graph)).toBeNull()
   expect(imported.getNode(imported.rootId)?.pluginData).toEqual([])
   liveEditor.dispose()
+})
+
+// docUuid 命名空间两侧常量（ai/pi-backend document-key 与 document/io 本档）
+// 同值异点不互相 import——改名漂移在此拦截：两侧各自等于字面量且彼此相等。
+test('docUuid namespace constants match across document-key and imported-document', () => {
+  expect(IO_NAMESPACE).toBe('openpencil.ai')
+  expect(IO_ENTRY_KEY).toBe('openpencil.ai/docId')
+  expect(DOC_KEY_NAMESPACE).toBe('openpencil.ai')
+  expect(DOC_KEY_ENTRY_KEY).toBe('openpencil.ai/docId')
+  expect(DOC_KEY_NAMESPACE).toBe(IO_NAMESPACE)
+  expect(DOC_KEY_ENTRY_KEY).toBe(IO_ENTRY_KEY)
+})
+
+// 桥视图探针 eval 片段（active-design-host.ts）内嵌同值字面量——条目以自命名
+// 空间编码形存储（getSharedPluginData 传命名空间 + 短键 'docId'），eval 内无法
+// 引 TS 常量，改以源码文本钉扎：字面量漂移即红。
+test('bridge view probe eval pins the docUuid namespace and key literals', () => {
+  const probeSourcePath = join(
+    import.meta.dir,
+    '../../../../../src/app/ai/pi-backend/active-design-host.ts'
+  )
+  const probeSource = readFileSync(probeSourcePath, 'utf8')
+  expect(probeSource).toContain("getSharedPluginData('openpencil.ai', 'docId')")
 })

@@ -33,8 +33,10 @@
  *    key，名单五件化；mcp-connections/store.ts）
  *  - key-env（自助注入文件）
  *  - pi-backend-token（standalone 模式鉴权 token）
- *  - bridge.json（桥发现文件，rootDir 直下：明文桥鉴权 token，写盘单源
- *    bridge/server/discovery.ts——2026-09-29 现状稿缺口 2.1 补登）
+ *  - bridge.json（桥发现文件：明文桥鉴权 token，写盘单源
+ *    bridge/server/discovery.ts——真实落点与 rootDir 可解耦，deny 名单按
+ *    三形态覆盖（env override / 平台默认 appDataRoot / rootDir 缺省同源），
+ *    env 源随 opts 透传；旧版残留 mcp.json 随 rootDir/平台默认两形同补）
  *
  * 写侧 deny 面（在 rootDir 下）：
  *  - pi-agent/**（settings.json / SYSTEM.md / APPEND_SYSTEM.md / extensions /
@@ -73,6 +75,8 @@ import { homedir } from 'node:os'
 
 import type { InlineExtension } from '@earendil-works/pi-coding-agent'
 
+// oxlint-disable-next-line open-pencil/no-deep-parent-relative-imports
+import type { EnvSource } from '../../orchestration/env'
 import {
   CREDENTIAL_READ_DENY_REASON,
   hitsSensitiveDirCompare,
@@ -138,13 +142,15 @@ export function createKeyGuardHandler(opts: {
   rootDir: string
   cwd: string
   homeDir?: string
+  /** env 源（缺省 process.env）——bridge.json 落点三形态解析用；测试注入 fixture */
+  env?: EnvSource
 }): (event: {
   toolName: string
   input: Record<string, unknown>
 }) => { block: true; reason: string } | undefined {
   const homeDir = opts.homeDir ?? homedir()
   const protectedNormalized = new Set(
-    protectedCredentialFiles(opts.rootDir).map((p) => normalizePath(p, opts.cwd, homeDir))
+    protectedCredentialFiles(opts.rootDir, opts.env).map((p) => normalizePath(p, opts.cwd, homeDir))
   )
   const writeProtectedNormalized = new Set(
     protectedWriteRoots(opts.rootDir).map((p) => normalizePath(p, opts.cwd, homeDir))
@@ -215,6 +221,8 @@ export function createKeyGuardExtension(opts: {
   rootDir: string
   cwd: string
   homeDir?: string
+  /** env 源（缺省 process.env）——透传 createKeyGuardHandler */
+  env?: EnvSource
 }): InlineExtension {
   const handler = createKeyGuardHandler(opts)
   return (pi) => {

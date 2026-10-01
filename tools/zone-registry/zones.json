@@ -2481,16 +2481,16 @@
     {
       "id": "P393",
       "file": "src/app/document/io/imported-document.ts",
-      "reason": "applyImportedDocument 在 replaceGraph 前对根 pluginData 做 docUuid merge 保留（三态：导入自带→导入胜不动 / 导入缺+旧图有→append 保留 / 双缺 no-op）——import 管线整段重写根 pluginData 使已铸未落盘 uuid 随旧图静默丢弃，page-state/会话族索引成孤儿、下次发送重铸即二次初始化；四条加载链全收束此函数，一处补丁全盖",
+      "reason": "applyImportedDocument 在 replaceGraph 前对根 pluginData 做 docUuid merge 保留（三态：导入自带→导入胜不动 / 导入缺+旧图有→append 保留 / 双缺 no-op）——import 管线整段重写根 pluginData 使已铸未落盘 uuid 随旧图静默丢弃，page-state/会话族索引成孤儿、下次发送重铸即二次初始化；四条加载链全收束此函数，一处补丁全盖；docUuid 命名空间常量 export 供钉扎测试与 pi-backend document-key 侧比对（document/io 不反向引 ai 域，同值异点防改名漂移）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-30"
+      "lastReviewed": "2026-10-01"
     },
     {
       "id": "P394",
       "file": "tests/engine/app/document/io/imported-document.test.ts",
-      "reason": "随 P393 钉扎：docUuid merge 保留三态矩阵——导入缺+旧图有→旧值保留（挺过图替换）/ 导入自带→导入胜（文件持久身份优先）/ 双缺 no-op（pluginData 零污染）",
+      "reason": "随 P393 钉扎：docUuid merge 保留三态矩阵——导入缺+旧图有→旧值保留（挺过图替换）/ 导入自带→导入胜（文件持久身份优先）/ 双缺 no-op（pluginData 零污染）；命名空间常量两侧相等+字面量钉扎 + 桥探针 eval 源码字面量钉扎",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-30"
+      "lastReviewed": "2026-10-01"
     }
   ],
   "deletedPaths": [

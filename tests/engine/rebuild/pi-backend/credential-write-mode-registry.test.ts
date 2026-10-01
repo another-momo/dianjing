@@ -6,8 +6,8 @@
  * 必须联登 protectedCredentialFiles」此前纯靠人工约定——bridge.json（明文桥
  * 鉴权 token）正是漏网实证（缺口 2.1，已补登读侧名单）。本测试把人工约定改
  * 测试强制：
- *  A. 扫 src/ 全部 .ts，凡含 `mode: 0o600`（容空白变体）即「落盘点位文件」，
- *     必须在下方登记表——新增 0o600 点位而未登记 → 红；
+ *  A. 扫 src/ 全部 .ts，凡含 `mode: 0o600`（容空白/进制前缀大小写变体）即
+ *     「落盘点位文件」，必须在下方登记表——新增 0o600 点位而未登记 → 红；
  *  B. 登记表无死条目——点位文件删除或改写法后表须同批清理，防登记表腐烂；
  *  C. 登记表 writes 非 null 的条目（凭据写入方）其凭据文件名必须出现在
  *     protectedCredentialFiles 返回值（endsWith 匹配）——凭据落盘点位漏登
@@ -30,8 +30,11 @@ import { protectedCredentialFiles } from '@/app/ai/pi-backend/path-decision'
 /** 仓根 src/（本档在 tests/engine/rebuild/pi-backend/，上溯四级到仓根） */
 const SRC_ROOT = join(import.meta.dir, '../../../../src')
 
-/** 容空白变体（`mode:0o600` / `mode: 0o600` / `mode:  0o600` 同判） */
-const MODE_0O600_PATTERN = /mode:\s*0o600/
+/**
+ * 容空白与进制前缀大小写变体（`mode:0o600` / `mode: 0o600` / `mode:  0o600`
+ * 同判；Node 数字字面量接受 0o600 与 0O600 两形——漏扫大写形态则 A/C 两闸失守）
+ */
+const MODE_0O600_PATTERN = /mode:\s*0[Oo]600/
 
 interface RegistryEntry {
   /** 本文件以 mode: 0o600 写入的凭据文件名；null = 非凭据点位（0o600 卫生对齐，豁免） */

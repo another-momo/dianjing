@@ -34,9 +34,16 @@ import type { PiSessionSummary } from './session/summary'
 /** T23 族谱清单条目：单一事实源在 ./session/summary（type-only，构建期擦除） */
 export type { PiSessionSummary }
 
-const PI_DOC_NAMESPACE = 'openpencil.ai'
+/**
+ * docUuid 命名空间（pluginData 的 pluginId）。桥 eval 探针
+ * （active-design-host.ts buildProbeSource）与 document/io/imported-document.ts
+ * 是同值异点——两侧常量相等与字面量由 imported-document.test.ts 钉扎测试
+ * 拦截改名漂移，改名须三处同批联改。
+ */
+export const PI_DOC_NAMESPACE = 'openpencil.ai'
 const PI_DOC_ID_KEY = 'docId'
-const PI_DOC_ENTRY_KEY = `${PI_DOC_NAMESPACE}/${PI_DOC_ID_KEY}`
+/** pluginData 条目全键（key 本身带命名空间前缀——core 匹配器剥前缀比对后缀） */
+export const PI_DOC_ENTRY_KEY = `${PI_DOC_NAMESPACE}/${PI_DOC_ID_KEY}`
 
 const storeSessions = new WeakMap<EditorStore, string>()
 

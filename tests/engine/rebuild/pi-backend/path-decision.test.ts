@@ -8,12 +8,14 @@
  * outside=true——含 rootDir 一级与盘外）/ write facet 回归（写侧三根 deny
  * protected、workspace 子树 allow、界外 deny outside）/ 名单源导出钉扎
  * （protectedCredentialFiles 六件 / protectedWriteRoots 三根 /
- * sensitiveReadDirPaths 两件——自 key-guard 收编的单一真源）。
+ * sensitiveReadDirPaths 两件——自 key-guard 收编的单一真源）/
+ * bridge.json 落点三形态（env override deny / rootDir 被搬走时平台默认
+ * 落点仍 deny / 缺省形态不重复登记——env 源注入 fixture 防读真实环境）。
  *
  * fixture = 纯字符串路径运算（无真实 IO），与 key-guard.test.ts 同纪律。
  */
 import { describe, expect, test } from 'bun:test'
-import { resolve } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 
 import {
   decidePath,
@@ -21,24 +23,78 @@ import {
   protectedWriteRoots,
   sensitiveReadDirPaths
 } from '@/app/ai/pi-backend/path-decision'
+import { resolveAppDataRoot } from '@/app/orchestration/app-data'
 
 const ROOT = resolve('/fake/pd-root')
 const WORKSPACE = resolve(ROOT, 'workspace')
+
+/** env fixture（平台 appData 根可复算；无 override 键 = 无桥发现路径覆盖） */
+const ENV_FIXTURE = {
+  APPDATA: '/fixture/appdata-roaming',
+  XDG_CONFIG_HOME: '/fixture/xdg-config'
+}
+/** 守卫内部 resolveAppDataRoot(env) 用 process.platform——测试同参复算对齐 */
+const PLATFORM_APP_DATA_ROOT = resolveAppDataRoot(ENV_FIXTURE, process.platform)
+const PLATFORM_BRIDGE_JSON = join(PLATFORM_APP_DATA_ROOT, 'bridge.json')
+/** 旧名 mcp.json 的平台默认落点（读侧兼容回退残留——同含明文桥 token） */
+const PLATFORM_LEGACY_MCP_JSON = join(PLATFORM_APP_DATA_ROOT, 'mcp.json')
 
 function decide(input: string, facet: 'read' | 'write' = 'read') {
   return decidePath(input, { facet, rootDir: ROOT, homeDir: ROOT })
 }
 
 describe('名单源导出（A线尾单自 key-guard 收编的单一真源）', () => {
-  test('protectedCredentialFiles = 凭据六件（rootDir 一级三件 + pi-agent 三件）', () => {
-    expect(protectedCredentialFiles(ROOT)).toEqual([
+  test('protectedCredentialFiles = 凭据六件 + 平台默认 bridge.json 形（env fixture 注入）', () => {
+    expect(protectedCredentialFiles(ROOT, ENV_FIXTURE)).toEqual([
       resolve(ROOT, 'key-env'),
       resolve(ROOT, 'pi-backend-token'),
       resolve(ROOT, 'pi-agent', 'auth.json'),
       resolve(ROOT, 'pi-agent', 'image-gen.json'),
       resolve(ROOT, 'pi-agent', 'mcp-connections.json'),
-      resolve(ROOT, 'bridge.json')
+      resolve(ROOT, 'bridge.json'),
+      resolve(ROOT, 'mcp.json'),
+      PLATFORM_BRIDGE_JSON,
+      PLATFORM_LEGACY_MCP_JSON
     ])
+  })
+
+  test('旧名 mcp.json 随 rootDir 形与平台默认形同补（override 形态无旧名回退）', () => {
+    const list = protectedCredentialFiles(ROOT, ENV_FIXTURE)
+    expect(list.filter((p) => p.endsWith(sep + 'mcp.json'))).toEqual([
+      resolve(ROOT, 'mcp.json'),
+      PLATFORM_LEGACY_MCP_JSON
+    ])
+    const d = decidePath(join(PLATFORM_APP_DATA_ROOT, 'mcp.json'), {
+      facet: 'read',
+      rootDir: ROOT,
+      homeDir: ROOT,
+      env: ENV_FIXTURE
+    })
+    expect(d.ok).toBe(false)
+    if (!d.ok) expect(d.denyCause).toBe('protected')
+  })
+
+  test('bridge.json 三形态不重复登记（缺省 rootDir 形 + 平台默认形异根并存）', () => {
+    const list = protectedCredentialFiles(ROOT, ENV_FIXTURE)
+    const bridgeEntries = list.filter((p) => p.endsWith(sep + 'bridge.json'))
+    expect(bridgeEntries).toEqual([resolve(ROOT, 'bridge.json'), PLATFORM_BRIDGE_JSON])
+  })
+
+  test('DIANJING_BRIDGE_DISCOVERY_PATH override 进名单（trim 语义随桥侧 reader）', () => {
+    const override = resolve('/fixture/bridge-iso', 'bridge.json')
+    const list = protectedCredentialFiles(ROOT, {
+      ...ENV_FIXTURE,
+      DIANJING_BRIDGE_DISCOVERY_PATH: `  ${override}  `
+    })
+    expect(list).toContain(override)
+    // trim 后原值不重复登记
+    expect(list.filter((p) => p.endsWith(sep + 'bridge.json')).length).toBe(3)
+  })
+
+  test('缺省形态（rootDir 即平台状态根）bridge.json 收敛为一条', () => {
+    const root = resolveAppDataRoot(ENV_FIXTURE, process.platform)
+    const list = protectedCredentialFiles(root, ENV_FIXTURE)
+    expect(list.filter((p) => p.endsWith(sep + 'bridge.json'))).toEqual([join(root, 'bridge.json')])
   })
 
   test('protectedWriteRoots = 写侧三根（pi-agent + workspace/.pi + workspace/.agents）', () => {
@@ -151,6 +207,47 @@ describe('decidePath read facet —— 敏感名单硬拒', () => {
     expect(decide(resolve(WORKSPACE, 'foo.env')).ok).toBe(true)
     expect(decide(resolve(WORKSPACE, 'note.pem.md')).ok).toBe(true)
     expect(decide('~/.sshconfig').ok).toBe(true)
+  })
+})
+
+describe('decidePath read facet —— bridge.json 落点三形态（env 透传）', () => {
+  test('DIANJING_BRIDGE_DISCOVERY_PATH override 落点 → deny protected（dev 形态隔离落点）', () => {
+    const override = resolve('/fixture/bridge-iso', 'bridge.json')
+    const d = decidePath(override, {
+      facet: 'read',
+      rootDir: ROOT,
+      homeDir: ROOT,
+      env: { DIANJING_BRIDGE_DISCOVERY_PATH: override }
+    })
+    expect(d.ok).toBe(false)
+    if (!d.ok) {
+      expect(d.denyCause).toBe('protected')
+      expect(d.error).toContain('credentials/tokens')
+    }
+  })
+
+  test('rootDir 被搬走（DIANJING_ROOT_DIR 场景）时平台默认 bridge.json 落点仍 deny', () => {
+    const movedRoot = resolve('/fixture/moved-root')
+    const d = decidePath(PLATFORM_BRIDGE_JSON, {
+      facet: 'read',
+      rootDir: movedRoot,
+      homeDir: ROOT,
+      env: ENV_FIXTURE
+    })
+    expect(d.ok).toBe(false)
+    if (!d.ok) expect(d.denyCause).toBe('protected')
+  })
+
+  test('缺省形态（rootDir 即平台状态根）bridge.json → deny（rootDir 形覆盖，不重复）', () => {
+    const root = resolveAppDataRoot(ENV_FIXTURE, process.platform)
+    const d = decidePath(join(root, 'bridge.json'), {
+      facet: 'read',
+      rootDir: root,
+      homeDir: ROOT,
+      env: ENV_FIXTURE
+    })
+    expect(d.ok).toBe(false)
+    if (!d.ok) expect(d.denyCause).toBe('protected')
   })
 })
 

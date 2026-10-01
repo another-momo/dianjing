@@ -9,10 +9,11 @@ import type { EditorPreparationHandle as DocumentLoadSession } from '@/app/edito
 // page-state / 会话族索引成孤儿，下次发送重铸新 uuid 即二次初始化（落点重锚、
 // 规制回缺省、会话历史断层）。三态规则：导入自带 → 导入胜不动（文件持久身份
 // 优先）；导入缺 + 旧图有 → 旧值 append 保留；双缺 → no-op。
-// 命名空间字符串与 ai/pi-backend document-key 同源；document/io 层取裸字符串
-// 先例，不反向引 ai 域模块（避免跨域依赖）。
-const PI_DOC_NAMESPACE = 'openpencil.ai'
-const PI_DOC_ENTRY_KEY = 'openpencil.ai/docId'
+// 命名空间常量与 ai/pi-backend document-key 同值异点：document/io 层不反向引
+// ai 域模块（避免跨域依赖），两侧相等与字面量由 imported-document.test.ts
+// 钉扎测试拦截改名漂移，改名须三处同批联改（含 active-design-host 桥探针）。
+export const PI_DOC_NAMESPACE = 'openpencil.ai'
+export const PI_DOC_ENTRY_KEY = 'openpencil.ai/docId'
 
 function preserveDocUuidAcrossGraphReplace(live: SceneGraph, imported: SceneGraph): void {
   const liveDocUuid = live
