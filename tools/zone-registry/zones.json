@@ -2424,9 +2424,9 @@
     {
       "id": "P385",
       "file": "tests/e2e/fonts/settings.spec.ts",
-      "reason": "font-panel-ux（2026-09-29）：popover 摘除后重写——缺字横幅段保留，popover 段（request-access/provider 开关等 test-id 已于 2026-09-25 统一批 A 死亡）改写为齿轮 IconButton 直开设置对话框字体分区（悬浮 Tip + 管理件只在设置面板的反向断言）",
+      "reason": "font-panel-ux（2026-09-29）：popover 摘除后重写——缺字横幅段保留，popover 段（request-access/provider 开关等 test-id 已于 2026-09-25 统一批 A 死亡）改写为齿轮 IconButton 直开设置对话框字体分区（悬浮 Tip + 管理件只在设置面板的反向断言）；2026-10-01 下载缓存块随 FontsSettingsPanel 按运行时隐藏（实现层 isTauri 门控、非 Tauri 空转），fonts-cache-clear 断言由可见翻为缺席",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-29",
+      "lastReviewed": "2026-10-01",
       "task": "font-panel-ux"
     },
     {

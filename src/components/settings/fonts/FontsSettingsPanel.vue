@@ -30,6 +30,7 @@ import {
   type CustomFontServiceTestReason
 } from '@/app/editor/fonts'
 import { useForkFonts } from '@/app/i18n/fork'
+import { isTauri } from '@/app/tauri/env'
 import { matchFontFamilyOrDisplayName } from '@/components/font-picker/font-option-filter'
 import SettingsGroup from '@/components/settings/layout/SettingsGroup.vue'
 import SettingsRow from '@/components/settings/layout/SettingsRow.vue'
@@ -123,7 +124,8 @@ async function retryOnlineEnumeration(): Promise<void> {
   }
 }
 
-/** 缓存管理（自 popover 迁入） */
+/** 缓存管理（自 popover 迁入）：实现层 isTauri 门控（非 Tauri 摘要恒 0、清除空转），非 Tauri 运行时整块不渲染 */
+const tauri = isTauri()
 const cacheCount = ref(0)
 const cacheByteLength = ref(0)
 const cacheBusy = ref(false)
@@ -361,7 +363,7 @@ async function allowLocalFonts(): Promise<void> {
 onMounted(async () => {
   try {
     families.value = await listAllFamilies()
-    await refreshCacheSummary()
+    if (tauri) await refreshCacheSummary()
   } finally {
     loading.value = false
   }
@@ -569,6 +571,7 @@ watch([cnFontsEnabled, onlineFontsEnabled, localFontsEnabled, fontProviderSettin
           </AppButton>
         </SettingsRow>
         <SettingsRow
+          v-if="tauri"
           :label="msgs.fontsCacheTitle"
           :description="msgs.fontsCacheSummary({ count: cacheCount, size: cacheSizeLabel })"
         >

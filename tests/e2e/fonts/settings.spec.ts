@@ -51,7 +51,8 @@ test('font settings gear opens the settings dialog fonts section directly', asyn
   // 管理功能只在设置面板（popover 已摘除）：提供商开关与维护区都在此
   await expect(fontsPanel.getByTestId('fonts-providers')).toBeVisible()
   await expect(fontsPanel.getByTestId('fonts-fallback-download')).toBeVisible()
-  await expect(fontsPanel.getByTestId('fonts-cache-clear')).toBeVisible()
+  // 下载缓存块 Tauri 专属（实现层 isTauri 门控），浏览器运行时整块不渲染
+  await expect(fontsPanel.getByTestId('fonts-cache-clear')).toHaveCount(0)
 
   await page.keyboard.press('Escape')
   await expect(fontsPanel).toBeHidden()
