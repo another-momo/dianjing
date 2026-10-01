@@ -20,11 +20,26 @@
  * （原「等于文件名去 .md」——workflow.md / profile.md 文件名恒定，id 语义挂到目录名）。
  */
 
+import { ALL_TOOLS, isToolExposed } from '@open-pencil/core/tools'
 import { parseCanvasSize } from '@open-pencil/core/tools/fork/marketing/setup'
 
 import { isAssetId, isRecord, type ParsedAsset } from './parse'
 import { referencePathProblem } from './reference-path'
 import type { StudioAssetReference, StudioSizePreset } from './types'
+
+/**
+ * 工具面 AI 可见集——`tools` 白名单存在性闸的判定基。= 注册表全集滤掉
+ * eval 档（对 agent 隐藏）与 exposure.ai 关闭件（internal 桥端点不进 agent
+ * 面）。判定基取「AI 可见」而非「当前装配面」：装配面是 extended 白名单的
+ * 累积产物，本机制正当用途恰是「把注册表内 AI 可见但未放行的工具经 workflow
+ * 点名放进来」——以装配面为基会把这类点名误判成不存在。点名 AI 不可见件
+ * 则闸 1 拦下（避免闸绿但 SDK setActiveToolsByName 静默忽略的伪成功）。
+ */
+const KNOWN_TOOL_NAMES: ReadonlySet<string> = new Set(
+  ALL_TOOLS.filter((tool) => tool.availability !== 'eval' && isToolExposed(tool, 'ai')).map(
+    (tool) => tool.name
+  )
+)
 
 export interface ValidationIssue {
   reason: string
@@ -85,7 +100,9 @@ function parseDeprecated(fm: Record<string, unknown>): boolean {
  * workflow 校验：step_budget 若存在须正整数；subtitle 提取；sizes 尺寸预设清单
  * （T65 §2.1：非空 [{label, canvas}]，label 非空中文名、canvas 格式 `宽x`/`宽x高`
  * ——canvas 解析单源在 core setup.ts parseCanvasSize）；references 按需参考清单
- * （T85 定谳 1：非空 [{path, description}]，path 白名单扩展名、禁 `..`/绝对/盘符）。
+ * （T85 定谳 1：非空 [{path, description}]，path 白名单扩展名、禁 `..`/绝对/盘符）；
+ * tools 工具面收放白名单（非空字符串清单，每个名字必须存在于工具面全集——
+ * 存在性是唯一机械闸，打错名进 issues）。
  * P2-7：version/deprecated 通用化从 validateCommon 接收。
  * （T62：type 层级校验段整体删除——未知 frontmatter 键容忍不校验。）
  */
@@ -98,6 +115,7 @@ export function validateWorkflow(
   subtitle?: string
   sizes?: StudioSizePreset[]
   references?: StudioAssetReference[]
+  tools?: string[]
   version?: number
   deprecated: boolean
 } {
@@ -127,7 +145,8 @@ export function validateWorkflow(
     version,
     deprecated,
     ...parseSizes(fm, issues),
-    ...parseReferences(fm, issues)
+    ...parseReferences(fm, issues),
+    ...parseTools(fm, issues)
   }
 }
 
@@ -188,6 +207,47 @@ export function parseReferences(
     references.push({ path, description })
   }
   return issues.length === before ? { references } : {}
+}
+
+/**
+ * tools 白名单解析（workflow 级工具面收放）：全部条目合法才产出（任一非法 →
+ * 整条不产出，issues 已逐条记录——同 references/sizes 先例）。存在性闸：
+ * 点名工具必须在工具面全集（core + extended + fork）内，打错名即非法条目。
+ */
+export function parseTools(
+  fm: Record<string, unknown>,
+  issues: ValidationIssue[]
+): { tools?: string[] } {
+  if (!('tools' in fm)) return {}
+  const raw = fm.tools
+  if (!Array.isArray(raw) || raw.length === 0) {
+    issues.push({
+      reason: '`tools` 不是非空清单',
+      hint: '形如 `tools: [compose_backdrop]`——只登记本 workflow 专用的条件工具；或删除该字段'
+    })
+    return {}
+  }
+  const before = issues.length
+  const tools: string[] = []
+  for (const entry of raw as unknown[]) {
+    const name = typeof entry === 'string' ? entry.trim() : ''
+    if (!name) {
+      issues.push({
+        reason: '`tools` 含非字符串或空条目',
+        hint: '每条必须是工具名（如 `compose_backdrop`）'
+      })
+      continue
+    }
+    if (!KNOWN_TOOL_NAMES.has(name)) {
+      issues.push({
+        reason: `\`tools\` 点名的工具「${name}」不在工具面内`,
+        hint: '两种可能：①拼写有误——名字须与工具注册表一致（如 `compose_backdrop`、`prepare_hero_scaffold`）；②该工具存在但不向 AI 暴露（仅供内部桥端点，如 `place_image_from_bytes`）——此类工具本机制无法启用，请改用其它已向 AI 暴露的工具'
+      })
+      continue
+    }
+    tools.push(name)
+  }
+  return issues.length === before ? { tools } : {}
 }
 
 /** sizes 清单解析：全部条目合法才产出（任一非法 → 整条不注册，issues 已逐条记录） */

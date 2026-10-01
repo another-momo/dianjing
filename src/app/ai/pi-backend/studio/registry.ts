@@ -261,7 +261,7 @@ function loadWorkflows(
       fail(failures, candidate, 'workflow', parsed.reason, parsed.hint)
       continue
     }
-    const { issues, stepBudget, subtitle, sizes, references, version, deprecated } =
+    const { issues, stepBudget, subtitle, sizes, references, tools, version, deprecated } =
       validateWorkflow(parsed, candidate.id)
     if (issues.length > 0) {
       for (const issue of issues) fail(failures, candidate, 'workflow', issue.reason, issue.hint)
@@ -280,6 +280,7 @@ function loadWorkflows(
     if (stepBudget !== undefined) workflowEntry.stepBudget = stepBudget
     if (sizes) workflowEntry.sizes = sizes
     if (keptReferences) workflowEntry.references = keptReferences
+    if (tools) workflowEntry.tools = tools
     if (version !== undefined) workflowEntry.version = version
     if (deprecated) workflowEntry.deprecated = deprecated
     workflows.set(candidate.id, workflowEntry)

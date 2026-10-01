@@ -13,6 +13,7 @@ references:
     description: hero 生图 prompt 三段结构 + 变异纪律 + 回图诊断——阶段 3 写 prompt 前读；回图异常时再读
   - path: references/fix-playbook-structure-first.md
     description: polish 段诊断表（症状→检测→动作→升级条件）——阶段 4 polish 前读
+tools: [compose_backdrop]
 ---
 
 ## 执行总纲

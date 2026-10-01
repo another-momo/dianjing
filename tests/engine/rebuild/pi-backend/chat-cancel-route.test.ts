@@ -19,6 +19,7 @@ mock.module('@earendil-works/pi-coding-agent', () => ({
     session: {
       prompt: () => Promise.resolve(),
       subscribe: () => () => undefined,
+      getActiveToolNames: () => [],
       abort: () => abortSpy(),
       sessionManager: { getSessionFile: () => null }
     }

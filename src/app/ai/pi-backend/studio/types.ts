@@ -88,6 +88,12 @@ export interface StudioWorkflow {
   sizes?: StudioSizePreset[]
   /** 按需参考声明（T85；缺席 = 无） */
   references?: StudioAssetReference[]
+  /**
+   * 工具面收放白名单（frontmatter `tools`）：被任一 workflow 点名的工具 = 条件
+   * 工具，只在点名它的 workflow 激活的回合进会话活动集；未点名工具维持常驻。
+   * 缺席 = 本 workflow 无条件工具。校验闸（存在性）在 validate.ts parseTools。
+   */
+  tools?: string[]
   /** P2-7：版本号（正整数；缺省不投影） */
   version?: number
   /** P2-7：是否已废弃 */

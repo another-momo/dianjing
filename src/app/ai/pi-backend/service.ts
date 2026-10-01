@@ -39,6 +39,11 @@
  *  - 2026-09-21 修法 C：run 级冻结 {documentId, pageId}——run 起始探测
  *    pageId 钉进 target 闭包，整个 run 复用，切 tab/翻页不再影响执行中 run
  *    的落点；探测失败留 undefined 走桥 fallback currentPageId
+ *  - workflow 级工具面收放：被任一 workflow frontmatter `tools:` 点名的工具
+ *    = 条件工具，只在点名它的 workflow 回合进活动集，其余工具常驻。注册面
+ *    不动（全量注册），每回合 prepareTurn 后 syncTurnTools 按组装出的
+ *    workflow.tools 合成激活集，仅变化时 setActiveToolsByName
+ *    （resolveActiveToolNames，active-design-host.ts）
  *
  * 仅运行于独立后端进程（T20 起：main.ts 入口 / vite 插件 spawn 的子进程，
  * 不经 vite esbuild 打包）；只允许相对导入与 node/依赖包导入。
@@ -60,6 +65,7 @@ import {
 
 import {
   createBridgeSlotIO,
+  resolveActiveToolNames,
   type ActiveDesignBridgeIO,
   type createActiveDesignHost
 } from './active-design-host'
@@ -201,6 +207,12 @@ type SessionEntry = {
   target: { documentId?: string; pageId?: string; windowId?: string }
   /** active_design 宿主会话态（每回合组装缓存袋——prepareTurn 组装、finalizeTurn 清零） */
   host: ReturnType<typeof createActiveDesignHost>
+  /**
+   * 常驻工具基线：会话创建时的初始活动工具名集（已含 capabilities 档位门控
+   * 结果）。workflow 级工具面收放以此为基线按回合过滤条件工具——见
+   * runPrompt 的 resolveActiveToolNames 调用。
+   */
+  baseToolNames: string[]
   /**
    * T27：run 进行中标记。T66 起不再作 abort 守卫（时序竞争实证见 abort()
    * 注释）——保留仅供 abort 确认日志区分「命中活跃 run / idle no-op」。
@@ -398,6 +410,9 @@ export function createPiChatService({
       budget,
       target,
       host,
+      // 常驻工具基线：装配完成时刻的初始活动集（档位门控已生效；条件工具此时
+      // 仍在面内，首个回合 syncTurnTools 按 mode 收放）
+      baseToolNames: session.getActiveToolNames(),
       running: false,
       spec: modelSpec,
       mcpConnectionsRevision,
@@ -476,6 +491,25 @@ export function createPiChatService({
     await entry.queue
   }
 
+  /**
+   * 工作流工具面收放：按本回合组装出的 workflow.tools 合成激活集（常驻基线
+   * ∪ 本回合点名）——被任一 workflow `tools:` 点名的条件工具只在点名它的
+   * workflow 回合保留在活动集，其余工具常驻。仅与当前活动集不同时调
+   * setActiveToolsByName（SDK 只认注册表已有工具，未知名静默忽略；切换须落在
+   * session.prompt 之前，对本次 run 的回合生效）。
+   */
+  function syncTurnTools(entry: SessionEntry): void {
+    const desired = resolveActiveToolNames(
+      entry.baseToolNames,
+      getStudioRegistry(rootDir),
+      entry.host.turnAssembly()?.tools
+    )
+    const current = entry.session.getActiveToolNames()
+    const same =
+      desired.length === current.length && desired.every((name, i) => current[i] === name)
+    if (!same) entry.session.setActiveToolsByName(desired)
+  }
+
   async function runPrompt(
     entry: SessionEntry,
     sessionId: string,
@@ -530,6 +564,8 @@ export function createPiChatService({
         entry.target.documentId,
         entry.target.windowId
       )
+      // 工具面收放切换点：组装已产出本回合 workflow.tools，prompt 之前校准活动集
+      syncTurnTools(entry)
       // T59：回合 = 一次 prompt run；begin 先行 await（本地 HTTP 一跳，失败已内生
       // 吞掉）保证桥侧撤销组先于本回合首个工具调用打开，end 在 finally 兜底发送
       // T98-路由：windowId 透传——撤销组 begin/end 同样按发起窗路由

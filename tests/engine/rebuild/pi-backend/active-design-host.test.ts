@@ -375,6 +375,7 @@ describe('prepareTurn 端到端', () => {
     expect(host.turnAssembly()).toEqual({
       systemPrompt: '# studio base\nBASE',
       contextLines: ['[施工页 page=无 模式=无/无 brief=无]'],
+      tools: [],
       allowedReferences: new Map()
     })
     host.finalizeTurn()

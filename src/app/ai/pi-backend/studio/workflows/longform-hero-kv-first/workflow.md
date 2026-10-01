@@ -13,6 +13,7 @@ references:
     description: hero 候选生图 prompt 三段模板 + 变异纪律 + 回图诊断——阶段 2 写候选 prompt 前读；回图异常时再读
   - path: references/fix-playbook-kv-first.md
     description: polish 段诊断表（症状→检测→动作→升级条件）——阶段 3 polish 前读
+tools: [compose_backdrop, prepare_hero_scaffold]
 ---
 
 ## 执行总纲

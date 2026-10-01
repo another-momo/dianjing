@@ -22,6 +22,12 @@
 #                    注：声明层 path 是相对路径；AI 调 load_reference 时传的
 #                    path 则是「按需参考」索引节行首 key（恒带桶前缀，如
 #                    `workflow:<id>/references/xxx.md`）。两层区分，不混写。
+#   tools     (可选) 条件工具白名单，非空字符串清单，如 [compose_backdrop]。
+#                    只登记本 workflow 专用、其他模式下不该出现的工具：被任一
+#                    workflow 在此点名的工具 = 条件工具，只在点名它的模式下
+#                    才对 AI 可用；未在任何 workflow 点名的工具维持常驻。
+#                    缺席 = 本 workflow 不点名任何条件工具。点名的工具名必须
+#                    是已向 AI 暴露的注册工具，打错名或点名内部工具会校验失败。
 id: _example
 label: 示例 workflow
 subtitle: 教学示例——复制此文件改写即可获得自定义 mode

@@ -59,6 +59,12 @@ export interface TurnAssembly {
   /** context 注入行（页身份信封 + 可选差分行 + 系统提示行） */
   contextLines: string[]
   /**
+   * 本回合工作流点名的条件工具（workflow 级工具面收放：resolvedWorkflow.tools
+   * 原样透传；无 workflow / 未声明 = 空数组）。service 在 prompt 前据此与常驻面
+   * 合成激活集（resolveActiveToolNames），仅变化时调 setActiveToolsByName。
+   */
+  tools: string[]
+  /**
    * T85 定谳 4：本回合 load_reference 允许集（限定形 key → 加载期解析绝对路径；
    * 空 = 本回合不可读任何 reference）。宿主持有于 turn 缓存袋，finalizeTurn
    * 随 turn=null 一并复位。
@@ -168,12 +174,14 @@ function finishTurn(
   registry: StudioRegistry,
   segments: string[],
   contextLines: string[],
-  activeAssets: Array<StudioBase | StudioWorkflow | StudioProfile>
+  activeAssets: Array<StudioBase | StudioWorkflow | StudioProfile>,
+  tools: string[]
 ): TurnAssembly {
   const { indexSection, allowed } = collectActiveReferences(registry, activeAssets)
   return {
     systemPrompt: joinSegments([...segments, indexSection]),
     contextLines,
+    tools,
     allowedReferences: allowed
   }
 }
@@ -241,7 +249,37 @@ export function assembleTurn(
   if (assets.workflowMissingModeId !== undefined) {
     contextLines.push(ACTIVE_DESIGN_TEXTS.workflowMissing(assets.workflowMissingModeId))
   }
-  return finishTurn(registry, segments, contextLines, activeAssets)
+  return finishTurn(
+    registry,
+    segments,
+    contextLines,
+    activeAssets,
+    assets.resolvedWorkflow?.tools ?? []
+  )
+}
+
+/**
+ * 回合激活工具集合成（workflow 级工具面收放，纯函数）。
+ *
+ * 语义：凡被任一 workflow `tools:` 点名的工具 = 条件工具，只在点名它的 workflow
+ * 激活的回合进活动集；其余工具维持常驻。输入基线 = 会话创建时的初始活动集
+ * （已含档位门控结果），输出保持基线顺序只按条件集过滤——条件工具不在本回合
+ * 点名清单内即摘出，点名即保留。条件并集每回合从注册表现算：studio reload 后
+ * 移除/重命名条件工具下一回合生效；**新增**条件工具名（reload 后才进注册表、
+ * 不在创建时基线内）须重建会话才进活动集（基线快照于会话创建时刻）。
+ */
+export function resolveActiveToolNames(
+  baseToolNames: readonly string[],
+  registry: StudioRegistry,
+  turnTools: readonly string[] | undefined
+): string[] {
+  const conditional = new Set<string>()
+  for (const workflow of registry.workflows.values()) {
+    for (const name of workflow.tools ?? []) conditional.add(name)
+  }
+  if (conditional.size === 0) return [...baseToolNames]
+  const active = new Set(turnTools ?? [])
+  return baseToolNames.filter((name) => !conditional.has(name) || active.has(name))
 }
 
 /**
