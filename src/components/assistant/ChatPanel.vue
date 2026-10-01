@@ -84,6 +84,7 @@ import PendingDecisionCard from './PendingDecisionCard.vue'
 import PiChatInput from './PiChatInput.vue'
 import PiChatMessage from './PiChatMessage.vue'
 import PiProviderGateCard from './PiProviderGateCard.vue'
+import { useReversePagination } from './useReversePagination'
 import { useScrollFollowing } from './useScrollFollowing'
 
 const { ensureChat, resetChat, chatFailure, clearChatFailure } = useAIChat()
@@ -391,9 +392,10 @@ function pinnedDecisionKey(view: PendingDecisionView): string {
   return view.kind === 'ask' ? `ask-${view.part.toolCallId}` : view.request.formId
 }
 function isStreamingMessage(message: UIMessage, index: number): boolean {
+  // 末条判定对 windowMessages（反向分页尾切片）取——窗口末条即全局末条
   return (
     message.role === 'assistant' &&
-    index === messages.value.length - 1 &&
+    index === windowMessages.value.length - 1 &&
     (status.value === 'submitted' || status.value === 'streaming')
   )
 }
@@ -420,10 +422,14 @@ const isThinking = computed(() => {
 const transcriptContent = ref<HTMLDivElement>()
 const viewportComponent = ref<{ viewportElement?: HTMLElement }>()
 const viewport = computed(() => viewportComponent.value?.viewportElement)
+// 反向分页（批 B）：LOAD_MORE 补偿期抑制自动贴底——闸 ref 由 useReversePagination
+// 写、useScrollFollowing 读，声明须在两 hook 之前
+const autoFollowSuspended = ref(false)
 const { arrivedState, resumeFollowing, notifyExplicitScrollGesture } = useScrollFollowing(
   viewport,
   transcriptContent,
-  computed(() => status.value === 'submitted')
+  computed(() => status.value === 'submitted'),
+  { autoFollowSuspended }
 )
 
 // D8（2026-09-18 chat-p1）：output-limit（finishReason='length'）= 模型输出额度
@@ -532,6 +538,17 @@ const sessionItemCls = menuItem({ justify: 'start' })
 const sessionList = ref<PiSessionSummary[]>([])
 const currentSessionId = ref<string | null>(null)
 const sessionMenuReady = ref(false)
+
+// 反向分页（批 B）：只渲染最近 20 回合 + 滚顶加载 + scrollTop 补偿——渲染契约
+// 见 useReversePagination.ts 文件头。v-for 消费 windowMessages（尾切片，进行中
+// 回合恒在窗内）；切会话/新会话复位窗口经 resetKey（chat 实例 + sessionId 双沿）。
+// 落位在 currentSessionId 声明后——resetKey getter 会被 watch 立即求值（TDZ）
+const { windowMessages } = useReversePagination({
+  messages,
+  viewport,
+  autoFollowSuspended,
+  resetKey: () => [chat.value, currentSessionId.value]
+})
 
 function refreshSessionMeta() {
   const store = getActiveEditorStore()
@@ -998,7 +1015,12 @@ function handleClearChat() {
     </div>
 
     <ScrollAreaRoot class="relative min-h-0 flex-1">
-      <ScrollAreaViewport ref="viewportComponent" class="h-full px-3 py-3 [&>div]:h-full">
+      <!-- [overflow-anchor:none]：浏览器自动锚定与反向分页的手动 scrollTop 补偿会
+           叠加跳 2× 高度——prepend 场景只留手动补偿（批 B 双向实证坑） -->
+      <ScrollAreaViewport
+        ref="viewportComponent"
+        class="h-full px-3 py-3 [overflow-anchor:none] [&>div]:h-full"
+      >
         <AppPlaceholder
           v-if="messages.length === 0"
           data-test-id="chat-empty-state"
@@ -1018,11 +1040,11 @@ function handleClearChat() {
           class="flex flex-col gap-3"
         >
           <PiChatMessage
-            v-for="(msg, index) in messages"
+            v-for="(msg, index) in windowMessages"
             :key="msg.id"
             :message="msg"
             :streaming="isStreamingMessage(msg, index)"
-            :stopped="index === messages.length - 1 && justStopped"
+            :stopped="index === windowMessages.length - 1 && justStopped"
             :answered-form-ids="answeredFormIds"
             @form-submit="handleFormSubmit"
           />

@@ -68,17 +68,28 @@ function cancelFrame(handle: FrameHandle): void {
 
 type ScrollTarget = Ref<HTMLElement | undefined>
 
+export interface ScrollFollowingOptions {
+  /**
+   * 自动贴底抑制闸（反向分页协作，批 B）：LOAD_MORE 补偿期置 true——prepend
+   * 不得触发贴底跟随（ResizeObserver 见内容增长只发贴底 rAF，抑制闸在
+   * scheduleFollow 入口短路），滚顶回看不拽视图。useReversePagination 写。
+   */
+  autoFollowSuspended?: Ref<boolean>
+}
+
 /**
  * 输出跟随是用户可控模式，不是距离阈值（上游原注）。
  *
  * @param viewport 滚动容器（reka ScrollAreaViewport 暴露的 viewportElement）
  * @param content 消息列表内容元素（ResizeObserver 监听其高度增长驱动贴底）
  * @param submitted 用户新提交信号（false→true 沿强制恢复跟随）
+ * @param options.autoFollowSuspended LOAD_MORE 补偿期抑制闸（可选）
  */
 export function useScrollFollowing(
   viewport: ScrollTarget,
   content: ScrollTarget,
-  submitted: Ref<boolean>
+  submitted: Ref<boolean>,
+  options?: ScrollFollowingOptions
 ) {
   const following = ref(true)
   /** 浮钮显隐源——上游 arrivedState 全向，消费方只用 bottom，只维护这一向 */
@@ -100,7 +111,8 @@ export function useScrollFollowing(
   }
 
   function scheduleFollow(): void {
-    if (!following.value || frame !== undefined) return
+    // 抑制闸：LOAD_MORE 补偿期禁一切自动滚动（prepend 前扩期间贴底会破坏补偿）
+    if (!following.value || options?.autoFollowSuspended?.value || frame !== undefined) return
     frame = scheduleFrame(() => {
       frame = undefined
       if (!following.value || !viewport.value) return
