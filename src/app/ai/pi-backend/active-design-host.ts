@@ -278,7 +278,7 @@ export function resolveActiveToolNames(
     for (const name of workflow.tools ?? []) conditional.add(name)
   }
   if (conditional.size === 0) return [...baseToolNames]
-  const active = new Set(turnTools ?? [])
+  const active = new Set(turnTools)
   return baseToolNames.filter((name) => !conditional.has(name) || active.has(name))
 }
 

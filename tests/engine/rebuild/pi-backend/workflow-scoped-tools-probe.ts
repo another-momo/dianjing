@@ -27,6 +27,15 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
+/** 探针收尾 dispose：失败只打印不抛（证据已从 stdout 回传，dispose 失败不影响断言） */
+function safeDispose(session: { dispose(): void }, label: string): void {
+  try {
+    session.dispose()
+  } catch (err) {
+    console.warn(`[probe] ${label} dispose failed`, err)
+  }
+}
+
 if (import.meta.main) {
   setTimeout(() => {
     console.error('探针超时')
@@ -35,6 +44,8 @@ if (import.meta.main) {
 
   const rootDir = process.argv[2]
   if (!rootDir) throw new Error('usage: bun workflow-scoped-tools-probe.ts <rootDir>')
+  // 收窄进具名常量：makeSession 闭包内 TS 不沿用 import.meta.main 顶部的 guard
+  const sessionsRoot = rootDir
   const workspaceDir = join(rootDir, 'workspace')
   const agentDir = join(rootDir, 'pi-agent')
   mkdirSync(workspaceDir, { recursive: true })
@@ -117,7 +128,7 @@ if (import.meta.main) {
   }
 
   async function makeSession(subdir: string, readonlyWhitelist: boolean) {
-    const sessionsDir = join(rootDir!, 'pi-sessions', subdir)
+    const sessionsDir = join(sessionsRoot, 'pi-sessions', subdir)
     mkdirSync(sessionsDir, { recursive: true })
     const settingsManager = SettingsManager.create(workspaceDir, agentDir, {
       projectTrusted: false
@@ -186,11 +197,7 @@ if (import.meta.main) {
   }
   const finalPrompt = session.systemPrompt
   const finalActive = session.getActiveToolNames()
-  try {
-    session.dispose()
-  } catch {
-    // 探针收尾，dispose 失败不影响证据
-  }
+  safeDispose(session, 'main session')
 
   // ── readonly 档组合冒烟：白名单会话下条件工具收放照常放行 ──
   const roSession = await makeSession('readonly', true)
@@ -201,11 +208,7 @@ if (import.meta.main) {
   const roBack = resolveActiveToolNames(roInitial, registry, [])
   roSession.setActiveToolsByName(roBack)
   const roBackAfter = roSession.getActiveToolNames()
-  try {
-    roSession.dispose()
-  } catch {
-    // 同上
-  }
+  safeDispose(roSession, 'readonly session')
   const readonlySwitchOk =
     roAfter.length === roDesired.length &&
     roAfter.every((name, i) => roDesired[i] === name) &&
