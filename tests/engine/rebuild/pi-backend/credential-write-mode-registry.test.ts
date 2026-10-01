@@ -116,7 +116,11 @@ test('B: 登记表无死条目（点位文件已删或已不写 0o600 → 同批
 })
 
 test('C: 凭据写入方的文件名全部在 protectedCredentialFiles 读侧名单', () => {
-  const denyList = protectedCredentialFiles(resolve('/fake/registry-root'))
+  // env fixture 注入——bridge.json 落点解析缺省读 process.env，测试须 hermetic
+  const denyList = protectedCredentialFiles(resolve('/fake/registry-root'), {
+    APPDATA: '/fake/appdata',
+    XDG_CONFIG_HOME: '/fake/xdg'
+  })
   const credentialWriters = Object.entries(REGISTRY).flatMap(([file, entry]) =>
     entry.writes === null ? [] : [{ file, writes: entry.writes }]
   )

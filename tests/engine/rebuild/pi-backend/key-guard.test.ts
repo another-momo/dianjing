@@ -63,7 +63,8 @@ const SENSITIVE_READ_DENY_REASON =
   'Do not read, search, or infer its contents — if the file needs inspection or changes, ask the user to handle it directly.'
 
 function makeHandler() {
-  return createKeyGuardHandler({ rootDir: ROOT, cwd: WORKSPACE, homeDir: ROOT })
+  // env 恒注入 fixture（hermetic 口径同 path-decision.test.ts 的 decide）
+  return createKeyGuardHandler({ rootDir: ROOT, cwd: WORKSPACE, homeDir: ROOT, env: ENV_FIXTURE })
 }
 
 describe('protectedCredentialFiles', () => {

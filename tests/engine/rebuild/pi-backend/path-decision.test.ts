@@ -40,7 +40,9 @@ const PLATFORM_BRIDGE_JSON = join(PLATFORM_APP_DATA_ROOT, 'bridge.json')
 const PLATFORM_LEGACY_MCP_JSON = join(PLATFORM_APP_DATA_ROOT, 'mcp.json')
 
 function decide(input: string, facet: 'read' | 'write' = 'read') {
-  return decidePath(input, { facet, rootDir: ROOT, homeDir: ROOT })
+  // env 恒注入 fixture——缺省 process.env 会让 bridge.json 落点解析在 darwin
+  // 被 homedir 兜底旁路、在 CI/本机间漂移，测试须全平台 hermetic
+  return decidePath(input, { facet, rootDir: ROOT, homeDir: ROOT, env: ENV_FIXTURE })
 }
 
 describe('名单源导出（A线尾单自 key-guard 收编的单一真源）', () => {
@@ -160,7 +162,7 @@ describe('decidePath read facet —— 界内界外全 allow（名单外）', ()
 
 describe('decidePath read facet —— 敏感名单硬拒', () => {
   test('凭据六件 → deny，denyCause=protected，absolutePath 带出', () => {
-    for (const target of protectedCredentialFiles(ROOT)) {
+    for (const target of protectedCredentialFiles(ROOT, ENV_FIXTURE)) {
       const d = decide(target)
       expect(d.ok).toBe(false)
       if (!d.ok) {
