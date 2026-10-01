@@ -536,6 +536,63 @@ describe('useReversePagination Vue 接线', () => {
     expect(rig.core.isLoadingMore).toBe(false)
     expect(rig.autoFollowSuspended.value).toBe(false)
   })
+
+  test('迟到高度追踪真实 rAF 收束：增量续补后静默帧解锁清抑制（生产典型路径）', async () => {
+    installRafStub()
+    try {
+      const rig = createRig({ messages: turns(45), scrollTop: 50 })
+      await mount(rig)
+      rig.viewportEl.fire('scroll')
+      expect(rig.core.isLoadingMore).toBe(true)
+      expect(rig.autoFollowSuspended.value).toBe(true)
+      // flush 落定 → 一次性补偿先落（1000 → 3000）
+      rig.viewportEl.scrollHeight = 3000
+      await nextTick()
+      await nextTick()
+      expect(rig.viewportEl.scrollTop).toBe(2050)
+      // 追踪期：一波迟到高度（3000 → 3200）增量续补
+      rig.viewportEl.scrollHeight = 3200
+      flushFrames()
+      expect(rig.viewportEl.scrollTop).toBe(2250)
+      expect(rig.core.isLoadingMore).toBe(true)
+      // 连续 6 帧静默 → 追踪收束 → 解锁清抑制
+      for (let i = 0; i < 6; i++) flushFrames()
+      await nextTick()
+      expect(rig.core.isLoadingMore).toBe(false)
+      expect(rig.autoFollowSuspended.value).toBe(false)
+      expect(rig.viewportEl.scrollTop).toBe(2250)
+    } finally {
+      uninstallRafStub()
+    }
+  })
+
+  test('迟到高度回调通路抛异常：追踪即收束，锁与抑制不悬挂', async () => {
+    installRafStub()
+    try {
+      const rig = createRig({ messages: turns(45), scrollTop: 50 })
+      await mount(rig)
+      rig.viewportEl.fire('scroll')
+      rig.viewportEl.scrollHeight = 3000
+      await nextTick()
+      await nextTick()
+      expect(rig.viewportEl.scrollTop).toBe(2050)
+      // 破坏 scrollTop 写入通路（补偿回调将抛错）
+      let currentTop = 2050
+      Object.defineProperty(rig.viewportEl, 'scrollTop', {
+        get: () => currentTop,
+        set: () => {
+          throw new Error('boom')
+        }
+      })
+      rig.viewportEl.scrollHeight = 3200
+      flushFrames()
+      await nextTick()
+      expect(rig.core.isLoadingMore).toBe(false)
+      expect(rig.autoFollowSuspended.value).toBe(false)
+    } finally {
+      uninstallRafStub()
+    }
+  })
 })
 
 // ── useScrollFollowing 抑制闸（反向分页协作的最小改动面） ─────────────────────
@@ -546,6 +603,22 @@ function flushFrames(): void {
   const queue = rafQueue
   rafQueue = []
   for (const cb of queue) cb?.()
+}
+
+/**
+ * rAF 手动队列桩安装/卸载——仅迟到高度追踪收束用例使用（其余接线用例保持无
+ * rAF 环境：trackLateGrowth 生产接线在无 rAF 环境退化为不追踪）。
+ */
+function installRafStub(): void {
+  ;(globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame = (cb: () => void) => {
+    rafQueue.push(cb)
+    return rafQueue.length
+  }
+}
+
+function uninstallRafStub(): void {
+  delete (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame
+  rafQueue = []
 }
 
 class FakeResizeObserver {

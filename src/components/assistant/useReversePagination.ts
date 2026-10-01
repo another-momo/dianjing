@@ -308,7 +308,14 @@ export function useReversePagination(options: UseReversePaginationOptions) {
           }
           const height = el.scrollHeight
           if (height !== last) {
-            onGrowth(height - last)
+            try {
+              onGrowth(height - last)
+            } catch {
+              // 补偿回调通路被破坏（measure/apply 异常）——追踪即收束释锁，
+              // 不等到 1500ms 硬顶（用户可感的加载锁悬挂）
+              finishEarly()
+              return
+            }
             last = height
             quietFrames = 0
           } else if ((quietFrames += 1) >= LATE_GROWTH_QUIET_FRAMES) {
