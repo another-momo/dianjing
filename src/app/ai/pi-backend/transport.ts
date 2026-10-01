@@ -118,6 +118,13 @@ function parseSSEChunkStream(body: ReadableStream<Uint8Array>): ReadableStream<U
     gateWaiter = null
   }
 
+  // 闸等待 helper——promise 执行器收出 pull 循环体（no-loop-func：循环内
+  // 声明的闭包引用外层可变 gateWaiter 会被 lint 判不安全引用）
+  const waitForGateRelease = (): Promise<void> =>
+    new Promise<void>((resolve) => {
+      gateWaiter = resolve
+    })
+
   return new ReadableStream<UIMessageChunk>({
     async pull(controller) {
       for (;;) {
@@ -149,9 +156,7 @@ function parseSSEChunkStream(body: ReadableStream<Uint8Array>): ReadableStream<U
         }
         if (rafId !== null) {
           // 闸挂起中：read() await 阻塞在此，rAF 放行（攒帧已 enqueue）后本批结束
-          await new Promise<void>((resolve) => {
-            gateWaiter = resolve
-          })
+          await waitForGateRelease()
           return
         }
         let value: Uint8Array | undefined
