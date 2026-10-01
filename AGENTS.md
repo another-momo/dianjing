@@ -12,7 +12,7 @@
 
 ## 2. 协作摘要（最低限度规则）
 
-- 主 agent 唯一允许：git 写（commit / merge-back）、browser 实测、gh 操作；**未经允许禁安装/卸载软件、禁清理 worktree 以外文件**（owner 明令，仓外 §6 同款——打包版装卸交 owner 人工）。
+- 主 agent 唯一允许：git 写（commit / merge-back）、gh 操作；browser 实测归主 agent 或经派单授权的 L3 验收跑手（仓外 §2）；**未经允许禁安装/卸载软件、禁清理 worktree 以外文件**（owner 明令，仓外 §6 同款——打包版装卸交 owner 人工）。
 - worker（subagent）：限定范围实现 + 目标测试文件；**禁**全量 test / dev / build、commit / push、`gh run rerun`；browser 默认禁——Playwright MCP 与主 agent 共享浏览器单例，派单显式授权时方可自验证且须互斥。commit / push 可经 owner 专项派单授权解禁（授权范围以派单文本为准）。
 - push：主 agent 每次收口 commit 后顺势推；失败允许重试 3 次、每次间隔 30s，仍败走 Data API 兜底脚本（`tools/git-rescue/src/data-api-push.ts`，api.github.com 通路独立于 git 传输层），再败积压归 owner。worker 禁 push。
 - gh 命令一律带 `-R another-momo/dianjing`。
@@ -81,11 +81,12 @@
 
 ## 6. 测试纪律
 
-- bun:test 框架；**禁引入 DOM 测试基建**（happy-dom/jsdom 一律不许）——浏览器行为用真浏览器实测（主 agent）。
+- bun:test 框架；**禁引入 DOM 测试基建**（happy-dom/jsdom 一律不许）——浏览器行为用真浏览器实测（主 agent 或经授权的 L3 验收跑手）。
 - worker 只跑目标测试文件；全量单测用 `bun run test:unit:serial`（套件分批串行，带 `(i/N)` 批次进度），禁单次全仓 `bun test tests/engine`（单进程内存累积）。serial 可按批次过滤（`bun tools/unit-tests/src/serial.ts editor scene`，批次 = tests/engine 一级目录）——改动域明确时本地只跑受影响批次，全量交 CI（分片并行）或后台长跑。
-- playwright（`test` / `test:figma`）主 agent 独占，与任何重型任务互斥。
+- playwright（`test` / `test:figma`）主 agent 与经授权 L3 验收跑手专用，与任何重型任务互斥。
 - 页内注入的探针/采样器（rAF 循环、定时器）随用随清——遗留插桩在状态变更后可能变幽灵循环每帧抛错刷屏；无法精准确认清干净时重载页面兜底。
 - bun mock 生命周期：`mock.restore()` 只恢复 spy，**不撤销 `mock.module()` 覆盖**——模块级 mock 不随 cleanup 钩子隔离；引入全局/模块级插桩前先读现装 runner 的 mock 文档。
+- `mock.module()` 注册表按解析路径去重且全进程共享——共享消费方模块的 mock 绑定归首个加载它的测试文件所有（file URL / 查询串 / createRequire 均绕不过去重）；钉真实依赖行为走 DI 缝直测或干净子进程探针，不靠 `mock.module` 覆盖。
 - globalThis 桩（fetch 等）的还原钩子禁放共享 helpers 的模块级 `afterEach`——bun 模块缓存致该钩子只随首个 import 者注册一次，第二消费者的桩无人还原、泄漏污染同进程分片后续全部 fetch；每个消费文件各自 `afterEach` 还原。
 - 桩贴真实故障边界：协议/验真类路径桩全局 fetch（或 socket），不桩 SDK 方法——SDK 方法桩遵守 throw/成功契约，盖不住实现吞状态。
 - 夹具用的虚空路径/名字必须在所有 CI 平台都不存在——`/etc/hosts/x` 在 Linux 是真实文件（报 ENOTDIR 而非 ENOENT）；虚空名用唯一造名。
