@@ -308,27 +308,6 @@ describe('assembleTurn（组装契约）', () => {
     ])
   })
 
-  test('extraNotices 在页身份行（与差分行）之后、workflowMissing 之前', () => {
-    const turn = assembleTurn(
-      makeRegistry(),
-      { workflowMissingModeId: 'ghost-mode' },
-      {
-        engagedPageId: 'page-A',
-        modeId: null,
-        profileId: null,
-        briefId: null,
-        viewPageId: 'page-B'
-      },
-      ['注意行']
-    )
-    expect(turn.contextLines).toEqual([
-      '[施工页 page=page-A 模式=无/无 brief=无]',
-      '[你正在看第page-B页]',
-      '注意行',
-      ACTIVE_DESIGN_TEXTS.workflowMissing('ghost-mode')
-    ])
-  })
-
   test('references 索引节：workflow/profile 资产并集非空时追加 + 允许集限定 key', () => {
     const registry = makeRegistry()
     registry.workflows.set(

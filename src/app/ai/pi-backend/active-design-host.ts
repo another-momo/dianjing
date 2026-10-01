@@ -209,13 +209,11 @@ export interface TurnAssets {
  *    空段不冠头（joinSegments 滤空串语义不变）。
  *  - 2026-09-27 sl-w2-state-chain：pageContext 恒在首行——「[施工页
  *    page=… 模式=… brief=…]」行 + 可选「[你正在看第X页]」差分行。
- *    位于 extraNotices 之前——事实 → 观察 → 提示 的注入序。
  */
 export function assembleTurn(
   registry: StudioRegistry,
   assets: TurnAssets,
-  pageContext: TurnPageContext,
-  extraNotices: string[] = []
+  pageContext: TurnPageContext
 ): TurnAssembly {
   const base = registry.base?.body ?? ''
   const baseAsset = registry.base ? [registry.base] : []
@@ -240,7 +238,6 @@ export function assembleTurn(
   contextLines.push(buildConstructionPageLine(pageContext))
   const viewDiff = buildViewPageDiffLine(pageContext.viewPageId, pageContext.engagedPageId)
   if (viewDiff) contextLines.push(viewDiff)
-  contextLines.push(...extraNotices)
   if (assets.workflowMissingModeId !== undefined) {
     contextLines.push(ACTIVE_DESIGN_TEXTS.workflowMissing(assets.workflowMissingModeId))
   }

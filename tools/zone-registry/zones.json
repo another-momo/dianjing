@@ -2491,6 +2491,13 @@
       "reason": "随 P393 钉扎：docUuid merge 保留三态矩阵——导入缺+旧图有→旧值保留（挺过图替换）/ 导入自带→导入胜（文件持久身份优先）/ 双缺 no-op（pluginData 零污染）；命名空间常量两侧相等+字面量钉扎 + 桥探针 eval 源码字面量钉扎",
       "disposition": "permanent",
       "lastReviewed": "2026-10-01"
+    },
+    {
+      "id": "P395",
+      "file": "tests/engine/app/ai/context.test.ts",
+      "reason": "随 P209 后续收敛：旧 chat 栈选区引用通路整体退役（生产调用方清零，现行选区引用走 selection-capture）——appendReferencedNodeContext / resolveReferencedNodes / MAX_REFERENCED_NODES / ReferencedNode 全删；仅存 stripReferencedNodeContext + REFERENCED_NODE_CONTEXT_MARKER（历史消息展示卫生，fork/presentation.ts 在用），用例改由 MARKER 字面量构造输入",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-01"
     }
   ],
   "deletedPaths": [

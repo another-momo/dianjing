@@ -376,35 +376,35 @@ describe('T59 undo burst coalesce（AI 回合撤销组合并）', () => {
 // id 改 pageB 子节点宽度——若只重算落点页，他页 frame 宽度停在旧值；扩展作
 // 用域后他页 frame 宽度 = 子节点宽度（证明他页被重算）。
 
-describe('§8 布局重算脏页作用域（tool-handlers 跨页引用）', () => {
-  function setupBridgeMultiPage() {
-    const editor = createEditor()
-    const pageA = editor.graph.getPages()[0].id
-    const pageB = editor.graph.addPage('Page B').id
-    const store: AutomationTarget['store'] = Object.assign(Object.create(editor), {
-      flashNodes: () => undefined
-    })
-    const target: AutomationTarget = {
-      store,
-      documentId: 'doc-scope',
-      documentName: 'Scope Test',
-      pageId: pageA,
-      pageName: 'Page A'
-    }
-    const makeFigma = (figmaStore: AutomationTarget['store'], figmaPageId?: string) => {
-      const api = new FigmaAPI(figmaStore.graph)
-      api.currentPage = api.wrapNode(figmaPageId ?? pageA)
-      return api
-    }
-    const { handleTool } = createAutomationToolHandler(makeFigma)
-    async function callTool(name: string, args: ToolResult): Promise<ToolResult> {
-      const res = (await handleTool(target, { name, args })) as { ok: boolean; result: ToolResult }
-      expect(res.ok).toBe(true)
-      return res.result
-    }
-    return { editor, pageA, pageB, callTool }
+function setupBridgeMultiPage() {
+  const editor = createEditor()
+  const pageA = editor.graph.getPages()[0].id
+  const pageB = editor.graph.addPage('Page B').id
+  const store: AutomationTarget['store'] = Object.assign(Object.create(editor), {
+    flashNodes: () => undefined
+  })
+  const target: AutomationTarget = {
+    store,
+    documentId: 'doc-scope',
+    documentName: 'Scope Test',
+    pageId: pageA,
+    pageName: 'Page A'
   }
+  const makeFigma = (figmaStore: AutomationTarget['store'], figmaPageId?: string) => {
+    const api = new FigmaAPI(figmaStore.graph)
+    api.currentPage = api.wrapNode(figmaPageId ?? pageA)
+    return api
+  }
+  const { handleTool } = createAutomationToolHandler(makeFigma)
+  async function callTool(name: string, args: ToolResult): Promise<ToolResult> {
+    const res = (await handleTool(target, { name, args })) as { ok: boolean; result: ToolResult }
+    expect(res.ok).toBe(true)
+    return res.result
+  }
+  return { editor, pageA, pageB, callTool }
+}
 
+describe('§8 布局重算脏页作用域（tool-handlers 跨页引用）', () => {
   test('按 id 直改他页节点 → 他页自动布局 frame 宽度被刷新（不被脏页作用域遗漏）', async () => {
     const b = setupBridgeMultiPage()
 
@@ -465,5 +465,70 @@ describe('§8 布局重算脏页作用域（tool-handlers 跨页引用）', () =
     await b.callTool('update_node', { id: childA.id as string, width: 175 })
 
     expect(b.editor.graph.getNode(frameA.id as string)?.width).toBe(175)
+  })
+})
+
+// ── undo 快照面 = 视图页（非冻结落点页）——已知缺口现状钉扎 ────────────────────
+//
+// 页快照的取材与还原双双跟随 editor.state.currentPageId（视图页）：
+// snapshotPage 按当前视图页取子树，restorePageFromSnapshot 按执行 undo 时刻的
+// 视图页查快照。而 AI 工具的落点页在 run 起始冻结（target.pageId），与视图页
+// 是两个事实——run 中用户翻页后，冻结落点页上的 AI 改动不在撤销条目面内：
+//  - 停在视图页 B 上 undo：还原的是 B 页快照（不含 A 页改动）→ A 页改动保留；
+//  - 翻回落点页 A 再 undo：快照 Map 无 A 页条目 → 还原整体提前返回（no-op）。
+// 常规场景（落点页 == 视图页）两事实同页故正确——同页基线由上方各用例覆盖。
+// 已知缺口，按现状钉扎；修法（快照面改用冻结落点页）待拍板，拍板后本组用例
+// 应随新语义改写。
+
+describe('undo 快照面 = 视图页（冻结落点页改动不在撤销面）现状钉扎', () => {
+  test('用户翻页后，冻结落点页上的 AI 改动不随 undo 撤销', async () => {
+    const b = setupBridgeMultiPage()
+
+    // 落点冻结 = pageA（target.pageId）；AI 在落点页建节点（此刻视图页仍 = pageA）
+    const created = await b.callTool('create_shape', {
+      type: 'RECTANGLE',
+      parent_id: b.pageA,
+      x: 0,
+      y: 0,
+      width: 50,
+      height: 50,
+      name: 'Card'
+    })
+    const nodeId = created.id as string
+
+    // 用户翻页：视图页 → pageB（快照面跟随视图页）
+    b.editor.state.currentPageId = b.pageB
+
+    // AI 按 id 直改落点页节点：执行面钉在 pageA，快照面停在 pageB
+    await b.callTool('rename_node', { id: nodeId, name: 'AI Renamed' })
+    expect(b.editor.graph.getNode(nodeId)?.name).toBe('AI Renamed')
+
+    // undo：撤销条目 inverse 还原的是「快照时刻的视图页」= pageB——落点页改动不在撤销面
+    b.editor.undo.undo()
+    expect(b.editor.graph.getNode(nodeId)?.name).toBe('AI Renamed')
+  })
+
+  test('翻回落点页再 undo：快照无该页条目，还原 no-op（改动依旧保留）', async () => {
+    const b = setupBridgeMultiPage()
+
+    const created = await b.callTool('create_shape', {
+      type: 'RECTANGLE',
+      parent_id: b.pageA,
+      x: 0,
+      y: 0,
+      width: 50,
+      height: 50,
+      name: 'Card'
+    })
+    const nodeId = created.id as string
+
+    b.editor.state.currentPageId = b.pageB
+    await b.callTool('rename_node', { id: nodeId, name: 'AI Renamed' })
+
+    // 翻回落点页后 undo：还原按执行时刻视图页（pageA）查快照 Map——无条目即
+    // 整体提前返回，落点页零改动
+    b.editor.state.currentPageId = b.pageA
+    b.editor.undo.undo()
+    expect(b.editor.graph.getNode(nodeId)?.name).toBe('AI Renamed')
   })
 })
