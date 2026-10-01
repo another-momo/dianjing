@@ -3,9 +3,9 @@
  *
  * 覆盖：回合切片（user 锚 + assistant 尾批/孤儿批边界）、窗口推进与 isLast、
  * 滚顶触发门（阈值/贴底/不可滚/防重入/isLast 矩阵）、补偿换算、createReversePaginationCore
- * 状态机（手动 flush 驱动补偿时序：量测→前扩→flush→回写）、useReversePagination
- * Vue 接线（computed 切窗 / scroll 触发 / 会话复位 / 进行中回合恒在场）、
- * useScrollFollowing 抑制闸（LOAD_MORE 期间内容增长不贴底）。
+ * 状态机（手动 flush 驱动补偿时序：量测→前扩→flush→回写；迟到内容高度追踪的
+ * 增量续补与代际守卫）、useReversePagination Vue 接线（computed 切窗 / scroll 触发 /
+ * 会话复位 / 进行中回合恒在场）、useScrollFollowing 抑制闸（LOAD_MORE 期间内容增长不贴底）。
  *
  * 测试栈纪律与 use-scroll-following.test.ts 同款：不引入 happy-dom——合成容器
  * （FakeElement 捕获监听器）+ 运行期全局桩（rAF 手动队列 / FakeResizeObserver），
@@ -209,6 +209,7 @@ describe('createReversePaginationCore 状态机', () => {
     scrollHeight?: number
     scrollTop?: number
     pageSize?: number
+    withLateGrowth?: boolean
   }) {
     const windowTurnCount = { value: TURNS_PER_PAGE }
     let total = options.totalTurns
@@ -217,6 +218,12 @@ describe('createReversePaginationCore 状态机', () => {
     const suspensionLog: boolean[] = []
     const applied: number[] = []
     const flushQueue: Array<() => void> = []
+    /** 迟到高度追踪捕获：onGrowth 手动放量、release 收束追踪（生产 = rAF 逐帧轮询） */
+    const lateGrowthCalls: Array<{
+      onGrowth: (delta: number) => void
+      isStale: () => boolean
+      release: () => void
+    }> = []
     const core = createReversePaginationCore({
       windowTurnCount,
       totalTurns: () => total,
@@ -234,6 +241,14 @@ describe('createReversePaginationCore 状态机', () => {
           flushQueue.push(resolve)
         }),
       setAutoFollowSuspended: (suspended) => suspensionLog.push(suspended),
+      ...(options.withLateGrowth
+        ? {
+            trackLateGrowth: (onGrowth: (delta: number) => void, isStale: () => boolean) =>
+              new Promise<void>((resolve) => {
+                lateGrowthCalls.push({ onGrowth, isStale, release: resolve })
+              })
+          }
+        : {}),
       ...(options.pageSize === undefined ? {} : { pageSize: options.pageSize })
     })
     return {
@@ -242,6 +257,7 @@ describe('createReversePaginationCore 状态机', () => {
       viewportEl,
       applied,
       suspensionLog,
+      lateGrowthCalls,
       setTotal: (value: number) => {
         total = value
       },
@@ -364,6 +380,50 @@ describe('createReversePaginationCore 状态机', () => {
     expect(h.viewportEl.scrollTop).toBe(2050)
     expect(h.core.isLoadingMore).toBe(false)
     expect(h.suspensionLog).toEqual([true, false, true, false])
+  })
+
+  test('迟到内容高度：flush 后量测补一次，追踪期增量续补，追踪收束才解锁清抑制', async () => {
+    const h = makeHarness({ totalTurns: 45, scrollTop: 50, withLateGrowth: true })
+    const pending = h.core.maybeLoadMore()
+    h.viewportEl.scrollHeight = 3000
+    await h.settle()
+    // flush 后一次性量测补偿先落（锁住未开——追踪仍在途）
+    expect(h.applied).toEqual([2050])
+    expect(h.core.isLoadingMore).toBe(true)
+    expect(h.lateGrowthCalls).toHaveLength(1)
+    // markdown 迟到高度分两波到账：增量续补（回写基值跟随当前 scrollTop）
+    h.viewportEl.scrollHeight = 3500
+    h.lateGrowthCalls[0]?.onGrowth(500)
+    expect(h.applied).toEqual([2050, 2550])
+    h.viewportEl.scrollHeight = 3660
+    h.lateGrowthCalls[0]?.onGrowth(160)
+    expect(h.applied).toEqual([2050, 2550, 2710])
+    expect(h.suspensionLog).toEqual([true])
+    // 追踪收束后才解锁清抑制
+    h.lateGrowthCalls[0]?.release()
+    await pending
+    expect(h.viewportEl.scrollTop).toBe(2710)
+    expect(h.core.isLoadingMore).toBe(false)
+    expect(h.suspensionLog).toEqual([true, false])
+  })
+
+  test('迟到高度追踪期 reset：代际转陈旧，迟到增量不再回写且 isStale 报真', async () => {
+    const h = makeHarness({ totalTurns: 45, scrollTop: 50, withLateGrowth: true })
+    const pending = h.core.maybeLoadMore()
+    h.viewportEl.scrollHeight = 3000
+    await h.settle()
+    expect(h.applied).toEqual([2050])
+    h.core.reset()
+    expect(h.suspensionLog).toEqual([true, false])
+    const tracker = h.lateGrowthCalls[0]
+    expect(tracker?.isStale()).toBe(true)
+    // 陈旧追踪的迟到增量被代际守卫拦下
+    tracker?.onGrowth(500)
+    expect(h.applied).toEqual([2050])
+    expect(h.viewportEl.scrollTop).toBe(2050)
+    tracker?.release()
+    await pending
+    expect(h.core.isLoadingMore).toBe(false)
   })
 })
 

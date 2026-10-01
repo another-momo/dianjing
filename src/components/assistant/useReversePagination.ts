@@ -11,8 +11,10 @@
  *
  * 补偿时序（≠HuLa 的 await 取数形态）：变更前量 scrollHeight/scrollTop → 窗口数组
  * 前扩 → nextTick（Vue flush 落定后）按高度差回写 scrollTop = oldTop + (newHeight -
- * oldHeight)。浏览器自动锚定（overflow-anchor 默认开启）与手动补偿会叠加跳 2× 高度，
- * 滚动容器须 overflow-anchor:none（ChatPanel viewport 侧设置）。
+ * oldHeight)；异步渲染（vue-stream-markdown 等）的迟到高度由 trackLateGrowth 逐帧
+ * 追踪增量续补直到高度静默——flush 后的一次性量测会差出整段未到账高度（L3 实测
+ * 缺口 +640px/20 回合页）。浏览器自动锚定（overflow-anchor 默认开启）与手动补偿
+ * 会叠加跳 2× 高度，滚动容器须 overflow-anchor:none（ChatPanel viewport 侧设置）。
  *
  * 结构（dom-meters.ts 同款「纯状态机 + 薄接线」）：sliceTurns / advanceWindow /
  * shouldTriggerLoadMore / computeCompensatedScrollTop / createReversePaginationCore
@@ -32,6 +34,12 @@ export const LOAD_MORE_TRIGGER_PX = 60
 
 /** 贴底容差（与 useScrollFollowing BOTTOM_THRESHOLD_PX 同口径） */
 const BOTTOM_TOLERANCE_PX = 1
+
+/** 迟到高度静默判定：连续 N 帧 scrollHeight 无增长即收束（≈100ms@60fps） */
+const LATE_GROWTH_QUIET_FRAMES = 6
+
+/** 迟到高度追踪硬顶：超时强制收束（后台标签页 rAF 停摆时由定时器兜底，不挂死加载锁） */
+const LATE_GROWTH_HARD_CAP_MS = 1500
 
 /** 可写响应式 cell——生产传 Vue ref，纯逻辑测试传普通对象 */
 export interface MutableCell<T> {
@@ -122,6 +130,12 @@ export interface ReversePaginationPorts {
   applyScrollTop?: (value: number) => void
   /** DOM 更新 flush 等待——补偿时序前提，生产必须传 Vue nextTick */
   flush: () => Promise<void>
+  /**
+   * 迟到内容高度追踪（vue-stream-markdown 等异步渲染的高度在 flush 后才到账）：
+   * 追踪期每次 scrollHeight 增长回调 onGrowth(增量) 供补 scrollTop；高度静默、
+   * isStale() 转真或追踪方硬顶超时即结束。缺省 = 不追踪（补偿止步 flush 后量测）。
+   */
+  trackLateGrowth?: (onGrowth: (delta: number) => void, isStale: () => boolean) => Promise<void>
   /** LOAD_MORE 全程抑制自动贴底跟随（接线 useScrollFollowing 抑制闸） */
   setAutoFollowSuspended?: (suspended: boolean) => void
   /** 页大小（默认 TURNS_PER_PAGE；测试注入小页量验推进） */
@@ -200,6 +214,16 @@ export function createReversePaginationCore(ports: ReversePaginationPorts): Reve
         // 无可视位置可保）——跳过补偿
         if (after) {
           ports.applyScrollTop?.(computeCompensatedScrollTop(before, after))
+          // 异步渲染内容的迟到高度增量续补，直到高度静默/代际转陈旧——一次性
+          // 量测会差出整段未到账高度；锁与抑制随追踪结束才释放
+          await ports.trackLateGrowth?.(
+            (delta) => {
+              if (gen !== generation) return
+              const current = ports.measure?.()
+              if (current) ports.applyScrollTop?.(current.scrollTop + delta)
+            },
+            () => gen !== generation
+          )
         }
       } finally {
         if (gen === generation) {
@@ -254,6 +278,45 @@ export function useReversePagination(options: UseReversePaginationOptions) {
       if (el) el.scrollTop = value
     },
     flush: () => nextTick(),
+    trackLateGrowth: (onGrowth, isStale) =>
+      new Promise<void>((resolve) => {
+        const initial = options.viewport.value
+        // 无容器 / 无 rAF 环境（测试、非渲染运行时）不追踪——补偿止步 flush 后量测
+        if (!initial || typeof requestAnimationFrame === 'undefined') {
+          resolve()
+          return
+        }
+        let last = initial.scrollHeight
+        let quietFrames = 0
+        let done = false
+        let capTimer: ReturnType<typeof setTimeout> | undefined
+        const finish = (): void => {
+          if (done) return
+          done = true
+          if (capTimer !== undefined) clearTimeout(capTimer)
+          resolve()
+        }
+        capTimer = setTimeout(finish, LATE_GROWTH_HARD_CAP_MS)
+        const tick = (): void => {
+          if (done) return
+          const el = options.viewport.value
+          if (!el || isStale()) {
+            finish()
+            return
+          }
+          const height = el.scrollHeight
+          if (height !== last) {
+            onGrowth(height - last)
+            last = height
+            quietFrames = 0
+          } else if ((quietFrames += 1) >= LATE_GROWTH_QUIET_FRAMES) {
+            finish()
+            return
+          }
+          requestAnimationFrame(tick)
+        }
+        requestAnimationFrame(tick)
+      }),
     setAutoFollowSuspended: (suspended) => {
       if (options.autoFollowSuspended) options.autoFollowSuspended.value = suspended
     }
