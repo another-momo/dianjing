@@ -103,7 +103,10 @@ watch(briefDialogOpen, (open) => {
     releaseThumbs()
   }
 })
-onBeforeUnmount(releaseThumbs)
+onBeforeUnmount(() => {
+  clearTimeout(savedTimer)
+  releaseThumbs()
+})
 
 function onOpenChange(open: boolean): void {
   if (!open) closeBriefDialog()

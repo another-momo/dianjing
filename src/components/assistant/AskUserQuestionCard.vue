@@ -299,6 +299,9 @@ function handleSkip() {
 const THUMBNAIL_RENDER_SIZE = 192
 const thumbnails = reactive<Record<string, string | null | undefined>>({})
 const createdUrls: string[] = []
+// 缩略图渲染是异步的：组件卸载后 await 才返回时，尾段的 createObjectURL
+// 会越过 onBeforeUnmount 的 revoke 永久泄漏——卸载即弃
+let unmounted = false
 
 const imageOptionList = computed(() =>
   questions.value.flatMap((question) => question.imageOptions ?? [])
@@ -323,6 +326,7 @@ async function loadThumbnail(option: AskImageOption) {
   const scale = THUMBNAIL_RENDER_SIZE / Math.max(node.width, node.height, 1)
   try {
     const data = await store.renderExportImage([option.nodeId], scale, 'PNG')
+    if (unmounted) return
     if (!data) {
       setThumbnail(option.nodeId, null)
       return
@@ -340,6 +344,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  unmounted = true
   for (const url of createdUrls) URL.revokeObjectURL(url)
 })
 
