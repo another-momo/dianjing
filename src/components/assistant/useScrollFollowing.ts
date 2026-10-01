@@ -42,22 +42,27 @@ const EXPLICIT_SCROLL_KEYS = new Set([
  *  CollapsibleTrigger，挂同款 data-slot） */
 const REASONING_TRIGGER_SELECTOR = '[data-slot="chat-reasoning-trigger"]'
 
-/** 帧句柄——有 rAF 环境为 number；无 rAF（bun/SSR）退化为 setTimeout 句柄。
- *  lib ES2023 钉版下 src 程序 setTimeout 解析为 NodeJS.Timeout，联合两个成分
- *  真实有别（type-aware 不会判重复） */
-type FrameHandle = number | ReturnType<typeof setTimeout>
+/** 帧句柄——rAF 环境与 setTimeout 退化两态判别对象。不用
+ *  `number | ReturnType<typeof setTimeout>` 联合：type-aware 全程序口径下
+ *  setTimeout 返回值解析随 lib 钉版漂移（钉 number 时联合去重规则误伤），
+ *  对象判别联合两成分永不同形，规则无从触发 */
+type FrameHandle =
+  | { kind: 'raf'; id: number }
+  | { kind: 'timeout'; id: ReturnType<typeof setTimeout> }
 
 /** 调用期解析 rAF——模块求值期捕获会让测试桩失效（bun 无 rAF 全局） */
 function scheduleFrame(callback: () => void): FrameHandle {
-  if (typeof requestAnimationFrame === 'function') return requestAnimationFrame(callback)
-  return setTimeout(callback, 16)
+  if (typeof requestAnimationFrame === 'function') {
+    return { kind: 'raf', id: requestAnimationFrame(callback) }
+  }
+  return { kind: 'timeout', id: setTimeout(callback, 16) }
 }
 
 function cancelFrame(handle: FrameHandle): void {
-  if (typeof cancelAnimationFrame === 'function' && typeof handle === 'number') {
-    cancelAnimationFrame(handle)
+  if (handle.kind === 'raf') {
+    if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(handle.id)
   } else {
-    clearTimeout(handle)
+    clearTimeout(handle.id)
   }
 }
 
