@@ -111,7 +111,9 @@ export function useScrollFollowing(
   }
 
   function scheduleFollow(): void {
-    // 抑制闸：LOAD_MORE 补偿期禁一切自动滚动（prepend 前扩期间贴底会破坏补偿）
+    // 抑制闸：LOAD_MORE 补偿期禁一切自动滚动（prepend 前扩期间贴底会破坏补偿）。
+    // 已排期的帧不回溯撤销（闸翻真前排到的帧仍会跑完）——回溯撤销引入取消竞态，
+    // 闸翻真后新帧一律被拦，补偿语义不受旧帧影响
     if (!following.value || options?.autoFollowSuspended?.value || frame !== undefined) return
     frame = scheduleFrame(() => {
       frame = undefined

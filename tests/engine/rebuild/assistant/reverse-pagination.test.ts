@@ -70,7 +70,7 @@ describe('sliceTurns 回合切片', () => {
     expect(sliced.map((turn) => turn.map((m) => m.id))).toEqual([['u1', 'a1a', 'a1b', 'a1c']])
   })
 
-  test('连续 user 消息各起新回合（空回合合法）', () => {
+  test('连续 user 消息各起新回合（单 user 无 assistant 的回合合法）', () => {
     const sliced = sliceTurns([msg('user', 'u1'), msg('user', 'u2'), msg('assistant', 'a2')])
     expect(sliced.map((turn) => turn.map((m) => m.id))).toEqual([['u1'], ['u2', 'a2']])
   })
@@ -216,7 +216,7 @@ describe('createReversePaginationCore 状态机', () => {
     viewportEl.scrollTop = options.scrollTop ?? 0
     const suspensionLog: boolean[] = []
     const applied: number[] = []
-    let releaseFlush: (() => void) | null = null
+    const flushQueue: Array<() => void> = []
     const core = createReversePaginationCore({
       windowTurnCount,
       totalTurns: () => total,
@@ -231,7 +231,7 @@ describe('createReversePaginationCore 状态机', () => {
       },
       flush: () =>
         new Promise<void>((resolve) => {
-          releaseFlush = resolve
+          flushQueue.push(resolve)
         }),
       setAutoFollowSuspended: (suspended) => suspensionLog.push(suspended),
       ...(options.pageSize === undefined ? {} : { pageSize: options.pageSize })
@@ -245,10 +245,16 @@ describe('createReversePaginationCore 状态机', () => {
       setTotal: (value: number) => {
         total = value
       },
-      /** 放行 flush 并消化补偿回写续体 */
+      /** 放行全部在途 flush 并消化补偿回写续体 */
       async settle(): Promise<void> {
-        releaseFlush?.()
-        releaseFlush = null
+        const pending = flushQueue.splice(0)
+        for (const release of pending) release()
+        await Promise.resolve()
+        await Promise.resolve()
+      },
+      /** 只放行最早一个在途 flush（交错代际时序：旧 flush 落定而新 flush 仍在途） */
+      async settleOldest(): Promise<void> {
+        flushQueue.shift()?.()
         await Promise.resolve()
         await Promise.resolve()
       }
@@ -329,6 +335,35 @@ describe('createReversePaginationCore 状态机', () => {
     await h.settle()
     await next
     expect(h.applied).toEqual([50 + 2000])
+  })
+
+  test('交错代际：reset 后新 loadMore 在途，旧 flush 落定不回写也不抢新代际的锁', async () => {
+    const h = makeHarness({ totalTurns: 45, scrollTop: 50 })
+    // 代际 0 在途（flush 未落定）
+    const stale = h.core.maybeLoadMore()
+    expect(h.windowTurnCount.value).toBe(40)
+    // reset → 代际 1：窗口复位、锁清、抑制清
+    h.core.reset()
+    expect(h.suspensionLog).toEqual([true, false])
+    // 代际 1 新 loadMore 启动（旧 flush 仍未落定）
+    const fresh = h.core.maybeLoadMore()
+    expect(h.windowTurnCount.value).toBe(40)
+    expect(h.core.isLoadingMore).toBe(true)
+    expect(h.suspensionLog).toEqual([true, false, true])
+    // 旧 flush 落定：陈旧代际跳回写、跳解锁——新代际的锁与抑制不受影响
+    h.viewportEl.scrollHeight = 3000
+    await h.settleOldest()
+    await stale
+    expect(h.applied).toEqual([])
+    expect(h.core.isLoadingMore).toBe(true)
+    expect(h.suspensionLog).toEqual([true, false, true])
+    // 新 flush 落定：正常补偿回写、解锁、清抑制
+    await h.settle()
+    await fresh
+    expect(h.applied).toEqual([2050])
+    expect(h.viewportEl.scrollTop).toBe(2050)
+    expect(h.core.isLoadingMore).toBe(false)
+    expect(h.suspensionLog).toEqual([true, false, true, false])
   })
 })
 
@@ -437,6 +472,9 @@ describe('useReversePagination Vue 接线', () => {
     await nextTick()
     expect(rig.windowMessages.value).toHaveLength(40)
     expect(rig.hasMore.value).toBe(true)
+    // 复位全契约：锁清、跟随抑制不残留
+    expect(rig.core.isLoadingMore).toBe(false)
+    expect(rig.autoFollowSuspended.value).toBe(false)
   })
 })
 

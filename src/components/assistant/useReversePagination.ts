@@ -100,12 +100,15 @@ export function shouldTriggerLoadMore(
   return state.scrollTop < LOAD_MORE_TRIGGER_PX
 }
 
-/** 补偿换算：prepend 前后测量 → 回写 scrollTop（视觉位置不动） */
+/**
+ * 补偿换算：prepend 前后测量 → 回写 scrollTop（视觉位置不动）。取整回写——
+ * 浏览器对 scrollTop 截断取整，浮点直写在缩放场景留亚像素跳变。
+ */
 export function computeCompensatedScrollTop(
   before: Pick<ScrollGeometry, 'scrollTop' | 'scrollHeight'>,
   after: Pick<ScrollGeometry, 'scrollHeight'>
 ): number {
-  return before.scrollTop + (after.scrollHeight - before.scrollHeight)
+  return Math.round(before.scrollTop + (after.scrollHeight - before.scrollHeight))
 }
 
 export interface ReversePaginationPorts {
@@ -181,6 +184,9 @@ export function createReversePaginationCore(ports: ReversePaginationPorts): Reve
       if (next === null) return
       // 补偿量测在前——窗口数组前扩会改 scrollHeight，before 必须取变更前值
       const before = ports.measure?.() ?? null
+      // 无容器可测（直调 loadMore 且 viewport 未挂）→ 补偿不可能，不扩窗直接退——
+      // 扩了窗却无补偿，容器重现时视口停在顶部等同下跳一整段 prepend 高度
+      if (!before) return
       const gen = generation
       ports.windowTurnCount.value = next
       // 防重入③：窗口已扩、flush 未落定的窗口期置锁——滚动事件/sentinel 连发全拒
@@ -190,7 +196,9 @@ export function createReversePaginationCore(ports: ReversePaginationPorts): Reve
         await ports.flush()
         if (gen !== generation) return
         const after = ports.measure?.() ?? null
-        if (before && after) {
+        // after 落空 = flush 期间容器消失（切会话已被上方代际守卫拦下，余下路径
+        // 无可视位置可保）——跳过补偿
+        if (after) {
           ports.applyScrollTop?.(computeCompensatedScrollTop(before, after))
         }
       } finally {
@@ -265,7 +273,9 @@ export function useReversePagination(options: UseReversePaginationOptions) {
     (el, _prev, onCleanup) => {
       if (!el) return
       const onScroll = (): void => {
-        void core.maybeLoadMore()
+        // 滚动回调吞 rejection——注入 flush 若被破坏，异常不得沿滚动事件炸成
+        // unhandledrejection（观测永不打断应用，与 dom-meters 同口径）
+        void core.maybeLoadMore().catch(() => undefined)
       }
       el.addEventListener('scroll', onScroll, { passive: true })
       onCleanup(() => el.removeEventListener('scroll', onScroll))
