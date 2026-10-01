@@ -27,7 +27,8 @@ import {
   isScrolledToBottom,
   shouldTriggerLoadMore,
   sliceTurns,
-  useReversePagination
+  useReversePagination,
+  type ReversePaginationPorts
 } from '@/components/assistant/useReversePagination'
 import { useScrollFollowing } from '@/components/assistant/useScrollFollowing'
 
@@ -224,7 +225,7 @@ describe('createReversePaginationCore 状态机', () => {
       isStale: () => boolean
       release: () => void
     }> = []
-    const core = createReversePaginationCore({
+    const ports: ReversePaginationPorts = {
       windowTurnCount,
       totalTurns: () => total,
       measure: () => ({
@@ -240,17 +241,16 @@ describe('createReversePaginationCore 状态机', () => {
         new Promise<void>((resolve) => {
           flushQueue.push(resolve)
         }),
-      setAutoFollowSuspended: (suspended) => suspensionLog.push(suspended),
-      ...(options.withLateGrowth
-        ? {
-            trackLateGrowth: (onGrowth: (delta: number) => void, isStale: () => boolean) =>
-              new Promise<void>((resolve) => {
-                lateGrowthCalls.push({ onGrowth, isStale, release: resolve })
-              })
-          }
-        : {}),
-      ...(options.pageSize === undefined ? {} : { pageSize: options.pageSize })
-    })
+      setAutoFollowSuspended: (suspended) => suspensionLog.push(suspended)
+    }
+    if (options.withLateGrowth) {
+      ports.trackLateGrowth = (onGrowth, isStale) =>
+        new Promise<void>((resolve) => {
+          lateGrowthCalls.push({ onGrowth, isStale, release: resolve })
+        })
+    }
+    if (options.pageSize !== undefined) ports.pageSize = options.pageSize
+    const core = createReversePaginationCore(ports)
     return {
       core,
       windowTurnCount,

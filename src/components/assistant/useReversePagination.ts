@@ -281,27 +281,29 @@ export function useReversePagination(options: UseReversePaginationOptions) {
     trackLateGrowth: (onGrowth, isStale) =>
       new Promise<void>((resolve) => {
         const initial = options.viewport.value
+        let done = false
+        const finish = (): void => {
+          if (done) return
+          done = true
+          resolve()
+        }
         // 无容器 / 无 rAF 环境（测试、非渲染运行时）不追踪——补偿止步 flush 后量测
         if (!initial || typeof requestAnimationFrame === 'undefined') {
-          resolve()
+          finish()
           return
         }
         let last = initial.scrollHeight
         let quietFrames = 0
-        let done = false
-        let capTimer: ReturnType<typeof setTimeout> | undefined
-        const finish = (): void => {
-          if (done) return
-          done = true
-          if (capTimer !== undefined) clearTimeout(capTimer)
-          resolve()
+        const capTimer = setTimeout(finish, LATE_GROWTH_HARD_CAP_MS)
+        const finishEarly = (): void => {
+          clearTimeout(capTimer)
+          finish()
         }
-        capTimer = setTimeout(finish, LATE_GROWTH_HARD_CAP_MS)
         const tick = (): void => {
           if (done) return
           const el = options.viewport.value
           if (!el || isStale()) {
-            finish()
+            finishEarly()
             return
           }
           const height = el.scrollHeight
@@ -310,7 +312,7 @@ export function useReversePagination(options: UseReversePaginationOptions) {
             last = height
             quietFrames = 0
           } else if ((quietFrames += 1) >= LATE_GROWTH_QUIET_FRAMES) {
-            finish()
+            finishEarly()
             return
           }
           requestAnimationFrame(tick)
