@@ -22,7 +22,11 @@ import {
   type Skill
 } from '@earendil-works/pi-coding-agent'
 
-import { createActiveDesignHost, type ActiveDesignBridgeIO } from '../active-design-host'
+import {
+  createActiveDesignHost,
+  type ActiveDesignBridgeIO,
+  type TurnAssembly
+} from '../active-design-host'
 import { createAskPendingGuardExtension } from '../ask/pending-guard'
 import { createAskUserQuestionTool } from '../ask/user-question'
 import {
@@ -30,7 +34,7 @@ import {
   createAuthzNoticeSink,
   type AuthzNoticeSink
 } from '../authz-guard'
-import type { CapabilitiesStore } from '../capabilities'
+import type { BuiltinToolsLevel, CapabilitiesStore } from '../capabilities'
 import { createExportImageToFileTool } from '../export-image-to-file'
 import type { ImageGenCredentialStore } from '../image-gen/credentials'
 import { createImageGenTool } from '../image-gen/generate'
@@ -69,6 +73,57 @@ export function sameModelSpec(a: ModelSpec, b: ModelSpec): boolean {
   const thinking = (spec: ModelSpec) =>
     spec.thinkingLevel && spec.thinkingLevel !== 'off' ? spec.thinkingLevel : undefined
   return a.providerId === b.providerId && a.modelId === b.modelId && thinking(a) === thinking(b)
+}
+
+/**
+ * T60 回合组装钩子（before_agent_start）：systemPrompt per-run 整段替换为
+ * host 回合组装产物，contextLines 经 result.message custom 通道进 context
+ * （convertToLlm 转 user role 进模型上下文，不进 UI 流/历史回填）。runner
+ * 链式语义：run 后回基底（agent-session.js emitBeforeAgentStart / else
+ * 分支复位）。整段替换导致 SDK buildSystemPrompt 拼出的 <available_skills>
+ * 段被吞——模型从未收到 skills 清单，自动触发失效；故按 SDK 同口径
+ * （formatSkillsForPrompt + 仅工具集非 off 档时拼）手动拼回尾段。
+ *
+ * 导出工厂形（2026-10-01 CI 红修复）：bun mock.module 为 hoist + 全进程
+ * 注册表语义，套件模式下共享消费方（本模块）的 specifier 绑定归首个加载
+ * 它的测试文件的桩所有——走 assembleSession 整链的钉扎在套件内不可确定
+ * 复现（实证：本测试单跑绿、与同域四文件同跑时本模块的
+ * DefaultResourceLoader 被换成别家无 getSkills 的空桩）。钩子逻辑抽为
+ * 显式依赖注入工厂，测试绕开 specifier 打桩直取本工厂 + 自构真 loader。
+ */
+export function createTurnAssemblyExtension(deps: {
+  /** host.turnAssembly——回合外/未 prepareTurn 时为 null，钩子不替换（返回 undefined） */
+  turnAssembly: () => TurnAssembly | null
+  /** skills 清单段（SDK 同口径 formatSkillsForPrompt 产物；空串不拼） */
+  skillsSection: () => string
+  /** capabilities.builtinTools 档位——'off' 档不拼 skills 段 */
+  builtinToolsMode: BuiltinToolsLevel
+}): InlineExtension {
+  return (pi) => {
+    pi.on('before_agent_start', () => {
+      const turn = deps.turnAssembly()
+      if (!turn) return undefined
+      let systemPrompt = turn.systemPrompt
+      if (deps.builtinToolsMode !== 'off') {
+        const skillsSection = deps.skillsSection()
+        if (skillsSection.length > 0) {
+          systemPrompt = `${systemPrompt}${skillsSection}`
+        }
+      }
+      return {
+        systemPrompt,
+        ...(turn.contextLines.length > 0
+          ? {
+              message: {
+                customType: 'active-design-context',
+                content: turn.contextLines.join('\n'),
+                display: false
+              }
+            }
+          : {})
+      }
+    })
+  }
 }
 
 /** createSession 装配上下文宽参——工厂闭包内已 resolve 好的依赖与目录 */
@@ -271,47 +326,20 @@ export async function assembleSession(
   // 提前至此：assembly 钩子要按档位判定拼不拼 skills 段（关闭 builtins 档
   // 不拼，与 SDK 自定义 prompt 分支 hasRead 判定一致）。
   const builtinToolsMode = capabilitiesStore.get().builtinTools
-  // 提前声明：装配链下方 SettingsManager 之后才会赋值；assembly factory
-  // 闭包捕获，钩子触发（reload 之后）时一定已赋值。延迟 let 是为了把 assembly
+  // 提前声明：装配链下方 SettingsManager 之后才会赋值；skillsSection 闭包
+  // 捕获，钩子触发（reload 之后）时一定已赋值。延迟 let 是为了把 assembly
   // 钩子注册保持在最前——SDK runner 按注册序串行调 handler，钩子替换
   // systemPrompt 必须先跑，后续 guard 不受影响。
   // oxlint-disable-next-line prefer-const -- 延迟赋值：声明须先于钩子注册，赋值在下方构造点
   let resourceLoader: DefaultResourceLoader
-  // T60：每回合组装 = active-design-host prepareTurn 产出的
-  // { systemPrompt, contextLines }；本钩子只做搬运（systemPrompt per-run 替换，
-  // contextLines 经 result.message custom 通道进 context——convertToLlm 转
-  // user role 进模型上下文，不进 UI 流/历史回填）。runner 链式语义：run 后
-  // 回基底（agent-session.js emitBeforeAgentStart / else 分支复位）。
-  // 整段替换导致 SDK buildSystemPrompt 拼出的 <available_skills> 段被吞——
-  // 模型从未收到 skills 清单，自动触发失效。手动按 SDK 同口径
-  // （formatSkillsForPrompt + 仅工具集含 read 时拼）拼回尾段；数据源 =
+  // 钩子逻辑单源 = createTurnAssemblyExtension（头注）；数据源 =
   // resourceLoader.getSkills().skills（skillsOverride 已按 baseDir 白名单过滤，
-  // disable-model-invocation 由 formatSkillsForPrompt 内部剔除）。
-  const assembly: InlineExtension = (pi) => {
-    pi.on('before_agent_start', () => {
-      const turn = host.turnAssembly()
-      if (!turn) return undefined
-      let systemPrompt = turn.systemPrompt
-      if (builtinToolsMode !== 'off') {
-        const skillsSection = formatSkillsForPrompt(resourceLoader.getSkills().skills)
-        if (skillsSection.length > 0) {
-          systemPrompt = `${systemPrompt}${skillsSection}`
-        }
-      }
-      return {
-        systemPrompt,
-        ...(turn.contextLines.length > 0
-          ? {
-              message: {
-                customType: 'active-design-context',
-                content: turn.contextLines.join('\n'),
-                display: false
-              }
-            }
-          : {})
-      }
-    })
-  }
+  // disable-model-invocation 由 formatSkillsForPrompt 内部剔除）
+  const assembly: InlineExtension = createTurnAssemblyExtension({
+    turnAssembly: () => host.turnAssembly(),
+    skillsSection: () => formatSkillsForPrompt(resourceLoader.getSkills().skills),
+    builtinToolsMode
+  })
   const extensionFactories: InlineExtension[] = [assembly]
   // 2026-09-15：ask_user_question 挂起期 tool_call guard——pending 期间拦截
   // 非 ask 工具调用，强制模型停手等本工具结果返回（避免模型在前端作答
