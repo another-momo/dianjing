@@ -5,7 +5,7 @@
  * （免 ExtensionAPI 桩件与类型断言）。fixture = 纯字符串路径运算（无真实 IO），
  * homeDir 注入 root（好测 ~ 展开命中凭据的情形）。
  *
- * 覆盖 17 用例：read 4 件 + 5 关键放行 + edit/write + grep 6 形态 + ls/find/bash/custom + 非 string path；
+ * 覆盖 17 用例：read 5 件 + 5 关键放行 + edit/write + grep 6 形态 + ls/find/bash/custom + 非 string path；
  * 2026-09-18 P0-3 追加读侧敏感名单扩面用例（.ssh/.aws/.env/.pem 命中与不命中、写侧面不动）。
  */
 
@@ -31,6 +31,8 @@ const IMAGE_GEN_JSON = resolve(AGENT_DIR, 'image-gen.json')
 const MCP_CONNECTIONS_JSON = resolve(AGENT_DIR, 'mcp-connections.json')
 const KEY_ENV = resolve(ROOT, 'key-env')
 const PI_BACKEND_TOKEN = resolve(ROOT, 'pi-backend-token')
+// 2026-09-29 缺口 2.1 补登：桥发现文件（rootDir 直下第六件，明文桥鉴权 token）
+const BRIDGE_JSON = resolve(ROOT, 'bridge.json')
 
 const READ_DENY_REASON =
   'Access denied: this path stores API credentials/tokens and is protected from agent access. ' +
@@ -53,13 +55,14 @@ function makeHandler() {
 }
 
 describe('protectedCredentialFiles', () => {
-  test('五件绝对路径单源——与 paths.ts resolver 同根', () => {
+  test('六件绝对路径单源——与 paths.ts resolver 同根', () => {
     expect(protectedCredentialFiles(ROOT)).toEqual([
       KEY_ENV,
       PI_BACKEND_TOKEN,
       AUTH_JSON,
       IMAGE_GEN_JSON,
-      MCP_CONNECTIONS_JSON
+      MCP_CONNECTIONS_JSON,
+      BRIDGE_JSON
     ])
   })
 })
@@ -95,9 +98,15 @@ describe('createKeyGuardHandler — read / edit / write 路径守卫', () => {
     })
   })
 
-  test('read 绝对 key-env / pi-backend-token / pi-agent/image-gen.json / pi-agent/mcp-connections.json → 各 block', () => {
+  test('read 绝对 key-env / pi-backend-token / pi-agent/image-gen.json / pi-agent/mcp-connections.json / bridge.json → 各 block', () => {
     const handler = makeHandler()
-    for (const target of [KEY_ENV, PI_BACKEND_TOKEN, IMAGE_GEN_JSON, MCP_CONNECTIONS_JSON]) {
+    for (const target of [
+      KEY_ENV,
+      PI_BACKEND_TOKEN,
+      IMAGE_GEN_JSON,
+      MCP_CONNECTIONS_JSON,
+      BRIDGE_JSON
+    ]) {
       expect(handler({ toolName: 'read', input: { path: target } })).toEqual({
         block: true,
         reason: READ_DENY_REASON
@@ -259,7 +268,7 @@ describe('createKeyGuardHandler — 读侧敏感名单扩面（2026-09-18 broker
   })
 
   test('grep path=homeDir（敏感目录祖先，搜索会捞出 .ssh/.aws 内容）→ block', () => {
-    // homeDir 独立于 rootDir——避开凭据四件祖先命中（凭据 reason 优先），
+    // homeDir 独立于 rootDir——避开凭据名单祖先命中（凭据 reason 优先），
     // 纯钉敏感名单祖先方向
     const home = resolve(ROOT, 'home')
     const handler = createKeyGuardHandler({ rootDir: ROOT, cwd: WORKSPACE, homeDir: home })
@@ -413,14 +422,14 @@ describe('createKeyGuardHandler — 写侧 deny pi-agent/** 与 workspace/.pi/**
     })
   })
 
-  test('read pi-agent/settings.json → 仍放行（不扩读侧——读侧维持凭据四件原口径）', () => {
+  test('read pi-agent/settings.json → 仍放行（不扩读侧——settings.json 非凭据名单成员）', () => {
     const handler = makeHandler()
     expect(
       handler({ toolName: 'read', input: { path: resolve(AGENT_DIR, 'settings.json') } })
     ).toBeUndefined()
   })
 
-  test('read pi-agent/auth.json → 仍 block（凭据四件读侧维持）', () => {
+  test('read pi-agent/auth.json → 仍 block（凭据名单读侧维持）', () => {
     const handler = makeHandler()
     expect(handler({ toolName: 'read', input: { path: AUTH_JSON } })).toEqual({
       block: true,
@@ -430,7 +439,7 @@ describe('createKeyGuardHandler — 写侧 deny pi-agent/** 与 workspace/.pi/**
 
   test('write pi-agent/auth.json → block（facet 面先于凭据命中，reason = facet）', () => {
     const handler = makeHandler()
-    // 凭据四件在 pi-agent/ 子树，facet 写侧 deny 先于凭据命中——理由走
+    // 凭据名单中 pi-agent/ 子树成员，facet 写侧 deny 先于凭据命中——理由走
     // facet 而非凭据（实测更准：路径是「在 pi-agent/ 下」而非「凭据文件本身」）
     expect(handler({ toolName: 'write', input: { path: AUTH_JSON } })).toEqual({
       block: true,

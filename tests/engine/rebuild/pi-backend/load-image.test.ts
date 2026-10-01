@@ -6,7 +6,7 @@
  *  - 路径判定（2026-09-19 A线尾单件1 翻正）：workspace 子树 allow（含相对
  *    路径按 workspace cwd 解析）/ 界外静默 allow（rootDir 一级真实文件过桥；
  *    盘外不存在路径落到 fs 层 File not found 而非 denied）/ workspace/.agents、
- *    .pi 读侧放行（写侧三根不拦读）/ 敏感名单硬拒（凭据四件、~/.ssh/**、
+ *    .pi 读侧放行（写侧三根不拦读）/ 敏感名单硬拒（凭据名单、~/.ssh/**、
  *    workspace 内 .env 过挡、*.pem）
  *  - fs 三态：文件不存在 / 是目录 / 字节上限 50MB
  *  - 格式嗅探矩阵：png/jpeg/webp/gif/bmp/svg magic+扩展名双证通过；
@@ -158,14 +158,15 @@ describe('路径判定（A线尾单件1：界内界外 allow + 名单硬拒）',
     expect(stub.calls).toHaveLength(0)
   })
 
-  test('凭据五件（key-env / pi-backend-token / pi-agent/auth.json / image-gen.json / mcp-connections.json）→ deny（文件即使不存在也先拒）', async () => {
+  test('凭据六件（key-env / pi-backend-token / pi-agent/auth.json / image-gen.json / mcp-connections.json / bridge.json）→ deny（文件即使不存在也先拒）', async () => {
     const stub = bridgeStub()
     for (const target of [
       join(rootDir, 'key-env'),
       join(rootDir, 'pi-backend-token'),
       join(rootDir, 'pi-agent', 'auth.json'),
       join(rootDir, 'pi-agent', 'image-gen.json'),
-      join(rootDir, 'pi-agent', 'mcp-connections.json')
+      join(rootDir, 'pi-agent', 'mcp-connections.json'),
+      join(rootDir, 'bridge.json')
     ]) {
       const d = await details(makeTool(stub), { file_path: target })
       expect(d.reason).toBe('denied')

@@ -321,7 +321,9 @@ export async function assembleSession(
   extensionFactories.push(createAskPendingGuardExtension(decisionStore, sessionId))
   // 2026-09-16 key 守卫 A 案：tool_call 拦内建文件工具对凭据四件（auth.json /
   // image-gen.json / key-env / pi-backend-token）的读/写/搜——详见
-  // key-guard.ts 头注与仓外预研稿 docs/202609151649-pi-agent-key-file-guard-research.md
+  // key-guard.ts 头注与仓外预研稿
+  // docs/archieve/202609151649-pi-agent-key-file-guard-research.md（已归档冻结；
+  // 现行覆盖面与缺口 = 仓外 docs/202609291049-pi-agent-credential-guard-state.md）
   extensionFactories.push(createKeyGuardExtension({ rootDir, cwd: workspaceDir }))
   // 2026-09-19 broker P0-2 shadow 观测：只记录不拦截（broker-shadow.jsonl 落
   // rootDir），注册序须在 key-guard 之后——emitToolCall 遇 block 短路

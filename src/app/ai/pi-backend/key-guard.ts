@@ -6,7 +6,8 @@
  * 关闭后已惰性，防上游语义漂移）。2026-09-18 userdata 重排再扩
  * `workspace/.agents/**`（用户扩展层移入 workspace 后的新增自植面，与目录
  * 启用同批落地，无空窗）。预研与拍板 = 仓外
- * docs/202609151649-pi-agent-key-file-guard-research.md。
+ * docs/archieve/202609151649-pi-agent-key-file-guard-research.md（已归档冻结）；
+ * 现行覆盖面与缺口 = 仓外 docs/202609291049-pi-agent-credential-guard-state.md。
  *
  * 装配位 = service.ts 的 extensionFactories（InlineExtension 数组）——
  * 沿用 createAskPendingGuardHandler / createAskPendingGuardExtension 同构：
@@ -25,13 +26,15 @@
  *    不与本案的 pi-agent/** / workspace/.pi/** 写侧 deny 面重合（写侧
  *    仅拦 agent tool_call 路径，SDK 自身 IO 不受影响）。
  *
- * 凭据五件（在 rootDir 下）：
+ * 凭据六件（在 rootDir 下）：
  *  - pi-agent/auth.json（provider key 明文）
  *  - pi-agent/image-gen.json（image-gen apiKey 明文，image-gen/credentials.ts:63）
  *  - pi-agent/mcp-connections.json（MCP 接入阶段 1 凭据：headers/env 值含第三方
  *    key，名单五件化；mcp-connections/store.ts）
  *  - key-env（自助注入文件）
  *  - pi-backend-token（standalone 模式鉴权 token）
+ *  - bridge.json（桥发现文件，rootDir 直下：明文桥鉴权 token，写盘单源
+ *    bridge/server/discovery.ts——2026-09-29 现状稿缺口 2.1 补登）
  *
  * 写侧 deny 面（在 rootDir 下）：
  *  - pi-agent/**（settings.json / SYSTEM.md / APPEND_SYSTEM.md / extensions /
@@ -162,9 +165,9 @@ export function createKeyGuardHandler(opts: {
       if (typeof path !== 'string') return undefined
       const normalized = normalizePath(path, opts.cwd, homeDir)
       // 写侧：先看 pi-agent/** / workspace/.pi/** deny 面（理由 = facet 防自植，
-      // 区别于凭据四件——凭据四件在 pi-agent/ 下但路径更具体、reason 文案不同）；
-      // 该面命中即拒，与凭据四件是否命中无关（凭据四件本身也在 pi-agent/ 下，
-      // 先拒 facet 面更快、reason 更准）
+      // 区别于凭据名单——凭据名单是文件级精确命中、reason 文案不同）；该面命中
+      // 即拒，与凭据名单是否命中无关（名单 pi-agent/ 三件本身也在 pi-agent/ 下，
+      // 先拒 facet 面更快、reason 更准；bridge.json 在 rootDir 直下不经此面）
       if (toolName !== 'read' && isWriteHit(normalized, writeProtectedNormalized)) {
         return { block: true, reason: WRITE_PROTECTED_FACET_REASON }
       }
