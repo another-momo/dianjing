@@ -577,7 +577,7 @@ describe('useReversePagination Vue 接线', () => {
       await nextTick()
       expect(rig.viewportEl.scrollTop).toBe(2050)
       // 破坏 scrollTop 写入通路（补偿回调将抛错）
-      let currentTop = 2050
+      const currentTop = 2050
       Object.defineProperty(rig.viewportEl, 'scrollTop', {
         get: () => currentTop,
         set: () => {
