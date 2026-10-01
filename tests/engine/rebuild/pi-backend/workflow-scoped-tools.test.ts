@@ -16,7 +16,7 @@
  *     compose_backdrop / general 与其他 mode 两件都不在；输出保持基线序
  *  4. host 回合组装把 resolvedWorkflow.tools 透传进 TurnAssembly.tools
  *  5. 钩子覆盖关系与注册序：真 SDK 在干净子进程探针里跑（同目录
- *     workflow-scoped-tools-probe.ts——bun mock.module 全进程共享，钉真 SDK
+ *     helpers.ts 的 workflow 探针分支——bun mock.module 全进程共享，钉真 SDK
  *     行为不进套件进程）。钉：setActiveToolsByName 后 SDK 重建 base prompt
  *     接管 state.systemPrompt；下一回合装配钩子（extensionFactories 排第一，
  *     emit 按注册序串行链式覆盖）整段替换赢回——state.systemPrompt 含
@@ -37,7 +37,7 @@ import { loadStudioFromDirs } from '@/app/ai/pi-backend/studio'
 import { createOpenPencilTools } from '@/app/ai/pi-backend/tools'
 
 const BUILTIN_DIR = join(import.meta.dir, '../../../../src/app/ai/pi-backend/studio')
-const PROBE_SCRIPT = join(import.meta.dir, 'workflow-scoped-tools-probe.ts')
+const PROBE_SCRIPT = join(import.meta.dir, 'helpers.ts')
 
 const HERO_TOOLS = ['compose_backdrop', 'prepare_hero_scaffold']
 const STRUCTURE_TOOLS = ['compose_backdrop']
