@@ -90,6 +90,11 @@ export function sameModelSpec(a: ModelSpec, b: ModelSpec): boolean {
  * 复现（实证：本测试单跑绿、与同域四文件同跑时本模块的
  * DefaultResourceLoader 被换成别家无 getSkills 的空桩）。钩子逻辑抽为
  * 显式依赖注入工厂，测试绕开 specifier 打桩直取本工厂 + 自构真 loader。
+ *
+ * 覆盖边界声明（2026-10-01 独立 review P2-2 裁决）：本工厂的单元钉扎不
+ * 覆盖 assembleSession 内的生产接线（skillsSection 闭包 / host 绑定 / 档位
+ * 快照）——接线正确性由 CI 冒烟链（PI_PROMPT_PROBE_DIR 探针路径走真实
+ * 装配）与推送前 review 兜底。
  */
 export function createTurnAssemblyExtension(deps: {
   /** host.turnAssembly——回合外/未 prepareTurn 时为 null，钩子不替换（返回 undefined） */

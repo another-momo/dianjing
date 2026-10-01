@@ -34,7 +34,9 @@ function capDisplayLines(text: string): string {
   const lines = text.split('\n')
   if (lines.length <= MAX_DISPLAY_LINES) return text
   const kept = lines.slice(0, MAX_DISPLAY_LINES).join('\n')
-  return `${kept}\n已截断 ${text.length - kept.length} 字符`
+  // 尾注英文与相邻 [omitted N chars] 占位符同口径（聊天 UI 文案统一英文）；
+  // 截去量 = 全文 − 保留 − 分界换行符 1 字符
+  return `${kept}\n[truncated ${text.length - kept.length - 1} chars]`
 }
 
 export function displayToolOutput(part: ToolOutputDisplayInput): string {

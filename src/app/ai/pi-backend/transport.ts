@@ -95,6 +95,11 @@ export class PiBackendChatTransport implements ChatTransport<UIMessage> {
  * 尾帧与清理对称性：close 路径（[DONE] / 源流 done / abort 静默收束）先
  * flush 残余攒帧再 close——尾帧不丢；cancel 路径对称 cancelAnimationFrame
  * 并放行挂起的 pull，不留悬空等待。
+ *
+ * 后台标签页语义（设计取舍非缺陷）：隐藏页 rAF 停火 → 闸等待阻塞
+ * reader.read() → 流整体 stall（TCP 背压兜底，frameBatch 上界 = 已读
+ * buffer 内完整帧数，内存有界）；回前台 rAF 恢复后正常续跑。无 rAF
+ * 环境（bun/SSR）退化为逐帧即时 enqueue（保流式增量语义，不排闸）。
  */
 function parseSSEChunkStream(body: ReadableStream<Uint8Array>): ReadableStream<UIMessageChunk> {
   const reader = body.getReader()
@@ -142,14 +147,23 @@ function parseSSEChunkStream(body: ReadableStream<Uint8Array>): ReadableStream<U
               controller.close()
               return
             }
-            // T27：坏帧（代理串扰/后端半截写）跳过即可——单帧损坏不应击穿整段流
+            // T27：坏帧（代理串扰/后端半截写）跳过即可——单帧损坏不应击穿整段流；
+            // catch 只兜 parse（rAF 调度在 try 外，调度异常不会被误报成坏帧）
+            let chunk: UIMessageChunk
             try {
-              frameBatch.push(JSON.parse(data) as UIMessageChunk)
-              if (rafId === null) {
-                rafId = requestAnimationFrame(() => releaseBatch(controller))
-              }
+              chunk = JSON.parse(data) as UIMessageChunk
             } catch {
               console.warn('[pi-transport] 跳过无法解析的 SSE 帧（已丢弃该帧，流继续）')
+              continue
+            }
+            if (typeof requestAnimationFrame !== 'function') {
+              // 无 rAF 环境直放行（不排闸，保流式增量语义）
+              controller.enqueue(chunk)
+              continue
+            }
+            frameBatch.push(chunk)
+            if (rafId === null) {
+              rafId = requestAnimationFrame(() => releaseBatch(controller))
             }
           }
           continue

@@ -2510,7 +2510,7 @@
     {
       "id": "P397",
       "file": "tests/e2e/chat/reasoning.spec.ts",
-      "reason": "chat-dom-governance 批A（2026-10-01）：reasoning 折叠回 unmountOnHide 默认值（收起即真卸载）后，收起态断言改钉正文节点计数 0（toHaveCount(0) 确定性断言，替代卸载形态下会等一个永不复现元素的 animationName poll）——while-thinking 自动收起 + 手动收起两路径",
+      "reason": "chat-dom-governance 批A（2026-10-01）：reasoning 折叠回 unmountOnHide 默认值（收起即真卸载）后，收起态断言钉外壳子元素计数 0——reka CollapsibleContent 外壳常驻属库行为（L3 实测：正文树卸载为 v-if 注释锚，空壳 ≈435B/条），断言锚 = 正文树零元素节点（替代卸载形态下会等一个永不复现元素的 animationName poll）——while-thinking 自动收起 + 手动收起两路径",
       "disposition": "permanent",
       "lastReviewed": "2026-10-01",
       "task": "chat-dom-governance"

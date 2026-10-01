@@ -134,6 +134,8 @@ describe('session 装配 skills 段拼回钉扎（钩子产物）', () => {
     const finalPrompt = result?.systemPrompt
     if (typeof finalPrompt !== 'string') throw new Error('钩子未返回 systemPrompt 替换值')
 
+    // 整段替换语义反向钉：原 prompt 不复存在（钩子退化为 append/merge 时红）
+    expect(finalPrompt).not.toContain('SDK-ORIGINAL-PROMPT')
     expect(finalPrompt).toContain('PIN-BASE-BODY')
     expect(finalPrompt).toContain('<available_skills')
     expect(finalPrompt).toContain(SKILL_NAME)

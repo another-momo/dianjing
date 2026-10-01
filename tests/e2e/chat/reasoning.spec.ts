@@ -15,8 +15,9 @@ test('expand while thinking auto-collapses but preserves manual opening', async 
   await expect(trigger).toHaveAttribute('aria-expanded', 'true')
   await finishReasoning(page)
   await expect(trigger).toHaveAttribute('aria-expanded', 'false')
-  // 收起即真卸载：自动收起后正文节点从 DOM 摘除（reka unmountOnHide 默认 true）
-  await expect(page.locator('[data-slot="chat-reasoning-content"]')).toHaveCount(0)
+  // 收起即真卸载：正文树从 DOM 摘除——reka CollapsibleContent 外壳常驻是
+  // 库行为（空壳无正文子元素），断言锚 = 外壳子元素计数 0
+  await expect(page.locator('[data-slot="chat-reasoning-content"] > *')).toHaveCount(0)
   await chat.submit('Inspect it again')
   await expect(trigger).toHaveAttribute('aria-expanded', 'true')
   await trigger.click()
@@ -78,9 +79,9 @@ test('reasoning preferences use AI settings and persist across reload', async ({
   await expect(trigger).toHaveAttribute('aria-expanded', 'true')
   await trigger.click()
   await expect(trigger).toHaveAttribute('aria-expanded', 'false')
-  // 收起即真卸载：离场过渡结束后正文节点从 DOM 摘除（reka unmountOnHide 默认
-  // true）——hidden 滞留 DOM 是聊天 DOM 无界增长的头部来源，此处钉节点计数 0
-  await expect(page.locator('[data-slot="chat-reasoning-content"]')).toHaveCount(0)
+  // 收起即真卸载：离场过渡结束后正文树从 DOM 摘除——hidden 滞留正文是
+  // 聊天 DOM 无界增长的头部来源；reka 外壳常驻属库行为，钉外壳子元素计数 0
+  await expect(page.locator('[data-slot="chat-reasoning-content"] > *')).toHaveCount(0)
   await page.reload()
   await chat.chatTab.click()
   await page.getByTestId('provider-settings-trigger').click()

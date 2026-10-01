@@ -14,8 +14,9 @@
  * 保底证明仪表存活）。tick 内一切异常吞掉——观测永不打断应用。
  *
  * 结构：createDomMeter 纯状态机（采样/时钟/记录全注入，测试直钉）；
- * startDomMeters 只做生产接线（真实 document 采样 + setInterval），返回
- * stop 以对称清理（app 级常驻服务，随根卸载路径调用）。
+ * startDomMeters 只做生产接线（真实 document 采样 + setInterval）。app 根
+ * 常驻不卸载，stop 返回值仅为对称形态、生产无人调用；重复调用（dev HMR
+ * 重挂）经模块级守卫幂等，不叠加定时器。
  */
 
 import { recordDiagnostic } from '@/app/diagnostics/recorder'
@@ -96,9 +97,14 @@ function recordDomSample(scope: DomMeterScope, nodes: number, delta: number | nu
   })
 }
 
+/** 生产接线幂等守卫（dev HMR 重挂不叠加定时器；app 根常驻，无复位需求） */
+let metersStarted = false
+
 /** 生产接线：无 document 环境（非渲染层运行时）no-op 化，不排定时器。 */
 export function startDomMeters(): () => void {
   if (typeof document === 'undefined') return () => undefined
+  if (metersStarted) return () => undefined
+  metersStarted = true
   const documentMeter = createDomMeter({
     scope: 'document',
     changeGate: DOCUMENT_CHANGE_GATE,

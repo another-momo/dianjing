@@ -74,7 +74,7 @@ describe('T92 displayToolOutput 展开态行数上界', () => {
     const kept = fullText.split('\n').slice(0, 200).join('\n')
     const text = displayToolOutput({ state: 'output-available', output })
 
-    expect(text).toBe(`${kept}\n已截断 ${fullText.length - kept.length} 字符`)
+    expect(text).toBe(`${kept}\n[truncated ${fullText.length - kept.length - 1} chars]`)
     expect(text.split('\n')).toHaveLength(201)
     expect(text).toContain('line-197')
     expect(text).not.toContain('line-198')
@@ -93,7 +93,7 @@ describe('T92 displayToolOutput 展开态行数上界', () => {
     const text = displayToolOutput({ state: 'output-available', output })
 
     expect(text).toContain('[omitted 4 chars]')
-    expect(text).not.toContain('已截断')
+    expect(text).not.toContain('[truncated')
   })
 
   test('media 输出超上界同样截断（先裁 base64 再施行数上界）', () => {
@@ -105,7 +105,7 @@ describe('T92 displayToolOutput 展开态行数上界', () => {
     const text = displayToolOutput({ state: 'output-available', output })
 
     expect(text.split('\n')).toHaveLength(201)
-    expect(text).toContain('已截断 ')
+    expect(text).toContain('[truncated ')
     expect(text).toContain('"image/png"')
   })
 
