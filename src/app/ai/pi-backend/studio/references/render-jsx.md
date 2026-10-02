@@ -2,7 +2,7 @@
 
 > base.md 的按需参考——首次 `render` 调用前经 `load_reference` 读取本文。
 > 本文是 render JSX 的唯一完整真源；base.md 的「Render essentials」只是防崩底线。
-> 元素/属性/helpers 清单与渲染器 schema 对齐（design-jsx/schema.ts）；布局与验收教义融合上游 authoring reference 与我方实证纪律。
+> 元素/属性/helpers 清单与渲染器实际能力逐项对齐；布局与验收教义经实战校准。
 
 The `render` tool takes JSX and produces design nodes. JavaScript expressions (map, ternaries, Array.from) work inside JSX. **Render ONE root element per call by default** — a Fragment of siblings is legal and renders each child as a separate root (the tool returns them in `siblings`), but reserve that for batch-sibling placement; a single root keeps `replace_id` and position semantics predictable. Fragments can also be nested inside an element — their children merge into that element (React-transparent semantics). **Output valid JSX only** — never emit a literal `</jsx>` tag, and never follow a self-closing tag (`<Frame ... />`) with a closing tag for the same element; either self-close or nest content, never both.
 
