@@ -529,7 +529,14 @@ async function renderNode(graph: SceneGraph, tree: TreeNode, parentId: string): 
   if (tree.type === 'instance') return renderInstanceNode(graph, tree, parentId)
 
   const nodeType = TYPE_MAP[tree.type]
-  if (!nodeType) throw new Error(`Unknown element: <${tree.type}>`)
+  if (!nodeType) {
+    if (tree.type === '' || tree.type === 'fragment') {
+      throw new Error(
+        'A fragment cannot be rendered directly — its children merge into the enclosing element automatically. Wrap the children in a Frame if a standalone container is needed.'
+      )
+    }
+    throw new Error(`Unknown element: <${tree.type}>`)
+  }
 
   const parent = graph.getNode(parentId)
   const parentLayout = parent?.layoutMode ?? 'NONE'

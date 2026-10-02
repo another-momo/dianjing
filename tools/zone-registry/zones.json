@@ -2514,6 +2514,22 @@
       "disposition": "permanent",
       "lastReviewed": "2026-10-01",
       "task": "chat-dom-governance"
+    },
+    {
+      "id": "P398",
+      "file": "packages/core/src/design-jsx/tree.ts",
+      "reason": "fragment-flatten（2026-10-02）：resolveToTree 子节点循环对 type:'' 节点摊平（其 children 拼入父 children）——嵌套 fragment 对树透明，对齐 React 语义；嵌套 fragment 此前流到 renderer TYPE_MAP 未命中抛 Unknown element: <>；顶层 fragment 的多根行为不变（renderJSX 根级 '' 多根分支原样保留）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-02",
+      "task": "fragment-flatten"
+    },
+    {
+      "id": "P399",
+      "file": "packages/core/src/design-jsx/renderer.ts",
+      "reason": "fragment-flatten（2026-10-02）：renderNode 对 type:''/'fragment' 的教学式报错兜底——fragment 不能直接渲染、children 已自动并入所在容器，需要独立容器用 Frame 包裹；摊平落地后正常不可达，属防御分支，其余未知类型报错不变",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-02",
+      "task": "fragment-flatten"
     }
   ],
   "deletedPaths": [

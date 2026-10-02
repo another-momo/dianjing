@@ -57,7 +57,10 @@ export function resolveToTree(element: unknown, depth = 0): TreeNode | null {
           children.push(String(child))
         } else {
           const resolved = resolveToTree(child, depth + 1)
-          if (resolved) children.push(resolved)
+          if (!resolved) continue
+          // Fragments (type '') are transparent: merge their children into the enclosing element (React semantics).
+          if (resolved.type === '') children.push(...resolved.children)
+          else children.push(resolved)
         }
       }
     }
