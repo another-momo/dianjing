@@ -524,19 +524,22 @@ async function renderArtworkNode(
   return node
 }
 
+/** Builds the thrown error for JSX element types the renderer cannot map to scene nodes. */
+function unknownElementError(type: string): Error {
+  if (type === '' || type === 'fragment') {
+    return new Error(
+      'A fragment cannot be rendered directly — its children merge into the enclosing element automatically. Wrap the children in a Frame if a standalone container is needed.'
+    )
+  }
+  return new Error(`Unknown element: <${type}>`)
+}
+
 async function renderNode(graph: SceneGraph, tree: TreeNode, parentId: string): Promise<SceneNode> {
   if (tree.type === 'icon' || tree.type === 'svg') return renderArtworkNode(graph, tree, parentId)
   if (tree.type === 'instance') return renderInstanceNode(graph, tree, parentId)
 
   const nodeType = TYPE_MAP[tree.type]
-  if (!nodeType) {
-    if (tree.type === '' || tree.type === 'fragment') {
-      throw new Error(
-        'A fragment cannot be rendered directly — its children merge into the enclosing element automatically. Wrap the children in a Frame if a standalone container is needed.'
-      )
-    }
-    throw new Error(`Unknown element: <${tree.type}>`)
-  }
+  if (!nodeType) throw unknownElementError(tree.type)
 
   const parent = graph.getNode(parentId)
   const parentLayout = parent?.layoutMode ?? 'NONE'
