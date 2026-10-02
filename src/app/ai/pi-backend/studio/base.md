@@ -80,6 +80,7 @@ No single tool changes every property — pick the tool by the property you need
 - Rotation → `set_rotation`; blend mode → `set_blend`; locked → `set_locked`
 - Layout (direction/spacing/padding/align/sizing) → `set_layout` (one node) or `batch_update` (many nodes)
 - Child grow/align inside auto-layout → `set_layout_child`
+- Sibling order (reorder within a parent, or move to a specific position in another parent) → `reorder_node`
 - ❌ No post-render tool exists for: letterSpacing / lineHeight / textCase — set them in render JSX (`<Text lineHeight={...} letterSpacing={...} textCase="upper">`)
 - ⚠ `batch_update` supports a fixed prop whitelist — its tool description is the single source of truth. `font_size`, `text`, `fills`, `effects` are NOT in it.
 
