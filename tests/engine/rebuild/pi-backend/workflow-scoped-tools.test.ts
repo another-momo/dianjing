@@ -241,9 +241,28 @@ interface ProbeEvidence {
   /** 本回合（hero workflow）prompt 前校准的活动集 */
   turnActive: string[]
   seenByRecorder: string | null
+  /** 每个 prompt 回合的只读探针捕获（注册序逐回合钉扎用） */
+  seenByRecorderRuns: string[]
   finalPrompt: string
   finalActive: string[]
   promptError: string | null
+  /** AI 不可见点名 workflow 回合：TurnAssembly.tools（白名单原样透传，不收窄） */
+  hiddenTurnTools: string[] | null
+  /** 该回合切换后的活动集：不可见件不在场（判定基收窄），其余 workflow 条件工具离场 */
+  hiddenActive: string[]
+  /** SDK 注册面兜底：不可见件显式塞进切换清单 → 未知名静默忽略 */
+  sdkUnknownNamesIgnored: boolean
+  /** 该回合 prompt 后活动集（跨回合保持） */
+  hiddenFinalActive: string[]
+  hiddenPromptError: string | null
+  /** general prompt 回合：TurnAssembly.tools 为空 */
+  generalTurnTools: string[] | null
+  /** general 回合切换后的活动集（条件工具全离场） */
+  generalTurnActive: string[]
+  generalFinalActive: string[]
+  generalPromptError: string | null
+  /** general 回合装配产物（base only，无 workflow 头行） */
+  generalFinalPrompt: string
   readonlySwitchOk: boolean
   readonlyDetail: { initial: string[]; afterSwitch: string[] }
 }
@@ -305,6 +324,47 @@ test('切换后下一回合 state.systemPrompt 仍是装配产物（钩子覆盖
     // readonly 档组合冒烟：白名单（内建只读四件 + 全部 customTools 名）下
     // setActiveToolsByName 照常放行条件工具收放
     expect(e.readonlySwitchOk).toBe(true)
+  } finally {
+    rmSync(rootDir, { recursive: true, force: true })
+  }
+})
+
+test('运行期收放 × 判定基收窄：longform / 不可见点名 / general prompt 回合的活动集', () => {
+  const rootDir = mkdtempSync(join(tmpdir(), 'pi-workflow-tools-runtime-'))
+  try {
+    const e = runHookProbe(rootDir)
+
+    // longform 回合：活动集 == 常驻基线 ∪ 白名单∩基线——两件条件工具在场，
+    // 全集与初始基线相等（无新增无缺员；注册表里另一 workflow 点名的不可见件
+    // 不扩集——判定基 = AI 可见集，不是白名单并集）
+    expect(e.turnActive).toEqual(e.initialActive)
+
+    // AI 不可见点名回合：TurnAssembly.tools 白名单原样透传（透传层不收窄）……
+    expect(e.hiddenTurnTools).toEqual(['place_image_from_bytes', 'eval'])
+    // ……活动集收窄：eval 档 / exposure.ai:false 工具即使被点名也不在场
+    // （基线 = 会话创建时 AI 可见集，过滤语义只摘不加）；其余 workflow 的
+    // 条件工具照常离场（跨 workflow 收放）；常驻件保留
+    expect(e.hiddenActive).not.toContain('place_image_from_bytes')
+    expect(e.hiddenActive).not.toContain('eval')
+    expect(e.hiddenActive).not.toContain('compose_backdrop')
+    expect(e.hiddenActive).not.toContain('prepare_hero_scaffold')
+    expect(e.hiddenActive).toContain('render')
+    expect(e.hiddenActive.length).toBe(e.initialActive.length - 2)
+    // SDK 注册面兜底：不可见件显式塞进切换清单也进不了活动集（未知名静默忽略）
+    expect(e.sdkUnknownNamesIgnored).toBe(true)
+    // prompt 回合后活动集保持
+    expect(e.hiddenFinalActive).toEqual(e.hiddenActive)
+
+    // general 回合：TurnAssembly.tools 为空，条件工具全离场；装配产物 base only
+    expect(e.generalTurnTools).toEqual([])
+    expect(e.generalTurnActive).not.toContain('compose_backdrop')
+    expect(e.generalTurnActive).not.toContain('prepare_hero_scaffold')
+    expect(e.generalTurnActive.length).toBe(e.initialActive.length - 2)
+    expect(e.generalFinalActive).toEqual(e.generalTurnActive)
+    expect(e.generalFinalPrompt).toContain('# studio base')
+    expect(e.generalFinalPrompt).not.toContain('# workflow:')
+    // 注册序逐回合成立：最后回合（general）的只读探针读到的 == 该回合装配产物
+    expect(e.seenByRecorderRuns.at(-1)).toBe(e.generalFinalPrompt)
   } finally {
     rmSync(rootDir, { recursive: true, force: true })
   }

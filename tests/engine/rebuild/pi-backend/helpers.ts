@@ -165,7 +165,10 @@ function safeDispose(session: { dispose(): void }, label: string): void {
  *  3. 注册在装配钩子之后的只读记录探针（生产冒烟探针同位）读到的是替换后的
  *     装配产物；
  *  4. readonly 档白名单（内建只读四件 + 全部 customTools 名，镜像生产装配）
- *     下切换同样放行。
+ *     下切换同样放行；
+ *  5. 运行期收放 × 判定基收窄：AI 不可见件（eval 档 / exposure.ai:false）即使被
+ *     workflow 白名单点名也不进活动集（resolve 层只摘不加 + SDK 未知名静默忽略
+ *     双兜）；general 回合条件工具全离场、装配产物 base only。
  *
  * 模型面是桩（无活模型）：streamSimple 抛哨兵错误在装配钩子应用完之后——
  * state.systemPrompt 已在回合入口落定，错误只终止后续流。
@@ -197,6 +200,11 @@ async function runWorkflowToolsProbe(rootDir: string): Promise<void> {
 
   const WORKFLOW_ID = 'longform-hero-kv-first'
   const WORKFLOW_TOOLS = ['compose_backdrop', 'prepare_hero_scaffold']
+  // AI 不可见件点名探针 workflow：白名单全部是注册表内真实存在、但不进 AI 装配面
+  // 的工具（place_image_from_bytes = exposure.ai:false；eval = availability:'eval'）。
+  // 合成注册表绕过存在性闸（生产闸会拦此类点名），专门钉 resolve 层的判定基收窄。
+  const HIDDEN_WORKFLOW_ID = 'wf-ai-invisible'
+  const HIDDEN_WORKFLOW_TOOLS = ['place_image_from_bytes', 'eval']
 
   // 合成 studio 注册表（形状同 StudioRegistry）：base + 一个带 tools 白名单的
   // workflow——避免依赖真实资产目录布局，钉的是机制不是资产内容
@@ -220,6 +228,18 @@ async function runWorkflowToolsProbe(rootDir: string): Promise<void> {
           origin: 'builtin',
           path: `workflows/${WORKFLOW_ID}/workflow.md`
         }
+      ],
+      [
+        HIDDEN_WORKFLOW_ID,
+        {
+          kind: 'workflow',
+          id: HIDDEN_WORKFLOW_ID,
+          label: 'AI 不可见件点名（合成面，绕过存在性闸）',
+          body: 'PIN-HIDDEN-WORKFLOW-BODY：白名单全为不可见件',
+          tools: HIDDEN_WORKFLOW_TOOLS,
+          origin: 'builtin',
+          path: `workflows/${HIDDEN_WORKFLOW_ID}/workflow.md`
+        }
       ]
     ]),
     profiles: new Map(),
@@ -228,21 +248,28 @@ async function runWorkflowToolsProbe(rootDir: string): Promise<void> {
     resolvedReferences: new Map()
   } as never
 
+  // 可变 mode 标量：探针按场景切换（hero → 不可见点名 → general），镜像
+  // page-state 标量的回合级语义
+  let currentMode = WORKFLOW_ID
   const host = createActiveDesignHost({
     registry: () => registry,
     bridge: {
       probeSlot: async () => ({ currentPageId: 'page-1', docUuid: 'doc-1' }),
       probeBrief: async () => []
     },
-    pageStateReader: () => ({ modeId: WORKFLOW_ID, profileId: null, engagedPageId: 'page-1' })
+    pageStateReader: () => ({ modeId: currentMode, profileId: null, engagedPageId: 'page-1' })
   })
 
   // 只读记录探针：注册在装配钩子之后（生产冒烟探针同位），捕获链式覆盖后的
-  // event.systemPrompt，不回传
+  // event.systemPrompt，不回传。逐回合记录（探针现跑多个 prompt 回合）；
+  // seenByRecorder 保留首回合（hero）捕获——既有断言口径不变
   let seenByRecorder: string | null = null
+  const seenByRecorderRuns: string[] = []
   const recorder = (pi: { on: (event: string, fn: (event: unknown) => void) => void }) => {
     pi.on('before_agent_start', (event) => {
-      seenByRecorder = (event as { systemPrompt: string }).systemPrompt
+      const seen = (event as { systemPrompt: string }).systemPrompt
+      if (seenByRecorder === null) seenByRecorder = seen
+      seenByRecorderRuns.push(seen)
     })
   }
 
@@ -333,6 +360,50 @@ async function runWorkflowToolsProbe(rootDir: string): Promise<void> {
   }
   const finalPrompt = session.systemPrompt
   const finalActive = session.getActiveToolNames()
+
+  // ── AI 不可见点名回合：白名单全为注册表内真实存在、但不进 AI 装配面的工具
+  //    （eval 档 / exposure.ai:false）——判定基收窄：即使被点名也进不了活动集
+  //    （基线 = 会话创建时 AI 可见集，过滤语义只摘不加）；其余 workflow 的
+  //    条件工具照常离场 ──
+  currentMode = HIDDEN_WORKFLOW_ID
+  await host.prepareTurn('做图')
+  const hiddenTurn = host.turnAssembly()
+  const hiddenDesired = resolveActiveToolNames(initialActive, registry, hiddenTurn?.tools)
+  session.setActiveToolsByName(hiddenDesired)
+  const hiddenActive = session.getActiveToolNames()
+
+  // SDK 注册面兜底直钉：不可见件显式塞进切换清单——SDK 只认注册表已有工具，
+  // 未知名静默忽略，读回不见
+  session.setActiveToolsByName([...hiddenDesired, ...HIDDEN_WORKFLOW_TOOLS])
+  const activeAfterUnknownInject = session.getActiveToolNames()
+  const sdkUnknownNamesIgnored =
+    !activeAfterUnknownInject.includes('place_image_from_bytes') &&
+    !activeAfterUnknownInject.includes('eval')
+  session.setActiveToolsByName(hiddenDesired)
+
+  let hiddenPromptError: string | null = null
+  try {
+    await session.prompt('做图')
+  } catch (error) {
+    hiddenPromptError = error instanceof Error ? error.message : String(error)
+  }
+  const hiddenFinalActive = session.getActiveToolNames()
+
+  // ── general 回合：无 workflow——条件工具全离场；装配产物 base only ──
+  currentMode = 'general'
+  await host.prepareTurn('做图')
+  const generalTurn = host.turnAssembly()
+  const generalDesired = resolveActiveToolNames(initialActive, registry, generalTurn?.tools)
+  session.setActiveToolsByName(generalDesired)
+  const generalTurnActive = session.getActiveToolNames()
+  let generalPromptError: string | null = null
+  try {
+    await session.prompt('做图')
+  } catch (error) {
+    generalPromptError = error instanceof Error ? error.message : String(error)
+  }
+  const generalFinalActive = session.getActiveToolNames()
+  const generalFinalPrompt = session.systemPrompt
   safeDispose(session, 'main session')
 
   // ── readonly 档组合冒烟：白名单会话下条件工具收放照常放行 ──
@@ -360,9 +431,20 @@ async function runWorkflowToolsProbe(rootDir: string): Promise<void> {
       afterSwitchPrompt,
       turnActive: turnActiveAfter,
       seenByRecorder,
+      seenByRecorderRuns,
       finalPrompt,
       finalActive,
       promptError,
+      hiddenTurnTools: hiddenTurn?.tools ?? null,
+      hiddenActive,
+      sdkUnknownNamesIgnored,
+      hiddenFinalActive,
+      hiddenPromptError,
+      generalTurnTools: generalTurn?.tools ?? null,
+      generalTurnActive: generalActive,
+      generalFinalActive,
+      generalPromptError,
+      generalFinalPrompt,
       readonlySwitchOk,
       readonlyDetail: { initial: roInitial, afterSwitch: roAfter }
     })
