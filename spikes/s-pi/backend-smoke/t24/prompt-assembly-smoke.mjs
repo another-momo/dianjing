@@ -129,11 +129,13 @@ const baseBody = stripFrontmatter(
 // 同步重钉（baseBody 前冠来源头）
 // 2026-09-21 统一限定形寻址（owner 拍板）：索引节标题下首行增操作指令行、
 // 行首 key 恒带桶前缀（base/）、行尾来源标注（base）删除——三处契约格式同步重钉
+// 2026-10-03：design-basics 描述行随三层分工瘦身 + 条件加载教学改写（base.md
+// frontmatter 同步）——索引节 byte 钉同步重钉（CI 37087913425 实证红）
 const REFERENCES_INDEX_SECTION = [
   '## 按需参考（load_reference 工具按需读取）',
   'path 参数 = 照抄下行行首 key（含桶前缀）',
   '- base/references/render-jsx.md —— render 工具的 JSX 语法大全（props 全集 / 布局规则 / 禁用项 / 修复纪律）——首次 render 调用前必读',
-  '- base/references/design-basics.md —— 通用设计基础（设计令牌 / 版式 / 组合原语 / 物料规格库）——搭建类设计任务开工前必读'
+  '- base/references/design-basics.md —— 通用设计基础（设计令牌 / 版式 pattern / 组合手法）——无 style profile 注入的搭建类任务开工前必读'
 ].join('\n')
 const EMPTY_SLOT_EXPECTED = `# studio base\n${baseBody}\n\n${REFERENCES_INDEX_SECTION}`
 

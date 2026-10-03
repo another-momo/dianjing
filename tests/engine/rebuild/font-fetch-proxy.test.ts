@@ -175,8 +175,8 @@ describe('font fetch proxy window recursion', () => {
     // 此处直接断言生产定义引用急绑定捕获、不再内联晚绑定裸 fetch
     const source = await Bun.file('src/app/editor/fonts/index.ts').text()
     const match = /const customDirectFetch[\s\S]{0,300}/.exec(source)
-    expect(match).not.toBeNull()
-    expect(match![0]).toContain('browserDirectFetch')
-    expect(match![0]).not.toMatch(/\(\s*url[^)]*\)\s*=>\s*fetch\(/)
+    if (!match) throw new Error('customDirectFetch definition not found in fonts/index.ts')
+    expect(match[0]).toContain('browserDirectFetch')
+    expect(match[0]).not.toMatch(/\(\s*url[^)]*\)\s*=>\s*fetch\(/)
   })
 })
