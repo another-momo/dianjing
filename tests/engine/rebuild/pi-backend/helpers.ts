@@ -339,6 +339,33 @@ async function runWorkflowToolsProbe(rootDir: string): Promise<void> {
   const session = await makeSession('main', false)
   const initialActive = session.getActiveToolNames()
 
+  // 单回合探针步进（hero / hidden / general 三场景共用）：切 mode → 组装 →
+  // resolve → 切活动集 → 读回 → prompt（哨兵拒答预期）→ 读回终态。
+  // prePrompt 钩子在 prompt 前穿插动作（hidden 场景的 SDK 兜底直钉用）。
+  async function stepTurn(mode: string, prePrompt?: (desired: string[]) => void) {
+    currentMode = mode
+    await host.prepareTurn('做图')
+    const turn = host.turnAssembly()
+    const desired = resolveActiveToolNames(initialActive, registry, turn?.tools)
+    session.setActiveToolsByName(desired)
+    const active = session.getActiveToolNames()
+    prePrompt?.(desired)
+    let promptError: string | null = null
+    try {
+      await session.prompt('做图')
+    } catch (error) {
+      promptError = error instanceof Error ? error.message : String(error)
+    }
+    return {
+      turnTools: turn?.tools ?? null,
+      desired,
+      active,
+      finalActive: session.getActiveToolNames(),
+      finalPrompt: session.systemPrompt,
+      promptError
+    }
+  }
+
   // 首切：无 workflow 回合的激活集（条件工具离场）——SDK 重建接管 state prompt
   const generalActive = resolveActiveToolNames(initialActive, registry, [])
   session.setActiveToolsByName(generalActive)
@@ -346,64 +373,26 @@ async function runWorkflowToolsProbe(rootDir: string): Promise<void> {
   const afterSwitchPrompt = session.systemPrompt
 
   // 本回合：组装（hero workflow 命中）→ prompt 前校准（条件工具回归）
-  await host.prepareTurn('做图')
-  const turn = host.turnAssembly()
-  const turnActive = resolveActiveToolNames(initialActive, registry, turn?.tools)
-  session.setActiveToolsByName(turnActive)
-  const turnActiveAfter = session.getActiveToolNames()
-
-  let promptError: string | null = null
-  try {
-    await session.prompt('做图')
-  } catch (error) {
-    promptError = error instanceof Error ? error.message : String(error)
-  }
-  const finalPrompt = session.systemPrompt
-  const finalActive = session.getActiveToolNames()
+  const hero = await stepTurn(WORKFLOW_ID)
 
   // ── AI 不可见点名回合：白名单全为注册表内真实存在、但不进 AI 装配面的工具
   //    （eval 档 / exposure.ai:false）——判定基收窄：即使被点名也进不了活动集
   //    （基线 = 会话创建时 AI 可见集，过滤语义只摘不加）；其余 workflow 的
   //    条件工具照常离场 ──
-  currentMode = HIDDEN_WORKFLOW_ID
-  await host.prepareTurn('做图')
-  const hiddenTurn = host.turnAssembly()
-  const hiddenDesired = resolveActiveToolNames(initialActive, registry, hiddenTurn?.tools)
-  session.setActiveToolsByName(hiddenDesired)
-  const hiddenActive = session.getActiveToolNames()
-
-  // SDK 注册面兜底直钉：不可见件显式塞进切换清单——SDK 只认注册表已有工具，
-  // 未知名静默忽略，读回不见
-  session.setActiveToolsByName([...hiddenDesired, ...HIDDEN_WORKFLOW_TOOLS])
-  const activeAfterUnknownInject = session.getActiveToolNames()
-  const sdkUnknownNamesIgnored =
-    !activeAfterUnknownInject.includes('place_image_from_bytes') &&
-    !activeAfterUnknownInject.includes('eval')
-  session.setActiveToolsByName(hiddenDesired)
-
-  let hiddenPromptError: string | null = null
-  try {
-    await session.prompt('做图')
-  } catch (error) {
-    hiddenPromptError = error instanceof Error ? error.message : String(error)
-  }
-  const hiddenFinalActive = session.getActiveToolNames()
+  let sdkUnknownNamesIgnored = false
+  const hidden = await stepTurn(HIDDEN_WORKFLOW_ID, (desired) => {
+    // SDK 注册面兜底直钉：不可见件显式塞进切换清单——SDK 只认注册表已有工具，
+    // 未知名静默忽略，读回不见
+    session.setActiveToolsByName([...desired, ...HIDDEN_WORKFLOW_TOOLS])
+    const activeAfterUnknownInject = session.getActiveToolNames()
+    sdkUnknownNamesIgnored =
+      !activeAfterUnknownInject.includes('place_image_from_bytes') &&
+      !activeAfterUnknownInject.includes('eval')
+    session.setActiveToolsByName(desired)
+  })
 
   // ── general 回合：无 workflow——条件工具全离场；装配产物 base only ──
-  currentMode = 'general'
-  await host.prepareTurn('做图')
-  const generalTurn = host.turnAssembly()
-  const generalDesired = resolveActiveToolNames(initialActive, registry, generalTurn?.tools)
-  session.setActiveToolsByName(generalDesired)
-  const generalTurnActive = session.getActiveToolNames()
-  let generalPromptError: string | null = null
-  try {
-    await session.prompt('做图')
-  } catch (error) {
-    generalPromptError = error instanceof Error ? error.message : String(error)
-  }
-  const generalFinalActive = session.getActiveToolNames()
-  const generalFinalPrompt = session.systemPrompt
+  const general = await stepTurn('general')
   safeDispose(session, 'main session')
 
   // ── readonly 档组合冒烟：白名单会话下条件工具收放照常放行 ──
@@ -417,34 +406,32 @@ async function runWorkflowToolsProbe(rootDir: string): Promise<void> {
   const roBackAfter = roSession.getActiveToolNames()
   safeDispose(roSession, 'readonly session')
   const readonlySwitchOk =
-    roAfter.length === roDesired.length &&
-    roAfter.every((name, i) => roDesired[i] === name) &&
-    roBackAfter.length === roBack.length &&
-    roBackAfter.every((name, i) => roBack[i] === name) &&
+    JSON.stringify(roAfter) === JSON.stringify(roDesired) &&
+    JSON.stringify(roBackAfter) === JSON.stringify(roBack) &&
     roBackAfter.length === roInitial.length - 2
 
   process.stdout.write(
     JSON.stringify({
-      turnTools: turn?.tools ?? null,
+      turnTools: hero.turnTools,
       initialActive,
       generalActive: afterSwitchActive,
       afterSwitchPrompt,
-      turnActive: turnActiveAfter,
+      turnActive: hero.active,
       seenByRecorder,
       seenByRecorderRuns,
-      finalPrompt,
-      finalActive,
-      promptError,
-      hiddenTurnTools: hiddenTurn?.tools ?? null,
-      hiddenActive,
+      finalPrompt: hero.finalPrompt,
+      finalActive: hero.finalActive,
+      promptError: hero.promptError,
+      hiddenTurnTools: hidden.turnTools,
+      hiddenActive: hidden.active,
       sdkUnknownNamesIgnored,
-      hiddenFinalActive,
-      hiddenPromptError,
-      generalTurnTools: generalTurn?.tools ?? null,
+      hiddenFinalActive: hidden.finalActive,
+      hiddenPromptError: hidden.promptError,
+      generalTurnTools: general.turnTools,
       generalTurnActive: generalActive,
-      generalFinalActive,
-      generalPromptError,
-      generalFinalPrompt,
+      generalFinalActive: general.finalActive,
+      generalPromptError: general.promptError,
+      generalFinalPrompt: general.finalPrompt,
       readonlySwitchOk,
       readonlyDetail: { initial: roInitial, afterSwitch: roAfter }
     })
