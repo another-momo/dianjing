@@ -170,7 +170,14 @@ if (!isTauri()) fontManager.setWebFontFetch(baseFontFetch)
 
 // 专属字体服务的直连通路：https 校验 / 8MB 响应上限 / Bearer 注入都在
 // scopeBearerFetch 内实现（browser-fetch.ts 冻结不改动），浏览器形态走全局 fetch。
-const customDirectFetch: WebFontFetch = IS_TAURI ? tauriFetch : (url, init) => fetch(url, init)
+// fetch 引用必须在模块加载时急绑定：web 字体解析器有 fetch 代理窗口期（临时替换
+// globalThis.fetch，窗口内一切 http(s) 请求改路 remoteFetch），晚绑定裸 fetch 在
+// 窗口期内会被代理层重新路由回 scoped fetcher 的 direct 分支，同步无限递归爆栈
+// （RangeError）。急绑定先例同 browser-fetch.ts 的 browserWebFontFetch。
+const browserDirectFetch = globalThis.fetch.bind(globalThis)
+const customDirectFetch: WebFontFetch = IS_TAURI
+  ? tauriFetch
+  : (url, init) => browserDirectFetch(url, init)
 
 let appliedCustomServiceKey: string | null = null
 
