@@ -1991,13 +1991,6 @@
       "lastReviewed": "2026-09-21"
     },
     {
-      "id": "P326",
-      "file": "skills/open-pencil/SKILL.md",
-      "reason": "2026-09-21 合并 v0.15.1：拒收 048/0f6420d9c 文档改动——close_file 工具与 Settings→Tool access 章节描述的能力我方均未吸收，文档须与实装一致",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-21"
-    },
-    {
       "id": "P327",
       "file": "src/app/editor/preparation/types.ts",
       "reason": "2026-09-21 合并 v0.15.1：拒收 81a07c0c9 的 'demo-load' 联合成员（demo 域已裁，无生产/消费方）",
@@ -2733,7 +2726,8 @@
     "src/AGENTS.md",
     "tests/AGENTS.md",
     "tools/AGENTS.md",
-    ".github/workflows/pr-title.yml"
+    ".github/workflows/pr-title.yml",
+    "skills/open-pencil"
   ],
   "upstreamMergeTarball": []
 }
