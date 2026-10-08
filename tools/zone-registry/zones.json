@@ -1,5 +1,5 @@
 {
-  "$comment": "Zone registry（工作机制 v2 现行规则，2026-09-06 瘦身）。本文件是 fork 与上游合并的文件所有权唯一真相，由 tools/zone-registry/src/check.ts（check:zones，pre-commit 强制）机器执行。现行规则：改动上游供血文件必须登记 patches；新增文件只许落在 ownedRoots；deletedPaths 不得复活；stubs 登记伪装上游接口的 fork 自有桩（与 patches 互斥——R-mutex）；pendingReclass 是计划元数据（重分类仪式完成前文件保持 follow-pure，可携带 deletion-cut patch）；relocations 登记搬移意图（上游旧位置→fork 新家园，空数组=纯裁撤无继承者），check.ts RELOCATION_WATCH 对 upstreamBase..upstream/master diff 命中时打印移植评估 advisory（永不 fail gate，--drift 出明细）；upstreamMergeTarball 机制（按合并事件白名单字节一致拷贝、锚 base SHA、drift 即违规）保留给未来合并，当前清零。上游合并 SOP：合并前 check:zones 绿 → 按 zone 裁定冲突 → 合并后 ownedFiles 字节审计（清 phantom）+ relocations/tarball 台账更新。最近合并：2026-09-21 上游 d7971ff03→1204b677c（v0.15.1，12 commits：收 #716 三合一（P3 呈现 sRGB 兜底/fig 导出性能/实例文本）、#724 picker 按文档 profile 存色、#708 web 半深链（openpencil:// Tauri 桌面半不移植）；拒收 048 工具开关+step-limit（17 件 M 还原 + 15 件落地新文件删除，P322-P338 登记）、3ba 折叠动效（P330）、81a demo 重写（P327/P334）、0f6+b19 MCP 只读工具与桌面 e2e；UA 2 件经 rename 投放后删除（step-limit.ts→ai/fork/、origins.ts→bridge/server/，relocations 有记）；disclosure.ts 上游删除我方保留转 ownedFiles）。历史台账全本：docs/archive/rebuild-campaign/zones-comment-ledger-2026-09-06.md 与 git 历史。机制复盘节奏由 tools/hooks/src/mechanism-review.ts 跟踪。",
+  "$comment": "Zone registry（工作机制 v2 现行规则，2026-09-06 瘦身）。本文件是 fork 与上游合并的文件所有权唯一真相，由 tools/zone-registry/src/check.ts（check:zones，pre-commit 强制）机器执行。现行规则：改动上游供血文件必须登记 patches；新增文件只许落在 ownedRoots；deletedPaths 不得复活；stubs 登记伪装上游接口的 fork 自有桩（与 patches 互斥——R-mutex）；pendingReclass 是计划元数据（重分类仪式完成前文件保持 follow-pure，可携带 deletion-cut patch）；relocations 登记搬移意图（上游旧位置→fork 新家园，空数组=纯裁撤无继承者），check.ts RELOCATION_WATCH 对 upstreamBase..upstream/master diff 命中时打印移植评估 advisory（永不 fail gate，--drift 出明细）；upstreamMergeTarball 机制（按合并事件白名单字节一致拷贝、锚 base SHA、drift 即违规）保留给未来合并，当前清零。上游合并 SOP：合并前 check:zones 绿 → 按 zone 裁定冲突 → 合并后 ownedFiles 字节审计（清 phantom）+ relocations/tarball 台账更新。最近合并：2026-10-08 上游 b0231927c→b422ea53a（45 commits：#791 tools 两层版式吸收 + #790 gate 拒收 + design-jsx/codegen 抽包吸收（P211/P224 随迁、P398/P399 退役）+ #803/#807/#812 presence·变更可视化栈拒收（app 侧 presence/collab-panel/ai-tools 删除登记，§6.7）+ kiwi 降级接受 + secret-scan 候选回退结构上移植容错（P400/P401））；上次 2026-09-21 上游 d7971ff03→1204b677c（v0.15.1，12 commits：收 #716 三合一（P3 呈现 sRGB 兜底/fig 导出性能/实例文本）、#724 picker 按文档 profile 存色、#708 web 半深链（openpencil:// Tauri 桌面半不移植）；拒收 048 工具开关+step-limit（17 件 M 还原 + 15 件落地新文件删除，P322-P338 登记）、3ba 折叠动效（P330）、81a demo 重写（P327/P334）、0f6+b19 MCP 只读工具与桌面 e2e；UA 2 件经 rename 投放后删除（step-limit.ts→ai/fork/、origins.ts→bridge/server/，relocations 有记）；disclosure.ts 上游删除我方保留转 ownedFiles）。历史台账全本：docs/archive/rebuild-campaign/zones-comment-ledger-2026-09-06.md 与 git 历史。机制复盘节奏由 tools/hooks/src/mechanism-review.ts 跟踪。",
   "ownedRoots": [
     "docs/",
     "tools/zone-registry/",
@@ -43,6 +43,7 @@
     "tools/font-subset/subset-fonts.py",
     "tools/font-subset/charset-cjk.txt",
     "tools/font-subset/package.json",
+    "tools/test.ts",
     "packages/core/assets/AlibabaPuHuiTi-Thin.ttf",
     "public/AlibabaPuHuiTi-Thin.ttf",
     "packages/core/assets/AlibabaPuHuiTi-Light.ttf",
@@ -87,7 +88,7 @@
     "packages/core/src/bytes/image-mime.ts",
     "src/components/settings/provider/ImageGenKeysSection.vue",
     "src/app/browser-bridge.ts",
-    "tools/visual-oracles/src/render-fixture.ts",
+    "tools/generate/visual-oracles/src/render-fixture.ts",
     "tests/engine/tools/all-tools-execution.test.ts",
     "tests/engine/tools/bridge-server-cors.test.ts",
     "tests/engine/tools/read.test.ts",
@@ -139,7 +140,7 @@
     "tests/engine/text/fonts/custom-service.test.ts",
     "tests/engine/layout/yoga-lifecycle.test.ts"
   ],
-  "stubs": ["src/app/collab/use.ts"],
+  "stubs": ["src/app/collab/use.ts", "src/app/collab/types.ts"],
   "pendingReclass": [],
   "relocations": [
     {
@@ -150,7 +151,7 @@
     },
     {
       "oldPath": "packages/cli/",
-      "newPaths": ["packages/core/src/io/", "tools/visual-oracles/src/render-fixture.ts"],
+      "newPaths": ["packages/core/src/io/", "tools/generate/visual-oracles/src/render-fixture.ts"],
       "since": "Batch 2b (2026-09-05)",
       "note": "cli 裁撤；CanvasKit 初始化/字体预备吸收进 core/io，fixture 导出归 visual-oracles；2026-09-08 合并吸收上游改动（import.ts 随删除批）；2026-09-14 上游改动仅 package.json 版本噪音，无实质"
     },
@@ -240,9 +241,9 @@
     {
       "id": "P10",
       "file": "vite.config.ts",
-      "reason": "remove openPencilPwaPlugin (vite/pwa.ts deleted) T19: 注册 piBackendPlugin T20: 插件改为 spawn 独立后端进程 + server.proxy 转发 /api/pi-chat（不再挂中间件）；env 读取收口至 src/app/orchestration/env.ts（orchestration-consolidation 2026-09-14）",
+      "reason": "remove openPencilPwaPlugin (vite/pwa.ts deleted) T19: 注册 piBackendPlugin T20: 插件改为 spawn 独立后端进程 + server.proxy 转发 /api/pi-chat（不再挂中间件）；env 读取收口至 src/app/orchestration/env.ts（orchestration-consolidation 2026-09-14） ｜ merge-upstream-45：吸收 #692 optimizeDeps.include ai/test；ensureBrandAssets/openPencilPwaPlugin 维持不吸收",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-14"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P11",
@@ -289,30 +290,30 @@
     {
       "id": "P17",
       "file": "package.json",
-      "reason": "workspaces (-docs/-tools-docs), scripts (-tauri/-wdio/-docs/*, +check:zones), deps (-wdio/-tauri-cli/-pwa/-yjs-family/-trystero) T10: workspaces += packages/harness（上游新增 pi harness 包，保 harness 裁 ACP 决策随附）；lint/format 路径同步加 packages/harness T19: deps += @earendil-works/pi-coding-agent@0.84.2 + pi-ai@0.84.2 + typebox@1.3.7（精确钉扎，升级走 03 §5.5 窗口）T20: scripts += dev:backend（独立运行 pi 后端进程，不经 vite） T25: workspaces/scripts/deps 去 packages/harness；deps 去五个浏览器直调 AI SDK provider（@ai-sdk/anthropic、deepseek、google、openai、@openrouter/ai-sdk-provider） T27(2026-08-25): scripts += smoke:pi（免 key/浏览器/dev-server 自含批次：t22 target+history、t23 sessions、t24 prompt-assembly）+ smoke:pi:ui（需 dev server 1420 + playwright chromium，免 key 的三个 bind 冒烟，必须 node 跑） T28(2026-08-25): format:check 判据修正（决策单 #10）——改 oxfmt --check 原路径集（与 format 同口径），不写入、不依赖净树（CI 干净树语义等价，本地脏树不再结构性必红）；smoke:pi += t28/session-gc-smoke.mjs（决策单 #2 GC 归档冒烟，凑成五套件） 2026-09-16：scripts += notices:generate（THIRD-PARTY-NOTICES 生成器，bun tools/release/src/third-party-notices.ts 跑 npm 生产闭包 + curated vendored 资产 → build/.generated/THIRD-PARTY-NOTICES.txt）；package:win 链首部串 notices:generate（先于 build:packages，让每次发版自动生成最新声明） 2026-09-18：PR715 接线断链修复（调研 docs/202609181741 §3）——test:unit:quick/heavy 摘不存在的 list.ts 改 run.ts 系（quick 去 --parallel 守本机内存纪律）、补 test:unit:isolated（heavy-tests.yml:33 既有调用点）、test:coverage 改 run.ts all -- --coverage（去 include-heavy 同纪律）、test:unit 改指 test:unit:serial（拆弹单进程全量 OOM footgun 入口） 2026-09-22：deps += @modelcontextprotocol/sdk@^1.30.0（MCP 接入阶段 1，craft 蓝本协议机；zod peer 仓内已满足）",
+      "reason": "workspaces (-docs/-tools-docs), scripts (-tauri/-wdio/-docs/*, +check:zones), deps (-wdio/-tauri-cli/-pwa/-yjs-family/-trystero) T10: workspaces += packages/harness（上游新增 pi harness 包，保 harness 裁 ACP 决策随附）；lint/format 路径同步加 packages/harness T19: deps += @earendil-works/pi-coding-agent@0.84.2 + pi-ai@0.84.2 + typebox@1.3.7（精确钉扎，升级走 03 §5.5 窗口）T20: scripts += dev:backend（独立运行 pi 后端进程，不经 vite） T25: workspaces/scripts/deps 去 packages/harness；deps 去五个浏览器直调 AI SDK provider（@ai-sdk/anthropic、deepseek、google、openai、@openrouter/ai-sdk-provider） T27(2026-08-25): scripts += smoke:pi（免 key/浏览器/dev-server 自含批次：t22 target+history、t23 sessions、t24 prompt-assembly）+ smoke:pi:ui（需 dev server 1420 + playwright chromium，免 key 的三个 bind 冒烟，必须 node 跑） T28(2026-08-25): format:check 判据修正（决策单 #10）——改 oxfmt --check 原路径集（与 format 同口径），不写入、不依赖净树（CI 干净树语义等价，本地脏树不再结构性必红）；smoke:pi += t28/session-gc-smoke.mjs（决策单 #2 GC 归档冒烟，凑成五套件） 2026-09-16：scripts += notices:generate（THIRD-PARTY-NOTICES 生成器，bun tools/release/src/third-party-notices.ts 跑 npm 生产闭包 + curated vendored 资产 → build/.generated/THIRD-PARTY-NOTICES.txt）；package:win 链首部串 notices:generate（先于 build:packages，让每次发版自动生成最新声明） 2026-09-18：PR715 接线断链修复（调研 docs/202609181741 §3）——test:unit:quick/heavy 摘不存在的 list.ts 改 run.ts 系（quick 去 --parallel 守本机内存纪律）、补 test:unit:isolated（heavy-tests.yml:33 既有调用点）、test:coverage 改 run.ts all -- --coverage（去 include-heavy 同纪律）、test:unit 改指 test:unit:serial（拆弹单进程全量 OOM footgun 入口） 2026-09-22：deps += @modelcontextprotocol/sdk@^1.30.0（MCP 接入阶段 1，craft 蓝本协议机；zod peer 仓内已满足） ｜ merge-upstream-45：workspaces 显式清单并集（+design-jsx/codegen +tools 两层新址，死集新包剔除）；scripts：check:i18n/test:type-shapes 指新址，check 链 += check:tools，test:tools 双轨，test:dupes += design-jsx/codegen src；死工具脚本（tauri/commitlint/docs/native-test/package-quality/harness/check:test-homes）不吸收；review 修尾：check:test-homes 脚本行实为漏清，本批补摘",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-22"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P18",
       "file": "tsconfig.json",
-      "reason": "remove #docs-config/* paths (packages/docs deleted) T25: paths 去 @open-pencil/harness",
+      "reason": "remove #docs-config/* paths (packages/docs deleted) T25: paths 去 @open-pencil/harness ｜ merge-upstream-45：#791 后 paths 面核对——#cli/#mcp/#harness 不吸收，仅 #fig/* 保留",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P19",
       "file": "tools/unit-tests/src/shards.ts",
-      "reason": "app group: drop acp/tauri dirs, add tests/engine/rebuild；2026-09-08 上游合并：上游扩 app group（acp/cli/collab/tauri）未采——四目录均为 fork deletedPaths；按其归组语义吸收既有未覆盖目录：core→editor、bytes/library→scene（新版严格分片测试要求每测试恰好一片） ｜ 2026-09-18 重锚 PR715 新结构：保持 fork 七组（app/dom/editor/fig/render/scene/vue），登记 packages/<owner>/tests 与 tests/app、tests/integration 守卫路径；不取上游 cli/mcp 组（包不存在）；同日清理分组来源死引用注释——packages/docs/development/testing.md 已随 docs 站删除，分组规范改注释内联声明；serial.ts 去 HEAVY 双写改 import isHeavyUnitTest（serial.ts 属 ownedRoot 新增文件免登记）；2026-09-29 合并：上游新增 tests/engine/bytes/（image-mime 测试）归 editor 组（core 字节工具语义）",
+      "reason": "app group: drop acp/tauri dirs, add tests/engine/rebuild；2026-09-08 上游合并：上游扩 app group（acp/cli/collab/tauri）未采——四目录均为 fork deletedPaths；按其归组语义吸收既有未覆盖目录：core→editor、bytes/library→scene（新版严格分片测试要求每测试恰好一片） ｜ 2026-09-18 重锚 PR715 新结构：保持 fork 七组（app/dom/editor/fig/render/scene/vue），登记 packages/<owner>/tests 与 tests/app、tests/integration 守卫路径；不取上游 cli/mcp 组（包不存在）；同日清理分组来源死引用注释——packages/docs/development/testing.md 已随 docs 站删除，分组规范改注释内联声明；serial.ts 去 HEAVY 双写改 import isHeavyUnitTest（serial.ts 属 ownedRoot 新增文件免登记）；2026-09-29 合并：上游新增 tests/engine/bytes/（image-mime 测试）归 editor 组（core 字节工具语义） ｜ merge-upstream-45：dom 组 += packages/codegen/tests、packages/design-jsx/tests（两新包归组）；shards.test owner 循环 += design-jsx/codegen（ownedRoot 内测试文件免登记）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-29"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P20",
       "file": ".github/workflows/ci.yml",
       "reason": "remove native-test-contracts job (desktop deleted)",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P21",
@@ -331,9 +332,9 @@
     {
       "id": "P23",
       "file": "bun.lock",
-      "reason": "lockfile regenerated after workspace/dependency changes (mechanical) 2026-09-22：deps += @modelcontextprotocol/sdk@^1.30.0（MCP 接入阶段 1，craft 蓝本协议机；zod peer 仓内已满足）",
+      "reason": "lockfile regenerated after workspace/dependency changes (mechanical) 2026-09-22：deps += @modelcontextprotocol/sdk@^1.30.0（MCP 接入阶段 1，craft 蓝本协议机；zod peer 仓内已满足） ｜ merge-upstream-45：workspaces/scripts/deps 大改后 lockfile 重生成",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-22"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P24",
@@ -347,14 +348,14 @@
       "file": ".github/workflows/ci.yml",
       "reason": "add push trigger scoped to rebuild/** branches (upstream CI is PR-only; we need push CI on the long-lived rebuild branch)",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P26",
       "file": ".github/workflows/ci.yml",
       "reason": "remove check:docs step from repository-quality job (docs site deleted; script no longer exists)",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P27",
@@ -396,15 +397,15 @@
       "file": ".github/workflows/ci.yml",
       "reason": "add rebuild-discipline job: check:zones + check:docs + check:bindings + check:tasks wired to CI (T09 — these checks were documented as CI-enforced since Phase 0 but never actually wired) T10 附带：push 触发面 += merge/**（§3.3 月合并分支先跑 CI 再落 rebuild/v2）；T10 收工再加 spike/**（Phase 1 spike 分支走 CI）；T64（2026-09-01，owner 拍板）：本 job 的 check:zones 只跑静态 base-diff 规则——GHOST 上游活动窗口规则拆出为 --drift 子模式，进 upstream-drift.yml nightly 雷达 + 失败自动建 issue",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-01",
+      "lastReviewed": "2026-10-08",
       "task": "T64"
     },
     {
       "id": "P33",
       "file": "src/components/editor/EditorWorkspace.vue",
-      "reason": "remove CollabPanel import + mount above PropertiesPanel (collab deletion cut; T10: migrated from P2 after upstream bb5960cd moved editor UI from EditorView.vue here)；改名期②（2026-09-14）：折叠态 logo img alt 翻转「点睛设计」",
+      "reason": "remove CollabPanel import + mount above PropertiesPanel (collab deletion cut; T10: migrated from P2 after upstream bb5960cd moved editor UI from EditorView.vue here)；改名期②（2026-09-14）：折叠态 logo img alt 翻转「点睛设计」 ｜ merge-upstream-45：CollabPanel import 再拒（collab-panel 目录 §6.7 删除）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-14"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P34",
@@ -425,7 +426,7 @@
       "file": ".gitignore",
       "reason": "ignore .openpencil/ (T19 pi backend local session state) T27(2026-08-25): scratch/ 行保留理由注记（steiger 规则指定试验 spec 放置区，非死配置） 2026-09-16：+= build/.generated/（THIRD-PARTY-NOTICES 生成器落点，package:win 链首部再生成，gitignored 不入库）+ !tools/release/ 豁免（避免上方 release/ 通配误伤工具源）",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-25"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P38",
@@ -443,8 +444,8 @@
     },
     {
       "id": "P42",
-      "file": "tests/engine/scene-graph/plugin-data.test.ts",
-      "reason": "T22: 根节点 sharedPluginData .fig 往返专项测试（既有套件只覆盖普通节点）",
+      "file": "tests/engine/io/fig/plugin-data.test.ts",
+      "reason": "T22: 根节点 sharedPluginData .fig 往返专项测试（既有套件只覆盖普通节点） ｜ merge-upstream-45：#790 测试搬迁本体照收，重锚 tests/engine/io/fig/plugin-data.test.ts",
       "disposition": "permanent",
       "lastReviewed": "2026-08-25"
     },
@@ -485,10 +486,10 @@
     },
     {
       "id": "P50",
-      "file": "tools/type-shapes/src/files.ts",
+      "file": "tools/checks/type-shapes/src/files.ts",
       "reason": "T25 顺修：Windows 上 Bun.Glob 产出反斜杠导致 discoverTypeShapeFiles 输出混入 \\——统一正斜杠（tools/test.ts 本地门禁修复）；T51（2026-08-31）：scripts/ 目录整体退役后 Bun.Glob.scan 对缺失根在 Windows 抛 ENOENT（Linux 返回空），补 existsSync 跳根——CI 步骤 check:arch && test:type-shapes 链中后者在本分支从未跑到，本地首跑暴露",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-31"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P51",
@@ -500,10 +501,10 @@
     },
     {
       "id": "P53",
-      "file": "tools/secret-scan/src/index.ts",
-      "reason": "T27(2026-08-25): 缺 gitleaks/go 二进制时打印 SKIPPED 并 exit 0（环境受限机不再误报红；CI runner 自带 go 经 go run 兜底仍真扫；二进制在而扫描失败仍 exit 1 严格）",
+      "file": "tools/checks/secret-scan/src/index.ts",
+      "reason": "T27(2026-08-25): 缺 gitleaks/go 二进制时打印 SKIPPED 并 exit 0（环境受限机不再误报红；CI runner 自带 go 经 go run 兜底仍真扫；二进制在而扫描失败仍 exit 1 严格） ｜ merge-upstream-45：重锚 tools/checks/secret-scan/；上游重写为候选回退结构，容错语义拆两件——本件留 index.ts（SKIPPED 打印 + exit 0），scan.ts null 语义见 P400；review 修尾：非 ENOENT spawn 抛错同容错口径（SKIPPED + exit 0 附错误消息），防环境异常崩进程",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-10-08",
       "task": "T27"
     },
     {
@@ -516,10 +517,10 @@
     },
     {
       "id": "P55",
-      "file": "tools/architecture/src/steiger-rules/index.ts",
-      "reason": "T27(2026-08-25): 修复两条未注册规则的启用即崩 bug——no-kitchen-sink-engine-basic-tests 缺 collectFiles/readFileSync 导入；no-hardcoded-macos-shortcut-glyphs 的 matchAll 正则缺 g flag",
+      "file": "tools/checks/architecture/src/steiger-rules/index.ts",
+      "reason": "T27(2026-08-25): 修复两条未注册规则的启用即崩 bug——no-kitchen-sink-engine-basic-tests 缺 collectFiles/readFileSync 导入；no-hardcoded-macos-shortcut-glyphs 的 matchAll 正则缺 g flag ｜ merge-upstream-45：strict-tools-layout 对 fork 扁平 ownedRoot 工具（zone-registry/hooks/rebuild/release/cn-font-catalog/unit-tests/git-rescue/design-jsx-doc/font-subset + tools/test.ts）加豁免——#791 两层版式只管上游工具链（P153 同款规则内豁免先例）",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-10-08",
       "task": "T27"
     },
     {
@@ -527,23 +528,23 @@
       "file": ".github/workflows/ci.yml",
       "reason": "T28(2026-08-25): 新增 pi-backend-contract job（决策单 #12，owner 拍板只优化 pi-backend 测试）——smoke:pi 五套件进 CI（tempRoot 合成 fixture 自含，免 key/浏览器/7600 桥/dev server；bun 直跑 TS 源无需 build:packages）",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-10-08",
       "task": "T28"
     },
     {
       "id": "P58",
       "file": "README.md",
-      "reason": "2026-09-16 rebrand 回溯：全文重写为点睛产品版——上游品牌/链接/截图全清（packages/docs 已删，原截图引用本已死链）；原 T29「OpenPencil Rebuild」指针节随重写退役（docs/rebuild 亦已不存）。CHANGELOG.md 同批删除入 deletedPaths（上游变更日志对 fork 无意义）",
+      "reason": "2026-09-16 rebrand 回溯：全文重写为点睛产品版——上游品牌/链接/截图全清（packages/docs 已删，原截图引用本已死链）；原 T29「OpenPencil Rebuild」指针节随重写退役（docs/rebuild 亦已不存）。CHANGELOG.md 同批删除入 deletedPaths（上游变更日志对 fork 无意义） ｜ merge-upstream-45：上游 Installation/What-it-does 营销段不吸收（fork 品牌重写面保持，collab 已裁拒宣）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-16",
+      "lastReviewed": "2026-10-08",
       "task": "T29"
     },
     {
       "id": "P59",
       "file": "AGENTS.md",
-      "reason": "T29(2026-08-25): 决策单 #14 根文档最小指针——Documentation 节新增 2 行 docs/rebuild/README.md + tracker.md 指针（contributor/agent 可见 rebuild 跟踪）；78c717abd 已重写为 fork 自持向导；2026-09-08 上游合并：采上游 Settings UI ownership/family 重组语义一行（§3 末条），上游长文段（含 tauri 凭证细节）不入；2026-09-16：协作摘要补主 agent 手动操作禁令（owner 明令——未经允许禁安装/卸载软件、禁清理 worktree 以外文件；打包版装卸验收险毁 dev 共享状态根实证，仓外 §6 同款）",
+      "reason": "T29(2026-08-25): 决策单 #14 根文档最小指针——Documentation 节新增 2 行 docs/rebuild/README.md + tracker.md 指针（contributor/agent 可见 rebuild 跟踪）；78c717abd 已重写为 fork 自持向导；2026-09-08 上游合并：采上游 Settings UI ownership/family 重组语义一行（§3 末条），上游长文段（含 tauri 凭证细节）不入；2026-09-16：协作摘要补主 agent 手动操作禁令（owner 明令——未经允许禁安装/卸载软件、禁清理 worktree 以外文件；打包版装卸验收险毁 dev 共享状态根实证，仓外 §6 同款） ｜ merge-upstream-45：吸收上游包地图（裁 cli/mcp/harness/docs/desktop/skills/assets-brand 死行，src 行 Electron 真实化）+ import 面五条（别名清单按 tsconfig 真实化）；tools 布局契约改写两层版式 + i18n baseline 路径翻转",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-08",
+      "lastReviewed": "2026-10-08",
       "task": "T29"
     },
     {
@@ -559,7 +560,7 @@
       "file": "package.json",
       "reason": "T33(2026-08-26): scripts += serve（生产编排器入口，bun run build && bun run serve 一条链起全栈——localhost 分发骨架 T33）。编号复用说明：前一个 P103（AppTextButton patch 方案）当日撤销、从未入 commit",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-26",
+      "lastReviewed": "2026-10-08",
       "task": "T33"
     },
     {
@@ -653,7 +654,7 @@
       "file": "packages/core/package.json",
       "reason": "T40 S3：css-tree@3.2.1 升显式依赖（cn-font result.css 解析，原仅传递依赖）+ @types/css-tree devDep",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-30"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P119",
@@ -688,7 +689,7 @@
       "file": "oxlint.json",
       "reason": "T47：no-console off override 扩至 tools/**/*.mjs——workbench/ 迁入 tools/rebuild/ 的 .mjs 核验/构建脚本带入 lint 视野；tools/**/*.ts 本已 off，.mjs 同为 CLI 脚本口径一致；2026-09-29 合并 #745/#771：吸收 eslint-plugin-compat jsPlugin + settings.browsers 基线（chrome111/edge111/ff128/safari16.4）+ compat/compat error；拒收上游 no-mcp-*/no-cli-*/no-bun-globals-in-cli 五条规则引用（mcp/cli 两包俱裁撤死面，定义留 tools/lint plugin.ts follow 上游不引用）",
       "disposition": "permanent",
-      "lastReviewed": "2026-08-31"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P130",
@@ -702,9 +703,9 @@
     {
       "id": "P131",
       "file": "packages/core/src/figma-api/index.ts",
-      "reason": "T55（2026-09-01）：exportImage options 类型增 renderInContext/clip（S3 §5 主机能力前置，01 §8 锚定；签名向后兼容）；2026-09-14 T40 延展：viewport zoom-fit 守卫换 hasWindowGlobal 活探；2026-09-21 延展：构造增可选 onViewportChange（set viewport 与 scrollAndZoomIntoView 写 _viewport 时触发）——接通工具侧 viewport 写回编辑器 store 通路（仓外 docs/202609201112-viewport-focus-dead-path-review.md §5 方案 A），缺省注入行为不变",
+      "reason": "T55（2026-09-01）：exportImage options 类型增 renderInContext/clip（S3 §5 主机能力前置，01 §8 锚定；签名向后兼容）；2026-09-14 T40 延展：viewport zoom-fit 守卫换 hasWindowGlobal 活探；2026-09-21 延展：构造增可选 onViewportChange（set viewport 与 scrollAndZoomIntoView 写 _viewport 时触发）——接通工具侧 viewport 写回编辑器 store 通路（仓外 docs/202609201112-viewport-focus-dead-path-review.md §5 方案 A），缺省注入行为不变 ｜ merge-upstream-45：吸收上游 options-object 化（rasterCodec/changeBaseline 入列），hasWindowGlobal 活探守卫保持；ExportImageOptions 扩展随 types.ts 抽出走 P402",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-21",
+      "lastReviewed": "2026-10-08",
       "task": "T55"
     },
     {
@@ -837,10 +838,10 @@
     },
     {
       "id": "P153",
-      "file": "tools/architecture/src/steiger-rules/support.ts",
+      "file": "tools/checks/architecture/src/steiger-rules/support.ts",
       "reason": "T91f（2026-09-04）：FILE_PREFIX_GROUP_ALLOWLIST 追加 tests/e2e/fonts::cjk——该目录 3 个 cjk- 前缀文件中 2 个（cjk-fallback/cjk-rendering-visual + 快照）是上游 follow-pure 布局，fork 仅新增 labels-fallback 触发 3 文件阈值（CI run 33837584569 实证）；收拢 cjk/ 子目录会对上游文件制造永久合并摩擦，用规则自带豁免机制（与既有 2 条同模式）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-04",
+      "lastReviewed": "2026-10-08",
       "task": "T91f"
     },
     {
@@ -848,7 +849,7 @@
       "file": ".github/workflows/ci.yml",
       "reason": "T91j（2026-09-04）：engine tests 步骤把 tests/engine/app/document/recovery/store.test.ts 拆独立 bun test 进程——fake-indexeddb 在多文件同进程下偶发事件投递 stall（run 33840822799/33844404386 实证：循环空闲挂满 20s watchdog；bun 版本/测试规模/耗时时长三不变排除规模诱因），单进程从未复现（本地 600ms 绿），确定性消除 flake；bash 循环对全部 shard 通用（仅 app 组命中该文件）。Batch 3 核实（2026-09-05）：合并期钩子曾报 phantom——系 resolveBase 在 in-progress merge 时取 MERGE_HEAD 为基、冲突解决后 ci.yml 与合并头字节一致所致；当前相对 merge-base 88c10770 有真实 diff（+136/-28），登记有效保留",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-05",
+      "lastReviewed": "2026-10-08",
       "task": "T91j"
     },
     {
@@ -867,10 +868,11 @@
     },
     {
       "id": "P157",
-      "file": "tests/engine/editor/structure/flatten.test.ts",
-      "reason": "Batch 2b 前置（2026-09-05）：initCanvasKit 由 #cli/headless 改指 @open-pencil/core/io（14 个引擎测试改指 core/io 之一——cli 裁撤前去耦）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-05"
+      "file": "packages/core/tests/editor/structure/flatten.test.ts",
+      "reason": "Batch 2b 前置（2026-09-05）：initCanvasKit 由 #cli/headless 改指 @open-pencil/core/io（14 个引擎测试改指 core/io 之一——cli 裁撤前去耦） ｜ merge-upstream-45：#790 测试搬迁本体照收，重锚 packages/core/tests/editor/structure/flatten.test.ts",
+      "disposition": "revoked",
+      "lastReviewed": "2026-10-08",
+      "retiredReason": "merge-upstream-45：#790 搬迁后上游本体已直引 @open-pencil/core 子路径（P157 的 #cli/headless 解耦语义被上游原生覆盖），与上游字节一致，patch 幻影退役"
     },
     {
       "id": "P158",
@@ -958,10 +960,10 @@
     },
     {
       "id": "P170",
-      "file": "tools/visual-oracles/src/operations/export-fixtures.ts",
+      "file": "tools/generate/visual-oracles/src/operations/export-fixtures.ts",
       "reason": "Batch 2b 前置（2026-09-05）：fixture 导出由 bun 调 open-pencil CLI 改调本地 render-fixture.ts（cli 裁撤后 visual-oracles 不依赖 packages/cli；30 行导出脚本登记为 ownedFile render-fixture.ts） | T98: upstream rename tools/visual-oracles/src/export-fixtures.ts → tools/visual-oracles/src/operations/export-fixtures.ts (R100 重组到 operations/ 子目录)",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-05"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P171",
@@ -1015,17 +1017,17 @@
     },
     {
       "id": "P178",
-      "file": "tools/lint/src/plugin.ts",
+      "file": "tools/checks/lint/src/plugin.ts",
       "reason": "Batch 2b/2c（2026-09-05）：mcp/cli 专属规则族退役（no-mcp/no-cli-parent-relative-imports、no-mcp/no-cli-core-barrel-imports、no-bun-globals-in-cli + nonComponentSourceDirectoriesKebabCase 根清单去两包）。T98 收口（2026-09-06）：lint/plugin.js 回接上游一行 shim（re-export 本文件），退役语义从旧自包含快照移植到本文件注册表；preferVueUseIntervals 豁免移植见 P210。",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-06"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P180",
-      "file": "tools/type-shapes/tests/files.test.ts",
+      "file": "tools/checks/type-shapes/tests/files.test.ts",
       "reason": "Batch 2c（2026-09-05）：isTypeShapeSourcePath 断言由 packages/mcp/dist 改 packages/vue/dist（mcp 裁撤后换参照包）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-05"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P181",
@@ -1087,9 +1089,9 @@
     {
       "id": "P191",
       "file": "tests/engine/app/chat/tool-state.test.ts",
-      "reason": "Batch 2f（2026-09-05）：tool-state import 由 @/components/chat/tool-state 改指 @/components/assistant/tool-state——文件原在 T31 tarball.paths（byte 一致白名单），import 改指致 TARBALL_DRIFT，按 checker 提示出清转 patch",
+      "reason": "Batch 2f（2026-09-05）：tool-state import 由 @/components/chat/tool-state 改指 @/components/assistant/tool-state——文件原在 T31 tarball.paths（byte 一致白名单），import 改指致 TARBALL_DRIFT，按 checker 提示出清转 patch ｜ merge-upstream-45：再拒上游 chat/tool/state 迁徙，保 assistant/tool-state 断言面",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-05"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P192",
@@ -1184,17 +1186,17 @@
     },
     {
       "id": "P205",
-      "file": "tools/i18n/translation-baseline.txt",
+      "file": "tools/checks/i18n/translation-baseline.txt",
       "reason": "T98：域下线配套——剔除 7 个已删 locale 目录（de/es/fr/it/ja/pl/ru）的 216 条死 baseline 条目（checker  stale 规则），zh-cn/en 保留；2026-09-14 合并：摘 de/es/it:ai.chatSettings 三条 stale（ChatSettingsSection 随域裁撤）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-14"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P206",
-      "file": "tools/i18n/mixed-script-baseline.txt",
-      "reason": "T98：域下线配套——剔除 ja 110 条 + zh-cn diagnostics 域 9 条死 baseline 条目；2026-09-14 合并：摘 ja:ai.copyACPLog/credentials.settingsTitle/rememberDevice 三条 stale；2026-09-29 合并：上游 ja 块 135 条 + zh-cn:fonts.downloadFallbackPacksDescription 经 check:i18n 判 stale 全剔（与 T98 剔除同理）；仅吸收 zh-cn:fonts.unsupportedFormat（上游 zh 译文拉丁+CJK 混排有效）",
+      "file": "tools/checks/i18n/mixed-script-baseline.txt",
+      "reason": "T98：域下线配套——剔除 ja 110 条 + zh-cn diagnostics 域 9 条死 baseline 条目；2026-09-14 合并：摘 ja:ai.copyACPLog/credentials.settingsTitle/rememberDevice 三条 stale；2026-09-29 合并：上游 ja 块 135 条 + zh-cn:fonts.downloadFallbackPacksDescription 经 check:i18n 判 stale 全剔（与 T98 剔除同理）；仅吸收 zh-cn:fonts.unsupportedFormat（上游 zh 译文拉丁+CJK 混排有效）；merge-upstream-45：剔 zh-cn:ai.reasoningEffortPlaceholder stale（源键本批被上游删除）；增 zh-cn:ai.changePreviewHint——「AI」拉丁与 CJK 混排（P349 同类）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-14"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P207",
@@ -1219,17 +1221,17 @@
     },
     {
       "id": "P210",
-      "file": "tools/lint/src/rules/runtime.ts",
+      "file": "tools/checks/lint/src/rules/runtime.ts",
       "reason": "T98 收口（2026-09-06）：P178 豁免语义移植——preferVueUseIntervals 的 applies 增加 src/app/automation/bridge/server/ 排除（bun 拉起的 Node 子进程无 Vue 运行时，WebSocket 心跳只能手写 setInterval/clearInterval，见 server.ts:163）；随 lint/plugin.js 回接上游 shim 从旧自包含快照迁入。",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-06"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P211",
-      "file": "packages/core/src/design-jsx/render.ts",
+      "file": "packages/design-jsx/src/render.ts",
       "reason": "T98（2026-09-06）：buildComponent sucrase 解析错误文案——包装源码坐标（别名前缀 ~28 行，单行输入实证报 (29:103)）映射回 jsx 入参行列 + 附 base.md 对齐的可操作指引（valid JSX only，不带字面 </jsx>）；模型可见错误链（桥 200 ok:false 透传）配套",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-06",
+      "lastReviewed": "2026-10-08",
       "task": "T98"
     },
     {
@@ -1320,10 +1322,10 @@
     },
     {
       "id": "P224",
-      "file": "packages/core/src/design-jsx/props-overrides.ts",
+      "file": "packages/design-jsx/src/props-overrides.ts",
       "reason": "工具吸收 2026-09-09：WEIGHT_MAP（3 档大小写敏感）删除，字重改走 scene-graph parseFontStyle（9 档 22 别名大小写不敏感 + 未知名 400 兜底）——studio base.md:39 教 9 名，旧映射 7/9 必中静默回退 400",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-09"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P225",
@@ -1349,9 +1351,9 @@
     {
       "id": "P228",
       "file": "packages/core/src/tools/analyze/eval/index.ts",
-      "reason": "工具吸收 2026-09-09：eval 描述补技术约束——无 *Async 方法（getNodeByIdAsync 不存在/loadFontAsync 为 no-op）、计数≠写确认、批量操作正确路由（loop set_font / set_fill / render replace_id，batch_update 不收字体与填充）；base.md:98 三条引用与描述对齐",
+      "reason": "工具吸收 2026-09-09：eval 描述补技术约束——无 *Async 方法（getNodeByIdAsync 不存在/loadFontAsync 为 no-op）、计数≠写确认、批量操作正确路由（loop set_font / set_fill / render replace_id，batch_update 不收字体与填充）；base.md:98 三条引用与描述对齐；2026-10-08 merge-upstream-45 校准：上游 #779 起 figma-api 增 getNodeByIdAsync（sync 委托别名），描述口径由「不存在」改「sync-first 别名」",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-09"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P229",
@@ -1407,7 +1409,7 @@
       "file": "packages/core/src/editor/create.ts",
       "reason": "2026-09-14 合并后 L1 第二轮：默认 getViewportSize 的 IS_BROWSER 冻结守卫同上污染链——换 hasWindowGlobal 活探；2026-09-25 字体 settle 追排：settled(loaded) 防抖触发页级文本 auto-resize 重测 + 整图 relayout（修换字体后宽高滞留回退度量）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-25"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P237",
@@ -1482,9 +1484,9 @@
     {
       "id": "P247",
       "file": "packages/vue/src/i18n/locales/zh-cn/ai.json",
-      "reason": "改名期③补扫（2026-09-14）：②产品面扫荡漏区——zh-cn 语言包 chatNetworkFailed 文案 OpenPencil→点睛设计（③ L3 实测恢复对话框现形后顺藤摸瓜全量 sweep 本目录）。2026-09-18 chat-p1：滚动浮钮/复制/错误动作所需 zh 翻译（jumpToLatest 跳转到最新消息/copyResponse 复制回答/responseCopied 已复制回答/openProviderSettingsAction 打开设置/continueChat 继续）核实已齐备，本批零改动。2026-09-20 chat-input-ux：新增 agentWorking 键（流式禁用态输入框动态 placeholder）。",
+      "reason": "改名期③补扫（2026-09-14）：②产品面扫荡漏区——zh-cn 语言包 chatNetworkFailed 文案 OpenPencil→点睛设计（③ L3 实测恢复对话框现形后顺藤摸瓜全量 sweep 本目录）。2026-09-18 chat-p1：滚动浮钮/复制/错误动作所需 zh 翻译（jumpToLatest 跳转到最新消息/copyResponse 复制回答/responseCopied 已复制回答/openProviderSettingsAction 打开设置/continueChat 继续）核实已齐备，本批零改动。2026-09-20 chat-input-ux：新增 agentWorking 键（流式禁用态输入框动态 placeholder）。 ｜ merge-upstream-45：+= chatAgentWorkingOn/chatGoToPage 两键（schema 对齐）；maxAgentStepsCustom 随 P329 拒收；review 修尾实证纠偏：§6.8「#811/#812 键随拒收面丢弃」与 check:i18n 缺键即红冲突，维持 §5.6 死键无害口径不摘（键面与上游同步 = 合并零税）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-20"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P248",
@@ -1568,7 +1570,7 @@
       "file": "packages/core/package.json",
       "reason": "2026-09-16：version 0.14.0→0.1.0——owner 拍板发版策略：fork 自主谱系重新计数，与上游 OpenPencil 版本号脱钩（发版策略批）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-16"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P261",
@@ -1632,7 +1634,7 @@
       "file": "packages/vue/src/i18n/messages/ai.ts",
       "reason": "2026-09-17：pi-chat 4MB→32MB 请求体上限配套——en 源新增 chatPayloadTooLarge 键（413/502/ECONNRESET 归因「请求体过大或本地连接中断」）；zh 翻译随附 locales/zh-cn/ai.json（P247 既有条目覆盖）。2026-09-18 chat-p1：滚动浮钮/复制/错误动作所需键（jumpToLatest/copyResponse/responseCopied/openProviderSettingsAction/continueChat）核实已随既有合并齐备，本批零改动。2026-09-20 chat-input-ux：新增 agentWorking 键（流式禁用态输入框动态 placeholder）。",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-20"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P270",
@@ -1734,24 +1736,24 @@
     },
     {
       "id": "P285",
-      "file": "tools/lint/tests/helpers/lint.ts",
+      "file": "tools/checks/lint/tests/helpers/lint.ts",
       "reason": "package-artifacts 包拒收——resolveWorkspaceRoot 改本地实现（bun.lock 上溯）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-18"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P286",
-      "file": "tools/lint/tests/plugin.test.ts",
+      "file": "tools/checks/lint/tests/plugin.test.ts",
       "reason": "package-artifacts 包拒收——resolveWorkspaceRoot 改从本地 helpers 引入（同 P285）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-18"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P287",
-      "file": "tools/lint/tests/vue-module.test.ts",
+      "file": "tools/checks/lint/tests/vue-module.test.ts",
       "reason": "package-artifacts 包拒收——resolveWorkspaceRoot 改从本地 helpers 引入（同 P285）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-18"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P288",
@@ -1762,10 +1764,10 @@
     },
     {
       "id": "P289",
-      "file": "tools/lint/src/rules/policy.ts",
+      "file": "tools/checks/lint/src/rules/policy.ts",
       "reason": "noMixedCaseAcronymIdentifiers ignoredImports 增列 '@valibot/to-json-schema'——第三方包导出名豁免（同 culori/reka-ui 类）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-18"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P290",
@@ -1790,8 +1792,8 @@
     },
     {
       "id": "P295",
-      "file": "tests/e2e/chat/streaming-animation.spec.ts",
-      "reason": "2026-09-18：动态 import 死路径 /src/components/chat/ChatMarkdown.vue 改指 /src/components/assistant/ChatMarkdown.vue（fork 的 chat/ 目录已裁进 deletedPaths；CI 无 e2e job 长期不可见——ReasoningBlock 孤儿条目同族残留）",
+      "file": "tests/e2e/chat/streaming/animation.spec.ts",
+      "reason": "2026-09-18：动态 import 死路径 /src/components/chat/ChatMarkdown.vue 改指 /src/components/assistant/ChatMarkdown.vue（fork 的 chat/ 目录已裁进 deletedPaths；CI 无 e2e job 长期不可见——ReasoningBlock 孤儿条目同族残留） ｜ merge-upstream-45：#790 测试搬迁本体照收，重锚 tests/e2e/chat/streaming/animation.spec.ts",
       "disposition": "permanent",
       "lastReviewed": "2026-09-18"
     },
@@ -1882,8 +1884,8 @@
     },
     {
       "id": "P308",
-      "file": "tests/engine/editor/clipboard/file-placement.test.ts",
-      "reason": "添加图片配套件 4 回归钉（2026-09-19）：逐文件失败原因四态（empty/unsupported/engine-not-ready/corrupted）、placeImageFiles 收 SVG、AVIF 拒收",
+      "file": "packages/core/tests/editor/clipboard/file-placement.test.ts",
+      "reason": "添加图片配套件 4 回归钉（2026-09-19）：逐文件失败原因四态（empty/unsupported/engine-not-ready/corrupted）、placeImageFiles 收 SVG、AVIF 拒收 ｜ merge-upstream-45：#790 测试搬迁本体照收，重锚 packages/core/tests/editor/clipboard/file-placement.test.ts",
       "disposition": "permanent",
       "lastReviewed": "2026-09-19"
     },
@@ -2009,9 +2011,9 @@
     {
       "id": "P329",
       "file": "src/app/settings/preferences/store.ts",
-      "reason": "2026-09-21 合并 v0.15.1：拒收 048 maxAgentSteps 偏好字段（step-limit 概念与我方 broker 层级正交，若要须重新设计进 pi-backend）",
+      "reason": "2026-09-21 合并 v0.15.1：拒收 048 maxAgentSteps 偏好字段（step-limit 概念与我方 broker 层级正交，若要须重新设计进 pi-backend） ｜ merge-upstream-45：#812 maxAgentSteps/changePreviewSize 再拒（step-limit/preferences 模块随裁撤栈删除，capture.ts 孤儿文件同删），followLocusPage 保持",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-21"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P330",
@@ -2126,9 +2128,9 @@
     {
       "id": "P345",
       "file": "packages/core/src/io/formats/fig/export.ts",
-      "reason": "CanvasKit WASM 崩溃逃生舱（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 A-1）：renderFigThumbnail 与 sceneNodeToKiwi 调用链（children loop / shared-style loop）加 try/catch——CanvasKit 单例堆损坏抛 RuntimeError 时降级为 1×1 透明 PNG 占位或跳过单节点 nodeChanges，存盘照常；不阻断 dirty 清除。console.warn 带 error message，不吞错",
+      "reason": "CanvasKit WASM 崩溃逃生舱（仓外 docs/202609221818-canvaskit-wasm-crash-save-close-deadlock.md §4 A-1）：renderFigThumbnail 与 sceneNodeToKiwi 调用链（children loop / shared-style loop）加 try/catch——CanvasKit 单例堆损坏抛 RuntimeError 时降级为 1×1 透明 PNG 占位或跳过单节点 nodeChanges，存盘照常；不阻断 dirty 清除。console.warn 带 error message，不吞错 ｜ merge-upstream-45：重锚——上游 sceneNodeToKiwi 签名改 options-object + canvas-children 循环挪位 appendInternalResources 后，两处 try/catch 逃逸舱按新签名重贴（written+index / base+i 计数）",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-22",
+      "lastReviewed": "2026-10-08",
       "task": "A-1"
     },
     {
@@ -2157,10 +2159,10 @@
     },
     {
       "id": "P349",
-      "file": "tools/i18n/mixed-script-baseline.txt",
+      "file": "tools/checks/i18n/mixed-script-baseline.txt",
       "reason": "B-2 同批：增 zh-cn:files.exportTooLarge——'512 MB' 拉丁数字与 CJK 文案混排",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-22",
+      "lastReviewed": "2026-10-08",
       "task": "B-2"
     },
     {
@@ -2210,9 +2212,9 @@
     {
       "id": "P356",
       "file": "packages/core/src/canvas/index.ts",
-      "reason": "A-3 渲染崩溃检测：re-export packages/core/src/canvas/renderer/dead.ts 的模块表面（getRendererDeadState/isRendererDead/markRendererDead/resetRendererDead/subscribeRendererDeadState/withCrashGuard + 类型）——供 packages/vue 与 fork 工具（look.ts）统一从 @open-pencil/core/canvas 取用",
+      "reason": "A-3 渲染崩溃检测：re-export packages/core/src/canvas/renderer/dead.ts 的模块表面（getRendererDeadState/isRendererDead/markRendererDead/resetRendererDead/subscribeRendererDeadState/withCrashGuard + 类型）——供 packages/vue 与 fork 工具（look.ts）统一从 @open-pencil/core/canvas 取用 ｜ merge-upstream-45：#803 PresenceCursor re-export 拒（§6.7 联动：app 侧 presence 域删除，core 绘制件随 renderer 栈保留但不透出）；renderer/dead 崩溃护栏导出块保持",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-22"
+      "lastReviewed": "2026-10-08"
     },
     {
       "id": "P357",
@@ -2371,9 +2373,9 @@
     {
       "id": "P379",
       "file": "src/components/PagesPanel.vue",
-      "reason": "sl-w2-locus-gate（2026-09-27）：页签呼吸徽标——run 在途且施工页 ≠ 视图页时，施工页页签显示呼吸圆点（数据源 = locus-state 全局 ref：runActive + runStartedPageId，纯渲染零副作用）",
+      "reason": "sl-w2-locus-gate（2026-09-27）：页签呼吸徽标——run 在途且施工页 ≠ 视图页时，施工页页签显示呼吸圆点（数据源 = locus-state 全局 ref：runActive + runStartedPageId，纯渲染零副作用） ｜ merge-upstream-45：#807 PresenceMarkers 挂载再拒（presence 域 §6.7 删除），呼吸徽标保持",
       "disposition": "permanent",
-      "lastReviewed": "2026-09-27",
+      "lastReviewed": "2026-10-08",
       "task": "sl-w2-locus-gate"
     },
     {
@@ -2514,17 +2516,82 @@
       "id": "P398",
       "file": "packages/core/src/design-jsx/tree.ts",
       "reason": "fragment-flatten（2026-10-02）：resolveToTree 子节点循环对 type:'' 节点摊平（其 children 拼入父 children）——嵌套 fragment 对树透明，对齐 React 语义；嵌套 fragment 此前流到 renderer TYPE_MAP 未命中抛 Unknown element: <>；顶层 fragment 的多根行为不变（renderJSX 根级 '' 多根分支原样保留）",
-      "disposition": "permanent",
+      "disposition": "revoked",
       "lastReviewed": "2026-10-02",
+      "retiredReason": "merge-upstream-45（2026-10-08）：上游 design-jsx 抽包 + builder 级 fragment 内联（packages/design-jsx）为 P398 超集，patch 退役；新包内文件转 follow-pure",
       "task": "fragment-flatten"
     },
     {
       "id": "P399",
       "file": "packages/core/src/design-jsx/renderer.ts",
       "reason": "fragment-flatten（2026-10-02）：renderNode 对 type:''/'fragment' 的教学式报错兜底——fragment 不能直接渲染、children 已自动并入所在容器，需要独立容器用 Frame 包裹；摊平落地后正常不可达，属防御分支，其余未知类型报错不变",
-      "disposition": "permanent",
+      "disposition": "revoked",
       "lastReviewed": "2026-10-02",
+      "retiredReason": "merge-upstream-45（2026-10-08）：上游 renderer.ts 重写为 createDesignJSXRenderer 工厂组合（icons/svg/layout 注入服务），P399 修补面整体被官方结构覆盖，退役",
       "task": "fragment-flatten"
+    },
+    {
+      "id": "P400",
+      "file": "tools/checks/secret-scan/src/scan.ts",
+      "reason": "merge-upstream-45：P53 容错语义移植到上游候选回退结构——runSecretScan 无候选二进制（gitleaks/go 俱缺）时返回 null 而非伪造失败（环境受限机不再误报红；CI runner 有 go 仍真扫）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-08"
+    },
+    {
+      "id": "P401",
+      "file": "tools/checks/secret-scan/tests/scan.test.ts",
+      "reason": "merge-upstream-45：断言随 P400——无候选 → toBeNull",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-08"
+    },
+    {
+      "id": "P402",
+      "file": "packages/core/src/figma-api/types.ts",
+      "reason": "merge-upstream-45：ExportImageOptions 增 renderInContext/clip（T55 S3 主机能力前置，P131 同族——上游把 ExportImageOptions 抽出到 types.ts，扩展随锚迁移）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-08"
+    },
+    {
+      "id": "P404",
+      "file": "src/components/EditorCanvas.vue",
+      "reason": "merge-upstream-45：摘 #807 follow-view 挂载（useFollowView/FollowFrame——presence 域随 §6.7 删除，collab 裁撤后无 awareness 数据源）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-08"
+    },
+    {
+      "id": "P405",
+      "file": "src/app/editor/pages/palette.ts",
+      "reason": "merge-upstream-45：#779 pages palette 摘 presence 联动（presenceByPage 注入与人名描述——presence 域 §6.7 删除）；go-to-page/recent/searchOnly 语义保留",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-08"
+    },
+    {
+      "id": "P406",
+      "file": "tools/checks/architecture/package.json",
+      "reason": "merge-upstream-45：摘 @open-pencil/package-artifacts-tools 依赖——上游把 resolveWorkspaceRoot 抽进该包（package-artifacts 属裁撤面），我方工具留本地 helper",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-08"
+    },
+    {
+      "id": "P407",
+      "file": "tools/checks/architecture/tests/acronym-casing.test.ts",
+      "reason": "merge-upstream-45：仓根定位改 import.meta.dir 四级上溯（#791 两层版式下 tools/checks/architecture/tests → 仓根深四级；毒引用同步摘除）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-08"
+    },
+    {
+      "id": "P408",
+      "file": "tools/checks/lint/package.json",
+      "reason": "merge-upstream-45：摘 @open-pencil/package-artifacts-tools 依赖（同 P406 毒引用清除）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-08"
+    },
+    {
+      "id": "P409",
+      "file": "tools/checks/i18n/src/check-locales.ts",
+      "reason": "merge-upstream-45：locale 联合型已收窄 en+zh-CN（P14），ja 析取无重叠（TS2367）——混排闸只对 zh-CN 生效",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-08"
     }
   ],
   "deletedPaths": [
@@ -2685,7 +2752,6 @@
     "tools/package-quality",
     "tools/package-artifacts",
     "tools/authoring-reference",
-    "tools/ci",
     "src/components/settings/credentials/CredentialSettingsSection.vue",
     "tests/engine/app/ai/harness/transport.test.ts",
     "tests/engine/app/chat/history/continuation.test.ts",
@@ -2729,7 +2795,21 @@
     "tests/AGENTS.md",
     "tools/AGENTS.md",
     ".github/workflows/pr-title.yml",
-    "skills/open-pencil"
+    "skills/open-pencil",
+    "src/app/presence",
+    "src/components/presence",
+    "src/components/collab-panel",
+    "packages/vue/src/canvas/PresenceCursors.stories.ts",
+    "tools/checks/docs",
+    "tools/checks/package-quality",
+    "tools/checks/test-homes",
+    "tools/generate/brand",
+    "tools/generate/tauri-menu",
+    "tools/generate/authoring-reference",
+    "tools/release/release-packages",
+    "tools/release/package-artifacts",
+    "tools/ci/policy",
+    "tools/dev/unit-tests"
   ],
   "upstreamMergeTarball": []
 }

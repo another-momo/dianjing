@@ -2,11 +2,12 @@ import { limitAsync } from 'es-toolkit/promise'
 
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
-import { populateLazyFigImportRoots } from '#core/kiwi/fig/lazy-import'
+import { getPageColor, setPageBackgrounds } from '#core/figma-api/page-backgrounds'
 import {
   canUseFigPopulationWorker,
   createFigPopulationWorker
 } from '#core/kiwi/fig/population/client'
+import { isReaderPagePending, recoverReaderPage } from '#core/kiwi/fig/session/document-state'
 import { computeAllLayouts } from '#core/layout'
 import { fontManager } from '#core/text/fonts'
 import { collectGraphFontRequirements } from '#core/text/requirements'
@@ -41,6 +42,14 @@ function throwIfAborted(signal?: AbortSignal): void {
 const MAX_CONCURRENT_FONT_LOADS = 4
 export function createPageActions(ctx: EditorContext) {
   const pageViewportStore = createPageViewportStore(ctx)
+  function syncPageColor() {
+    ctx.state.pageColor = getPageColor(ctx.graph.getNode(ctx.state.currentPageId))
+  }
+  syncPageColor()
+  ctx.onEditorEvent('graph:replaced', syncPageColor)
+  ctx.onEditorEvent('node:updated', (id, changes) => {
+    if (id === ctx.state.currentPageId && changes.source) syncPageColor()
+  })
   let populationWorkerInstance: ReturnType<typeof createFigPopulationWorker> | undefined
   let populationWorkerGeneration = 0
   let pageSwitchGeneration = 0
@@ -51,9 +60,10 @@ export function createPageActions(ctx: EditorContext) {
     return populationWorkerInstance
   }
 
+  /** `switchGeneration` is null for a lookup, which no page switch can supersede. */
   async function populatePage(
     pageId: string,
-    switchGeneration: number,
+    switchGeneration: number | null,
     signal?: AbortSignal
   ): Promise<boolean | null> {
     throwIfAborted(signal)
@@ -63,14 +73,17 @@ export function createPageActions(ctx: EditorContext) {
     throwIfAborted(signal)
     if (
       workerGeneration !== populationWorkerGeneration ||
-      switchGeneration !== pageSwitchGeneration
+      (switchGeneration !== null && switchGeneration !== pageSwitchGeneration)
     ) {
       return null
     }
     if (workerResult !== null) return workerResult
     worker?.terminate()
     populationWorkerInstance = undefined
-    return populateLazyFigImportRoots(ctx.graph, [pageId])
+    if (isReaderPagePending(ctx.graph, pageId)) {
+      return recoverReaderPage(ctx.graph, pageId)
+    }
+    return false
   }
 
   async function resolvePageFonts(
@@ -179,6 +192,14 @@ export function createPageActions(ctx: EditorContext) {
     return true
   }
 
+  /**
+   * Loads a page's layers so they can be searched, without fonts, layout, or switching to
+   * it — and without superseding a page switch the user has in progress.
+   */
+  async function loadPageNodes(pageId: string): Promise<void> {
+    if (ctx.graph.getNode(pageId)?.type === 'CANVAS') await populatePage(pageId, null)
+  }
+
   async function switchPage(pageId: string, options: SwitchPageOptions = {}): Promise<void> {
     const prepared = await preparePage(pageId, options)
     if (prepared) commitPageSwitch(prepared)
@@ -229,11 +250,23 @@ export function createPageActions(ctx: EditorContext) {
   }
 
   function setPageColor(color: Color) {
-    ctx.state.pageColor = color
+    const page = ctx.graph.getNode(ctx.state.currentPageId)
+    if (!page) return
+    setPageBackgrounds(ctx.graph, page, [
+      { type: 'SOLID', color: { ...color }, opacity: 1, visible: true, blendMode: 'NORMAL' }
+    ])
+    syncPageColor()
     ctx.requestRender()
   }
 
+  /** Advances whenever a page switch starts, so a caller can tell it was overtaken. */
+  function pageSwitchCount(): number {
+    return pageSwitchGeneration
+  }
+
   return {
+    loadPageNodes,
+    pageSwitchCount,
     preparePage,
     commitPageSwitch,
     switchPage,

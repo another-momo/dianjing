@@ -200,7 +200,8 @@ function copyPropertyDefs(
     defs?.map((d) => ({
       ...d,
       variantOptions: d.variantOptions ? [...d.variantOptions] : undefined,
-      preferredValues: d.preferredValues ? [...d.preferredValues] : undefined
+      preferredValues: d.preferredValues ? [...d.preferredValues] : undefined,
+      slotSettings: d.slotSettings ? { ...d.slotSettings } : undefined
     })) ?? []
   )
 }
@@ -240,6 +241,8 @@ export function cloneNodeProps(
       ...(componentId !== null ? { componentId } : {}),
       source: createDefaultSourceMetadata(),
       boundVariables: { ...src.boundVariables },
+      variableBindingScales: { ...src.variableBindingScales },
+      variableAssignmentScales: { ...src.variableAssignmentScales },
       variableModes: { ...src.variableModes },
       instanceOverrides: cloneInstanceOverrideState(src.instanceOverrides),
       componentPropertyAssignments: { ...src.componentPropertyAssignments },
@@ -251,6 +254,8 @@ export function cloneNodeProps(
     ...rest,
     ...(componentId !== null ? { componentId } : {}),
     boundVariables: { ...src.boundVariables },
+    variableBindingScales: { ...src.variableBindingScales },
+    variableAssignmentScales: { ...src.variableAssignmentScales },
     variableModes: { ...src.variableModes },
     instanceOverrides: cloneInstanceOverrideState(src.instanceOverrides),
     fills: copyOpt(src.fills, (value) => markCopySource(value, copyFills(value))),

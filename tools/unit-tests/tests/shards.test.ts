@@ -40,7 +40,17 @@ test('canonical destinations are registered before they hold files', async () =>
   const paths = pathsForUnitTestGroup('all')
   expect(paths).toContain('tests/app')
   expect(paths).toContain('tests/integration')
-  for (const owner of ['core', 'scene-graph', 'vue', 'fig', 'kiwi', 'dom-css', 'pen']) {
+  for (const owner of [
+    'core',
+    'scene-graph',
+    'vue',
+    'fig',
+    'kiwi',
+    'dom-css',
+    'design-jsx',
+    'codegen',
+    'pen'
+  ]) {
     expect(paths).toContain(`packages/${owner}/tests`)
   }
   await expect(listUnitTests('all')).resolves.toBeArray()

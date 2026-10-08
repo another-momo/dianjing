@@ -23,6 +23,8 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 export const UNIT_TEST_GROUPS = {
   app: ['tests/app', 'tests/integration', 'tests/engine/app', 'tests/engine/rebuild'],
   dom: [
+    'packages/codegen/tests',
+    'packages/design-jsx/tests',
     'packages/dom-css/tests',
     'packages/pen/tests',
     'tests/engine/dom-css',

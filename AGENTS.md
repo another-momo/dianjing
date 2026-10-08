@@ -10,6 +10,21 @@
 - 施工线分支 `rebuild/mode-arch-lite`（`rebuild/mode-arch` 冻结保留）；与上游保持定期合并，文件所有权由 zone 登记制机器化管理（§3）。
 - monorepo：bun workspaces；`packages/*` 为库，`src/` 为应用。
 
+| Path                   | Owns                                                                                                                                                                              | Guide                          |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `packages/scene-graph` | Framework-neutral graph, node types, geometry, copy/snap/undo, variables, instances, hit testing, plus the shared primitives formats need: color conversion and management, text/layout direction | —                              |
+| `packages/pen`         | Pencil.dev `.pen` model, parser, SceneGraph adapter                                                                                                                              | —                              |
+| `packages/kiwi`        | SceneGraph-independent Kiwi schema/runtime, codecs, containers, parse helpers                                                                                                    | —                              |
+| `packages/fig`         | `.fig` archives, SceneGraph conversion, metadata policy, component/instance interpretation, Figma clipboard                                                                      | —                              |
+| `packages/core`        | Renderer, layout, editor, Figma API, tools, clipboard, vector conversion, document I/O; depends on scene-graph and the format packages (pen, kiwi, fig, dom-css, design-jsx); no browser DOM | —                              |
+| `packages/dom-css`     | DOM/CSS/HTML/JSX/Tailwind projection and browser/headless adapters; depends only on scene-graph and codegen, and takes engine services such as web-font resolution as injected options | `packages/dom-css/AGENTS.md`   |
+| `packages/codegen`     | Syntax-tree code generation for exporters: ESTree and JSX builders, template filling, and esrap printing, with the literal rules that keep exported strings from being reinterpreted | —                              |
+| `packages/design-jsx`  | OpenPencil design JSX: elements, paint/effect helpers, variables, schema and authoring reference, JSX export, and a renderer that takes icons, SVG, and layout as injected services | `packages/design-jsx/AGENTS.md` |
+| `packages/vue`         | Headless Vue 3 SDK primitives, composables, commands, i18n, menu model                                                                                                           | —                              |
+| `src`                  | Electron/Vite app: services and state in `src/app/**`, views in `src/views/**`, UI in `src/components/**`                                                                         | —                              |
+| `tests`                | Central app, integration, and Figma acceptance tests                                                                                                                             | —                              |
+| `tools`, `.github`     | Private repo tooling, CI classification, releases                                                                                                                                | —                              |
+
 ## 2. 协作摘要（最低限度规则）
 
 - 主 agent 唯一允许：git 写（commit / merge-back）、gh 操作；browser 实测归主 agent 或经派单授权的 L3 验收跑手（仓外 §2）；**未经允许禁安装/卸载软件、禁清理 worktree 以外文件**（owner 明令，仓外 §6 同款——打包版装卸交 owner 人工）。
@@ -40,6 +55,11 @@
 - 状态根/目录布局/路径契约类改动同样必扫 spikes：`spikes/s-pi/backend-smoke/` 钉死 token/状态文件相对布局，且冒烟 spawn 后端不带 env 时后端状态根不再跟 cwd。**sweep 输出禁截断**——`grep | head` 截断会漏钉。
 - commit message：中文 conventional（`type(scope): 主题`）+ 正文写清 why——背景、方案取舍、验证证据。
 - pre-commit = check:zones；post-commit = 机制复盘计数提醒（advisory，永不阻塞）。
+- 跨包/跨应用边界一律 import 拥有方包的公共导出，禁钻 workspace 内部或纯转发 shim：`@open-pencil/scene-graph` 供图类型与原语，`@open-pencil/kiwi` 供底层 Kiwi/FIG helper，`@open-pencil/core` 供兼容 barrel 及 `packages/core/package.json` 列出的 subpath。
+- `bun run check:arch` 强制：公共 workspace 导出、Core 框架中立、views 与共享 UI 禁挂 app 服务、property-panel 内部件限于该面板。
+- 包别名 `#core/*`、`#fig/*`、`#pen/*`、`#scene-graph/*`、`#dom-css/*`、`#codegen/*`、`#design-jsx/*`、`#vue/*`；包内测试用 `#core-tests/*`、`#fig-tests/*`；应用用 `@/`。禁以 `../` 逃逸别名根。
+- 禁 `../../` 深钻：同级一个 `../` 可，两个以上走别名，测试同律——`open-pencil/no-deep-parent-relative-imports` 强制。
+- 复用 `@open-pencil/scene-graph` 的命名类型，禁重拼 `Color`、`Vector`、`SceneNode`、`Effect`、`Fill`、`Stroke`。
 
 ## 5. 高发门禁坑（写代码时防一手）
 
@@ -65,14 +85,14 @@
 - no-nested-ternary 的「加括号」修法会被 oxfmt 重新展开回无括号形（格式器归化优先级高于括号保留）——唯一格式器稳定解 = 抽归化助手/显式分支；lint 结构红修完必须 oxfmt 后再复 lint。
 - 手跑 oxfmt 必须走 `node_modules/.bin` 钉版 exe 禁 bunx、首参必须带 `.oxfmtrc.json`——bunx 全局缓存副本与钉版同版本号不同构建、括号行为分叉，bunx 过格式的文件 CI format 照红；缺省配置 ≠ 项目配置。
 - 禁依赖命令管道承接门禁/推送类命令的语义（`cmd | tail && break` 式）——管道吞 exit code 造成假绿/假 break、`| head` 的 SIGPIPE 会杀长驻进程（vite）；一律裸跑，长输出走后台日志文件翻页。
-- steiger（check:arch）FSD 同前缀兄弟文件阈值 = 3（非 4）：同目录 ≥3 个同前缀文件即红——归域目录（ask/ 式）或错开前缀。tools/<domain>/ 布局契约：工具文件必须落 `tools/<domain>/src/**`（strict-tools-layout），且域目录必须有 package.json 标记（test:tools 逐域读取，缺即 ENOENT）。
+- steiger（check:arch）FSD 同前缀兄弟文件阈值 = 3（非 4）：同目录 ≥3 个同前缀文件即红——归域目录（ask/ 式）或错开前缀。tools 布局契约两层：上游工具落 `tools/<role>/<domain>/{src|tests}/**`（role = checks/ci/dev/generate，strict-tools-layout 强制 kebab-case 域名），fork 扁平 ownedRoot 工具经规则豁免保持单层；域目录必须有 package.json 标记（test:tools 双轨——`bun --filter '@open-pencil/*-tools' test` 管两层工具，tools/test.ts 带 existsSync 守卫管扁平工具）。
 - ai SDK 就地改 tool part 对象（引用不变）——卡片状态门禁 computed 读 `part.state` 恒陈旧，须父级重渲染直传原值 prop（`:part-state` 模式）。
 - CI windows runner checkout 把文本物化成 CRLF（Git for Windows 默认 `autocrlf=true`），打包产物内资产字节与本机 dev 不同——yaml 会把 frontmatter 末行孤立 `\r` 并进标量；行尾敏感解析必须解析层归一（`\r\n?`→`\n`）+ 资产侧 `.gitattributes` 钉 `eol=lf` 双保险。
 - guard 类路径/字符串匹配器禁依赖 node 平台语义 API（`path.isAbsolute` 等）——同代码 Windows 绿 Linux 红；先统一分隔符再按自定义跨平台规则判定。
 - 多行字符串字面量 `+` 拼接会被 oxfmt 折叠成单行、触发 no-useless-concat——夹具/多行串构造用 `['...', ...].join(...)`（与 no-nested-ternary 括号还原同属「格式器归化撞 lint」家族）。
 - 空 catch 的合规写法 = 块内至少一条实语句（`return` / `console.warn`——no-silent-catch 的豁免判定看块内有无语句）；`oxlint-disable-next-line` 对它无效——报点锚在 CatchClause 起始行，写在块内的 disable 注释行号错位、形同虚设（.vue/.ts 同律）。
 - 禁 `x!` 非空断言——正则匹配等可空结果先 `if (!m) throw new Error(...)` 守卫收窄，再索引。
-- i18n 新键成对落地：en 源 `packages/vue/src/i18n/messages/<domain>.ts` + `locales/zh-cn/<domain>.json`；zh 译文 Latin+CJK 混排时同步登记 `tools/i18n/mixed-script-baseline.txt`——check:i18n 质量闸，漏登即红。
+- i18n 新键成对落地：en 源 `packages/vue/src/i18n/messages/<domain>.ts` + `locales/zh-cn/<domain>.json`；zh 译文 Latin+CJK 混排时同步登记 `tools/checks/i18n/mixed-script-baseline.txt`——check:i18n 质量闸，漏登即红。
 - 悬浮提示禁用 native `title` 属性（check:arch 硬拦）——一律 Tip 组件包裹。
 - 工具 description 里的禁令必须配显式 GO 从句（「用户显式给出 X 时即调用」）——纯负面戒律会被模型误读成拒绝依据。
 - vue 模板判别联合分支禁布尔 computed guard——`v-if="isX"` 不收窄联合，模板取成员独有字段即 TS2339（.vue 盲区下只有 check:vue 能兜）；用返回收窄对象的 computed（`xRequest = computed<X | null>(() => …)`），模板改取收窄对象。
@@ -102,11 +122,10 @@
 - `src/theme/` —— 双主题令牌（feedback / motion 等预设）。动效工具类用前必核主题层真实生成（tw-animate-css 仅 `animate-collapsible-*` 一族，其余 `animate-*` 来自 tailwind v4 core 的 theme.css，均可 grep 实证）——裸写未注册类名 = 死类名，无任何门禁可兜。
 - `packages/core/src/text/` —— 文本与字体：font/cn-catalog（CN 目录）、web-font、fonts.ts 管理器
 - `packages/core/src/tools/fork/` —— 工具 fork 层（ownedRoot）：marketing / brief / active-design
-- `packages/scene-graph | pen | kiwi | fig | dom-css | vue` —— 基础库：场景图 / 画笔 / 约束求解 / fig 编解码 / DOM CSS / Vue 绑定
+- `packages/scene-graph | pen | kiwi | fig | dom-css | codegen | design-jsx | vue` —— 基础库：场景图 / 画笔 / 约束求解 / fig 编解码 / DOM CSS / 代码生成 / 设计 JSX / Vue 绑定
 - `tests/engine/` —— 单测（`rebuild/` 子目录为 ownedRoot，其余 follow 上游）
-- `tools/zone-registry/` —— zone 装备（zones.json + check.ts）
-- `tools/hooks/` —— git 钩子（core.hooksPath 指向此）
-- `tools/cn-font-catalog/` —— CN 字体目录离线管线
+- `tools/checks|ci|dev|generate/` —— 上游工具链（两层版式：角色分组/域）
+- `tools/zone-registry|hooks|rebuild|release|cn-font-catalog|unit-tests|git-rescue|design-jsx-doc|font-subset/` —— fork 扁平自有工具（ownedRoot，strict-tools-layout 豁免）
 - `docs/` —— ownedRoot；`docs/archive/rebuild-campaign/` 为冻结历史档案，禁止引用为现行规则
 - `.github/workflows/` —— CI（ownedRoot，纯 fork 治理设施）
 

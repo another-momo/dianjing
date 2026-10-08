@@ -331,6 +331,8 @@ export interface TextPathData {
 }
 
 export interface DerivedTextGlyph {
+  /** UTF-16 source-text cluster start, when supplied by the shaping source. */
+  firstCharacter?: number
   commandsBlob: Uint8Array
   x: number
   y: number
@@ -560,6 +562,12 @@ export interface SceneNode {
   variantPropSpecs: VariantPropSpec[]
 
   boundVariables: Record<string, string>
+  /** Multipliers from bound numeric values to this occurrence's scene units. */
+  variableBindingScales: Partial<Record<string, number>>
+  /** Numeric units for new declarations owned by this node's occurrence scope. */
+  variableAssignmentScales: Partial<Record<string, number>>
+  /** Explicit coordinate scale relative to the containing component definition. */
+  componentScale: number
   variableModes: VariableModeMap
   exportSettings: ExportSetting[]
 
@@ -579,15 +587,30 @@ export interface SceneNode {
   textPathBox: Rect | null
 }
 
-export type ComponentPropertyType = 'VARIANT' | 'TEXT' | 'BOOLEAN' | 'INSTANCE_SWAP'
+export type ComponentPropertyType = 'VARIANT' | 'TEXT' | 'BOOLEAN' | 'INSTANCE_SWAP' | 'SLOT'
 
-export type ComponentPropertyReferenceField = 'VISIBLE' | 'TEXT' | 'INSTANCE_SWAP'
+/** `SLOT_CONTENT` marks a frame whose children are the slot's content. */
+export type ComponentPropertyReferenceField = 'VISIBLE' | 'TEXT' | 'INSTANCE_SWAP' | 'SLOT_CONTENT'
 
 export interface ComponentPropertyReference {
   propertyId: string
   field: ComponentPropertyReferenceField
 }
 
+/** Guidance for a slot property; Figma reports a breach but still accepts the content. */
+export interface SlotSettings {
+  minChildren?: number
+  maxChildren?: number
+  allowPreferredValuesOnly: boolean
+  displayEmptyByDefault: boolean
+  /** Content added to the slot fills its counter axis. */
+  stretchChildOnInsert: boolean
+}
+
+/**
+ * For a `SLOT` property, an instance assignment (whatever its value) means the instance owns
+ * that slot's content: the slot frame's children in the instance, which component sync keeps.
+ */
 export interface ComponentPropertyDefinition {
   id: string
   name: string
@@ -595,6 +618,8 @@ export interface ComponentPropertyDefinition {
   defaultValue: string
   variantOptions?: string[]
   preferredValues?: string[]
+  description?: string
+  slotSettings?: SlotSettings
 }
 
 export type VariableType = 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN'

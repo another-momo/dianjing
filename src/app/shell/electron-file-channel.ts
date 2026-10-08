@@ -70,7 +70,7 @@ function getElectronAuthToken(): string | null {
   // typeof string 守未注入形态。Electron 形态下 main 已把 token 写入
   // window.__DIANJING_RUNTIME_AUTOMATION_TOKEN__，浏览器形态无该属性返 null
   if (!hasWindowGlobal()) return null
-  const token = window[RUNTIME_AUTOMATION_TOKEN_KEY]
+  const token: unknown = Reflect.get(window, RUNTIME_AUTOMATION_TOKEN_KEY)
   return typeof token === 'string' ? token : null
 }
 

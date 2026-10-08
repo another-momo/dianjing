@@ -8,10 +8,10 @@ import { UndoManager } from '@open-pencil/scene-graph/undo'
 import type { SkiaRenderer } from '#core/canvas/renderer'
 import { prefetchFigmaSchema } from '#core/clipboard'
 import { hasWindowGlobal } from '#core/constants'
-import { clearLazyFigImportContext } from '#core/kiwi/fig/lazy-import'
 import { releaseFigPopulationWorker } from '#core/kiwi/fig/population/client'
 import { releaseOriginalFigArchive } from '#core/kiwi/fig/session/original-archive'
 import { computeAllLayouts, setTextMeasurer } from '#core/layout'
+import { createLayoutRunner } from '#core/layout/mutations'
 import { emitNavigationTrace } from '#core/profiler'
 import { TextEditor } from '#core/text/editor'
 import { fontManager } from '#core/text/fonts'
@@ -29,7 +29,6 @@ import { createComponentActions } from './components'
 import { createGraphEventSubscription } from './graph-events'
 import { createGraphReadActions } from './graph-reads'
 import { createGuideActions } from './guides'
-import { createLayoutRunner } from './layout-runner'
 import { createNodeActions } from './nodes'
 import { createPageActions } from './pages'
 import { createSelectionActions } from './selection'
@@ -325,7 +324,6 @@ export function createEditor(options?: EditorOptions) {
   function releaseGraphResources() {
     releaseFigPopulationWorker(_graph)
     releaseOriginalFigArchive(_graph)
-    clearLazyFigImportContext(_graph)
   }
 
   return {

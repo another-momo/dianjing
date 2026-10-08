@@ -176,6 +176,7 @@ const cursor = computed(() => toolCursor(store.state.activeTool, cursorOverride.
   <ContextMenuRoot :modal="false">
     <ContextMenuTrigger as-child @contextmenu.capture="selectAtContextPoint">
       <div
+        ref="area"
         data-test-id="canvas-area"
         :data-pane-id="paneId"
         :data-active-pane="isActivePane ? 'true' : 'false'"
