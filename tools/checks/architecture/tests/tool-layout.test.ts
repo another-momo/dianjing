@@ -16,7 +16,8 @@ test('keeps tool test helpers beside tests without allowing arbitrary tool locat
     ['tools/checks/lint/helpers/lint.ts', false],
     ['tools/checks/lint/plugin.ts', false],
     ['tools/lint/src/plugin.ts', false],
-    ['tools/test.ts', false],
+    ['tools/test.ts', true], // fork 扁平豁免成员（strict-tools-layout 的扁平白名单内）
+    ['tools/other-root.ts', false],
     ['tools/tooling/lint/src/plugin.ts', false]
   ] as const) {
     const root = process.cwd()

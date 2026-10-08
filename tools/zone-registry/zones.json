@@ -2373,7 +2373,7 @@
     {
       "id": "P379",
       "file": "src/components/PagesPanel.vue",
-      "reason": "sl-w2-locus-gate（2026-09-27）：页签呼吸徽标——run 在途且施工页 ≠ 视图页时，施工页页签显示呼吸圆点（数据源 = locus-state 全局 ref：runActive + runStartedPageId，纯渲染零副作用） ｜ merge-upstream-45：#807 PresenceMarkers 挂载再拒（presence 域 §6.7 删除），呼吸徽标保持",
+      "reason": "sl-w2-locus-gate（2026-09-27）：页签呼吸徽标——run 在途且施工页 ≠ 视图页时，施工页页签显示呼吸圆点（数据源 = locus-state 全局 ref：runActive + runStartedPageId，纯渲染零副作用） ｜ merge-upstream-45：#807 PresenceMarkers 挂载再拒（presence 域 §6.7 删除），呼吸徽标保持；CI 修红：presence 剥离后 computed 导入成死引用（vue-tsc TS6133，本地 quick 链无 vue-tsc 故漏），补摘",
       "disposition": "permanent",
       "lastReviewed": "2026-10-08",
       "task": "sl-w2-locus-gate"
@@ -2597,6 +2597,13 @@
       "id": "P410",
       "file": "packages/core/src/io/formats/fig/export.ts",
       "reason": "merge-upstream-45 CI 修红：exportFigFile 圈复杂度 21>20（上游本批重写顶线）——schema 选择段抽 resolveExportSchema 模块级 helper",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-08"
+    },
+    {
+      "id": "P411",
+      "file": "tools/checks/architecture/tests/tool-layout.test.ts",
+      "reason": "merge-upstream-45 CI 修红：tools/test.ts 是 fork 扁平豁免登记成员（ownedFile），上游测试钉其为非法——期望值翻 true 并加 tools/other-root.ts 负面对照保住规则牙口",
       "disposition": "permanent",
       "lastReviewed": "2026-10-08"
     }
