@@ -64,7 +64,6 @@
         "motion-v": "^2.4.0",
         "nanostores": "^1.5.0",
         "opentype.js": "^2.0.0",
-        "proxy-addr": "^2.0.8",
         "reka-ui": "^2.10.3",
         "svg2pdf.js": "^2.7.0",
         "tailwind-merge": "^3.6.0",
@@ -309,6 +308,7 @@
   "overrides": {
     "@codemirror/view": "6.43.9",
     "protobufjs": "7.5.5",
+    "proxy-addr": "2.0.8",
     "websocket-driver": "0.7.5",
   },
   "packages": {
@@ -3091,8 +3091,6 @@
     "eslint/minimatch": ["minimatch@10.2.6", "", { "dependencies": { "brace-expansion": "^5.0.8" } }, "sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A=="],
 
     "espree/eslint-visitor-keys": ["eslint-visitor-keys@5.0.1", "", {}, "sha512-tD40eHxA35h0PEIZNeIjkHoDR4YjjJp34biM0mDvplBe//mB+IHCqHDGV7pxF+7MklTvighcCPPZC7ynWyjdTA=="],
-
-    "express/proxy-addr": ["proxy-addr@2.0.7", "", { "dependencies": { "forwarded": "0.2.0", "ipaddr.js": "1.9.1" } }, "sha512-llQsMLSUDUPT44jdrU/O37qlnifitDP+ZwrmmZcoSKyLKvtZxpyV0n2/bD/N4tBAAZ/gJEdZU7KMraoK1+XYAg=="],
 
     "fast-glob/glob-parent": ["glob-parent@5.1.2", "", { "dependencies": { "is-glob": "^4.0.1" } }, "sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow=="],
 
