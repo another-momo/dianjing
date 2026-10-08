@@ -839,7 +839,7 @@
     {
       "id": "P153",
       "file": "tools/checks/architecture/src/steiger-rules/support.ts",
-      "reason": "T91f（2026-09-04）：FILE_PREFIX_GROUP_ALLOWLIST 追加 tests/e2e/fonts::cjk——该目录 3 个 cjk- 前缀文件中 2 个（cjk-fallback/cjk-rendering-visual + 快照）是上游 follow-pure 布局，fork 仅新增 labels-fallback 触发 3 文件阈值（CI run 33837584569 实证）；收拢 cjk/ 子目录会对上游文件制造永久合并摩擦，用规则自带豁免机制（与既有 2 条同模式）",
+      "reason": "T91f（2026-09-04）：FILE_PREFIX_GROUP_ALLOWLIST 追加 tests/e2e/fonts::cjk——该目录 3 个 cjk- 前缀文件中 2 个（cjk-fallback/cjk-rendering-visual + 快照）是上游 follow-pure 布局，fork 仅新增 labels-fallback 触发 3 文件阈值（CI run 33837584569 实证）；收拢 cjk/ 子目录会对上游文件制造永久合并摩擦，用规则自带豁免机制（与既有 2 条同模式）；merge-upstream-45 CI 修红：吸收上游 #790 别名属主扩张（#core-tests/#fig/#fig-tests 新增 + #core 属主放宽到包根——包内 tests 镜像 src 树按别名寻址），#cli/#mcp 两行不吸收（目标包已裁撤）；合并裁决漏吸被 steiger 拦下",
       "disposition": "permanent",
       "lastReviewed": "2026-10-08",
       "task": "T91f"
