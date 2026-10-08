@@ -10,20 +10,20 @@
 - 施工线分支 `rebuild/mode-arch-lite`（`rebuild/mode-arch` 冻结保留）；与上游保持定期合并，文件所有权由 zone 登记制机器化管理（§3）。
 - monorepo：bun workspaces；`packages/*` 为库，`src/` 为应用。
 
-| Path                   | Owns                                                                                                                                                                              | Guide                          |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| `packages/scene-graph` | Framework-neutral graph, node types, geometry, copy/snap/undo, variables, instances, hit testing, plus the shared primitives formats need: color conversion and management, text/layout direction | —                              |
-| `packages/pen`         | Pencil.dev `.pen` model, parser, SceneGraph adapter                                                                                                                              | —                              |
-| `packages/kiwi`        | SceneGraph-independent Kiwi schema/runtime, codecs, containers, parse helpers                                                                                                    | —                              |
-| `packages/fig`         | `.fig` archives, SceneGraph conversion, metadata policy, component/instance interpretation, Figma clipboard                                                                      | —                              |
-| `packages/core`        | Renderer, layout, editor, Figma API, tools, clipboard, vector conversion, document I/O; depends on scene-graph and the format packages (pen, kiwi, fig, dom-css, design-jsx); no browser DOM | —                              |
-| `packages/dom-css`     | DOM/CSS/HTML/JSX/Tailwind projection and browser/headless adapters; depends only on scene-graph and codegen, and takes engine services such as web-font resolution as injected options | `packages/dom-css/AGENTS.md`   |
-| `packages/codegen`     | Syntax-tree code generation for exporters: ESTree and JSX builders, template filling, and esrap printing, with the literal rules that keep exported strings from being reinterpreted | —                              |
-| `packages/design-jsx`  | OpenPencil design JSX: elements, paint/effect helpers, variables, schema and authoring reference, JSX export, and a renderer that takes icons, SVG, and layout as injected services | `packages/design-jsx/AGENTS.md` |
-| `packages/vue`         | Headless Vue 3 SDK primitives, composables, commands, i18n, menu model                                                                                                           | —                              |
-| `src`                  | Electron/Vite app: services and state in `src/app/**`, views in `src/views/**`, UI in `src/components/**`                                                                         | —                              |
-| `tests`                | Central app, integration, and Figma acceptance tests                                                                                                                             | —                              |
-| `tools`, `.github`     | Private repo tooling, CI classification, releases                                                                                                                                | —                              |
+| Path                   | Owns                                                                                                                                                                                              | Guide                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `packages/scene-graph` | Framework-neutral graph, node types, geometry, copy/snap/undo, variables, instances, hit testing, plus the shared primitives formats need: color conversion and management, text/layout direction | —                               |
+| `packages/pen`         | Pencil.dev `.pen` model, parser, SceneGraph adapter                                                                                                                                               | —                               |
+| `packages/kiwi`        | SceneGraph-independent Kiwi schema/runtime, codecs, containers, parse helpers                                                                                                                     | —                               |
+| `packages/fig`         | `.fig` archives, SceneGraph conversion, metadata policy, component/instance interpretation, Figma clipboard                                                                                       | —                               |
+| `packages/core`        | Renderer, layout, editor, Figma API, tools, clipboard, vector conversion, document I/O; depends on scene-graph and the format packages (pen, kiwi, fig, dom-css, design-jsx); no browser DOM      | —                               |
+| `packages/dom-css`     | DOM/CSS/HTML/JSX/Tailwind projection and browser/headless adapters; depends only on scene-graph and codegen, and takes engine services such as web-font resolution as injected options            | `packages/dom-css/AGENTS.md`    |
+| `packages/codegen`     | Syntax-tree code generation for exporters: ESTree and JSX builders, template filling, and esrap printing, with the literal rules that keep exported strings from being reinterpreted              | —                               |
+| `packages/design-jsx`  | OpenPencil design JSX: elements, paint/effect helpers, variables, schema and authoring reference, JSX export, and a renderer that takes icons, SVG, and layout as injected services               | `packages/design-jsx/AGENTS.md` |
+| `packages/vue`         | Headless Vue 3 SDK primitives, composables, commands, i18n, menu model                                                                                                                            | —                               |
+| `src`                  | Electron/Vite app: services and state in `src/app/**`, views in `src/views/**`, UI in `src/components/**`                                                                                         | —                               |
+| `tests`                | Central app, integration, and Figma acceptance tests                                                                                                                                              | —                               |
+| `tools`, `.github`     | Private repo tooling, CI classification, releases                                                                                                                                                 | —                               |
 
 ## 2. 协作摘要（最低限度规则）
 
@@ -37,7 +37,7 @@
 - `tools/zone-registry/zones.json` 是唯一所有权真相：`ownedRoots` / `ownedFiles` 内自由改；改动其他（上游供血）文件必须登记 `patches`；删除走 `deletedPaths`；搬移登记 `relocations`。台账登记与代码改动同批提交——漏登 = 交付不完整。
 - pre-commit 强制 `check:zones`；`bun run check:zones:drift` 查看对上游漂移明细。
 - `disposition: "revoked"` 的 patch **不提供覆盖**——改动曾 revoked 退役的文件（回 follow-pure）须新登 P-id，往 revoked 条目上追加备注不算登记。
-- 上游合并 SOP：合并前 check:zones 绿 → 按 zone 裁定冲突 → 合并窗口内每次 check:zones 输出的 RELOCATION_WATCH advisory 必读（上游残迹落进 ownedRoot 的最早信号），逐条裁定后再 commit → 合并后 ownedFiles 字节审计 + relocations / tarball 台账更新。裁撤目录必须以目录条目登记 deletedPaths——逐文件条目挡不住上游新增，目录条目才有 checkDeletedAbsent 复活硬拦截。判上游版式/内容演进方向时以最新 release tag 为准，不锚本地 origin 分支 ref——release tag 会超前于分支头。
+- 上游合并 SOP：合并前 check:zones 绿 → 按 zone 裁定冲突 → 合并窗口内每次 check:zones 输出的 RELOCATION_WATCH advisory 必读（上游残迹落进 ownedRoot 的最早信号），逐条裁定后再 commit → 合并后 ownedFiles 字节审计 + relocations / tarball 台账更新。裁撤目录必须以目录条目登记 deletedPaths——逐文件条目挡不住上游新增，目录条目才有 checkDeletedAbsent 复活硬拦截。判上游版式/内容演进方向时以最新 release tag 为准，不锚本地 origin 分支 ref——release tag 会超前于分支头。合并窗内 check:zones 以 MERGE_HEAD 为 diff base，窗内报的假违规 commit 后自消、不据此处决路径；吸收/拒收决议落到常量表（如 steiger 别名属主表）时 merge 结果须对该表 diff 级核对——旧值截留式漏吸只有逐行对账能兜。
 - 复活带 `deletedPaths` 墓碑的路径 = ①摘墓碑 ②**git add 暂存新文件**（未暂存时 git diff vs merge-base 不覆盖 untracked，该路径呈 D 撞 checkDeletedRegistered；暂存后翻 M 走豁免）③check:zones 实跑验收——只验 JSON 可解析不等于过语义闸。
 - `tools/zone-registry/` 自身与 `.github/workflows/` 均为 ownedRoot，fork 治理设施自由改。
 - 设置类工作流归各业务域自己的 `settings/` 目录（`use.ts` 编排 + 兄弟模块分工、持久化留在 domain services），不建全局 composables 桶——采上游 2026-09 family 重组语义。
