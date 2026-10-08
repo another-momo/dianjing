@@ -2,10 +2,10 @@
 /**
  * check.ts —— render-jsx.md 与 design-jsx schema.ts 三清单双向门禁。
  *
- * 真源：packages/core/src/design-jsx/schema.ts（DESIGN_JSX_ELEMENTS /
+ * 真源：packages/design-jsx/src/schema.ts（DESIGN_JSX_ELEMENTS /
  *       DESIGN_JSX_SUPPORTED_PROPERTY_NAMES / DESIGN_JSX_HELPERS）——经公共导出
- *       '@open-pencil/core/design-jsx' 消费（dist 产物；check 链 build:packages 在先，
- *       单独手跑本工具前须先 bun --filter @open-pencil/core build，否则比对的是陈旧 dist）。
+ *       '@open-pencil/design-jsx' 消费（types 走 dist 产物；check 链 build:packages 在先，
+ *       单独手跑本工具前须先 bun --filter @open-pencil/design-jsx build，否则类型比对的是陈旧 dist）。
  * 教学源：src/app/ai/pi-backend/studio/references/render-jsx.md
  *       （agent load_reference 按需读取，三清单须与 schema 零漂移）。
  *
@@ -29,7 +29,7 @@ import {
   DESIGN_JSX_ELEMENTS,
   DESIGN_JSX_SUPPORTED_PROPERTY_NAMES,
   DESIGN_JSX_HELPERS
-} from '@open-pencil/core/design-jsx'
+} from '@open-pencil/design-jsx'
 
 const MD_PATH = resolve(
   import.meta.dir,
@@ -47,6 +47,9 @@ const MD_PATH = resolve(
  *    属性：of / component / componentId / properties / propertyRefs / bind
  *    （注释引自 render-jsx.md 第 19 行原文，编辑政策句时同步更新。）
  * ② key——schema 接受但渲染器不消费（JSX 习惯容忍位），教义不教。
+ * ③ 上游 schema 扩张带入、教学面未评估项（暂不教，评估见仓外 backlog）：
+ *    属性：constraints / dashPattern / italic / locked / mask / strokeCap /
+ *    strokeJoin / strokes / strokeWeights / visible
  */
 export const EXCLUDE: ReadonlySet<string> = new Set([
   'Component',
@@ -60,7 +63,17 @@ export const EXCLUDE: ReadonlySet<string> = new Set([
   'properties',
   'propertyRefs',
   'bind',
-  'key'
+  'key',
+  'constraints',
+  'dashPattern',
+  'italic',
+  'locked',
+  'mask',
+  'strokeCap',
+  'strokeJoin',
+  'strokes',
+  'strokeWeights',
+  'visible'
 ])
 
 export type DriftKind = 'element' | 'helper' | 'property'

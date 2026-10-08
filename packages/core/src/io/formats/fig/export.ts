@@ -324,6 +324,21 @@ function appendInternalResources(context: InternalResourceContext): void {
   }
 }
 
+function resolveExportSchema(graph: SceneGraph): {
+  compiled: ReturnType<typeof getCompiledSchema>
+  schemaDeflated: Uint8Array
+} {
+  if (graph.figSchemaDeflated) {
+    const schemaBytes = inflateSync(graph.figSchemaDeflated)
+    const figSchema = decodeBinarySchema(new ByteBuffer(schemaBytes))
+    return {
+      compiled: compileSchema(figSchema) as ReturnType<typeof getCompiledSchema>,
+      schemaDeflated: graph.figSchemaDeflated
+    }
+  }
+  return { compiled: getCompiledSchema(), schemaDeflated: deflateSync(getSchemaBytes()) }
+}
+
 export async function exportFigFile(
   sourceGraph: SceneGraph,
   ck?: CanvasKit,
@@ -343,17 +358,7 @@ export async function exportFigFile(
   // subset, and using our schema to encode would produce field IDs that don't
   // align with the embedded schema. By compiling and using the original
   // schema, we improve the roundtrip-ability... This requires further work.
-  let compiled: ReturnType<typeof getCompiledSchema>
-  let schemaDeflated: Uint8Array
-  if (graph.figSchemaDeflated) {
-    const schemaBytes = inflateSync(graph.figSchemaDeflated)
-    const figSchema = decodeBinarySchema(new ByteBuffer(schemaBytes))
-    compiled = compileSchema(figSchema) as ReturnType<typeof getCompiledSchema>
-    schemaDeflated = graph.figSchemaDeflated
-  } else {
-    compiled = getCompiledSchema()
-    schemaDeflated = deflateSync(getSchemaBytes())
-  }
+  const { compiled, schemaDeflated } = resolveExportSchema(graph)
 
   const docGuid = { sessionID: 0, localID: 0 }
   const localIdCounter = { value: 2 }

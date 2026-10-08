@@ -19,7 +19,7 @@
  */
 import { afterEach, describe, expect, test } from 'bun:test'
 
-import { buildComponent } from '@open-pencil/core'
+import { buildComponent } from '@open-pencil/design-jsx'
 
 import {
   classifyBridgeFailure,

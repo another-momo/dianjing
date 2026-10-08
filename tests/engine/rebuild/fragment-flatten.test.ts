@@ -139,9 +139,11 @@ describe('nested fragment flattening', () => {
     expect(getNodeOrThrow(g, childIdAt(frame, 2)).name).toBe('After')
   })
 
-  it('throws the teaching error for a bare empty fragment at the top level', async () => {
+  it('throws for a bare empty fragment at the top level', async () => {
     const g = makeSceneGraph()
-    await expect(renderJSX(g, '<></>')).rejects.toThrow('A fragment cannot be rendered directly')
+    await expect(renderJSX(g, '<></>')).rejects.toThrow(
+      'JSX must return a Figma element (Frame, Text, etc)'
+    )
   })
 
   it('flattens a fragment returned by a function component inside a Frame', async () => {

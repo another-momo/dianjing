@@ -2592,6 +2592,13 @@
       "reason": "merge-upstream-45：locale 联合型已收窄 en+zh-CN（P14），ja 析取无重叠（TS2367）——混排闸只对 zh-CN 生效",
       "disposition": "permanent",
       "lastReviewed": "2026-10-08"
+    },
+    {
+      "id": "P410",
+      "file": "packages/core/src/io/formats/fig/export.ts",
+      "reason": "merge-upstream-45 CI 修红：exportFigFile 圈复杂度 21>20（上游本批重写顶线）——schema 选择段抽 resolveExportSchema 模块级 helper",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-08"
     }
   ],
   "deletedPaths": [
@@ -2809,7 +2816,18 @@
     "tools/release/release-packages",
     "tools/release/package-artifacts",
     "tools/ci/policy",
-    "tools/dev/unit-tests"
+    "tools/dev/unit-tests",
+    "tests/app/presence",
+    "tests/app/ai/chat",
+    "tests/app/ai/tools",
+    "tests/helpers/collab",
+    "tests/e2e/collab",
+    "tests/helpers/chat/render-stream/browser.ts",
+    "tests/helpers/chat/render-stream/index.ts",
+    "tests/e2e/chat/streaming/jsx.spec.ts",
+    "tests/e2e/chat/streaming/placement.spec.ts",
+    "tests/e2e/chat/streaming/jsx.spec.ts-snapshots",
+    "tests/e2e/chat/streaming/placement.spec.ts-snapshots"
   ],
   "upstreamMergeTarball": []
 }
