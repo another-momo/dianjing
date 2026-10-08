@@ -46,13 +46,6 @@ function applyImportedCanvasMetadata(
   page.source.fig.rawNodeFields.strokeJoin = canvasNc.strokeJoin
   page.source.fig.rawNodeFields.strokeWeight = canvasNc.strokeWeight
   if (canvasNc.pageType) page.source.fig.rawNodeFields.pageType = canvasNc.pageType
-  page.pluginData = canvasNc.pluginData
-    ? canvasNc.pluginData.map((entry) => ({
-        pluginId: entry.pluginID,
-        key: entry.key,
-        value: entry.value
-      }))
-    : []
 }
 
 function applyImportedDocumentMetadata(graph: SceneGraph, docNc: NodeChange | undefined) {

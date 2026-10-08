@@ -1236,15 +1236,17 @@
       "id": "P212",
       "file": "packages/core/src/io/formats/fig/export.ts",
       "reason": "T98 收口后修复（2026-09-06）：图片备份 page 标记丢失——CANVAS 节点经 buildCanvasEntries/makeCanvasNodeChange 绕过 sceneNodeToKiwi，pluginData 从未写入 .fig；buildCanvasEntries 内补 mergePluginData(page.pluginData)，空数组时不写字段（与场景节点同语义）。导入端配套见 P213，roundtrip 测试见 tests/engine/scene-graph/plugin-data.test.ts。",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-06"
+      "disposition": "revoked",
+      "lastReviewed": "2026-10-08",
+      "retiredReason": "2026-10-08 §11 裁③（仓外预研稿 202610041723 §11）：备份页身份改由容器节点标记派生，page 级 pluginData 无写入方/消费方——本映射随宿主 68c2af560 重写自然消失，不重挂"
     },
     {
       "id": "P213",
       "file": "packages/core/src/kiwi/fig/import.ts",
       "reason": "T98 收口后修复（2026-09-06）：P212 导入端配套——applyImportedCanvasMetadata 此前只还原 raw Figma 字段不碰 pluginData，补 canvasNc.pluginData → page.pluginData 映射（pluginID→pluginId，与下方 docNc 处理同型）。",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-06"
+      "disposition": "revoked",
+      "lastReviewed": "2026-10-08",
+      "retiredReason": "2026-10-08 §11 裁③：同 P212——导入端配套映射一并退役"
     },
     {
       "id": "P214",

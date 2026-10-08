@@ -153,31 +153,6 @@ describe('plugin data', () => {
     expect(rootProxy?.getSharedPluginData('openpencil.ai', 'docId')).toBe(docId)
   })
 
-  test('roundtrips CANVAS (page) node plugin data through fig export/import', async () => {
-    await initCodec()
-
-    const graph = new SceneGraph()
-    const page = graph.getPages()[0]
-    graph.updateNode(page.id, {
-      pluginData: [
-        { pluginId: 'open-pencil-image-gen', key: 'role', value: 'image-history-backup-page' }
-      ]
-    })
-
-    const bytes = await exportFigFile(graph)
-    const parsed = await parseFigFile(
-      bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
-    )
-
-    const parsedPage = parsed.getPages()[0]
-    expect(parsedPage).toBeDefined()
-    expect(parsedPage.pluginData).toContainEqual({
-      pluginId: 'open-pencil-image-gen',
-      key: 'role',
-      value: 'image-history-backup-page'
-    })
-  })
-
   test('preserves plugin relaunch data from imported fig files', async () => {
     // Relaunch data lives on the imported node changes themselves, so the
     // small fixture without instance population is enough to cover it.

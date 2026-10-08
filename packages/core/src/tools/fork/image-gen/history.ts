@@ -18,9 +18,11 @@
  *
  * T66 ⑤（备份容器迁专用页，仓外提案 202609010000-history-container-placement）：
  * 容器不再锚定设计页 marketing root 右侧（干扰设计工作流、唯一不走统一放置
- * 策略的创建路径），改落专用备份页「图片备份」——按 pluginData 标记幂等
- * 查找/创建（rename-proof；materialize.ts 内部页先例的可见页版本），容器在
- * 备份页内走统一放置策略（findPlacementPositionOnPage，placement.ts 跨页
+ * 策略的创建路径），改落专用备份页「图片备份」——页身份由容器节点级 pluginData
+ * 标记派生（image-history-container，rename-proof；节点级走 .fig 原生回环、
+ * 零 patch），页名「图片备份」兜底容器被手删的情形；page 级 pluginData 不再
+ * 写入——P212/P213（CANVAS 节点 pluginData 双向映射）随之上游合并退役。容器
+ * 在备份页内走统一放置策略（findPlacementPositionOnPage，placement.ts 跨页
  * seam）。单容器全局复用：entry 以 source-target 标记键定源（节点 id 全文档
  * 唯一），跨页无歧义。isMarketingDesignRoot 锚定逻辑与 import 随迁删除。
  *
@@ -38,8 +40,6 @@ const HISTORY_PLUGIN_ID = 'open-pencil-image-gen'
 const ROLE_KEY = 'role'
 const ROLE_CONTAINER = 'image-history-container'
 const ROLE_ENTRY = 'image-history-entry'
-/** T66 ⑤：备份页自身的 pluginData 标记（rename-proof 幂等查找） */
-const ROLE_BACKUP_PAGE = 'image-history-backup-page'
 const SOURCE_TARGET_KEY = 'source-target'
 const SOURCE_HASH_KEY = 'source-hash'
 const VERSION_KEY = 'version'
@@ -118,17 +118,20 @@ function topImageHash(node: SceneNode): string | undefined {
 }
 
 /**
- * T66 ⑤：专用备份页幂等查找/创建——按 pluginData 标记找（rename-proof，
- * 用户改页名不丢关联）；找不到才新建并打标。可见普通页（非 internalOnly）：
- * 备份是低频查看的恢复内容，用户须能在页列表里看到它（library 内部页先例
- * materialize.ts 的可见页版本）。不随 currentPage 切换——图层级操作。
+ * 备份页幂等查找/创建——页身份由容器节点标记派生：备份页恒含带
+ * image-history-container 节点级标记的容器（每次快照必创建/复用），节点级
+ * pluginData 走 .fig 原生回环，rename-proof 且零 patch。找不到容器时按
+ * 「图片备份」页名兜底（兜容器被手删的情形）；仍无才新建，不再写页级标记。
  */
 function getOrCreateBackupPage(graph: SceneGraph): SceneNode {
   for (const page of graph.getPages()) {
-    if (markerValue(page, ROLE_KEY) === ROLE_BACKUP_PAGE) return page
+    for (const childId of page.childIds) {
+      if (isHistoryContainer(graph.getNode(childId))) return page
+    }
   }
+  const byName = graph.getPages().find((page) => page.name === BACKUP_PAGE_NAME)
+  if (byName) return byName
   const page = graph.addPage(BACKUP_PAGE_NAME)
-  upsertMarkers(graph, page.id, [{ key: ROLE_KEY, value: ROLE_BACKUP_PAGE }])
   return graph.getNode(page.id) ?? page
 }
 

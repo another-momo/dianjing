@@ -3,9 +3,9 @@
  * 仅 IMAGE fill 才快照；同 hash 去重；容器/条目标记与 isInImageHistory；
  * 克隆剥离外来标记。
  *
- * T66 ⑤（备份容器迁专用页）：容器落专用备份页「图片备份」（pluginData
- * 标记幂等查找/创建），不再锚定设计页 marketing root；备份页/容器幂等
- * 复用；跨页目标快照落同一全局容器，读取按 source-target 标记一致。
+ * T66 ⑤（备份容器迁专用页）：容器落专用备份页「图片备份」（页身份由容器
+ * 节点级 pluginData 标记派生 + 页名兜底），不再锚定设计页 marketing root；
+ * 备份页/容器幂等复用；跨页目标快照落同一全局容器，读取按 source-target 标记一致。
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -54,15 +54,14 @@ function markerOf(graph: SceneGraph, id: string, key: string): string | undefine
     ?.value
 }
 
-/** T66 ⑤：按 pluginData 标记找专用备份页（与 history.ts 查找口径一致） */
+/** 页身份由容器节点标记派生（与 history.ts 查找口径一致）：找顶层子含历史容器的页 */
 function backupPageOf(graph: SceneGraph) {
   return graph
     .getPages()
-    .find(
-      (page) =>
-        page.pluginData.find(
-          (entry) => entry.pluginId === 'open-pencil-image-gen' && entry.key === 'role'
-        )?.value === 'image-history-backup-page'
+    .find((page) =>
+      page.childIds.some(
+        (childId) => markerOf(graph, childId, 'role') === 'image-history-container'
+      )
     )
 }
 
@@ -194,6 +193,24 @@ describe('snapshotBeforeOverwrite', () => {
     expect(containerB).toBe(containerA)
   })
 
+  test('备份页改名后仍命中（容器节点标记派生，rename-proof），且不写页级标记', () => {
+    const { graph, pageId } = setup()
+    const a = createTarget(graph, pageId, 'hash-a', 'a')
+    expectDefined(snapshotBeforeOverwrite(graph, a.id), 'snapshot A')
+
+    const backupPage = expectDefined(backupPageOf(graph), 'backup page')
+    // 页级 pluginData 不再写入（page 级映射已退役，身份由容器标记派生）
+    expect(markerOf(graph, backupPage.id, 'role')).toBeUndefined()
+
+    // 用户改名后第二次快照：仍经容器标记找到同一页，不新建
+    graph.updateNode(backupPage.id, { name: '我的归档' })
+    const pagesAfterRename = graph.getPages().length
+    const b = createTarget(graph, pageId, 'hash-b', 'b')
+    expectDefined(snapshotBeforeOverwrite(graph, b.id), 'snapshot B')
+    expect(graph.getPages().length).toBe(pagesAfterRename)
+    expect(backupPageOf(graph)?.id).toBe(backupPage.id)
+  })
+
   test('T66 ⑤ 跨页：不同页目标快照落同一全局容器，source-target 标记各自键定', () => {
     const { graph, pageId } = setup()
     const page2 = graph.addPage('Page 2')
@@ -221,13 +238,8 @@ describe('snapshotBeforeOverwrite', () => {
 
   test('T66 ⑤ 放置：备份页已有内容时容器走统一放置策略（bounds 右侧 + GAP）', () => {
     const { graph, pageId } = setup()
-    // 预造带标记备份页 + 既有内容（无容器）——复现幂等查找到既有页后的放置
+    // 预造名为「图片备份」的既有页（无容器、无页级标记）——走页名兜底路径
     const backup = graph.addPage('图片备份')
-    graph.updateNode(backup.id, {
-      pluginData: [
-        { pluginId: 'open-pencil-image-gen', key: 'role', value: 'image-history-backup-page' }
-      ]
-    })
     graph.createNode('FRAME', backup.id, {
       name: 'existing',
       x: 40,
