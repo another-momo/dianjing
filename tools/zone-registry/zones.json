@@ -424,9 +424,9 @@
     {
       "id": "P36",
       "file": ".gitignore",
-      "reason": "ignore .openpencil/ (T19 pi backend local session state) T27(2026-08-25): scratch/ 行保留理由注记（steiger 规则指定试验 spec 放置区，非死配置） 2026-09-16：+= build/.generated/（THIRD-PARTY-NOTICES 生成器落点，package:win 链首部再生成，gitignored 不入库）+ !tools/release/ 豁免（避免上方 release/ 通配误伤工具源）",
+      "reason": "ignore .openpencil/ (T19 pi backend local session state) T27(2026-08-25): scratch/ 行保留理由注记（steiger 规则指定试验 spec 放置区，非死配置） 2026-09-16：+= build/.generated/（THIRD-PARTY-NOTICES 生成器落点，package:win 链首部再生成，gitignored 不入库）+ !tools/release/ 豁免（避免上方 release/ 通配误伤工具源） 2026-10-09：+= .playwright-mcp/（playwright-mcp 默认快照/截图落盘目录，agent 浏览器实测副产物）",
       "disposition": "permanent",
-      "lastReviewed": "2026-10-08"
+      "lastReviewed": "2026-10-09"
     },
     {
       "id": "P38",
