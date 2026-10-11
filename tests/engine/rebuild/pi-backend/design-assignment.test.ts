@@ -157,9 +157,9 @@ test('set(非 null) 写盘 → 跨实例可读回（含 thinkingLevel + 不含 t
     modelId: 'openrouter/free'
   })
   expect('thinkingLevel' in (next as object)).toBe(false)
-  const raw = JSON.parse(readFileSync(join(agentDir, 'design-assignment.json'), 'utf8')) as {
+  const raw: {
     thinkingLevel?: unknown
-  }
+  } = JSON.parse(readFileSync(join(agentDir, 'design-assignment.json'), 'utf8'))
   expect(raw.thinkingLevel).toBeUndefined()
 })
 

@@ -35,10 +35,10 @@ describe('image-gen/settings.ts 本地留存偏好', () => {
       expect(store.get()).toEqual({ retainLocal: true })
 
       // 落盘文件存在 + 形态正确
-      const raw = JSON.parse(readFileSync(join(agentDir, 'image-gen-settings.json'), 'utf8')) as {
+      const raw: {
         version?: number
         retainLocal?: boolean
-      }
+      } = JSON.parse(readFileSync(join(agentDir, 'image-gen-settings.json'), 'utf8'))
       expect(raw.version).toBe(1)
       expect(raw.retainLocal).toBe(true)
 
@@ -120,9 +120,9 @@ describe('image-gen/settings.ts 本地留存偏好', () => {
       // 终态：正式文件存在且为新内容；.tmp 不残留
       expect(existsSync(join(agentDir, 'image-gen-settings.json'))).toBe(true)
       expect(existsSync(join(agentDir, 'image-gen-settings.json.tmp'))).toBe(false)
-      const raw = JSON.parse(readFileSync(join(agentDir, 'image-gen-settings.json'), 'utf8')) as {
+      const raw: {
         retainLocal?: boolean
-      }
+      } = JSON.parse(readFileSync(join(agentDir, 'image-gen-settings.json'), 'utf8'))
       expect(raw.retainLocal).toBe(true)
     } finally {
       cleanup()

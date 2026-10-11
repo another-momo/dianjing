@@ -62,9 +62,9 @@ describe('mcp-connections store', () => {
     const { store } = makeStore()
     // 前端恶意/误带 status 字段——Valibot object 只取已知键，落盘形强制 untested
     // JSON.parse 模拟线上入包（返回值 any，单断言传 upsert 形）
-    const input = JSON.parse(
+    const input: MCPConnectionConfig = JSON.parse(
       '{"transport":"http","url":"https://mcp.example.com/sse","headers":{"authorization":"Bearer super-secret-value"},"status":"connected","toolCount":99}'
-    ) as MCPConnectionConfig
+    )
     const saved = store.upsert('acme', input)
     expect(saved.status).toBe('untested')
     expect(saved.toolCount).toBeUndefined()
@@ -128,7 +128,7 @@ describe('mcp-connections store', () => {
   test('Valibot 拒收：坏 transport / http 缺 url / stdio 缺 command / 空 header value', () => {
     const { store } = makeStore()
     // 非法形状经 JSON.parse 构造（any 单断言）——直接字面量会被 TS 提前拦下
-    const bad1 = JSON.parse('{"transport":"websocket","url":"https://x"}') as MCPConnectionConfig
+    const bad1: MCPConnectionConfig = JSON.parse('{"transport":"websocket","url":"https://x"}')
     expect(() => store.upsert('a', bad1)).toThrow()
     const bad2: MCPConnectionConfig = { transport: 'http' }
     expect(() => store.upsert('b', bad2)).toThrow()

@@ -43,10 +43,23 @@
  */
 import { execSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
-import { resolve, dirname } from 'node:path'
+import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
+import { compact } from 'es-toolkit'
+
+/** 向上走到仓根（含 bun.lock 的目录）——lint 禁 import.meta 起两级以上字面值攀爬 */
+function workspaceRoot(): string {
+  let dir = dirname(fileURLToPath(import.meta.url))
+  for (;;) {
+    if (existsSync(join(dir, 'bun.lock'))) return dir
+    const parent = dirname(dir)
+    if (parent === dir) throw new Error(`workspace root not found from ${import.meta.url}`)
+    dir = parent
+  }
+}
+
+const root = workspaceRoot()
 
 interface Zones {
   ownedRoots: string[]
@@ -264,7 +277,7 @@ function checkGhostDeleted(zones: Zones, base: string): string[] {
   )
   const owned = new Set([...zones.ownedFiles, ...zones.stubs])
   const tarballPaths = new Set((zones.upstreamMergeTarball ?? []).flatMap((t) => t.paths))
-  const candidates = (deletedByUpstream ? deletedByUpstream.split('\n') : []).filter(Boolean)
+  const candidates = compact(deletedByUpstream ? deletedByUpstream.split('\n') : [])
   return candidates
     .filter((p) => existsSync(resolve(root, p)))
     .filter((p) => !zones.ownedRoots.some((r) => p.startsWith(r)))
@@ -309,7 +322,7 @@ function checkPatchTargetDeletedUpstream(zones: Zones, base: string): string[] {
     // upstream/master 不可达——跳过本次核查
     return []
   }
-  const deletedSet = new Set(deletedByUpstream ? deletedByUpstream.split('\n').filter(Boolean) : [])
+  const deletedSet = new Set(compact(deletedByUpstream ? deletedByUpstream.split('\n') : []))
   if (deletedSet.size === 0) return []
   return zones.patches
     .filter((p) => p.disposition !== 'revoked')
@@ -596,7 +609,7 @@ function patchesReport(zones: Zones, base: string): void {
     } catch {
       numstat = ''
     }
-    const lines = numstat ? numstat.split('\n').filter(Boolean) : []
+    const lines = compact(numstat ? numstat.split('\n') : [])
     let add = 0
     let del = 0
     let binary = false

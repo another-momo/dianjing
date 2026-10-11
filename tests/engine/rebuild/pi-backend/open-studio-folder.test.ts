@@ -137,7 +137,8 @@ async function openFolder_(headers: Record<string, string> = {}): Promise<{
     method: 'POST',
     headers: { authorization: `Bearer ${TOKEN}`, ...headers }
   })
-  return { status: res.status, body: (await res.json()) as OpenStudioFolderResult }
+  const body: OpenStudioFolderResult = await res.json()
+  return { status: res.status, body }
 }
 
 describe('POST /api/pi/open-studio-folder（ai-panel-ux-consolidation）', () => {
@@ -223,7 +224,8 @@ async function getStudioFolderPath(headers: Record<string, string> = {}): Promis
     method: 'GET',
     headers: { authorization: `Bearer ${TOKEN}`, ...headers }
   })
-  return { status: res.status, body: (await res.json()) as StudioFolderPath }
+  const body: StudioFolderPath = await res.json()
+  return { status: res.status, body }
 }
 
 describe('GET /api/pi/studio-folder（自定义拓展目录展示形态）', () => {

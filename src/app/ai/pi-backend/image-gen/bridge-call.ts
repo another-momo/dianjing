@@ -89,11 +89,11 @@ async function attemptBridgeCall(
     return { ok: false, retryable: true, message: EDITOR_UNREACHABLE_MESSAGE }
   }
 
-  const body = (await response.json().catch(() => null)) as {
+  const body: {
     ok?: boolean
     result?: BridgeCallResult
     error?: string
-  } | null
+  } | null = await response.json().catch(() => null)
 
   if (response.status === 401) {
     // 401 唯一可恢复场景 = 桥重启换 token（重读 discovery 后再试一次）

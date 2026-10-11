@@ -130,9 +130,9 @@ describe('b. deleteProvider 三态（T100 C1）', () => {
     await admin.deleteProvider('my-custom')
 
     // 1. models.json 文件层：条目已删
-    const afterDoc = JSON.parse(readFileSync(join(agentDir, 'models.json'), 'utf8')) as {
+    const afterDoc: {
       providers: Record<string, unknown>
-    }
+    } = JSON.parse(readFileSync(join(agentDir, 'models.json'), 'utf8'))
     expect('my-custom' in afterDoc.providers).toBe(false)
 
     // 2. runtime 层：catalog 不再含
@@ -394,11 +394,11 @@ describe('d. verifyCredential anthropic-messages 分支（T101）', () => {
     expect(seenHeaders['x-api-key']).toBe('sk-ant-test')
     expect(seenHeaders['anthropic-version']).toBe('2023-06-01')
     expect(seenHeaders['content-type']).toBe('application/json')
-    const parsed = JSON.parse(seenBody) as {
+    const parsed: {
       model: string
       max_tokens: number
       messages: Array<{ role: string; content: string }>
-    }
+    } = JSON.parse(seenBody)
     expect(parsed.model).toBeTruthy()
     expect(parsed.max_tokens).toBe(1)
     expect(parsed.messages).toEqual([{ role: 'user', content: 'ping' }])

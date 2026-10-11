@@ -74,11 +74,11 @@ async function startBridgeWithBrowsers(
     }
     const ws = fake.ws
     ws.onmessage = (event) => {
-      const msg = JSON.parse(String(event.data)) as {
+      const msg: {
         type: string
         id?: string
         command?: string
-      }
+      } = JSON.parse(String(event.data))
       if (msg.type === 'request' && msg.id && msg.command) {
         fake.receivedRequests.push({ id: msg.id, command: msg.command })
         // 默认应答：ok:true 携带空 result（让 sendRPC resolve）
@@ -110,11 +110,10 @@ async function startBridgeWithBrowsers(
 
 async function waitForHealthOk(port: number): Promise<void> {
   for (let i = 0; i < 50; i++) {
-    const health = (await (
-      await fetch(`http://127.0.0.1:${port}/health`, {
-        headers: { authorization: `Bearer ${TEST_AUTH_TOKEN}` }
-      })
-    ).json()) as { status: string }
+    const fetchRes = await fetch(`http://127.0.0.1:${port}/health`, {
+      headers: { authorization: `Bearer ${TEST_AUTH_TOKEN}` }
+    })
+    const health: { status: string } = await fetchRes.json()
     if (health.status === 'ok') return
     await new Promise((r) => {
       setTimeout(r, 20)
@@ -136,7 +135,7 @@ async function rpc(
     },
     body: JSON.stringify(body)
   })
-  const json = (await response.json().catch(() => ({}))) as RPCBody
+  const json: RPCBody = await response.json().catch(() => ({}))
   return { status: response.status, json }
 }
 
@@ -253,7 +252,7 @@ describe('窗口感知路由（multi-window routing）', () => {
       pendingReject = reject
     })
     sharedBrowser.ws.onmessage = (event) => {
-      const msg = JSON.parse(String(event.data)) as { type: string; id?: string }
+      const msg: { type: string; id?: string } = JSON.parse(String(event.data))
       if (msg.type === 'request' && msg.id) {
         sharedBrowser.receivedRequests.push({ id: msg.id, command: 'tool' })
         // 不应答——让 pending 留在旧槽
@@ -299,11 +298,11 @@ describe('窗口感知路由（multi-window routing）', () => {
           closed: false
         }
         newSharedWs.onmessage = (event) => {
-          const msg = JSON.parse(String(event.data)) as {
+          const msg: {
             type: string
             id?: string
             command?: string
-          }
+          } = JSON.parse(String(event.data))
           if (msg.type === 'request' && msg.id && msg.command) {
             newSharedFake?.receivedRequests.push({ id: msg.id, command: msg.command })
             newSharedWs.send(JSON.stringify({ type: 'response', id: msg.id, ok: true, result: {} }))
@@ -367,7 +366,7 @@ describe('窗口感知路由（multi-window routing）', () => {
     const winA = browsers[0]
     if (!winA) throw new Error('test fixture missing first browser')
     winA.ws.onmessage = (event) => {
-      const msg = JSON.parse(String(event.data)) as { type: string; id?: string }
+      const msg: { type: string; id?: string } = JSON.parse(String(event.data))
       if (msg.type === 'request' && msg.id) {
         winA.receivedRequests.push({ id: msg.id, command: 'tool' })
         // 不应答——留在 pending
@@ -381,7 +380,7 @@ describe('窗口感知路由（multi-window routing）', () => {
       },
       body: JSON.stringify({ command: 'tool', args: { name: 'noop' }, windowId: 'win-A' })
     }).then(async (r) => {
-      const json = (await r.json()) as { ok?: boolean; error?: string }
+      const json: { ok?: boolean; error?: string } = await r.json()
       return json
     })
 

@@ -151,7 +151,7 @@ function parseSSEChunkStream(body: ReadableStream<Uint8Array>): ReadableStream<U
             // catch 只兜 parse（rAF 调度在 try 外，调度异常不会被误报成坏帧）
             let chunk: UIMessageChunk
             try {
-              chunk = JSON.parse(data) as UIMessageChunk
+              chunk = JSON.parse(data)
             } catch {
               console.warn('[pi-transport] 跳过无法解析的 SSE 帧（已丢弃该帧，流继续）')
               continue

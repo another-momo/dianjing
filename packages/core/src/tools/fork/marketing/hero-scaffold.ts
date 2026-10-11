@@ -143,7 +143,7 @@ export function readHeroGeometry(graph: SceneGraph, node: SceneNode): HeroGeomet
   const raw = getSharedPluginData(fresh, BRIEF_PLUGIN_NAMESPACE, HERO_GEOMETRY_KEY)
   if (raw === '') return null
   try {
-    const parsed = JSON.parse(raw) as Partial<HeroGeometry>
+    const parsed: Partial<HeroGeometry> = JSON.parse(raw)
     const { width, height, underlapPx, transitionZonePx } = parsed
     if (typeof width !== 'number' || !Number.isFinite(width)) return null
     if (typeof height !== 'number' || !Number.isFinite(height)) return null

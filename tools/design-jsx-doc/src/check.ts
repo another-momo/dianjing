@@ -22,8 +22,8 @@
  * 测试入口：check.ts 把 analyze 暴露为具名 export 供 tests/ 调；
  * main() 负责 CLI（读盘、打印、exit code）。
  */
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 import {
   DESIGN_JSX_ELEMENTS,
@@ -31,13 +31,18 @@ import {
   DESIGN_JSX_HELPERS
 } from '@open-pencil/design-jsx'
 
-const MD_PATH = resolve(
-  import.meta.dir,
-  '..',
-  '..',
-  '..',
-  'src/app/ai/pi-backend/studio/references/render-jsx.md'
-)
+/** 向上走到仓根（含 bun.lock 的目录）——lint 禁 import.meta 起两级以上字面值攀爬 */
+function workspaceRoot(): string {
+  let dir = import.meta.dir
+  for (;;) {
+    if (existsSync(join(dir, 'bun.lock'))) return dir
+    const parent = dirname(dir)
+    if (parent === dir) throw new Error(`workspace root not found from ${import.meta.dir}`)
+    dir = parent
+  }
+}
+
+const MD_PATH = join(workspaceRoot(), 'src/app/ai/pi-backend/studio/references/render-jsx.md')
 
 /**
  * EXCLUDE 豁免两类：

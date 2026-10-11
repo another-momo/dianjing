@@ -212,7 +212,7 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
   function writeAuthJSON(providerId: string, apiKey: string): void {
     let data: AuthJSONDoc = {}
     try {
-      data = JSON.parse(readFileSync(authPath, 'utf8')) as AuthJSONDoc
+      data = JSON.parse(readFileSync(authPath, 'utf8'))
     } catch {
       data = {}
     }
@@ -261,7 +261,7 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
     await ensureRuntime()
     let doc: { providers: Record<string, unknown> } = { providers: {} }
     try {
-      doc = JSON.parse(readFileSync(modelsPath, 'utf8')) as typeof doc
+      doc = JSON.parse(readFileSync(modelsPath, 'utf8'))
     } catch {
       doc = { providers: {} }
     }
@@ -341,7 +341,7 @@ export function createProviderAdmin({ agentDir }: { agentDir: string }) {
     await ensureRuntime()
     let doc: { providers?: Record<string, unknown> } = {}
     try {
-      doc = JSON.parse(readFileSync(modelsPath, 'utf8')) as typeof doc
+      doc = JSON.parse(readFileSync(modelsPath, 'utf8'))
     } catch {
       doc = {}
     }

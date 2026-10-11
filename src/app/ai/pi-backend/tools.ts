@@ -162,11 +162,11 @@ async function callBridgeTool(
     throw new Error(EDITOR_UNREACHABLE_MESSAGE)
   }
 
-  const body = (await res.json().catch(() => null)) as {
+  const body: {
     ok?: boolean
     result?: BridgeToolResult
     error?: string
-  } | null
+  } | null = await res.json().catch(() => null)
 
   if (res.status === 401) {
     // T27：同上——401 唯一可恢复场景是桥重启换了 token，重读 discovery 后再试一次

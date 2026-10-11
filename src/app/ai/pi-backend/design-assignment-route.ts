@@ -44,7 +44,7 @@ export async function handleDesignAssignmentRequest(
   }
   let body: DesignAssignmentBody
   try {
-    body = JSON.parse(await readBody(req)) as DesignAssignmentBody
+    body = JSON.parse(await readBody(req))
   } catch (error) {
     if (error instanceof PayloadTooLargeError) {
       sendPayloadTooLarge(req, res)

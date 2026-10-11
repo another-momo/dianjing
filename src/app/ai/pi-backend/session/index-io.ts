@@ -26,7 +26,7 @@ export function createSessionIndexIO(sessionsDir: string): {
 
   function readIndex(): SessionIndex {
     try {
-      return JSON.parse(readFileSync(indexPath, 'utf8')) as SessionIndex
+      return JSON.parse(readFileSync(indexPath, 'utf8'))
     } catch (error) {
       // T27：ENOENT（首跑尚无索引）属正常静默；文件在但读/解析失败必须出声
       // （只报路径与错误类型，不打印文件内容）

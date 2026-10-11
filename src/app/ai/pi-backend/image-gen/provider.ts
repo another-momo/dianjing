@@ -94,7 +94,7 @@ async function apiErrorMessage(response: Response): Promise<string> {
   if (!text.trim()) return fallback
   let parsedBody: APIErrorBody | null = null
   try {
-    parsedBody = JSON.parse(text) as APIErrorBody
+    parsedBody = JSON.parse(text)
   } catch {
     parsedBody = null // 非 JSON 错误体 → 原文返回
   }
@@ -259,7 +259,7 @@ export function createProviderCore(
       }
 
       if (!response.ok) throw new Error(await apiErrorMessage(response))
-      const data = (await response.json()) as ImageAPIResponse
+      const data: ImageAPIResponse = await response.json()
       const bytes = await extractImageBytes(data, fetchImpl, signal)
       return { bytes, width: resultWidth, height: resultHeight }
     }

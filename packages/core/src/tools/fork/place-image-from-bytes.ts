@@ -228,8 +228,14 @@ async function placeRasterAsNewNode(
   node.x = position.x
   node.y = position.y
   const imageHash = applyImageFill(figma, node, checked.bytes)
-  // appendChild 保持绝对坐标（reparentNode 语义），x/y 按页级解释不漂移
-  if (parent) parent.appendChild(node)
+  if (parent) {
+    // 上游 #919 后 appendChild 保持子节点本地 x/y（不再保绝对坐标）——
+    // x/y 的页级绝对解释须先按父绝对原点折算成父本地坐标再挂入
+    const abs = figma.graph.getAbsolutePosition(parent.id)
+    node.x = position.x - abs.x
+    node.y = position.y - abs.y
+    parent.appendChild(node)
+  }
   return { id: node.id, width: size.width, height: size.height, imageHash }
 }
 

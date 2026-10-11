@@ -117,7 +117,7 @@ describe('mcp-connections routes', () => {
     const r = await call(deps, 'GET', '/api/pi/mcp/connections')
     expect(r.handled).toBe(true)
     expect(r.status).toBe(200)
-    const body = JSON.parse(r.text) as { connections: Array<Record<string, unknown>> }
+    const body: { connections: Array<Record<string, unknown>> } = JSON.parse(r.text)
     expect(body.connections.length).toBe(1)
     expect(body.connections[0]?.slug).toBe('acme')
     expect(body.connections[0]?.hasHeaders).toBe(true)
@@ -149,7 +149,7 @@ describe('mcp-connections routes', () => {
     const { deps, store, changedCount } = makeHarness()
     const r = await call(deps, 'PUT', '/api/pi/mcp/connections/acme', PUT_HTTP)
     expect(r.status).toBe(200)
-    const body = JSON.parse(r.text) as { connection: Record<string, unknown> }
+    const body: { connection: Record<string, unknown> } = JSON.parse(r.text)
     expect(body.connection.status).toBe('connected')
     expect(body.connection.toolCount).toBe(3)
     expect(body.connection.hasHeaders).toBe(true)
@@ -166,7 +166,7 @@ describe('mcp-connections routes', () => {
     )
     const r = await call(deps, 'PUT', '/api/pi/mcp/connections/acme', PUT_HTTP)
     expect(r.status).toBe(200)
-    const body = JSON.parse(r.text) as { connection: Record<string, unknown> }
+    const body: { connection: Record<string, unknown> } = JSON.parse(r.text)
     expect(body.connection.status).toBe('failed')
     expect(body.connection.error).toBe('connect timeout')
     expect(store.get('acme')?.status).toBe('failed')

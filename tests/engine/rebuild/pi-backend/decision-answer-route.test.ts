@@ -129,7 +129,7 @@ describe('POST /api/pi/decision-answer（2026-09-19 统一决断端点）', () =
       answers: { q1: { value: 'a' } }
     })
     expect(res.status).toBe(404)
-    const body = (await res.json()) as { error?: string }
+    const body: { error?: string } = await res.json()
     expect(body.error).toBe('no_pending_form')
   })
 

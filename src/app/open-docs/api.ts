@@ -44,7 +44,7 @@ function isOpenDocsHolder(value: unknown): value is OpenDocsHolder {
 async function readConflictHolder(res: Response): Promise<OpenDocsHolder | null> {
   // holder 标 unknown——宽类型断言会把 null 防御变成类型上恒真的死条件
   // （no-unnecessary-condition 红）；type guard 窄化代替
-  const body = (await res.json().catch(() => null)) as { holder?: unknown } | null
+  const body: { holder?: unknown } | null = await res.json().catch(() => null)
   const holder = body?.holder
   return isOpenDocsHolder(holder) ? holder : null
 }
@@ -57,7 +57,7 @@ export async function requestClaim(docUuid: string, force = false): Promise<Clai
       force
     })
     if (res.ok) {
-      const body = (await res.json().catch(() => null)) as { record?: OpenDocsHolder } | null
+      const body: { record?: OpenDocsHolder } | null = await res.json().catch(() => null)
       if (body?.record) return { kind: 'claimed', record: body.record }
       return { kind: 'unavailable' }
     }

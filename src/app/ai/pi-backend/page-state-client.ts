@@ -109,7 +109,7 @@ export async function putLocusEngagedPage(args: {
     if (!res.ok) {
       return { kind: 'unreachable', message: `HTTP ${res.status}` }
     }
-    const body = (await res.json().catch(() => null)) as { state?: unknown } | null
+    const body: { state?: unknown } | null = await res.json().catch(() => null)
     const state = parseLocusState(body?.state) ?? {
       modeId: null,
       profileId: null,

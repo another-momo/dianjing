@@ -200,12 +200,12 @@ export function createCapabilitiesStore({
 
   function readFromDisk(): Capabilities {
     try {
-      const raw = JSON.parse(readFileSync(filePath, 'utf8')) as {
+      const raw: {
         version?: unknown
         builtinTools?: unknown
         agentSkills?: unknown
         disabledSkills?: unknown
-      }
+      } = JSON.parse(readFileSync(filePath, 'utf8'))
       // T96 v1 → v2 迁移：旧单开关语义是「skill + 内建工具同闸」——
       // agentSkills true 等价于 builtinTools 'full'，false 等价于 'off'
       if (raw.version === 1 && typeof raw.agentSkills === 'boolean') {

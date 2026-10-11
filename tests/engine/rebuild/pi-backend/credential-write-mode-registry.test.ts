@@ -27,8 +27,10 @@ import { join, resolve, sep } from 'node:path'
 
 import { protectedCredentialFiles } from '@/app/ai/pi-backend/path-decision'
 
-/** 仓根 src/（本档在 tests/engine/rebuild/pi-backend/，上溯四级到仓根） */
-const SRC_ROOT = join(import.meta.dir, '../../../../src')
+import { repoPath } from '#tests/helpers/paths'
+
+/** 仓根 src/（走 repoPath 助手定位，禁字面值攀爬——lint no-deep-parent-relative-paths） */
+const SRC_ROOT = repoPath('src')
 
 /**
  * 容空白与进制前缀大小写变体（`mode:0o600` / `mode: 0o600` / `mode:  0o600`

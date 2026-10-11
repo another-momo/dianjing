@@ -71,7 +71,7 @@ describe('provider 请求形状', () => {
     const headers = new Headers(call.headers)
     expect(headers.get('authorization')).toBe('Bearer sk-test-image-key')
     expect(headers.get('content-type')).toBe('application/json')
-    const body = JSON.parse(String(call.body)) as GenerationsRequestBody
+    const body: GenerationsRequestBody = JSON.parse(String(call.body))
     expect(body).toEqual({
       model: 'gpt-image-1',
       prompt: 'hero shot',
@@ -99,10 +99,10 @@ describe('provider 请求形状', () => {
       outputFormat: 'jpeg',
       outputCompression: 80
     })
-    let body = JSON.parse(String(calls[0].body)) as GenerationsRequestBody
+    let body: GenerationsRequestBody = JSON.parse(String(calls[0].body))
     expect(body.output_compression).toBe(80)
     await provider.generate({ prompt: 'a', width: 1024, height: 1024, outputCompression: 80 })
-    body = JSON.parse(String(calls[1].body)) as GenerationsRequestBody
+    body = JSON.parse(String(calls[1].body))
     expect('output_compression' in body).toBe(false)
   })
 

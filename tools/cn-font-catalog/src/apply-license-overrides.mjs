@@ -10,12 +10,12 @@
  * 改动行仅限 license 行 + 两行注释，其余字节不动。幂等：已是最新口径则跳过并报告。
  */
 import { readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 
 import { LICENSE_OVERRIDES } from './license-overrides.mjs'
+import { repoRoot } from './repo-root.mjs'
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
+const REPO_ROOT = repoRoot()
 const CATALOG_TS = join(REPO_ROOT, 'packages', 'core', 'src', 'text', 'font', 'cn-catalog.ts')
 
 // 与 build.mjs 生成模板同口径的两处注释（同步纪律：改模板必同步本两处）

@@ -2793,13 +2793,28 @@
       "id": "P436",
       "file": "tests/engine/render/canvas/gradient.test.ts",
       "reason": "oxfmt 格式化偏差（同 P277/P280——上游源与 format 门禁口径不同的机械重排）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-10-11"
+      "disposition": "revoked",
+      "lastReviewed": "2026-10-11",
+      "retiredReason": "2026-10-11 CI 修红：#1039 上游重写引入 #cli/headless 依赖（本 fork cli 包已退役），fork 旧版依赖的 linearGradientEndpoints 本窗消亡——两版皆不可活，文件删除入 deletedPaths"
     },
     {
       "id": "P437",
       "file": "tools/checks/i18n/translation-baseline.txt",
       "reason": "locale 收窄政策（P14）配套：合并窗曾 staged 上游全量版（de/es/fr/it/ja/pl/ru 七目录在本树不存在，其条目恒 stale 刷屏）——回退 fork 收窄版；随键面同步：+code.sourceHTML/sourceVue/sourceReact/stylingCSS/stylingTailwind（zh 与 en 同文），-code.sourceHTMLCSS/sourceTailwindJSX（上游改名消亡），+automation.transportHttp/transportStdio",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-11"
+    },
+    {
+      "id": "P438",
+      "file": "tests/app/settings/preferences/store.test.ts",
+      "reason": "2026-10-11 合并窗 CI 修红：删「remembers that guided AI setup was finished or skipped」测试——onboarding.aiSetup 状态机属上游 ai-setup 死域（src/components/settings/ai-setup 整域删除已登 deletedPaths），fork 偏好 schema 无 onboarding 字段，特性退役测试随之退役",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-11"
+    },
+    {
+      "id": "P439",
+      "file": "tools/package.json",
+      "reason": "2026-10-11 合并窗 CI 修红：tools/test.ts 的 package.json 读取改 valibot schema 校验（no-unvalidated-json-parse 合规化），补 valibot devDependency（knip unlisted 口径逐 workspace 声明）",
       "disposition": "permanent",
       "lastReviewed": "2026-10-11"
     }
@@ -3011,11 +3026,13 @@
     "tests/app/ai/harness",
     "tests/app/ai/models",
     "tests/app/ai/preview",
+    "tests/app/ai/providers/openrouter/",
     "tests/app/ai/tools",
     "tests/app/automation",
     "tests/app/collab",
     "tests/app/comments/session.test.ts",
     "tests/app/demo",
+    "tests/app/diagnostics/summary.test.ts",
     "tests/app/presence",
     "tests/app/settings/automation.test.ts",
     "tests/app/shell/updater",
@@ -3090,6 +3107,7 @@
     "tests/engine/rebuild/chat/intent-cards.test.ts",
     "tests/engine/rebuild/marketing/active-design.test.ts",
     "tests/engine/render/canvas/font-lifecycle.test.ts",
+    "tests/engine/render/canvas/gradient.test.ts",
     "tests/engine/render/canvas/silhouette-autopsy.test.ts",
     "tests/engine/render/canvas/text.test.ts",
     "tests/engine/render/jsx/reference.test.ts",
@@ -3098,7 +3116,6 @@
     "tests/engine/tools/cli.test.ts",
     "tests/helpers/chat/render-stream/browser.ts",
     "tests/helpers/chat/render-stream/index.ts",
-    "tests/helpers/chat/transport.ts",
     "tests/helpers/cli.ts",
     "tests/helpers/code-panel.ts",
     "tests/helpers/collab",

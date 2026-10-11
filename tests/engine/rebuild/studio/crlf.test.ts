@@ -36,6 +36,8 @@ import { dirname, join } from 'node:path'
 import { loadStudioFromDirs, type StudioRegistry } from '@/app/ai/pi-backend/studio'
 import { splitFrontmatter } from '@/app/ai/pi-backend/studio/parse'
 
+import { repoPath } from '#tests/helpers/paths'
+
 let builtinDir = ''
 let userDir = ''
 
@@ -142,7 +144,7 @@ test('B: splitFrontmatter 处理 \\r\\n + 纯 \\r 混存的极端输入', () => 
 
 /** 把真内置资产目录递归 cp 到 dst 目录，再把所有文件的 LF 替换为 CRLF。 */
 function cpBuiltinAsCrlf(dst: string): void {
-  const BUILTIN = join(import.meta.dir, '../../../../src/app/ai/pi-backend/studio')
+  const BUILTIN = repoPath('src/app/ai/pi-backend/studio')
   cpSync(BUILTIN, dst, { recursive: true })
   // 递归遍历 dst 把每个文件读 → 替换 → 重写（仅 UTF-8 文本——本目录全 .md 无二进制）
   readdirSync(dst, { recursive: true, withFileTypes: true })

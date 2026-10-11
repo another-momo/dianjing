@@ -36,7 +36,9 @@ import {
 import { loadStudioFromDirs } from '@/app/ai/pi-backend/studio'
 import { createOpenPencilTools } from '@/app/ai/pi-backend/tools'
 
-const BUILTIN_DIR = join(import.meta.dir, '../../../../src/app/ai/pi-backend/studio')
+import { repoPath } from '#tests/helpers/paths'
+
+const BUILTIN_DIR = repoPath('src/app/ai/pi-backend/studio')
 const PROBE_SCRIPT = join(import.meta.dir, 'helpers.ts')
 
 const HERO_TOOLS = ['compose_backdrop', 'prepare_hero_scaffold']
@@ -277,7 +279,8 @@ function runHookProbe(rootDir: string): ProbeEvidence {
   if (result.exitCode !== 0) {
     throw new Error(`探针子进程失败：${result.stderr.toString()}`)
   }
-  return JSON.parse(result.stdout.toString()) as ProbeEvidence
+  const evidence: ProbeEvidence = JSON.parse(result.stdout.toString())
+  return evidence
 }
 
 test('切换后下一回合 state.systemPrompt 仍是装配产物（钩子覆盖关系与注册序）', () => {

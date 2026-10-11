@@ -80,7 +80,7 @@ describe('POST /api/pi/image-gen/credentials（四键）', () => {
         expect(store.get()?.model).toBe('gpt-image-1')
 
         const statusResponse = await fetch(`${baseURL}/api/pi/image-gen/credentials`)
-        const status = (await statusResponse.json()) as ImageGenCredentialStatus
+        const status: ImageGenCredentialStatus = await statusResponse.json()
         expect(status.configured).toBe(true)
         expect(status.providerType).toBe('openai-compatible')
         expect(status.baseUrl).toBe('https://api.example.com/v1')
@@ -105,7 +105,7 @@ describe('POST /api/pi/image-gen/credentials（四键）', () => {
         ]) {
           const response = await postJSON(baseURL, '/api/pi/image-gen/credentials', body)
           expect(response.status).toBe(400)
-          const envelope = (await response.json()) as { error?: string }
+          const envelope: { error?: string } = await response.json()
           expect(typeof envelope.error).toBe('string')
           expect(envelope.error?.length ?? 0).toBeGreaterThan(0)
         }

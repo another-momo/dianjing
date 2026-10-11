@@ -37,7 +37,7 @@ interface ParsedDisplay {
 describe('T92 displayToolOutput (tool card expansion)', () => {
   test('media output: base64 裁成 [omitted N chars]，其余字段原样', () => {
     const text = displayToolOutput({ state: 'output-available', output: lookOutput })
-    const parsed = JSON.parse(text) as ParsedDisplay
+    const parsed: ParsedDisplay = JSON.parse(text)
 
     expect(parsed.base64).toBe('[omitted 4 chars]')
     expect(text).not.toContain('aGk=')

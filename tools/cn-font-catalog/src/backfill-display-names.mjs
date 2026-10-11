@@ -18,10 +18,11 @@
  */
 
 import { readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
+import { repoRoot } from './repo-root.mjs'
+
+const REPO_ROOT = repoRoot()
 const OUT_TS = join(REPO_ROOT, 'packages', 'core', 'src', 'text', 'font', 'cn-catalog.ts')
 
 const JSDELIVR = 'https://cdn.jsdelivr.net/npm'

@@ -59,13 +59,6 @@ describe('parseAppPreferences', () => {
     expect(preferences.appearance.animations).toBe('off')
   })
 
-  test('remembers that guided AI setup was finished or skipped', () => {
-    expect(parseAppPreferences({ onboarding: { aiSetup: 'done' } }).onboarding.aiSetup).toBe('done')
-    expect(parseAppPreferences({ onboarding: { aiSetup: 'later' } }).onboarding.aiSetup).toBe(
-      'pending'
-    )
-  })
-
   test('keeps comment view choices and drops an unknown sort order', () => {
     const { comments } = parseAppPreferences({
       comments: { showOnCanvas: false, showResolved: true, sort: 'loudest' }

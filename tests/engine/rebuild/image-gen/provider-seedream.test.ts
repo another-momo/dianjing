@@ -78,7 +78,7 @@ describe('provider-seedream 请求形状', () => {
     const headers = new Headers(call.headers)
     expect(headers.get('authorization')).toBe('Bearer sk-test-seedream-key')
     expect(headers.get('content-type')).toBe('application/json')
-    const body = JSON.parse(String(call.body)) as SeedreamGenerationsRequestBody
+    const body: SeedreamGenerationsRequestBody = JSON.parse(String(call.body))
     expect(body).toEqual({
       model: 'doubao-seedream-5-0-lite',
       prompt: 'hero shot',
@@ -149,7 +149,7 @@ describe('provider-seedream 请求形状', () => {
       height: 1024,
       background: 'auto'
     })
-    const body = JSON.parse(String(calls[0].body)) as SeedreamGenerationsRequestBody
+    const body: SeedreamGenerationsRequestBody = JSON.parse(String(calls[0].body))
     expect(body.background).toBe('opaque')
   })
 })

@@ -41,7 +41,7 @@ async function fetchPiStudioManifest(): Promise<PiStudioManifest | null> {
   try {
     const res = await fetch('/api/pi/studio/manifest')
     if (!res.ok) return null
-    return (await res.json()) as PiStudioManifest
+    return await res.json()
   } catch (error) {
     console.warn('[pi-backend] studio manifest 拉取失败', error)
     return null
@@ -104,7 +104,7 @@ async function fetchPiCapabilities(): Promise<void> {
       piCapabilities.value = null
       return
     }
-    piCapabilities.value = (await res.json()) as PiStudioCapabilities
+    piCapabilities.value = await res.json()
   } catch (error) {
     piCapabilities.value = null
     console.warn('[pi-backend] capabilities 拉取失败——settings 开关按关闭处理', error)

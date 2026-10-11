@@ -5,7 +5,7 @@ import type { Color } from '@open-pencil/scene-graph/primitives'
 import { initials } from '@/app/shell/ui'
 
 /** A comment author's initials on their color. */
-defineProps<{ name: string; color: Color }>()
+const { name, color } = defineProps<{ name: string; color: Color }>()
 </script>
 
 <template>

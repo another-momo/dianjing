@@ -22,9 +22,15 @@
  *  - S1B scanCurrentPageBriefs 产物带 contentPreview（首 40 字符截取）
  */
 
-import { describe, expect, mock, test } from 'bun:test'
+import { describe, expect, spyOn, test } from 'bun:test'
+
+import * as layoutModule from '@open-pencil/core/layout'
 
 import { makeFigmaFromStore } from '@/app/bridge/figma-factory'
+// T79 B2 的观测桩用 spyOn 命名空间属性（+finally 复原），不用 mock.module——
+// 后者是进程级注册表替换，会泄漏给同 shard 进程随后求值的文件
+// （changes.test 的 computeAllLayouts 变空桩、88→10 假败实证）。
+import * as fontsModule from '@/app/editor/fonts'
 import { createEditorStore } from '@/app/editor/session'
 import {
   addBriefMaterialFromUpload,
@@ -124,23 +130,21 @@ describe('T79 B2：ensureGraphFonts 在排版结算前 await', () => {
   test('createBriefOnPage 收尾：ensureGraphFonts 被 await 且早于 computeAllLayouts', async () => {
     const callOrder: string[] = []
 
-    // 用 mock.module 替代字体模块 + 布局模块的导出
-    mock.module('@/app/editor/fonts', () => ({
-      ensureGraphFonts: async () => {
-        callOrder.push('ensureGraphFonts')
-        return false
-      }
-    }))
-    mock.module('@open-pencil/core/layout', () => ({
-      computeAllLayouts: () => {
-        callOrder.push('computeAllLayouts')
-      }
-    }))
-
-    // 强制重新加载 active-design（拿到 mock 后的依赖）
-    const { createBriefOnPage: freshCreate } = await import('@/components/assistant/active-design')
-    const store = createEditorStore()
-    await freshCreate(store, '内容')
+    // spyOn 就地替换共享命名空间属性，finally 复原——进程级零残留
+    const fontsSpy = spyOn(fontsModule, 'ensureGraphFonts').mockImplementation(async () => {
+      callOrder.push('ensureGraphFonts')
+      return false
+    })
+    const layoutSpy = spyOn(layoutModule, 'computeAllLayouts').mockImplementation(() => {
+      callOrder.push('computeAllLayouts')
+    })
+    try {
+      const store = createEditorStore()
+      await createBriefOnPage(store, '内容')
+    } finally {
+      fontsSpy.mockRestore()
+      layoutSpy.mockRestore()
+    }
 
     const ensureIdx = callOrder.indexOf('ensureGraphFonts')
     const layoutIdx = callOrder.indexOf('computeAllLayouts')

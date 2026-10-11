@@ -7,8 +7,8 @@
  */
 export async function requestPiJSON<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init)
-  if (response.ok) return (await response.json()) as T
-  const envelope = (await response.json().catch(() => null)) as { error?: string } | null
+  if (response.ok) return response.json()
+  const envelope: { error?: string } | null = await response.json().catch(() => null)
   const detail = envelope?.error?.trim() ? envelope.error : `HTTP ${response.status}`
   throw new Error(detail)
 }

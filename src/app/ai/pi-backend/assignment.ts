@@ -43,7 +43,7 @@ interface AssignmentEnvelope {
 }
 
 async function throwAssignmentHttpError(res: Response): Promise<never> {
-  const body = (await res.json().catch(() => null)) as { error?: string } | null
+  const body: { error?: string } | null = await res.json().catch(() => null)
   throw new Error(body?.error ?? `HTTP ${res.status}`)
 }
 
@@ -52,7 +52,7 @@ async function fetchAssignment(): Promise<PiModelSpec | null> {
   if (!res.ok) {
     await throwAssignmentHttpError(res)
   }
-  const envelope = (await res.json()) as AssignmentEnvelope
+  const envelope: AssignmentEnvelope = await res.json()
   return envelope.assignment ?? null
 }
 

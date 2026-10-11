@@ -71,7 +71,7 @@ beforeEach(() => {
   spyOn(globalThis, 'fetch').mockImplementation(
     async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const raw = init?.body
-      const body = typeof raw === 'string' ? (JSON.parse(raw) as OpenDocsRequestBody) : null
+      const body: OpenDocsRequestBody | null = typeof raw === 'string' ? JSON.parse(raw) : null
       fetchCalls.push({ url: String(input), body, init: init ?? {} })
       return route(String(input), body)
     }
@@ -263,7 +263,7 @@ describe('releaseAllOnPageHide', () => {
       const first = beacons[0]
       if (!first) throw new Error('beacon missing')
       expect(first.url).toBe('/api/pi/open-docs/release')
-      const payload = JSON.parse(await first.blob.text()) as OpenDocsRequestBody
+      const payload: OpenDocsRequestBody = JSON.parse(await first.blob.text())
       expect(payload.docUuid).toBe('uuid-p1')
       expect(typeof payload.windowId).toBe('string')
       expect(clearCalls).toBe(2)

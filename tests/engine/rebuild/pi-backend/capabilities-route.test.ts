@@ -101,7 +101,8 @@ async function getCapabilities(): Promise<{ status: number; body: CapabilitiesBo
   const res = await fetch(`${baseURL}/api/pi/capabilities`, {
     headers: { authorization: `Bearer ${TOKEN}` }
   })
-  return { status: res.status, body: (await res.json()) as CapabilitiesBody }
+  const body: CapabilitiesBody = await res.json()
+  return { status: res.status, body }
 }
 
 async function putCapabilities(payload: unknown): Promise<{ status: number; body: unknown }> {
@@ -226,7 +227,7 @@ describe('GET/PUT /api/pi/capabilities（T87）', () => {
       headers: { authorization: `Bearer ${TOKEN}` }
     })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { capabilities?: unknown; skills?: unknown }
+    const body: { capabilities?: unknown; skills?: unknown } = await res.json()
     expect(body.capabilities).toEqual({
       builtinTools: 'full',
       agentSkills: true,
@@ -256,9 +257,9 @@ describe('GET /api/pi/skills（管理面全量清单）', () => {
       headers: { authorization: `Bearer ${TOKEN}` }
     })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as {
+    const body: {
       skills: Array<{ name: string; description: string; source: string; enabled: boolean }>
-    }
+    } = await res.json()
     const found = body.skills.find((s) => s.name === 'route-skill')
     expect(found).toBeDefined()
     expect(found?.source).toBe('user')
@@ -288,7 +289,7 @@ describe('GET /api/pi/skills（管理面全量清单）', () => {
       headers: { authorization: `Bearer ${TOKEN}` }
     })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { skills: Array<{ name: string }> }
+    const body: { skills: Array<{ name: string }> } = await res.json()
     // 管理面不受总闸影响——off-skill 仍可见
     expect(body.skills.find((s) => s.name === 'off-skill')).toBeDefined()
   })
@@ -313,9 +314,9 @@ describe('GET /api/pi/skills（管理面全量清单）', () => {
     const res = await fetch(`${baseURL}/api/pi/skills`, {
       headers: { authorization: `Bearer ${TOKEN}` }
     })
-    const body = (await res.json()) as {
+    const body: {
       skills: Array<{ name: string; enabled: boolean }>
-    }
+    } = await res.json()
     const found = body.skills.find((s) => s.name === 'to-disable')
     expect(found?.enabled).toBe(false)
   })
@@ -351,14 +352,16 @@ describe('PUT /api/pi/skills/disabled（管理面单件启停）', () => {
       body: JSON.stringify({ disabled: ['alpha', 'beta'] })
     })
     expect(put1.status).toBe(200)
-    expect((await put1.json()) as { disabled: string[] }).toEqual({
+    const put1Body: { disabled: string[] } = await put1.json()
+    expect(put1Body).toEqual({
       disabled: ['alpha', 'beta']
     })
 
     const get = await fetch(`${baseURL}/api/pi/skills`, {
       headers: { authorization: `Bearer ${TOKEN}` }
     })
-    expect((await get.json()) as { skills: Array<{ name: string }> }).toEqual({
+    const getBody: { skills: Array<{ name: string }> } = await get.json()
+    expect(getBody).toEqual({
       skills: [],
       diagnostics: []
     })
@@ -383,7 +386,8 @@ describe('PUT /api/pi/skills/disabled（管理面单件启停）', () => {
     const capGet = await fetch(`${baseURL}/api/pi/capabilities`, {
       headers: { authorization: `Bearer ${TOKEN}` }
     })
-    expect((await capGet.json()) as { disabledSkills: string[] }).toEqual({
+    const capGetBody: { disabledSkills: string[] } = await capGet.json()
+    expect(capGetBody).toEqual({
       builtinTools: 'full',
       agentSkills: true,
       disabledSkills: ['alpha', 'beta']
@@ -412,7 +416,8 @@ describe('PUT /api/pi/skills/disabled（管理面单件启停）', () => {
       body: JSON.stringify({ disabled: ['b', 'a', 'b', 'c', 'a'] })
     })
     expect(put.status).toBe(200)
-    expect((await put.json()) as { disabled: string[] }).toEqual({
+    const putBody: { disabled: string[] } = await put.json()
+    expect(putBody).toEqual({
       disabled: ['b', 'a', 'c']
     })
   })
@@ -424,7 +429,8 @@ describe('PUT /api/pi/skills/disabled（管理面单件启停）', () => {
       body: JSON.stringify({ disabled: ['never-installed-skill'] })
     })
     expect(put.status).toBe(200)
-    expect((await put.json()) as { disabled: string[] }).toEqual({
+    const putBody2: { disabled: string[] } = await put.json()
+    expect(putBody2).toEqual({
       disabled: ['never-installed-skill']
     })
   })
@@ -446,7 +452,8 @@ describe('PUT /api/pi/skills/disabled（管理面单件启停）', () => {
     const get = await fetch(`${baseURL}/api/pi/capabilities`, {
       headers: { authorization: `Bearer ${TOKEN}` }
     })
-    expect((await get.json()) as { builtinTools: string; disabledSkills: string[] }).toEqual({
+    const getBody: { builtinTools: string; disabledSkills: string[] } = await get.json()
+    expect(getBody).toEqual({
       builtinTools: 'readonly',
       agentSkills: true,
       disabledSkills: ['a']
@@ -495,7 +502,7 @@ describe('GET /api/pi/skills diagnostics 字段（批 B）', () => {
       headers: { authorization: `Bearer ${TOKEN}` }
     })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as SkillsListBody
+    const body: SkillsListBody = await res.json()
     expect(Array.isArray(body.diagnostics)).toBe(true)
     expect(body.diagnostics).toEqual([])
   })
@@ -508,9 +515,9 @@ describe('GET /api/pi/skills diagnostics 字段（批 B）', () => {
     const res = await fetch(`${baseURL}/api/pi/skills`, {
       headers: { authorization: `Bearer ${TOKEN}` }
     })
-    const body = (await res.json()) as {
+    const body: {
       diagnostics: Array<{ code: string; skillName?: string }>
-    }
+    } = await res.json()
     expect(
       body.diagnostics.some((d) => d.code === 'parse-failed' && d.skillName === 'broken-skill')
     ).toBe(true)
@@ -520,7 +527,7 @@ describe('GET /api/pi/skills diagnostics 字段（批 B）', () => {
     const res = await fetch(`${baseURL}/api/pi/skills`, {
       headers: { authorization: `Bearer ${TOKEN}` }
     })
-    const body = (await res.json()) as SkillsListBody
+    const body: SkillsListBody = await res.json()
     expect(Object.keys(body).sort()).toEqual(['diagnostics', 'skills'])
   })
 })
@@ -545,7 +552,8 @@ describe('POST /api/pi/skills/delete（批 B 分层删除）', () => {
       body: JSON.stringify({ name: 'doomed' })
     })
     expect(post.status).toBe(200)
-    expect((await post.json()) as { deleted: string }).toEqual({ deleted: 'doomed' })
+    const postBody: { deleted: string } = await post.json()
+    expect(postBody).toEqual({ deleted: 'doomed' })
 
     // 磁盘目录已删
     expect(existsSync(skillDir)).toBe(false)
@@ -554,7 +562,7 @@ describe('POST /api/pi/skills/delete（批 B 分层删除）', () => {
     const get = await fetch(`${baseURL}/api/pi/skills`, {
       headers: { authorization: `Bearer ${TOKEN}` }
     })
-    const body = (await get.json()) as { skills: Array<{ name: string }> }
+    const body: { skills: Array<{ name: string }> } = await get.json()
     expect(body.skills.find((s) => s.name === 'doomed')).toBeUndefined()
   })
 
@@ -565,7 +573,7 @@ describe('POST /api/pi/skills/delete（批 B 分层删除）', () => {
       body: JSON.stringify({ name: 'never-installed' })
     })
     expect(post.status).toBe(404)
-    const body = (await post.json()) as { error: string }
+    const body: { error: string } = await post.json()
     expect(typeof body.error).toBe('string')
   })
 
@@ -644,7 +652,7 @@ describe('POST /api/pi/skills/delete（批 B 分层删除）', () => {
     const capGet = await fetch(`${baseURL}/api/pi/capabilities`, {
       headers: { authorization: `Bearer ${TOKEN}` }
     })
-    const caps = (await capGet.json()) as { disabledSkills: string[] }
+    const caps: { disabledSkills: string[] } = await capGet.json()
     expect(caps.disabledSkills).toContain('disabled-then-delete')
   })
 })

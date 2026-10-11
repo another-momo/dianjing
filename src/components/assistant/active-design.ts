@@ -59,7 +59,7 @@ export async function postIntentConfirm(args: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...args, windowId: getWindowId() })
     })
-    const body = (await res.json().catch(() => null)) as { ok?: boolean; message?: string } | null
+    const body: { ok?: boolean; message?: string } | null = await res.json().catch(() => null)
     if (res.ok && body?.ok === true) return { ok: true }
     return { ok: false, message: body?.message ?? `HTTP ${res.status}` }
   } catch (error) {

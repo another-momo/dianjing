@@ -47,7 +47,7 @@ function readLog(dir: string = rootDir): ShadowLine[] {
   return readFileSync(file, 'utf8')
     .trim()
     .split('\n')
-    .map((line) => JSON.parse(line) as ShadowLine)
+    .map((line): ShadowLine => JSON.parse(line))
 }
 
 function makeHandler(dir: string = rootDir) {

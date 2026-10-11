@@ -15,12 +15,12 @@ import { spawn } from 'node:child_process'
  *   改动域明确时只跑受影响批次，全量交 CI 或后台长跑。
  * Exit 0 = all batches pass; non-zero = first failing batch's exit code.
  */
-import { readdir, readFile } from 'node:fs/promises'
+import { readdir } from 'node:fs/promises'
 import { resolve, join, relative } from 'node:path'
 
-import { isHeavyUnitTest } from './shards'
+import { isHeavyUnitTest, REPO_ROOT } from './shards'
 
-const ROOT = resolve(import.meta.dirname, '../../..')
+const ROOT = REPO_ROOT
 const TESTS_ROOT = resolve(ROOT, 'tests/engine')
 
 const args = new Set(process.argv.slice(2))

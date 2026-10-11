@@ -98,7 +98,8 @@ describe('session 装配 skills 段拼回钉扎（钩子产物）', () => {
     if (result.exitCode !== 0) {
       throw new Error(`真 SDK 探针子进程失败：${result.stderr.toString()}`)
     }
-    return JSON.parse(result.stdout.toString()) as { names: string[]; section: string }
+    const parsed: { names: string[]; section: string } = JSON.parse(result.stdout.toString())
+    return parsed
   }
 
   /** 真 host：真 studio registry 组装回合；桥探针喂固定页身份 */

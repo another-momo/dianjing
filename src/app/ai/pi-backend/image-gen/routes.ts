@@ -62,12 +62,12 @@ async function handleCredentialsRequest(
     sendJSON(res, 405, { error: 'Method Not Allowed' })
     return
   }
-  const body = (JSON.parse((await readBody(req)) || '{}') ?? {}) as {
+  const body: {
     providerType?: string
     baseUrl?: string
     model?: string
     apiKey?: string
-  }
+  } = JSON.parse((await readBody(req)) || '{}') ?? {}
   if (typeof body.apiKey !== 'string') {
     sendJSON(res, 400, { error: 'apiKey required' })
     return
@@ -115,9 +115,9 @@ async function handleSettingsRequest(
     sendJSON(res, 405, { error: 'Method Not Allowed' })
     return
   }
-  const body = (JSON.parse((await readBody(req)) || '{}') ?? {}) as {
+  const body: {
     retainLocal?: unknown
-  }
+  } = JSON.parse((await readBody(req)) || '{}') ?? {}
   if (typeof body.retainLocal !== 'boolean') {
     sendJSON(res, 400, { error: 'retainLocal must be boolean' })
     return

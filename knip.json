@@ -1,25 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": [
-    "desktop/target/**",
-    "**/dist/**",
-    "**/node_modules/**"
-  ],
+  "ignore": ["desktop/target/**", "**/dist/**", "**/node_modules/**"],
   "ignoreWorkspaces": [],
-  "ignoreUnresolved": [
-    "~icons/*",
-    "/src/app/editor/fonts/index.ts",
-    "#core/*",
-    "/src/app/tabs/index.ts",
-    "/packages/core/src/text/index.ts"
-  ],
-  "entry": [
-    "src/app/orchestration/**/*.ts",
-    "desktop-electron/tools/ports.ts"
-  ],
-  "ignoreBinaries": [
-    "open",
-    "taskkill",
-    "tasklist"
-  ]
+  "ignoreUnresolved": ["~icons/*", "/src/app/tabs/index.ts"],
+  "ignoreBinaries": ["open", "taskkill", "tasklist"]
 }

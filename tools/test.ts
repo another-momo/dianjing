@@ -3,9 +3,9 @@ import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-interface PackageJSON {
-  scripts?: Record<string, string>
-}
+import * as v from 'valibot'
+
+const packageJSONSchema = v.object({ scripts: v.optional(v.record(v.string(), v.string())) })
 
 async function run(command: string, args: string[], cwd: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
@@ -26,6 +26,9 @@ for (const entry of await readdir('tools', { withFileTypes: true })) {
   const cwd = join('tools', entry.name)
   const manifest = join(cwd, 'package.json')
   if (!existsSync(manifest)) continue
-  const packageJSON = JSON.parse(await readFile(manifest, 'utf8')) as PackageJSON
+  const packageJSON = v.parse(
+    v.pipe(v.string(), v.parseJson(), packageJSONSchema),
+    await readFile(manifest, 'utf8')
+  )
   if (packageJSON.scripts?.test) await run('bun', ['test'], cwd)
 }

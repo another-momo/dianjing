@@ -157,7 +157,7 @@ describe('桥 /rpc 状态码缝（server.ts 集成钉扎）', () => {
     // 假浏览器：WS 注册后经 /health 确认桥已识别连接
     const ws = new WebSocket(`ws://127.0.0.1:${port}`)
     ws.onmessage = (event) => {
-      const msg = JSON.parse(String(event.data)) as { type: string; id?: string }
+      const msg: { type: string; id?: string } = JSON.parse(String(event.data))
       if (msg.type === 'request' && msg.id) {
         // 模拟编辑器在线但工具自身抛错（如 render JSX 解析失败）
         ws.send(
@@ -178,11 +178,10 @@ describe('桥 /rpc 状态码缝（server.ts 集成钉扎）', () => {
       ws.onerror = () => reject(new Error('WebSocket connect failed'))
     })
     for (let i = 0; i < 50; i++) {
-      const health = (await (
-        await fetch(`http://127.0.0.1:${port}/health`, {
-          headers: { authorization: `Bearer ${TEST_AUTH_TOKEN}` }
-        })
-      ).json()) as { status: string }
+      const fetchRes = await fetch(`http://127.0.0.1:${port}/health`, {
+        headers: { authorization: `Bearer ${TEST_AUTH_TOKEN}` }
+      })
+      const health: { status: string } = await fetchRes.json()
       if (health.status === 'ok') break
       await new Promise((r) => {
         setTimeout(r, 20)
@@ -197,7 +196,7 @@ describe('桥 /rpc 状态码缝（server.ts 集成钉扎）', () => {
       },
       body: JSON.stringify({ command: 'tool', args: { name: 'render', args: {} } })
     })
-    const body = (await response.json()) as { ok?: boolean; error?: string }
+    const body: { ok?: boolean; error?: string } = await response.json()
 
     expect(response.status).toBe(200)
     expect(body.ok).toBe(false)
@@ -225,7 +224,7 @@ describe('桥 /rpc 状态码缝（server.ts 集成钉扎）', () => {
       body: JSON.stringify({ command: 'tool', args: { name: 'render', args: {} } })
     })
     expect(response.status).toBe(401)
-    const body = (await response.json()) as { error?: string }
+    const body: { error?: string } = await response.json()
     expect(classifyBridgeFailure(response.status, body, 'render').kind).toBe('editor-unreachable')
   })
 })

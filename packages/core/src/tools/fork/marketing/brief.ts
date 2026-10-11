@@ -21,6 +21,8 @@
  *   pluginData）与 design→brief 反向指针补显随规制迁用户层整体退役。
  */
 
+import { compact } from 'es-toolkit'
+
 import type { Fill, SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 
 import { TRANSPARENT } from '#core/constants'
@@ -200,7 +202,7 @@ export function briefSchemaVersion(node: SceneNode | undefined): string {
 export function briefBoundDesignIds(node: SceneNode | undefined): string[] {
   if (!isBrief(node)) return []
   const raw = briefMarker(node, BRIEF_BINDING_KEY)
-  return raw ? raw.split(',').filter(Boolean) : []
+  return raw ? compact(raw.split(',')) : []
 }
 
 /** Add rootFrameId to the brief's bound-design list via the generic upsert (no-op when already bound).
@@ -379,8 +381,10 @@ function createCard(
     counterAxisSizing:
       (options.counter ?? 'FILL') === 'FILL' ? 'FIXED' : (options.counter ?? 'FILL')
   }
-  // FILL 语义按新布局模型翻译：主轴填充 = FIXED+layoutGrow，交叉轴填充 = FIXED+STRETCH
-  if ((options.primary ?? 'HUG') === 'FILL') cardProps.layoutGrow = 1
+  // FILL 语义按新布局模型翻译：主轴填充 = FIXED+layoutGrow，交叉轴填充 = FIXED+STRETCH。
+  // 显式 width 与主轴 FILL 并存时旧引擎以 width 为准；新引擎 layoutGrow 会把
+  // flexBasis 置 0 吞掉 width（min-content 地板会再把列撑爆）——此时不降 layoutGrow
+  if ((options.primary ?? 'HUG') === 'FILL' && !options.width) cardProps.layoutGrow = 1
   if ((options.counter ?? 'FILL') === 'FILL') cardProps.layoutAlignSelf = 'STRETCH'
   if (options.width) cardProps.width = options.width
   if (options.justify) cardProps.primaryAxisAlign = options.justify

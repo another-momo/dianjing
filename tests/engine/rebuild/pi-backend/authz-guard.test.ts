@@ -88,7 +88,7 @@ function shadowLines(): ShadowLine[] {
   return readFileSync(join(rootDir, 'broker-shadow.jsonl'), 'utf8')
     .split('\n')
     .filter((line) => line !== '')
-    .map((line) => JSON.parse(line) as ShadowLine)
+    .map((line): ShadowLine => JSON.parse(line))
 }
 
 beforeEach(() => {

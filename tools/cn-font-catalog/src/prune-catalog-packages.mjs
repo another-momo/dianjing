@@ -13,12 +13,12 @@
  */
 
 import { readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 
 import { formatArray, formatEntry, formatRecord } from './merge.mjs'
+import { repoRoot } from './repo-root.mjs'
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
+const REPO_ROOT = repoRoot()
 const CATALOG_TS = join(REPO_ROOT, 'packages', 'core', 'src', 'text', 'font', 'cn-catalog.ts')
 
 const prunePackages = new Set(process.argv.slice(2))

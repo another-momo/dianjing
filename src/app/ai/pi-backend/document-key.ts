@@ -151,10 +151,10 @@ export async function loadPiChatHistory(store: EditorStore): Promise<UIMessage[]
     if (storeSessions.get(store)?.startsWith(`${prefix}-`)) return undefined
     const res = await fetch(`/api/pi/history?docKey=${encodeURIComponent(prefix)}`)
     if (!res.ok) return undefined
-    const body = (await res.json()) as {
+    const body: {
       sessionId: string | null
       messages: UIMessage[]
-    }
+    } = await res.json()
     if (!body.sessionId || body.messages.length === 0) return undefined
     storeSessions.set(store, body.sessionId)
     return body.messages
@@ -197,7 +197,7 @@ export async function listPiSessionFamily(
     const prefix = `doc-${await sha1Hex(uuid)}`
     const res = await fetch(`/api/pi/sessions?docKey=${encodeURIComponent(prefix)}`)
     if (!res.ok) return undefined
-    const body = (await res.json()) as { sessions: PiSessionSummary[] }
+    const body: { sessions: PiSessionSummary[] } = await res.json()
     return body.sessions
   } catch {
     return undefined
@@ -225,7 +225,7 @@ export async function switchPiSession(
     if (!sessionId.startsWith(`${prefix}-`)) return null
     const res = await fetch(`/api/pi/history?sessionId=${encodeURIComponent(sessionId)}`)
     if (!res.ok) return null
-    const body = (await res.json()) as { sessionId: string | null; messages: UIMessage[] }
+    const body: { sessionId: string | null; messages: UIMessage[] } = await res.json()
     if (body.sessionId !== sessionId) return null
     storeSessions.set(store, sessionId)
     return body.messages

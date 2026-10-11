@@ -34,7 +34,6 @@
 
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 
 import type { SceneGraph, SceneNode } from '@open-pencil/core'
 
@@ -53,6 +52,7 @@ import {
 import { prepareHeroScaffoldTool } from '#core/tools/fork/marketing/hero-tools'
 
 import { expectDefined } from '#tests/helpers/assert'
+import { repoPath } from '#tests/helpers/paths'
 import { setupToolTest } from '#tests/helpers/tools'
 
 // ── golden 固定量：brief 文案 + 750x 尺寸预设 ────────────────────────────────
@@ -68,9 +68,8 @@ const UNDERLAP = 100
 const ROOT_H = 2120
 
 // P2-9（2026-09-07）：资产本体移至子目录，路径同步
-const PROFILE_PATH = join(
-  import.meta.dir,
-  '../../../../src/app/ai/pi-backend/studio/profiles/watercolor_poster_v2/profile.md'
+const PROFILE_PATH = repoPath(
+  'src/app/ai/pi-backend/studio/profiles/watercolor_poster_v2/profile.md'
 )
 
 /** v2 Typography 节的 W=750 字阶档（从真实 profile 文件提取，改字阶即改门禁） */

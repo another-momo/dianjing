@@ -5,7 +5,18 @@ import { fileURLToPath } from 'node:url'
 
 import { uniq } from 'es-toolkit/array'
 
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
+/** 向上走到仓根（含 bun.lock 的目录）——lint 禁 import.meta 起两级以上字面值攀爬 */
+function workspaceRoot(): string {
+  let dir = dirname(fileURLToPath(import.meta.url))
+  for (;;) {
+    if (existsSync(join(dir, 'bun.lock'))) return dir
+    const parent = dirname(dir)
+    if (parent === dir) throw new Error(`workspace root not found from ${import.meta.url}`)
+    dir = parent
+  }
+}
+
+export const REPO_ROOT = workspaceRoot()
 
 /**
  * Unit test shards, keyed by owning package or application area.

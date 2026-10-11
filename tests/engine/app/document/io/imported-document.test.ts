@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 
 import { createEditor } from '@open-pencil/core/editor'
 import { SceneGraph } from '@open-pencil/scene-graph'
@@ -16,6 +15,8 @@ import {
 } from '@/app/document/io/imported-document'
 import { createEditorPreparationController } from '@/app/editor/preparation/controller'
 import { createInitialAppEditorState } from '@/app/editor/session/types'
+
+import { repoPath } from '#tests/helpers/paths'
 
 test('cancelled imported-document staging preserves the live graph', async () => {
   const liveGraph = new SceneGraph()
@@ -137,10 +138,7 @@ test('docUuid namespace constants match across document-key and imported-documen
 // 空间编码形存储（getSharedPluginData 传命名空间 + 短键 'docId'），eval 内无法
 // 引 TS 常量，改以源码文本钉扎：字面量漂移即红。
 test('bridge view probe eval pins the docUuid namespace and key literals', () => {
-  const probeSourcePath = join(
-    import.meta.dir,
-    '../../../../../src/app/ai/pi-backend/active-design-host.ts'
-  )
+  const probeSourcePath = repoPath('src/app/ai/pi-backend/active-design-host.ts')
   const probeSource = readFileSync(probeSourcePath, 'utf8')
   expect(probeSource).toContain("getSharedPluginData('openpencil.ai', 'docId')")
 })

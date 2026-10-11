@@ -57,10 +57,10 @@ export const piCatalogLoading = ref(false)
 async function requestJSON<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_PREFIX}${path}`, init)
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { error?: string } | null
+    const body: { error?: string } | null = await response.json().catch(() => null)
     throw new Error(body?.error ?? `HTTP ${response.status}`)
   }
-  return (await response.json()) as T
+  return response.json()
 }
 
 function jsonBody(payload: unknown): RequestInit {

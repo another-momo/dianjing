@@ -284,7 +284,7 @@ describe('①②⑥ 几何与拓扑（无骨架直克隆 + 记录 + 放置）', 
 
     const raw = getSharedPluginData(scaffold, BRIEF_PLUGIN_NAMESPACE, HERO_GEOMETRY_KEY)
     expect(raw).not.toBe('')
-    const parsed = JSON.parse(raw) as HeroGeometry
+    const parsed: HeroGeometry = JSON.parse(raw)
     expect(Object.keys(parsed).sort()).toEqual([
       'height',
       'transitionZonePx',

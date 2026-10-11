@@ -58,7 +58,7 @@ export function createImageGenSettingsStore({
   function readFromDisk(): { retainLocal: boolean } {
     if (!existsSync(filePath)) return { ...DEFAULTS }
     try {
-      const raw = JSON.parse(readFileSync(filePath, 'utf8')) as Partial<ImageGenSettingsFile>
+      const raw: Partial<ImageGenSettingsFile> = JSON.parse(readFileSync(filePath, 'utf8'))
       if (typeof raw.retainLocal === 'boolean') return { retainLocal: raw.retainLocal }
       return { ...DEFAULTS }
     } catch {

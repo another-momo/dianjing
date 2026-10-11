@@ -122,7 +122,8 @@ async function openFolder_(): Promise<{ status: number; body: { ok: boolean; err
     method: 'POST',
     headers: { authorization: `Bearer ${TOKEN}` }
   })
-  return { status: res.status, body: (await res.json()) as { ok: boolean; error?: string } }
+  const body: { ok: boolean; error?: string } = await res.json()
+  return { status: res.status, body }
 }
 
 describe('POST /api/pi/open-image-gen-folder（图片本地留存目录）', () => {

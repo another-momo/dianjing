@@ -20,6 +20,8 @@
  * REGENERATE = replace_id 但 references 不含目标。
  */
 
+import { compact } from 'es-toolkit'
+
 import type { Fill, SceneNode } from '@open-pencil/scene-graph'
 
 import type { FigmaAPI } from '#core/figma-api'
@@ -176,12 +178,12 @@ export async function extractReferenceImages(
       throw allReferencesFailedError(figma, skipped)
     }
   }
-  const noteParts = [
+  const noteParts = compact([
     skipped.length > 0
       ? `Used ${images.length}/${references.length} reference image(s); skipped: ${skipped.join(', ')}`
       : '',
     ...teachings
-  ].filter(Boolean)
+  ])
   const note = noteParts.join(' ') || undefined
   return note ? { images, note } : { images }
 }
@@ -276,7 +278,7 @@ export async function beginImageGen(
     req.references ?? [],
     req.prompt
   )
-  const note = [redirect?.note, skippedNote].filter(Boolean).join(' ') || undefined
+  const note = compact([redirect?.note, skippedNote]).join(' ') || undefined
 
   const { target, replaced, finalWidth, finalHeight } = resolveOutputTarget(figma, req, redirect)
 

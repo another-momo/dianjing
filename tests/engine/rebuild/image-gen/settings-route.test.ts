@@ -70,7 +70,7 @@ describe('GET/PUT /api/pi/image-gen/settings', () => {
       await withServer({ credentials, settings, rootDir }, async (baseURL) => {
         const res = await fetch(`${baseURL}/api/pi/image-gen/settings`)
         expect(res.status).toBe(200)
-        const body = (await res.json()) as ImageGenSettingsStatus
+        const body: ImageGenSettingsStatus = await res.json()
         expect(body.retainLocal).toBe(false)
         expect(body.dir.replaceAll('\\', '/')).toBe(
           join(rootDir, 'workspace', 'image-gen-output').replaceAll('\\', '/')
@@ -90,18 +90,20 @@ describe('GET/PUT /api/pi/image-gen/settings', () => {
       await withServer({ credentials, settings, rootDir }, async (baseURL) => {
         const put1 = await putJSON(baseURL, '/api/pi/image-gen/settings', { retainLocal: true })
         expect(put1.status).toBe(200)
-        const body1 = (await put1.json()) as ImageGenSettingsStatus
+        const body1: ImageGenSettingsStatus = await put1.json()
         expect(body1.retainLocal).toBe(true)
         expect(body1.dir).toBe(join(rootDir, 'workspace', 'image-gen-output'))
 
         // 后续 GET 跟随
         const get1 = await fetch(`${baseURL}/api/pi/image-gen/settings`)
-        expect(((await get1.json()) as ImageGenSettingsStatus).retainLocal).toBe(true)
+        const get1Body: ImageGenSettingsStatus = await get1.json()
+        expect(get1Body.retainLocal).toBe(true)
 
         const put2 = await putJSON(baseURL, '/api/pi/image-gen/settings', { retainLocal: false })
         expect(put2.status).toBe(200)
         const get2 = await fetch(`${baseURL}/api/pi/image-gen/settings`)
-        expect(((await get2.json()) as ImageGenSettingsStatus).retainLocal).toBe(false)
+        const get2Body: ImageGenSettingsStatus = await get2.json()
+        expect(get2Body.retainLocal).toBe(false)
       })
     } finally {
       cleanup()
@@ -117,13 +119,14 @@ describe('GET/PUT /api/pi/image-gen/settings', () => {
         for (const body of [{ retainLocal: 'yes' }, { retainLocal: 1 }, {}]) {
           const res = await putJSON(baseURL, '/api/pi/image-gen/settings', body)
           expect(res.status).toBe(400)
-          const envelope = (await res.json()) as { error?: string }
+          const envelope: { error?: string } = await res.json()
           expect(typeof envelope.error).toBe('string')
           expect(envelope.error?.length ?? 0).toBeGreaterThan(0)
         }
         // 缺省仍为 OFF（PUT 校验失败不动落盘）
         const get = await fetch(`${baseURL}/api/pi/image-gen/settings`)
-        expect(((await get.json()) as ImageGenSettingsStatus).retainLocal).toBe(false)
+        const getBody: ImageGenSettingsStatus = await get.json()
+        expect(getBody.retainLocal).toBe(false)
       })
     } finally {
       cleanup()

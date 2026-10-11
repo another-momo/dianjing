@@ -100,7 +100,7 @@ async function postJSON<T>(url: string, body: unknown): Promise<T> {
     }
     throw new Error(`${url} failed: ${response.status}${detail ? ` ${detail}` : ''}`)
   }
-  return (await response.json()) as T
+  return response.json()
 }
 
 /** Electron 形态下弹出原生 Save 对话框；用户取消返 null。 */

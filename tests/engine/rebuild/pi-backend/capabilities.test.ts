@@ -109,9 +109,9 @@ test('T96 v1→v2 迁移：version:1 + agentSkills:false → builtinTools off', 
   expect(store.get()).toEqual({ builtinTools: 'off', agentSkills: false, disabledSkills: [] })
   // 迁移后的首次写盘升级文件形状到 v3
   store.set({ agentSkills: false })
-  const raw = JSON.parse(readFileSync(join(agentDir, 'capabilities.json'), 'utf8')) as {
+  const raw: {
     version: number
-  }
+  } = JSON.parse(readFileSync(join(agentDir, 'capabilities.json'), 'utf8'))
   expect(raw.version).toBe(3)
 })
 

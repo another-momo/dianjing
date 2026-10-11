@@ -29,15 +29,17 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { dirname, resolve, join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { compact } from 'es-toolkit'
+
 const here = dirname(fileURLToPath(import.meta.url))
 const root = resolve(here, '..', '..', '..')
 const outputDir = join(root, 'build', '.generated')
 const outputFile = join(outputDir, 'THIRD-PARTY-NOTICES.txt')
 
-const rootPkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
+const rootPkg: {
   dependencies?: Record<string, string>
   workspaces?: string[]
-}
+} = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const workspaceDirs = (rootPkg.workspaces ?? []).map((w) => resolve(root, w))
 
 // 起点 = 根 dependencies + 各 workspace dependencies（union）。devDependencies
@@ -46,9 +48,9 @@ const seedDeps = new Set<string>(Object.keys(rootPkg.dependencies ?? {}))
 for (const wsDir of workspaceDirs) {
   const wsPkgPath = join(wsDir, 'package.json')
   if (!existsSync(wsPkgPath)) continue
-  const wsPkg = JSON.parse(readFileSync(wsPkgPath, 'utf8')) as {
+  const wsPkg: {
     dependencies?: Record<string, string>
-  }
+  } = JSON.parse(readFileSync(wsPkgPath, 'utf8'))
   for (const k of Object.keys(wsPkg.dependencies ?? {})) seedDeps.add(k)
 }
 
@@ -134,7 +136,7 @@ function walk(name: string, fromDir: string) {
     return
   }
   const pkgPath = join(pkgDir, 'package.json')
-  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as {
+  const pkg: {
     name: string
     version: string
     license?: string
@@ -143,7 +145,7 @@ function walk(name: string, fromDir: string) {
     dependencies?: Record<string, string>
     optionalDependencies?: Record<string, string>
     peerDependencies?: Record<string, string>
-  }
+  } = JSON.parse(readFileSync(pkgPath, 'utf8'))
   // 跳过 workspace 内部自指——仅当此 package.json 物理落在仓内 packages/* 下
   // （仓根 packages/ 路径前缀）才算 fork 自有包；npm 上同样以 @open-pencil/
   // 开头的复刻包（如 yoga-layout 的 npm alias @open-pencil/yoga-layout）物理
@@ -158,10 +160,7 @@ function walk(name: string, fromDir: string) {
   }
   let license = pkg.license ?? ''
   if (!license && Array.isArray(pkg.licenses)) {
-    license = pkg.licenses
-      .map((l) => (typeof l === 'string' ? l : l.type))
-      .filter(Boolean)
-      .join(' OR ')
+    license = compact(pkg.licenses.map((l) => (typeof l === 'string' ? l : l.type))).join(' OR ')
   }
   let author = ''
   if (typeof pkg.author === 'string') author = pkg.author

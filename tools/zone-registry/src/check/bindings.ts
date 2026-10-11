@@ -37,6 +37,8 @@ import { existsSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { compact } from 'es-toolkit'
+
 const here = dirname(fileURLToPath(import.meta.url))
 const root = resolve(here, '../../../..')
 
@@ -72,14 +74,14 @@ function getChangedFiles(): { changed: string[]; deleted: Set<string> } {
   const untracked = git('ls-files --others --exclude-standard')
   const changed = new Set<string>()
   const deleted = new Set<string>()
-  for (const line of diff.split('\n').filter(Boolean)) {
+  for (const line of compact(diff.split('\n'))) {
     const [status, ...paths] = line.split('\t')
     const file = paths.at(-1)
     if (!file) continue
     changed.add(file)
     if (status === 'D') deleted.add(file)
   }
-  for (const line of untracked.split('\n').filter(Boolean)) changed.add(line)
+  for (const line of compact(untracked.split('\n'))) changed.add(line)
   return { changed: Array.from(changed), deleted }
 }
 

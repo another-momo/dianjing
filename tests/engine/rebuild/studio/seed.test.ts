@@ -26,7 +26,9 @@ import { splitFrontmatter } from '@/app/ai/pi-backend/studio/parse'
 import { ensureUserStudioSeed } from '@/app/ai/pi-backend/studio/seed'
 import { validateWorkflow, validateProfile } from '@/app/ai/pi-backend/studio/validate'
 
-const BUILTIN_DIR = join(import.meta.dir, '../../../../src/app/ai/pi-backend/studio')
+import { repoPath } from '#tests/helpers/paths'
+
+const BUILTIN_DIR = repoPath('src/app/ai/pi-backend/studio')
 
 describe('ensureUserStudioSeed', () => {
   test('空用户目录 → 复制 workflows/_example + profiles/_example、返回 seeded:true', () => {

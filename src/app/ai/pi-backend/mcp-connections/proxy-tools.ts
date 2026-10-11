@@ -23,6 +23,7 @@
  */
 
 import { defineTool, type AgentToolResult } from '@earendil-works/pi-coding-agent'
+import { compact } from 'es-toolkit'
 import type { TSchema } from 'typebox'
 
 import type { MCPClientPool, ProxyToolDef } from '../mcp/mcp-pool'
@@ -35,10 +36,7 @@ function stripProxyPrefix(proxyName: string): string {
 
 /** 点 / 下划线切词 + 逐词首字母大写（内层驼峰不拆，保留原词形） */
 function humanize(raw: string): string {
-  return raw
-    .replace(/[._]+/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean)
+  return compact(raw.replace(/[._]+/g, ' ').split(/\s+/))
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ')
 }

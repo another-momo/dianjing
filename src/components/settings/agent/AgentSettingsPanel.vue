@@ -53,7 +53,7 @@ async function updateCapabilities(patch: Partial<LocalCapabilities>): Promise<vo
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`)
     }
-    const body = (await res.json()) as LocalCapabilities
+    const body: LocalCapabilities = await res.json()
     applyPiCapabilities(body)
     localCapabilities.value = body
   } catch (error) {

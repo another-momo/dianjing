@@ -166,9 +166,9 @@ test('首次 write（无旧文件） → 全字段按 patch 写入', () => {
   const next = store.write(DOC_UUID, { modeId: 'mode-a', profileId: null, engagedPageId: 'page-1' })
   expect(next).toEqual({ modeId: 'mode-a', profileId: null, engagedPageId: 'page-1' })
   // 落盘形态 = 缩进 JSON + LF 收尾 + 0o600（与 design-assignment 同缝）
-  const raw = JSON.parse(readFileSync(join(pageStateDir, `${DOC_UUID}.json`), 'utf8')) as {
+  const raw: {
     modeId?: unknown
-  }
+  } = JSON.parse(readFileSync(join(pageStateDir, `${DOC_UUID}.json`), 'utf8'))
   expect(raw.modeId).toBe('mode-a')
 })
 

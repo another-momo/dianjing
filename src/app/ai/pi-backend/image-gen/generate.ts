@@ -43,6 +43,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { defineTool, type AgentToolResult } from '@earendil-works/pi-coding-agent'
+import { compact } from 'es-toolkit'
 import { fromUint8Array, isValid, toUint8Array } from 'js-base64'
 import { Type } from 'typebox'
 
@@ -386,12 +387,10 @@ async function runCommitPhase(
           commitResult.transparent = item.transparentError ? 'failed' : true
           if (item.transparentError) {
             // 失败原因必须可见——只标 'failed' 不给原因，agent 无从判断下一步
-            commitResult.note = [
+            commitResult.note = compact([
               item.begin.note,
               `transparent post-process failed（已回退原图）: ${item.transparentError}`
-            ]
-              .filter(Boolean)
-              .join('; ')
+            ]).join('; ')
           }
         } else {
           commitResult.transparent = true

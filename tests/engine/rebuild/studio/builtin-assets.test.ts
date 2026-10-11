@@ -26,7 +26,9 @@ import { join } from 'node:path'
 
 import { loadStudioFromDirs } from '@/app/ai/pi-backend/studio'
 
-const BUILTIN_DIR = join(import.meta.dir, '../../../../src/app/ai/pi-backend/studio')
+import { repoPath } from '#tests/helpers/paths'
+
+const BUILTIN_DIR = repoPath('src/app/ai/pi-backend/studio')
 
 test('内置资产集过校验面：failures 零、base 注册、general 首位 + source 标记', () => {
   const userDir = mkdtempSync(join(tmpdir(), 'studio-user-empty-'))

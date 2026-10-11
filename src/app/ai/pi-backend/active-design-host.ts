@@ -401,7 +401,7 @@ async function callBridgeEval(
   if (args.documentId) envelope.document_id = args.documentId
   if (args.pageId) envelope.page_id = args.pageId
   const res = await postBridgeRPC(discovery, 'tool', { name: 'eval', args: envelope }, windowId)
-  const body = (await res.json().catch(() => null)) as { ok?: boolean; result?: unknown } | null
+  const body: { ok?: boolean; result?: unknown } | null = await res.json().catch(() => null)
   if (!res.ok || body?.ok !== true) throw new Error(`bridge eval failed: HTTP ${res.status}`)
   return body.result ?? null
 }

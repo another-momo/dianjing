@@ -73,10 +73,10 @@ describe('凭证存储', () => {
       expect(status.baseUrl).toBe('https://api.openai.com/v1')
       expect(JSON.stringify(status)).not.toContain('sk-secret-imagegen')
       // 落盘文件存在且为 JSON（权限位 win 下不可断言 0o600，只断言存在与内容）
-      const raw = JSON.parse(readFileSync(join(agentDir, 'image-gen.json'), 'utf8')) as {
+      const raw: {
         apiKey?: string
         presetId?: string
-      }
+      } = JSON.parse(readFileSync(join(agentDir, 'image-gen.json'), 'utf8'))
       expect(raw.apiKey).toBe('sk-secret-imagegen')
       // 新格式不写 presetId
       expect('presetId' in raw).toBe(false)
@@ -108,9 +108,9 @@ describe('凭证存储', () => {
       })
       // 迁移在写：下次 set 后盘上即新格式
       store.set({ ...VALID_INPUT, apiKey: 'sk-rewritten' })
-      const raw = JSON.parse(
+      const raw: RawCredentialFileOnDisk = JSON.parse(
         readFileSync(join(agentDir, 'image-gen.json'), 'utf8')
-      ) as RawCredentialFileOnDisk
+      )
       expect(raw.providerType).toBe('openai-compatible')
       expect('presetId' in raw).toBe(false)
     } finally {

@@ -1,5 +1,8 @@
 {
   "name": "@open-pencil/release",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "es-toolkit": "^1.52.0"
+  }
 }

@@ -2,8 +2,12 @@ import { behaviourArgs, type BehaviourArgs } from '#dom-css/behaviours/args'
 import { BUTTON_RESET } from '#dom-css/behaviours/reset'
 import { allElements } from '#dom-css/behaviours/states/layers'
 import { ownerVariants, restLayerOf, stateStyles } from '#dom-css/behaviours/states/model'
-import { layerClassNames, propAttribute } from '#dom-css/behaviours/states/names'
-import { claimName, identifierName } from '#dom-css/behaviours/states/names'
+import {
+  claimName,
+  identifierName,
+  layerClassNames,
+  propAttribute
+} from '#dom-css/behaviours/states/names'
 import type { StateElement, StateStyles } from '#dom-css/behaviours/states/types'
 import { uniq } from 'es-toolkit/array'
 import { camelCase } from 'es-toolkit/string'

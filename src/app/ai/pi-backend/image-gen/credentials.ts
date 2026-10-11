@@ -65,9 +65,9 @@ export function createImageGenCredentialStore({ agentDir }: { agentDir: string }
 
   function readFromDisk(): ImageGenCredentials | null {
     try {
-      const raw = JSON.parse(readFileSync(filePath, 'utf8')) as Partial<
-        ImageGenCredentialFile & LegacyImageGenCredentialFile
-      >
+      const raw: Partial<ImageGenCredentialFile & LegacyImageGenCredentialFile> = JSON.parse(
+        readFileSync(filePath, 'utf8')
+      )
       if (
         typeof raw.baseUrl === 'string' &&
         raw.baseUrl.length > 0 &&

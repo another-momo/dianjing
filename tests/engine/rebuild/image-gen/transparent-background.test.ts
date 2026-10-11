@@ -122,7 +122,7 @@ describe('transparent_background api 路径三态（OpenAI 兼容）', () => {
       outputFormat: 'png',
       transparent_background: true
     })
-    const body = JSON.parse(String(calls[0]?.body)) as GenerationsRequestBody
+    const body: GenerationsRequestBody = JSON.parse(String(calls[0]?.body))
     expect(body.background).toBe('transparent')
   })
 
@@ -184,7 +184,7 @@ describe('transparent_background api 路径三态（Seedream 兜底 opaque）', 
       height: 1024,
       transparent_background: true
     })
-    const body = JSON.parse(String(calls[0]?.body)) as GenerationsRequestBody
+    const body: GenerationsRequestBody = JSON.parse(String(calls[0]?.body))
     expect(body.background).toBe('transparent')
   })
 

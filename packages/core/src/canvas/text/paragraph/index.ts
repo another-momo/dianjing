@@ -314,6 +314,7 @@ export function buildSkParagraph(
   const ck = r.ck
   const baseColor = color ?? ck.BLACK
   const baseFontSize = node.fontSize || DEFAULT_FONT_SIZE
+  const baseFamily = node.fontFamily || DEFAULT_FONT_FAMILY
   const cjkFallbacks = fontManager.getCJKFallbackFamilies()
   const arabicFallbacks = fontManager.getArabicFallbackFamilies()
   const textDirection = resolveNodeTextDirection(node)
@@ -330,11 +331,7 @@ export function buildSkParagraph(
 
   const baseTextStyle = {
     color: baseColor,
-    fontFamilies: fontFamilies(
-      node.fontFamily || DEFAULT_FONT_FAMILY,
-      node.fontWeight,
-      node.italic
-    ),
+    fontFamilies: fontFamilies(baseFamily, node.fontWeight, node.italic),
     fontSize: baseFontSize,
     locale: node.textLanguage ?? undefined,
     fontStyle: {
@@ -342,14 +339,11 @@ export function buildSkParagraph(
       slant: node.italic ? ck.FontSlant.Italic : ck.FontSlant.Upright
     },
     fontVariations: withWeightAxisVariation(
-      node.fontFamily || DEFAULT_FONT_FAMILY,
+      baseFamily,
       node.fontWeight,
       textFontVariations(
         node.fontVariations,
-        fontManager.namedInstanceVariations(
-          node.fontFamily || DEFAULT_FONT_FAMILY,
-          weightToStyle(node.fontWeight, node.italic)
-        )
+        fontManager.namedInstanceVariations(baseFamily, weightToStyle(node.fontWeight, node.italic))
       )
     ),
     fontFeatures: textFontFeatures(node.fontFeatures),

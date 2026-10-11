@@ -14,6 +14,8 @@
  * 未知 skill 名归一化后由 SDK 查无透传（同 pi CLI 语义），不在本层判存否。
  */
 
+import { compact } from 'es-toolkit'
+
 const SKILL_MENTION = /\/skill:([A-Za-z0-9_-]+)/
 
 /**
@@ -27,6 +29,6 @@ export function normalizeSkillCommandText(text: string): string {
   // args 里）；两侧任一为空的 join 自然去尾/头
   const before = text.slice(0, first.index).replace(/\s+$/, '')
   const after = text.slice(first.index + first[0].length).replace(/^\s+/, '')
-  const remainder = [before, after].filter(Boolean).join(' ')
+  const remainder = compact([before, after]).join(' ')
   return remainder ? `/skill:${first[1]} ${remainder}` : `/skill:${first[1]}`
 }

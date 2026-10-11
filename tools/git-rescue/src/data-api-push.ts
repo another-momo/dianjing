@@ -21,6 +21,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { compact } from 'es-toolkit'
 import { fromUint8Array } from 'js-base64'
 
 const REPO = 'another-momo/dianjing'
@@ -81,14 +82,15 @@ if (parents.length === 0) throw new Error('HEAD 是根提交（无父），本�
 const parentTree = git(`rev-parse "${parents[0]}^{tree}"`).trim()
 // merge commit 单参 diff-tree 恒空输出（建树必 422）——改显式双树 diff（对第一父，
 // 与 base_tree 基座同视角）；普通提交保持单参形态
-const files = git(
-  parents.length > 1
-    ? `diff-tree --no-renames --name-status -r ${parents[0]} HEAD`
-    : 'diff-tree --no-commit-id --no-renames --name-status -r HEAD'
+const files = compact(
+  git(
+    parents.length > 1
+      ? `diff-tree --no-renames --name-status -r ${parents[0]} HEAD`
+      : 'diff-tree --no-commit-id --no-renames --name-status -r HEAD'
+  )
+    .trim()
+    .split('\n')
 )
-  .trim()
-  .split('\n')
-  .filter(Boolean)
 console.log(
   `本地对象：commit=${localCommit.slice(0, 9)} tree=${localTree.slice(0, 9)} ` +
     `parents=${parents.map((p) => p.slice(0, 9)).join(',')} branch=${BRANCH} 文件 ${files.length} 件`

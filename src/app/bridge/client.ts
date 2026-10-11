@@ -50,12 +50,12 @@ export function connectAutomation(
 
     socket.onmessage = async (event) => {
       try {
-        const msg = JSON.parse(event.data) as {
+        const msg: {
           type: string
           id: string
           command: string
           args?: unknown
-        }
+        } = JSON.parse(event.data)
         if (msg.type !== 'request' || !msg.id) return
         try {
           const result = await handleRequest(msg.id, msg.command, msg.args)

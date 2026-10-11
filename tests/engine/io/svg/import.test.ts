@@ -385,7 +385,7 @@ describe('import_svg', () => {
 
   // 2026-09-19 件 1：<text>/<image> 元素映射导入（曾静默丢弃）
   test('maps text elements to editable TEXT nodes', async () => {
-    const result = (await importSVG.execute(figma, {
+    const _result = (await importSVG.execute(figma, {
       svg: `<svg width="200" height="100" viewBox="0 0 200 100">
         <text x="10" y="30" font-size="20" font-family="Arial" fill="#ff0000">Hello</text>
         <g transform="translate(0 40)"><text x="0" y="20" text-anchor="middle" font-weight="bold">World</text></g>

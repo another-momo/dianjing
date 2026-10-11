@@ -180,7 +180,7 @@ async function handlePiChatCancelRequest(
   }
   let body: { sessionId?: unknown }
   try {
-    body = JSON.parse(await readBody(req)) as { sessionId?: unknown }
+    body = JSON.parse(await readBody(req))
   } catch {
     res.writeHead(400).end('Bad Request: invalid JSON')
     return
@@ -259,10 +259,7 @@ async function handleCapabilitiesRequest(
   }
   let body: { agentSkills?: unknown; builtinTools?: unknown }
   try {
-    body = JSON.parse(await readBody(req)) as {
-      agentSkills?: unknown
-      builtinTools?: unknown
-    }
+    body = JSON.parse(await readBody(req))
   } catch (error) {
     if (error instanceof PayloadTooLargeError) {
       sendPayloadTooLarge(req, res)
@@ -326,7 +323,7 @@ async function handleSkillDeleteRequest(
   }
   let body: { name?: unknown }
   try {
-    body = JSON.parse(await readBody(req)) as { name?: unknown }
+    body = JSON.parse(await readBody(req))
   } catch (error) {
     if (error instanceof PayloadTooLargeError) {
       sendPayloadTooLarge(req, res)
@@ -369,7 +366,7 @@ async function handleSkillsDisabledRequest(
   }
   let body: { disabled?: unknown }
   try {
-    body = JSON.parse(await readBody(req)) as { disabled?: unknown }
+    body = JSON.parse(await readBody(req))
   } catch (error) {
     if (error instanceof PayloadTooLargeError) {
       sendPayloadTooLarge(req, res)
@@ -418,7 +415,7 @@ async function handleVerifyCredentialRequest(
     res.writeHead(405).end('Method Not Allowed')
     return
   }
-  const body = JSON.parse((await readBody(req)) || '{}') as { providerId?: string }
+  const body: { providerId?: string } = JSON.parse((await readBody(req)) || '{}')
   if (!body.providerId) {
     sendJSON(res, 400, { error: 'providerId required' })
     return
@@ -443,10 +440,10 @@ async function handleAdminRequest(
       return
     }
     if (pathname === '/api/pi/credentials') {
-      const body = (JSON.parse((await readBody(req)) || '{}') ?? {}) as {
+      const body: {
         providerId?: string
         apiKey?: string
-      }
+      } = JSON.parse((await readBody(req)) || '{}') ?? {}
       if (req.method === 'POST') {
         if (!body.providerId || !body.apiKey) {
           res.writeHead(400).end('Bad Request: providerId and apiKey required')
@@ -473,9 +470,8 @@ async function handleAdminRequest(
         res.writeHead(405).end('Method Not Allowed')
         return
       }
-      const body = JSON.parse((await readBody(req)) || '{}') as Parameters<
-        ReturnType<typeof createProviderAdmin>['upsertProvider']
-      >[0]
+      const body: Parameters<ReturnType<typeof createProviderAdmin>['upsertProvider']>[0] =
+        JSON.parse((await readBody(req)) || '{}')
       await admin.upsertProvider(body)
       sendJSON(res, 200, { ok: true })
       return

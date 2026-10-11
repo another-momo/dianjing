@@ -1,10 +1,22 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join } from 'node:path'
 
 const temporaryDirectories: string[] = []
-const repositoryRoot = resolve(import.meta.dir, '../../../..')
+
+/** 向上走到仓根（含 bun.lock 的目录）——lint 禁 import.meta 起两级以上字面值攀爬 */
+function workspaceRoot(): string {
+  let dir = import.meta.dir
+  for (;;) {
+    if (existsSync(join(dir, 'bun.lock'))) return dir
+    const parent = dirname(dir)
+    if (parent === dir) throw new Error(`workspace root not found from ${import.meta.dir}`)
+    dir = parent
+  }
+}
+
+const repositoryRoot = workspaceRoot()
 const oxlint = join(repositoryRoot, 'node_modules/.bin/oxlint')
 const plugin = join(repositoryRoot, 'lint/plugin.js')
 

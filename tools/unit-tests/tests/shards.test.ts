@@ -1,5 +1,4 @@
 import { expect, test } from 'bun:test'
-import { fileURLToPath } from 'node:url'
 
 import {
   isHeavyUnitTest,
@@ -7,10 +6,9 @@ import {
   listHeavyUnitTests,
   listUnitTests,
   pathsForUnitTestGroup,
+  REPO_ROOT,
   unitTestGroupNames
 } from '../src/shards'
-
-const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 
 async function discover(pattern: string): Promise<string[]> {
   // fork patch：Bun.Glob 在 Windows 下经绝对路径 cwd 返回反斜杠路径，
@@ -75,7 +73,9 @@ test('unit test groups cover all declared shards', () => {
 
 test('heavy unit test matcher excludes fixture-heavy tests', () => {
   expect(isHeavyUnitTest('tests/engine/io/fig/heavy/fixtures.test.ts')).toBe(true)
-  expect(isHeavyUnitTest('tests/engine/io/fig/roundtrip/glyph-blob.test.ts')).toBe(true)
+  expect(isHeavyUnitTest('packages/core/tests/io/formats/fig/roundtrip/glyph-blob.test.ts')).toBe(
+    true
+  )
   expect(isHeavyUnitTest('tests/engine/dom-css/runtime.test.ts')).toBe(false)
 })
 

@@ -103,11 +103,11 @@ export async function postDecisionAnswer(
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload)
     })
-    const body = (await res.json().catch(() => null)) as {
+    const body: {
       ok?: boolean
       error?: string
       message?: string
-    } | null
+    } | null = await res.json().catch(() => null)
     if (res.ok && body?.ok !== false) return { ok: true }
     return { ok: false, message: body?.error ?? body?.message ?? `HTTP ${res.status}` }
   } catch (error) {

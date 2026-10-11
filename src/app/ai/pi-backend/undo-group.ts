@@ -35,7 +35,7 @@ export async function sendUndoGroupSignal(
     const res = await postBridgeRPC(discovery, 'undo_group', args, windowId)
     // T98：桥对工具执行错误改回 200 {ok:false,error}（502 严格保留给编辑器
     // 不可达）——成败判定须看 body.ok，不再只看 HTTP 状态
-    const body = (await res.json().catch(() => null)) as { ok?: boolean } | null
+    const body: { ok?: boolean } | null = await res.json().catch(() => null)
     if (!res.ok || body?.ok === false) {
       console.warn(
         `[pi-backend] undo_group ${action} 信号失败：HTTP ${res.status}（忽略，不阻断主流程）`
