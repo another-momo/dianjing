@@ -15,6 +15,16 @@ function pageId(graph: SceneGraph) {
 }
 
 describe('sceneNodeToJSX', () => {
+  test('a row aligned by baseline exports items="baseline"', () => {
+    const graph = makeGraph()
+    const node = graph.createNode('FRAME', pageId(graph), {
+      name: 'Row',
+      layoutMode: 'HORIZONTAL',
+      counterAxisAlign: 'BASELINE'
+    })
+    expect(sceneNodeToJSX(node.id, graph)).toContain('items="baseline"')
+  })
+
   test('basic rectangle', () => {
     const graph = makeGraph()
     const node = graph.createNode('RECTANGLE', pageId(graph), {
@@ -208,6 +218,7 @@ describe('sceneNodeToJSX', () => {
       height: 100,
       strokes: [
         {
+          type: 'SOLID',
           color: { r: 1, g: 0, b: 0, a: 1 },
           weight: 2,
           opacity: 1,
@@ -449,6 +460,7 @@ describe('sceneNodeAttributes', () => {
       height: 50,
       strokes: [
         {
+          type: 'SOLID',
           color: { r: 1, g: 0, b: 0, a: 1 },
           weight: 2,
           opacity: 1,
@@ -456,6 +468,7 @@ describe('sceneNodeAttributes', () => {
           align: 'OUTSIDE'
         },
         {
+          type: 'SOLID',
           color: { r: 0, g: 0, b: 1, a: 1 },
           weight: 1,
           opacity: 1,

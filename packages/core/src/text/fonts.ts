@@ -105,6 +105,7 @@ export class FontManager {
   private blockedNodeIds = new Set<string>()
   private fontProvider: TypefaceFontProvider | null = null
   private fontProviders = new Set<TypefaceFontProvider>()
+  private providerCanvasKits = new WeakMap<TypefaceFontProvider, CanvasKit>()
   private registrationGeneration = 0
   private providerRegistrations = new WeakMap<TypefaceFontProvider, Map<string, Set<ArrayBuffer>>>()
   /** 同一 ArrayBuffer 的内容哈希缓存（fontContentHash 的快路径） */
@@ -158,8 +159,9 @@ export class FontManager {
   /** 最近一次注入的 web 字体 fetcher（目录懒加载沿用；缺省回退全局 fetch） */
   private webFontFetch: WebFontFetch | null = null
 
-  attachProvider(_canvasKit: CanvasKit, provider: TypefaceFontProvider): void {
+  attachProvider(canvasKit: CanvasKit, provider: TypefaceFontProvider): void {
     this.fontProviders.add(provider)
+    this.providerCanvasKits.set(provider, canvasKit)
     this.fontProvider = provider
     this.providerRegistrations.set(provider, new Map())
     this.registrationGeneration++
@@ -197,6 +199,15 @@ export class FontManager {
 
   provider(): TypefaceFontProvider | null {
     return this.fontProvider
+  }
+
+  /** The latest attached provider made by `canvasKit`; another build's provider cannot shape with it. */
+  providerFor(canvasKit: CanvasKit): TypefaceFontProvider | null {
+    return (
+      Array.from(this.fontProviders)
+        .reverse()
+        .find((provider) => this.providerCanvasKits.get(provider) === canvasKit) ?? null
+    )
   }
 
   generation(): number {
@@ -1405,12 +1416,8 @@ export class FontManager {
     return hash
   }
 
-  private registerFontInBrowser(
-    family: string,
-    style: string,
-    data: ArrayBuffer,
-    unicodeRange?: string
-  ) {
+  /** Makes a face available to the page's own text, such as fields over canvas labels. */
+  registerFontInBrowser(family: string, style: string, data: ArrayBuffer, unicodeRange?: string) {
     // 以真实能力为准：测试环境可能 mock window（IS_BROWSER 为真）却无 FontFace 实现
     if (!IS_BROWSER || typeof FontFace === 'undefined') return
     const italic = style.toLowerCase().includes('italic') ? 'italic' : 'normal'

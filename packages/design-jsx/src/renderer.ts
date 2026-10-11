@@ -1,4 +1,7 @@
+import { compact } from 'es-toolkit/array'
+
 import {
+  createComponentPropertyId,
   setInstanceOverride,
   type Color,
   type ComponentPropertyDefinition,
@@ -8,9 +11,12 @@ import {
 } from '@open-pencil/scene-graph'
 import { parseColor } from '@open-pencil/scene-graph/color'
 
+import type { RekaScope } from './behaviours'
+import { renderRekaNode } from './behaviours/render'
 import {
   assignComponentProperties,
   componentMetadata,
+  assignNamedProperties,
   componentPropertyScope
 } from './component-properties'
 import { applySizeOverrides, propsToOverrides } from './props-overrides'
@@ -63,11 +69,6 @@ export interface RenderResult {
 }
 
 /** Component property ids only need to be unique within a document. */
-function randomHex(bytes: number): string {
-  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (byte) =>
-    byte.toString(16).padStart(2, '0')
-  ).join('')
-}
 
 /** The nodes a tree renders as: a fragment's children, or the tree itself. */
 function treeRoots(tree: TreeNode): TreeNode[] {
@@ -87,13 +88,14 @@ export async function renderRoots<Artwork>(
 
   const nodes: SceneNode[] = []
   for (const root of roots) {
-    const node = await renderNode(services, graph, root, parentId)
+    const node = await renderNode(services, graph, root, parentId, options.onNode)
     if (options.x !== undefined) graph.updateNode(node.id, { x: options.x })
     if (options.y !== undefined) graph.updateNode(node.id, { y: options.y })
     nodes.push(node)
   }
 
-  services.layout(graph)
+  const rootIds = nodes.map((node) => node.id)
+  if (!options.deferLayout) services.layout(graph, rootIds)
 
   return nodes.map((node) => ({
     id: node.id,
@@ -288,10 +290,7 @@ function renderSVGNode<Artwork>(
 }
 
 function parseVariantValues(name: string): Record<string, string> {
-  const entries = name
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean)
+  const entries = compact(name.split(',').map((part) => part.trim()))
   const values: Record<string, string> = {}
   for (const entry of entries) {
     const [key = '', ...rest] = entry.split('=')
@@ -334,7 +333,7 @@ function inferComponentSetProperties(graph: SceneGraph, componentSetId: string):
     .map(([name, values]) => {
       const variantOptions = [...values]
       return {
-        id: `prop:${randomHex(8)}`,
+        id: createComponentPropertyId(),
         name,
         type: 'VARIANT',
         defaultValue: variantOptions[0] ?? '',
@@ -381,25 +380,36 @@ function findVariantInSet(
   )
 }
 
-function resolveComponent(
-  graph: SceneGraph,
-  props: Record<string, unknown>
-): SceneNode | undefined {
+/** The component or component set an element names by id or name. */
+function namedComponent(graph: SceneGraph, props: Record<string, unknown>): SceneNode | undefined {
   const ref = props.component ?? props.componentId ?? props.of
   if (typeof ref !== 'string') return undefined
 
   const byId = graph.getNode(ref)
-  if (byId?.type === 'COMPONENT') return byId
-  if (byId?.type === 'COMPONENT_SET') return findVariantInSet(graph, byId, props)
+  if (byId?.type === 'COMPONENT' || byId?.type === 'COMPONENT_SET') return byId
 
   const byName = findComponentByName(graph, ref)
   if (byName) return byName
 
   for (const node of graph.getAllNodes()) {
-    if (node.type === 'COMPONENT_SET' && node.name === ref)
-      return findVariantInSet(graph, node, props)
+    if (node.type === 'COMPONENT_SET' && node.name === ref) return node
   }
   return undefined
+}
+
+function resolveComponent(
+  graph: SceneGraph,
+  props: Record<string, unknown>
+): SceneNode | undefined {
+  const named = namedComponent(graph, props)
+  return named?.type === 'COMPONENT_SET' ? findVariantInSet(graph, named, props) : named
+}
+
+/** The component properties an element sets by name, such as `State` or `Title`. */
+export function componentPropNames(graph: SceneGraph, props: Record<string, unknown>): string[] {
+  const component = resolveComponent(graph, props)
+  if (!component) return []
+  return (componentPropertyScope(graph, component.id) ?? []).map((definition) => definition.name)
 }
 
 async function renderInstanceNode(
@@ -446,6 +456,7 @@ async function renderInstanceNode(
     graph.updateNode(instance.id, { instanceOverrides: instance.instanceOverrides })
     applyBindings(graph, instance.id, bindings)
     applyInstanceOverrides(graph, instance, tree.props.overrides)
+    assignNamedProperties(graph, instance, props)
     assignComponentProperties(graph, instance, props.properties)
     return instance
   } catch (error) {
@@ -546,11 +557,39 @@ async function renderNode<Artwork>(
   services: DesignJSXServices<Artwork>,
   graph: SceneGraph,
   tree: TreeNode,
-  parentId: string
+  parentId: string,
+  onNode?: RenderOptions['onNode'],
+  scope?: RekaScope
+): Promise<SceneNode> {
+  const node = await renderNodeContent(services, graph, tree, parentId, onNode, scope)
+  onNode?.(tree, node)
+  return node
+}
+
+async function renderNodeContent<Artwork>(
+  services: DesignJSXServices<Artwork>,
+  graph: SceneGraph,
+  tree: TreeNode,
+  parentId: string,
+  onNode?: RenderOptions['onNode'],
+  scope?: RekaScope
 ): Promise<SceneNode> {
   if (tree.type === 'icon' || tree.type === 'svg')
     return renderArtworkNode(services, graph, tree, parentId)
   if (tree.type === 'instance') return renderInstanceNode(graph, tree, parentId)
+  const reka = await renderRekaNode(graph, tree, parentId, scope, {
+    render: (child, childParentId, childScope) =>
+      renderNode(services, graph, child, childParentId, onNode, childScope),
+    create: (nodeType, element, elementParentId) => {
+      const { overrides, bindings } = elementOverrides(graph, nodeType, element, elementParentId)
+      const created = graph.createNode(nodeType, elementParentId, overrides)
+      applyBindings(graph, created.id, bindings)
+      return created
+    },
+    instance: (element, elementParentId) => renderInstanceNode(graph, element, elementParentId),
+    finishSet: (setId) => inferComponentSetProperties(graph, setId)
+  })
+  if (reka) return reka
 
   const nodeType = TYPE_MAP[tree.type]
   if (!nodeType) throw new Error(`Unknown element: <${tree.type}>`)
@@ -562,7 +601,7 @@ async function renderNode<Artwork>(
   for (const child of tree.children) {
     if (typeof child === 'string') continue
     if (isTreeNode(child)) {
-      await renderNode(services, graph, child, node.id)
+      await renderNode(services, graph, child, node.id, onNode, scope)
     }
   }
 

@@ -1,10 +1,12 @@
-import type { Canvas, Paint } from 'canvaskit-wasm'
+import type { Canvas, Image, Paint } from 'canvaskit-wasm'
 
 import type { SceneNode, SceneGraph, Fill } from '@open-pencil/scene-graph'
-import type { Rect, Vector } from '@open-pencil/scene-graph/primitives'
+import { invertGradientTransform } from '@open-pencil/scene-graph/gradient'
+import type { Color, Rect, Vector } from '@open-pencil/scene-graph/primitives'
 
 import { figmaBlendModeToSkia } from './blend'
 import { makeDiamondGradient } from './gradients/diamond'
+import { previewEdge } from './images/previews'
 import type { SkiaRenderer } from './renderer'
 import { makeSmoothRRectPath, nodeHasSmoothCorners } from './shapes'
 
@@ -274,66 +276,54 @@ function applyPatternFill(
     tileRect
   )
   r.fillPaint.setShader(shader)
+  shader.delete()
   picture.delete()
   return true
 }
 
+/** Gradient space to the layer's pixels: Figma's transform maps the other way, so it is inverted. */
 function makeGradientLocalMatrix(
   r: SkiaRenderer,
   width: number,
   height: number,
   transform: NonNullable<Fill['gradientTransform']>
 ) {
+  const t = invertGradientTransform(transform)
   return r.ck.Matrix.multiply(r.ck.Matrix.scaled(width, height), [
-    transform.m00,
-    transform.m01,
-    transform.m02,
-    transform.m10,
-    transform.m11,
-    transform.m12,
+    t.m00,
+    t.m01,
+    t.m02,
+    t.m10,
+    t.m11,
+    t.m12,
     0,
     0,
     1
   ])
 }
 
-export function linearGradientEndpoints(
-  width: number,
-  height: number,
-  transform: NonNullable<Fill['gradientTransform']>
-) {
-  return {
-    start: {
-      x: (transform.m00 + transform.m02) * width,
-      y: (transform.m10 + transform.m12) * height
-    },
-    end: { x: transform.m02 * width, y: transform.m12 * height }
-  }
-}
+/** Resolves one gradient stop's color, so a stroke resolves its own bindings, not a fill's. */
+export type ResolveGradientStop = (color: Color, stopIndex: number) => Color
 
 export function applyGradientFill(
   r: SkiaRenderer,
   fill: Fill,
   node: SceneNode,
-  graph: SceneGraph
+  graph: SceneGraph,
+  paint: Paint = r.fillPaint,
+  resolveStop: ResolveGradientStop = (color, stopIndex) =>
+    r.resolveFillColorInfo(
+      { ...fill, type: 'SOLID', color, opacity: color.a, visible: true },
+      stopIndex,
+      node,
+      graph
+    ).color
 ): void {
   const stops = fill.gradientStops
   const t = fill.gradientTransform
   if (!stops || !t) return
   const colors = stops.map((s, index) => {
-    const resolved = r.resolveFillColorInfo(
-      {
-        ...fill,
-        type: 'SOLID',
-        color: s.color,
-        opacity: s.color.a,
-        visible: true
-      },
-      index,
-      node,
-      graph
-    )
-    const c = resolved.color
+    const c = resolveStop(s.color, index)
     return r.ck.Color4f(c.r, c.g, c.b, c.a)
   })
   const positions = stops.map((s) => s.position)
@@ -341,31 +331,32 @@ export function applyGradientFill(
   const w = node.width
   const h = node.height
 
-  if (fill.type === 'GRADIENT_LINEAR') {
-    const { start, end } = linearGradientEndpoints(w, h, t)
-    const startX = start.x
-    const startY = start.y
-    const endX = end.x
-    const endY = end.y
-    const shader = r.ck.Shader.MakeLinearGradient(
-      [startX, startY],
-      [endX, endY],
-      colors,
-      positions,
-      r.ck.TileMode.Clamp
-    )
-    r.fillPaint.setShader(shader)
-  } else if (fill.type === 'GRADIENT_DIAMOND') {
-    const shader = makeDiamondGradient(r, colors, positions, makeGradientLocalMatrix(r, w, h, t))
+  /** The paint keeps its own reference, so the caller's handle has to go or WASM memory grows. */
+  const setShader = (shader: ReturnType<typeof makeDiamondGradient>) => {
     try {
-      r.fillPaint.setShader(shader)
+      paint.setShader(shader)
     } finally {
       shader.delete()
     }
+  }
+
+  if (fill.type === 'GRADIENT_LINEAR') {
+    // Drawn in gradient space, so its bands follow the transform's second axis as in Figma
+    // rather than running square to the line on a stretched layer.
+    const shader = r.ck.Shader.MakeLinearGradient(
+      [0, 0.5],
+      [1, 0.5],
+      colors,
+      positions,
+      r.ck.TileMode.Clamp,
+      makeGradientLocalMatrix(r, w, h, t)
+    )
+    setShader(shader)
+  } else if (fill.type === 'GRADIENT_DIAMOND') {
+    setShader(makeDiamondGradient(r, colors, positions, makeGradientLocalMatrix(r, w, h, t)))
   } else if (fill.type === 'GRADIENT_RADIAL') {
-    // Figma's gradientTransform maps gradient space (center 0.5,0.5, radius 0.5)
-    // to the node's normalized [0,1] coordinate space. The full local matrix
-    // converts to pixel coordinates: scale(w, h) * gradientTransform.
+    // Gradient space is centred on (0.5, 0.5) with radius 0.5; the local matrix takes it to the
+    // layer's pixels.
     const localMatrix = makeGradientLocalMatrix(r, w, h, t)
     const shader = r.ck.Shader.MakeRadialGradient(
       [0.5, 0.5],
@@ -375,7 +366,7 @@ export function applyGradientFill(
       r.ck.TileMode.Clamp,
       localMatrix
     )
-    r.fillPaint.setShader(shader)
+    setShader(shader)
   } else if (fill.type === 'GRADIENT_ANGULAR') {
     const localMatrix = makeGradientLocalMatrix(r, w, h, t)
     const shader = r.ck.Shader.MakeSweepGradient(
@@ -386,7 +377,7 @@ export function applyGradientFill(
       r.ck.TileMode.Clamp,
       localMatrix
     )
-    r.fillPaint.setShader(shader)
+    setShader(shader)
   }
 }
 
@@ -433,53 +424,81 @@ export function makeImageFillLocalMatrix(
   )
 }
 
+/**
+ * Sets `paint`'s shader to `img` laid out as `fill` places it on `node`; `preview`, when `img`
+ * is a downscaled preview, keeps a tiled image at its original size.
+ */
+function setImageShader(
+  r: SkiaRenderer,
+  fill: Fill,
+  node: SceneNode,
+  img: Image,
+  paint: Paint,
+  preview?: { originalWidth: number; originalHeight: number }
+): boolean {
+  const imgW = img.width()
+  const imgH = img.height()
+  const scaleMode = fill.imageScaleMode ?? 'FILL'
+  const localMatrix =
+    scaleMode === 'TILE' && !fill.imageTransform && preview
+      ? r.ck.Matrix.scaled(preview.originalWidth / imgW, preview.originalHeight / imgH)
+      : makeImageFillLocalMatrix(r, fill, node, imgW, imgH)
+  const tileMode = scaleMode === 'FIT' ? r.ck.TileMode.Decal : r.ck.TileMode.Clamp
+  const shader =
+    scaleMode === 'TILE'
+      ? img.makeShaderCubic(r.ck.TileMode.Repeat, r.ck.TileMode.Repeat, 1 / 3, 1 / 3, localMatrix)
+      : img.makeShaderOptions(
+          tileMode,
+          tileMode,
+          r.ck.FilterMode.Linear,
+          r.ck.MipmapMode.Linear,
+          localMatrix
+        )
+  try {
+    paint.setShader(shader)
+  } finally {
+    shader.delete()
+  }
+  return true
+}
+
 export function applyImageFill(
   r: SkiaRenderer,
   fill: Fill,
   node: SceneNode,
-  graph: SceneGraph
+  graph: SceneGraph,
+  paint: Paint = r.fillPaint
 ): boolean {
   const hash = fill.imageHash
   if (!hash) return false
-  let img = r.imageCache.get(hash)
+  const live = r.liveImages.get(hash)
+  if (live?.surface === r.surface) return setImageShader(r, fill, node, live.image, paint)
+  const preview = r.viewportImageRendering
+    ? // eslint-disable-next-line open-pencil/no-zoom-in-scene-drawing -- picks the preview resolution, not a size; preview mode draws the scene uncached on every frame.
+      r.imagePreviews.get(graph, hash, previewEdge(node, r.zoom, r.dpr))
+    : undefined
+  if (r.viewportImageRendering && !preview) return false
+  const key = preview?.key ?? hash
+  let img = r.imageCache.get(key)
+  let temporary = false
   if (!img) {
-    const data = graph.images.get(hash)
+    const data = preview?.preview.bytes ?? graph.images.get(hash)
     if (!data) return false
-    const decoded = r.ck.MakeImageFromEncoded(data) ?? undefined
+    const decoded = r.ck.MakeImageFromEncoded(data)
     if (!decoded) return false
-    img = decoded.makeCopyWithDefaultMipmaps()
-    decoded.delete()
-    r.imageCache.set(hash, img)
+    try {
+      img = decoded.makeCopyWithDefaultMipmaps()
+    } finally {
+      decoded.delete()
+    }
+    temporary = !r.imageCache.set(key, img)
   }
 
-  const imgW = img.width()
-  const imgH = img.height()
-  const scaleMode = fill.imageScaleMode ?? 'FILL'
-
-  const localMatrix = makeImageFillLocalMatrix(r, fill, node, imgW, imgH)
-
-  if (scaleMode === 'TILE') {
-    const shader = img.makeShaderCubic(
-      r.ck.TileMode.Repeat,
-      r.ck.TileMode.Repeat,
-      1 / 3,
-      1 / 3,
-      localMatrix
-    )
-    r.fillPaint.setShader(shader)
-    return true
+  try {
+    return setImageShader(r, fill, node, img, paint, preview?.preview)
+  } finally {
+    if (temporary) img.delete()
   }
-
-  const tileMode = scaleMode === 'FIT' ? r.ck.TileMode.Decal : r.ck.TileMode.Clamp
-  const shader = img.makeShaderOptions(
-    tileMode,
-    tileMode,
-    r.ck.FilterMode.Linear,
-    r.ck.MipmapMode.Linear,
-    localMatrix
-  )
-  r.fillPaint.setShader(shader)
-  return true
 }
 
 export function makeArcPath(r: SkiaRenderer, node: SceneNode) {

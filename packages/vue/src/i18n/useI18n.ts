@@ -10,8 +10,10 @@ import {
   codeMessages,
   collaborationMessages,
   commandMessages,
+  commentMessages,
   commonMessages,
   credentialsMessages,
+  designCheckMessages,
   editorMessages,
   filesMessages,
   fontsMessages,
@@ -39,8 +41,10 @@ export const useAutomationMessages = () => useI18nNamespace(automationMessages)
 export const useCodeMessages = () => useI18nNamespace(codeMessages)
 export const useCollaborationMessages = () => useI18nNamespace(collaborationMessages)
 export const useCommandMessages = () => useI18nNamespace(commandMessages)
+export const useCommentMessages = () => useI18nNamespace(commentMessages)
 export const useCommonMessages = () => useI18nNamespace(commonMessages)
 export const useCredentialMessages = () => useI18nNamespace(credentialsMessages)
+export const useDesignCheckMessages = () => useI18nNamespace(designCheckMessages)
 export const useEditorMessages = () => useI18nNamespace(editorMessages)
 export const useFileMessages = () => useI18nNamespace(filesMessages)
 export const useFontMessages = () => useI18nNamespace(fontsMessages)

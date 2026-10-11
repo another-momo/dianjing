@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { useEventListener, useUrlSearchParams } from '@vueuse/core'
-import { computed, onMounted, onUnmounted, provide, ref } from 'vue'
+import { useEventListener } from '@vueuse/core'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { startMCPRuntime, stopMCPRuntime } from '@/app/bridge/runtime'
-import { exposeCollaborationActions } from '@/app/browser-bridge'
-import { COLLAB_KEY, useCollab } from '@/app/collab/use'
 import type { PendingOpenFile } from '@/app/document/io/pending-open'
 import { openPendingFiles } from '@/app/document/io/pending-open'
 import { openWebLinkFromLocation, withoutWebLinkParams } from '@/app/document/io/web-link'
 import { focusNodesByName } from '@/app/editor/selection/focus'
 import { notificationMessages } from '@/app/i18n/notifications'
+import { appRuntimeConfig } from '@/app/runtime/config'
+import { useDocumentDrop } from '@/app/shell/document-drop'
 import { getElectronPlatform, isElectron } from '@/app/shell/electron'
 import { useKeyboard } from '@/app/shell/keyboard/use'
 import { useEditorMenu } from '@/app/shell/menu/use'
@@ -37,18 +37,14 @@ import { IS_BROWSER } from '@/constants'
 
 const route = useRoute()
 const router = useRouter()
-const params = useUrlSearchParams('history')
 const shouldCreateHome =
-  route.path === '/' && !('test' in params) && (isTauri() || 'recent-files' in params)
+  route.path === '/' && !appRuntimeConfig.test && (isTauri() || appRuntimeConfig.recentFiles)
 let firstTab = activeTab.value
 if (!firstTab) firstTab = shouldCreateHome ? createHomeTab() : createTab()
 
 useKeyboard()
 useEditorMenu()
-
-const collab = useCollab(getActiveStore)
-provide(COLLAB_KEY, collab)
-exposeCollaborationActions(collab)
+useDocumentDrop()
 
 useEventListener(
   document,
@@ -193,6 +189,10 @@ onUnmounted(() => {
     <CommandPalette />
     <TabBar />
     <HomeWorkspace v-show="activeTab?.kind === 'home'" @new-document="createDocumentInCurrentTab" />
-    <EditorWorkspace v-if="activeTab?.kind !== 'home'" />
+    <EditorWorkspace
+      v-if="activeTab && activeTab.kind !== 'home'"
+      :key="activeTab.id"
+      :tab="activeTab"
+    />
   </div>
 </template>

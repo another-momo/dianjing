@@ -18,6 +18,7 @@ import {
 } from '@open-pencil/core'
 
 import { expectDefined } from '#tests/helpers/assert'
+import { fetchStub } from '#tests/helpers/fetch'
 
 function pageId(graph: SceneGraph) {
   return graph.getPages()[0].id
@@ -319,16 +320,16 @@ describe('FontManager loaded font cache', () => {
     const manager = new FontManager()
     const recording = createRecordingProvider()
     const originalFetch = globalThis.fetch
-    globalThis.fetch = (() => {
+    globalThis.fetch = fetchStub(() => {
       throw new Error('network disabled')
-    }) as typeof fetch
+    })
 
     try {
       manager.attachProvider({} as CanvasKit, recording.provider)
-      const data = await manager.loadFont('Inter', 'ExtraBold')
+      const data = expectDefined(await manager.loadFont('Inter', 'ExtraBold'), 'Inter ExtraBold')
 
-      expect(data?.byteLength).toBeGreaterThan(0)
-      expect(recording.registrations).toEqual([{ family: 'Inter', byteLength: data?.byteLength }])
+      expect(data.byteLength).toBeGreaterThan(0)
+      expect(recording.registrations).toEqual([{ family: 'Inter', byteLength: data.byteLength }])
     } finally {
       globalThis.fetch = originalFetch
     }
@@ -508,12 +509,12 @@ describe('collectFontKeys', () => {
       styleRuns: [
         {
           start: 0,
-          end: 5,
+          length: 5,
           style: { fontFamily: 'Roboto', fontWeight: 400 }
         },
         {
           start: 6,
-          end: 11,
+          length: 5,
           style: { fontFamily: 'Montserrat', fontWeight: 700 }
         }
       ]
@@ -538,7 +539,7 @@ describe('collectFontKeys', () => {
       styleRuns: [
         {
           start: 0,
-          end: 5,
+          length: 5,
           style: {}
         }
       ]

@@ -1,33 +1,24 @@
 import { computed, inject, provide, proxyRefs } from 'vue'
 import type { InjectionKey, ShallowUnwrapRef } from 'vue'
-import { useRouter } from 'vue-router'
 import IconFilePlus from '~icons/lucide/file-plus'
 import IconFolderOpen from '~icons/lucide/folder-open'
 import IconImageDown from '~icons/lucide/image-down'
 import IconSave from '~icons/lucide/save'
 import IconZoomIn from '~icons/lucide/zoom-in'
 
-import { useEditorCommands, useI18n } from '@open-pencil/vue'
+import { useEditorCommands } from '@open-pencil/vue'
 
-import { DEFAULT_COLLAB_STATE, useCollabInjected } from '@/app/collab/use'
 import { useEditorStore } from '@/app/editor/active-store'
 import { toolIcons } from '@/app/editor/icons'
 import { openFileDialog } from '@/app/shell/menu/use'
-import type { ToolbarActionItem } from '@/components/Toolbar/types'
+import type { ToolbarActionItem } from '@/components/toolbar/types'
 
 type MenuAction = ToolbarActionItem
 
 function createMobileHudContext() {
-  const router = useRouter()
-  const collab = useCollabInjected()
   const store = useEditorStore()
-  const { common, collaboration } = useI18n()
   const { getCommand } = useEditorCommands()
 
-  const collabState = computed(() => collab?.state.value ?? DEFAULT_COLLAB_STATE)
-  const collabPeers = computed(() => collab?.remotePeers.value ?? [])
-  const followingPeer = computed(() => collab?.followingPeer.value ?? null)
-  const onlineCount = computed(() => collabPeers.value.length + 1)
   const activeToolIcon = computed(() => toolIcons[store.state.activeTool])
   const actionToast = computed(() => store.state.actionToast)
 
@@ -51,31 +42,13 @@ function createMobileHudContext() {
     getCommand('edit.redo').run()
   }
 
-  function disconnect() {
-    if (!collab) return
-    collab.disconnect()
-    void router.push('/')
-  }
-
-  function toggleFollowPeer(clientId: number) {
-    collab?.followPeer(followingPeer.value === clientId ? null : clientId)
-  }
-
   return {
     store,
-    common,
-    messages: collaboration,
-    collabState,
-    collabPeers,
-    followingPeer,
-    onlineCount,
     activeToolIcon,
     actionToast,
     menuItems,
     undo,
-    redo,
-    disconnect,
-    toggleFollowPeer
+    redo
   }
 }
 

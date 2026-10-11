@@ -2,7 +2,6 @@ import type { ChatTransport, UIMessage } from 'ai'
 
 import { hasWindowGlobal } from '@open-pencil/core/constants'
 
-import type { CollabReturn } from '@/app/collab/context'
 import type { EditorStore } from '@/app/editor/session/create'
 import { createNavigationBenchmarkHooks } from '@/app/performance/navigation/hooks'
 import type { NavigationBenchmarkHooks } from '@/app/performance/navigation/hooks'
@@ -13,13 +12,6 @@ export interface OpenPencilTestHooks {
   mockHandle?: FileSystemFileHandle
   savedOpen?: Window['open']
   navigation?: NavigationBenchmarkHooks
-  collab?: Pick<
-    CollabReturn,
-    'connect' | 'disconnect' | 'updateCursor' | 'updateSelection' | 'setLocalName'
-  > & {
-    peerCount: () => number
-    peerSelections: () => Array<string[] | undefined>
-  }
 }
 
 export interface OpenPencilWindowAPI {
@@ -49,21 +41,6 @@ export function setOpenPencilStore(store: EditorStore) {
   if (appRuntimeConfig.navigationBenchmark) {
     const testHooks = (api.test ??= {})
     testHooks.navigation = createNavigationBenchmarkHooks(store)
-  }
-}
-
-export function exposeCollaborationActions(collab: CollabReturn) {
-  if (!hasWindowGlobal() || !import.meta.env.DEV) return
-  if (!appRuntimeConfig.test) return
-  const testHooks = (windowAPI().test ??= {})
-  testHooks.collab = {
-    connect: collab.connect,
-    disconnect: collab.disconnect,
-    updateCursor: collab.updateCursor,
-    updateSelection: collab.updateSelection,
-    setLocalName: collab.setLocalName,
-    peerCount: () => collab.remotePeers.value.length,
-    peerSelections: () => collab.remotePeers.value.map((peer) => peer.selection)
   }
 }
 

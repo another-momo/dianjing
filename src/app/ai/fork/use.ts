@@ -16,7 +16,9 @@ import { createChatSessionManager } from './transports'
  * 已切除。Batch 2a 路径分离：stock-photo key 与 remember 开关不再经此处
  * re-export——设置 UI 直取源头 @/app/settings/credentials/media（PR713 吸收后）。
  */
-const activeTab = ref<'design' | 'code' | 'ai'>('ai')
+export type PropertiesTab = 'design' | 'code' | 'ai' | 'lint'
+
+const activeTab = ref<PropertiesTab>('ai')
 
 const chatSession = createChatSessionManager({
   getActiveEditorStore,

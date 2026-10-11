@@ -2,6 +2,7 @@
 /// <reference types="unplugin-icons/types/vue" />
 
 declare const __DIANJING_APP_VERSION__: string
+declare const __OPENPENCIL_APP_VERSION__: string
 declare const __DIANJING_LOCAL_AUTOMATION_TOKEN__: string | null
 declare const __DIANJING_LOCAL_AUTOMATION_URL__: string
 declare const __DIANJING_LOCAL_AUTOMATION_HTTP_URL__: string

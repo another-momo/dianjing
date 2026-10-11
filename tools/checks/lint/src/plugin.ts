@@ -4,6 +4,8 @@ import {
   noMixedCaseAcronymIdentifiers
 } from '#lint/rules/policy.ts'
 import { noHandRolledBase64Rule } from '#lint/rules/quality/base64.ts'
+import { preferEsToolkitRule } from '#lint/rules/quality/es-toolkit.ts'
+import { noUnvalidatedJSONParseRule } from '#lint/rules/quality/json-parse.ts'
 import { noModuleMockingRule } from '#lint/rules/quality/module-mocking.ts'
 import { noReduceAccumulatorCopyRule } from '#lint/rules/quality/reduce-accumulator-copy.ts'
 import { noWidenThenAssertRule } from '#lint/rules/quality/widen-then-assert.ts'
@@ -372,6 +374,7 @@ import {
   noVueSelfPackageImports,
   noCrossPackageSourceImports,
   noDeepParentRelativeImports,
+  noDeepParentRelativePaths,
   noCoreParentRelativeImports,
   noVueParentRelativeImports,
   noScriptCoreBarrelImports,
@@ -389,6 +392,7 @@ import {
   noReflectDeleteGlobalThisOutsideTests,
   noTsSuppressionComments,
   noCoreBrowserGlobals,
+  noZoomInSceneDrawing,
   noDirectGraphEmitterSubscriptions,
   noOnUnmountedInCompositionRoots,
   noComposableStateWrappers,
@@ -445,6 +449,7 @@ const plugin = {
     'no-vue-self-package-imports': noVueSelfPackageImports,
     'no-cross-package-source-imports': noCrossPackageSourceImports,
     'no-deep-parent-relative-imports': noDeepParentRelativeImports,
+    'no-deep-parent-relative-paths': noDeepParentRelativePaths,
     'no-core-parent-relative-imports': noCoreParentRelativeImports,
     // P178（Batch 2b/2c 退役，2026-09-06 移植到本文件）：mcp/cli 专属规则族
     // （no-mcp/no-cli-parent-relative-imports、no-mcp/no-cli-core-barrel-imports）
@@ -466,6 +471,7 @@ const plugin = {
     'no-function-type': noFunctionType,
     'no-reflect-delete-global-this-outside-tests': noReflectDeleteGlobalThisOutsideTests,
     'no-core-browser-globals': noCoreBrowserGlobals,
+    'no-zoom-in-scene-drawing': noZoomInSceneDrawing,
     'no-direct-open-pencil-window-internals': noDirectOpenPencilWindowInternals,
     'no-direct-open-pencil-browser-store': noDirectOpenPencilBrowserStore,
     'no-direct-graph-emitter-subscriptions': noDirectGraphEmitterSubscriptions,
@@ -485,6 +491,8 @@ const plugin = {
     'no-top-level-prefixed-test-files': noTopLevelPrefixedTestFiles,
     'no-conditional-object-spreads': noConditionalObjectSpreads,
     'no-hand-rolled-base64': noHandRolledBase64Rule,
+    'no-unvalidated-json-parse': noUnvalidatedJSONParseRule,
+    'prefer-es-toolkit': preferEsToolkitRule,
     'no-module-mocking': noModuleMockingRule,
     'no-reduce-accumulator-copy': noReduceAccumulatorCopyRule,
     'no-widen-then-assert': noWidenThenAssertRule,

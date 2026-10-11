@@ -2,13 +2,22 @@ import { computed, ref } from 'vue'
 import type { ComputedRef } from 'vue'
 
 import type { Editor } from '@open-pencil/core/editor'
-import type {
-  GridTrack,
-  LayoutAlign,
-  LayoutCounterAlign,
-  LayoutSizing,
-  NumericNodeProperty,
-  SceneNode
+import {
+  aspectRatioLockEditable,
+  enforcedAspectRatio,
+  layoutSizing,
+  layoutSizingOptions,
+  layoutSizingUpdates,
+  lockedAspectRatioTarget,
+  sizeKeepingAspectRatio,
+  type GridTrack,
+  type LayoutAlign,
+  type LayoutCounterAlign,
+  type LayoutSizing,
+  type LayoutSizingAxis,
+  type NumericNodeProperty,
+  type SceneGraph,
+  type SceneNode
 } from '@open-pencil/scene-graph'
 
 import { useNodePreview } from '#vue/controls/node-preview/use'
@@ -173,43 +182,25 @@ export function createPaddingActions(editor: Editor, node: ComputedRef<SceneNode
   }
 }
 
+function sizingAxis(axis: LayoutAxis): LayoutSizingAxis {
+  return axis === 'width' ? 'HORIZONTAL' : 'VERTICAL'
+}
+
 export function axisSizingPatchForNode(
+  graph: SceneGraph,
   node: SceneNode,
   axis: LayoutAxis,
-  sizing: LayoutSizing,
-  isInAutoLayout: boolean
+  sizing: LayoutSizing
 ): Partial<SceneNode> {
-  const patch: Partial<SceneNode> = {}
-  const isFlex = node.layoutMode === 'HORIZONTAL' || node.layoutMode === 'VERTICAL'
-  if (isFlex) {
-    const primary =
-      (axis === 'width' && node.layoutMode === 'HORIZONTAL') ||
-      (axis === 'height' && node.layoutMode === 'VERTICAL')
-    patch[primary ? 'primaryAxisSizing' : 'counterAxisSizing'] = sizing
-  } else if (sizing === 'HUG' && node.childIds.length > 0) {
-    patch[axis === 'width' ? 'counterAxisSizing' : 'primaryAxisSizing'] = 'HUG'
-    if (isInAutoLayout) {
-      if (axis === 'width') patch.layoutGrow = 0
-      else patch.layoutAlignSelf = 'AUTO'
-    }
-  } else if (axis === 'width') {
-    if (node.counterAxisSizing === 'HUG') patch.counterAxisSizing = 'FIXED'
-    if (isInAutoLayout) patch.layoutGrow = sizing === 'FILL' ? 1 : 0
-  } else {
-    if (node.primaryAxisSizing === 'HUG') patch.primaryAxisSizing = 'FIXED'
-    if (isInAutoLayout) patch.layoutAlignSelf = sizing === 'FILL' ? 'STRETCH' : 'AUTO'
-  }
-  return patch
+  return layoutSizingUpdates(graph, node, sizingAxis(axis), sizing)
 }
 
 export function createLayoutActions({
   editor,
-  node,
-  isInAutoLayout
+  node
 }: {
   editor: Editor
   node: ComputedRef<SceneNode | null>
-  isInAutoLayout: ComputedRef<boolean>
 }) {
   const preview = useNodePreview(editor)
 
@@ -254,21 +245,40 @@ export function createLayoutActions({
     if (!n) return
     editor.updateNodeWithUndo(
       n.id,
-      axisSizingPatchForNode(n, axis, sizing, isInAutoLayout.value),
+      axisSizingPatchForNode(editor.graph, n, axis, sizing),
       `Set ${axis} sizing`
     )
   }
 
+  function fixedAxisPatch(n: SceneNode, axis: LayoutAxis): Partial<SceneNode> {
+    return axisSizingForNode(editor.graph, n, axis) === 'FIXED'
+      ? {}
+      : axisSizingPatchForNode(editor.graph, n, axis, 'FIXED')
+  }
+
+  // A locked layer keeps its ratio as either side is typed, as in Figma.
   function updateAxisSize(axis: LayoutAxis, value: number) {
     const n = node.value
     if (!n) return
-    const sizing =
-      axis === 'width'
-        ? widthSizingForNode(n, isInAutoLayout.value)
-        : heightSizingForNode(n, isInAutoLayout.value)
-    const sizingPatch =
-      sizing !== 'FIXED' ? axisSizingPatchForNode(n, axis, 'FIXED', isInAutoLayout.value) : {}
-    preview.update([n.id], { ...sizingPatch, [axis]: value }, `Change ${axis}`)
+    const ratio = enforcedAspectRatio(n)
+    if (ratio === null) {
+      preview.update([n.id], { ...fixedAxisPatch(n, axis), [axis]: value }, `Change ${axis}`)
+      return
+    }
+    const size = sizeKeepingAspectRatio(ratio, axis, value)
+    const patch = { ...fixedAxisPatch(n, 'width'), ...fixedAxisPatch(n, 'height'), ...size }
+    preview.update([n.id], patch, `Change ${axis}`)
+  }
+
+  function toggleAspectRatioLock() {
+    const n = node.value
+    if (!n || !aspectRatioLockEditable(editor.graph, n)) return
+    const locked = n.targetAspectRatio !== null
+    editor.updateNodeWithUndo(
+      n.id,
+      { targetAspectRatio: locked ? null : lockedAspectRatioTarget(n.width, n.height) },
+      'Toggle aspect ratio lock'
+    )
   }
 
   function commitAxisSize(_axis: LayoutAxis, _value: number, _previous: number) {
@@ -315,46 +325,31 @@ export function createLayoutActions({
     setAxisSizing,
     updateAxisSize,
     commitAxisSize,
+    toggleAspectRatioLock,
     setAlignment,
     setGapAuto,
     setLayoutDirection
   }
 }
 
-export function canNodeHugContents(node: SceneNode | null): boolean {
-  return !!node && node.childIds.length > 0
-}
-
-export function widthSizingForNode(node: SceneNode | null, isInAutoLayout: boolean): LayoutSizing {
-  if (!node) return 'FIXED'
-  if (node.layoutMode === 'HORIZONTAL') return node.primaryAxisSizing
-  if (node.layoutMode === 'VERTICAL') return node.counterAxisSizing
-  if (canNodeHugContents(node) && node.counterAxisSizing === 'HUG') return 'HUG'
-  if (isInAutoLayout && node.layoutGrow > 0) return 'FILL'
-  return 'FIXED'
-}
-
-export function heightSizingForNode(node: SceneNode | null, isInAutoLayout: boolean): LayoutSizing {
-  if (!node) return 'FIXED'
-  if (node.layoutMode === 'VERTICAL') return node.primaryAxisSizing
-  if (node.layoutMode === 'HORIZONTAL') return node.counterAxisSizing
-  if (canNodeHugContents(node) && node.primaryAxisSizing === 'HUG') return 'HUG'
-  if (isInAutoLayout && node.layoutAlignSelf === 'STRETCH') return 'FILL'
-  return 'FIXED'
+export function axisSizingForNode(
+  graph: SceneGraph,
+  node: SceneNode | null,
+  axis: LayoutAxis
+): LayoutSizing {
+  return node ? layoutSizing(graph, node, sizingAxis(axis)) : 'FIXED'
 }
 
 export function sizingOptionsForNode(
+  graph: SceneGraph,
   node: SceneNode | null,
-  isInAutoLayout: boolean,
   labels: Partial<Record<LayoutSizing, string>> = {}
 ): { value: LayoutSizing; label: string }[] {
-  const isFlex = node?.layoutMode === 'HORIZONTAL' || node?.layoutMode === 'VERTICAL'
-  const options: { value: LayoutSizing; label: string }[] = [
-    { value: 'FIXED', label: labels.FIXED ?? 'Fixed' }
-  ]
-  if (isFlex || canNodeHugContents(node)) options.push({ value: 'HUG', label: labels.HUG ?? 'Hug' })
-  if (isInAutoLayout || isFlex) options.push({ value: 'FILL', label: labels.FILL ?? 'Fill' })
-  return options
+  const allowed = node ? layoutSizingOptions(graph, node) : []
+  // A node outside auto-layout still shows its fixed size.
+  const values: LayoutSizing[] = allowed.length > 0 ? allowed : ['FIXED']
+  const fallback: Record<LayoutSizing, string> = { FIXED: 'Fixed', HUG: 'Hug', FILL: 'Fill' }
+  return values.map((value) => ({ value, label: labels[value] ?? fallback[value] }))
 }
 
 export function createLayoutSizingState(
@@ -373,16 +368,11 @@ export function createLayoutSizingState(
   const isFlex = computed(
     () => node.value?.layoutMode === 'HORIZONTAL' || node.value?.layoutMode === 'VERTICAL'
   )
-  const widthSizing = computed<LayoutSizing>(() =>
-    widthSizingForNode(node.value, isInAutoLayout.value)
-  )
-
-  const heightSizing = computed<LayoutSizing>(() =>
-    heightSizingForNode(node.value, isInAutoLayout.value)
-  )
+  const widthSizing = computed(() => axisSizingForNode(editor.graph, node.value, 'width'))
+  const heightSizing = computed(() => axisSizingForNode(editor.graph, node.value, 'height'))
 
   function sizingOptions() {
-    return sizingOptionsForNode(node.value, isInAutoLayout.value, {
+    return sizingOptionsForNode(editor.graph, node.value, {
       FIXED: panels.value.sizingFixed,
       HUG: panels.value.sizingHug,
       FILL: panels.value.sizingFill
@@ -391,9 +381,16 @@ export function createLayoutSizingState(
 
   const widthSizingOptions = computed(sizingOptions)
   const heightSizingOptions = computed(sizingOptions)
+  const aspectRatioLocked = computed(() => node.value?.targetAspectRatio != null)
+  const aspectRatioLockable = computed(() => {
+    const n = node.value
+    return !!n && aspectRatioLockEditable(editor.graph, n)
+  })
 
   return {
     isInAutoLayout,
+    aspectRatioLocked,
+    aspectRatioLockable,
     isGrid,
     isFlex,
     widthSizing,

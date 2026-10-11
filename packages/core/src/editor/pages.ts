@@ -1,8 +1,13 @@
 import { limitAsync } from 'es-toolkit/promise'
 
+import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
-import { getPageColor, setPageBackgrounds } from '#core/figma-api/page-backgrounds'
+import {
+  getPageColor,
+  setDefaultPageBackground,
+  setPageBackgrounds
+} from '#core/figma-api/page-backgrounds'
 import {
   canUseFigPopulationWorker,
   createFigPopulationWorker
@@ -17,7 +22,12 @@ import { createPageViewportStore } from './page-viewports'
 import type { EditorContext } from './types'
 
 export interface PageSwitchProgress {
-  phase: 'populating-page' | 'resolving-fonts' | 'resolving-fallbacks' | 'layout'
+  phase:
+    | 'populating-page'
+    | 'resolving-fonts'
+    | 'resolving-fallbacks'
+    | 'layout'
+    | 'drawing-shaders'
   detail?: string
   completed?: number
   total?: number
@@ -40,7 +50,15 @@ function throwIfAborted(signal?: AbortSignal): void {
 }
 
 const MAX_CONCURRENT_FONT_LOADS = 4
-export function createPageActions(ctx: EditorContext) {
+/** What preparing a page needs drawn once it is laid out, such as its shaders' frames. */
+interface PageDrawing {
+  drawPageShaderFrames(
+    pageId: string,
+    options: { signal?: AbortSignal; onProgress?: (progress: PageSwitchProgress) => void }
+  ): Promise<void>
+}
+
+export function createPageActions(ctx: EditorContext, drawing?: PageDrawing) {
   const pageViewportStore = createPageViewportStore(ctx)
   function syncPageColor() {
     ctx.state.pageColor = getPageColor(ctx.graph.getNode(ctx.state.currentPageId))
@@ -53,6 +71,9 @@ export function createPageActions(ctx: EditorContext) {
   let populationWorkerInstance: ReturnType<typeof createFigPopulationWorker> | undefined
   let populationWorkerGeneration = 0
   let pageSwitchGeneration = 0
+  // Off-screen preparations per document, shared by concurrent callers and kept once they
+  // succeed. Later edits lay out their own scope, as they do on the page on screen.
+  const offscreenPreparations = new WeakMap<SceneGraph, Map<string, Promise<boolean>>>()
 
   function populationWorker() {
     if (!canUseFigPopulationWorker(ctx.graph)) return null
@@ -168,8 +189,12 @@ export function createPageActions(ctx: EditorContext) {
     if (generation !== pageSwitchGeneration) return null
     if (ctx.getRenderer() || populated) {
       options.onProgress?.({ phase: 'layout', detail: page.name })
-      computeAllLayouts(ctx.graph, pageId)
+      ctx.graph.applyDerivedLayoutDuring(() => computeAllLayouts(ctx.graph, pageId))
     }
+    throwIfAborted(options.signal)
+    if (generation !== pageSwitchGeneration) return null
+    // Frames are drawn at the size layout gives each layer.
+    await drawing?.drawPageShaderFrames(pageId, options)
     throwIfAborted(options.signal)
     return generation === pageSwitchGeneration ? { pageId, generation } : null
   }
@@ -200,6 +225,48 @@ export function createPageActions(ctx: EditorContext) {
     if (ctx.graph.getNode(pageId)?.type === 'CANVAS') await populatePage(pageId, null)
   }
 
+  async function prepareOffscreenPage(graph: SceneGraph, page: SceneNode): Promise<boolean> {
+    const populated = await populatePage(page.id, null)
+    if (populated === null || graph !== ctx.graph) return false
+    await resolvePageFonts(page.id, page.name, {})
+    if (graph !== ctx.graph) return false
+    graph.applyDerivedLayoutDuring(() => computeAllLayouts(graph, page.id))
+    return true
+  }
+
+  /**
+   * Loads a page's layers with their fonts and layout, ready to render, without switching to
+   * it or superseding a page switch in progress. False when the document was closed or
+   * replaced first. The page on screen already was prepared, when it was shown.
+   */
+  function preparePageNodes(pageId: string): Promise<boolean> {
+    const graph = ctx.graph
+    const page = graph.getNode(pageId)
+    if (page?.type !== 'CANVAS') return Promise.resolve(false)
+    if (pageId === ctx.state.currentPageId) return Promise.resolve(true)
+    let preparations = offscreenPreparations.get(graph)
+    if (!preparations) {
+      preparations = new Map()
+      offscreenPreparations.set(graph, preparations)
+    }
+    const pending = preparations.get(pageId)
+    if (pending) return pending
+    // A failed or superseded preparation is retried by the next caller.
+    const forget = () => preparations.delete(pageId)
+    const preparation = prepareOffscreenPage(graph, page).then(
+      (ready) => {
+        if (!ready) forget()
+        return ready
+      },
+      (error: unknown) => {
+        forget()
+        throw error
+      }
+    )
+    preparations.set(pageId, preparation)
+    return preparation
+  }
+
   async function switchPage(pageId: string, options: SwitchPageOptions = {}): Promise<void> {
     const prepared = await preparePage(pageId, options)
     if (prepared) commitPageSwitch(prepared)
@@ -217,6 +284,7 @@ export function createPageActions(ctx: EditorContext) {
     const pages = ctx.graph.getPages()
     const pageName = name ?? `Page ${pages.length + 1}`
     const page = ctx.graph.addPage(pageName)
+    setDefaultPageBackground(ctx.graph, page, ctx.state.theme)
     void switchPage(page.id)
     return page.id
   }
@@ -266,6 +334,7 @@ export function createPageActions(ctx: EditorContext) {
 
   return {
     loadPageNodes,
+    preparePageNodes,
     pageSwitchCount,
     preparePage,
     commitPageSwitch,

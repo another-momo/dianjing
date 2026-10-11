@@ -68,7 +68,7 @@ export const listPages = defineTool({
   name: 'list_pages',
   description: 'List all pages in the document.',
   execution: { kind: 'sync', mutation: 'none' },
-  input: v.object({}),
+  input: v.strictObject({}),
   execute: (figma) => {
     const pages = figma.root.children
     return {
@@ -83,7 +83,7 @@ export const switchPage = defineTool({
 
   description: 'Switch to a different page by name or ID.',
   execution: { kind: 'sync', mutation: 'view' },
-  input: v.object({
+  input: v.strictObject({
     page: v.pipe(v.string(), v.description('Page name or ID'))
   }),
   execute: (figma, { page }) => {
@@ -99,7 +99,7 @@ export const getCurrentPage = defineTool({
   name: 'get_current_page',
   description: 'Get the current page name and ID.',
   execution: { kind: 'sync', mutation: 'none' },
-  input: v.object({}),
+  input: v.strictObject({}),
   execute: (figma) => {
     return { id: figma.currentPage.id, name: figma.currentPage.name }
   }
@@ -110,7 +110,7 @@ export const pageBounds = defineTool({
   description: 'Get bounding box of all objects on the current page.',
   execution: { kind: 'sync', mutation: 'none' },
   exposure: { webmcp: false },
-  input: v.object({}),
+  input: v.strictObject({}),
   execute: (figma) => {
     return computeBounds(figma.currentPage.children.map((child) => child.absoluteBoundingBox))
   }

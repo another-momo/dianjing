@@ -29,6 +29,35 @@ describe('imported auto-layout bounds', () => {
     expect(graph.getNode(line.id)).toMatchObject({ x: 0, y: 1, width: 320, height: 0 })
   })
 
+  test('centres content within the width a stretching parent gives a hug frame with a saved size', () => {
+    const graph = new SceneGraph()
+    const page = graph.getPages()[0]
+    const column = graph.createNode('FRAME', page.id, {
+      width: 320,
+      height: 200,
+      layoutMode: 'VERTICAL',
+      primaryAxisSizing: 'FIXED',
+      counterAxisSizing: 'FIXED'
+    })
+    const tile = graph.createNode('FRAME', column.id, {
+      width: 320,
+      height: 100,
+      layoutMode: 'HORIZONTAL',
+      primaryAxisSizing: 'HUG',
+      counterAxisSizing: 'HUG',
+      primaryAxisAlign: 'CENTER',
+      paddingLeft: 16,
+      paddingRight: 16,
+      layoutAlignSelf: 'STRETCH',
+      derivedLayout: { x: 0, y: 0, width: 320, height: 100 }
+    })
+    const swatch = graph.createNode('RECTANGLE', tile.id, { width: 200, height: 100 })
+
+    computeAllLayouts(graph)
+
+    expect(graph.getNode(swatch.id)?.x).toBe(60)
+  })
+
   test('preserves visible hug container bounds when hidden children would collapse layout', () => {
     const graph = new SceneGraph()
     const page = graph.getPages()[0]
@@ -52,6 +81,7 @@ describe('imported auto-layout bounds', () => {
       ],
       strokes: [
         {
+          type: 'SOLID',
           color: { r: 0.58, g: 0.64, b: 0.72, a: 1 },
           weight: 2,
           opacity: 1,
@@ -91,6 +121,7 @@ describe('imported auto-layout bounds', () => {
       ],
       strokes: [
         {
+          type: 'SOLID',
           color: { r: 0.8, g: 0.84, b: 0.88, a: 1 },
           weight: 1,
           opacity: 1,
@@ -116,6 +147,7 @@ describe('imported auto-layout bounds', () => {
       rotation: 90,
       strokes: [
         {
+          type: 'SOLID',
           color: { r: 0, g: 0, b: 0, a: 1 },
           weight: 1,
           opacity: 1,
@@ -150,6 +182,7 @@ describe('imported auto-layout bounds', () => {
       paddingBottom: 4,
       strokes: [
         {
+          type: 'SOLID',
           color: { r: 0, g: 0, b: 0, a: 1 },
           weight: 1,
           opacity: 1,
@@ -289,7 +322,8 @@ describe('imported auto-layout bounds', () => {
     expect(graph.getNode(label.id)).toMatchObject({ x: 0, width: 302 })
   })
 
-  test('does not infer authoritative stretch without generated parent bounds', () => {
+  // Stretch is fill, as in Figma, whether or not the parent's bounds came from the file.
+  test('stretches an auto-layout child without generated parent bounds', () => {
     const graph = new SceneGraph()
     const page = graph.getPages()[0]
     const column = graph.createNode('FRAME', page.id, {
@@ -310,7 +344,7 @@ describe('imported auto-layout bounds', () => {
 
     computeAllLayouts(graph)
 
-    expect(graph.getNode(label.id)?.width).toBe(44)
+    expect(graph.getNode(label.id)?.width).toBe(624)
   })
 
   test('preserves hidden child geometry while excluding it from parent flow', () => {
@@ -418,7 +452,7 @@ describe('imported auto-layout bounds', () => {
       paddingLeft: 24
     })
     graph.updateNode(frame.id, { source: { ...frame.source, format: 'fig' } })
-    graph.createNode('TEXT', frame.id, {
+    const text = graph.createNode('TEXT', frame.id, {
       width: 333,
       height: 30,
       text: 'Bar Chart',
@@ -426,6 +460,7 @@ describe('imported auto-layout bounds', () => {
       layoutAlignSelf: 'STRETCH',
       derivedLayout: { width: 333, height: 30 }
     })
+    graph.updateNode(text.id, { source: { ...text.source, format: 'fig' } })
 
     computeAllLayouts(graph)
 

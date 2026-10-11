@@ -18,6 +18,8 @@ export type ToolCapability =
   | 'filesystem:write'
   | 'network:access'
   | 'code:execute'
+  | 'settings:read'
+  | 'settings:write'
 
 export type ToolExecution =
   | { kind: 'sync'; mutation: 'none' | 'view' | 'properties' | 'document' }
@@ -37,7 +39,7 @@ interface ToolMetadata {
 }
 
 export interface ToolDef extends ToolMetadata {
-  input: v.ObjectSchema<v.ObjectEntries, undefined>
+  input: v.StrictObjectSchema<v.ObjectEntries, undefined>
   /** Derived from execution metadata, never declared independently by a tool. */
   readonly mutates: boolean
   execute: (figma: FigmaAPI, args: Record<string, unknown>) => unknown
@@ -48,9 +50,9 @@ type ToolDefinitionMetadata = Omit<ToolMetadata, 'exposure' | 'capabilities' | '
 
 export function defineTool<P extends v.ObjectEntries, R>(
   def: ToolDefinitionMetadata & {
-    input: v.ObjectSchema<P, undefined>
+    input: v.StrictObjectSchema<P, undefined>
     execution: ToolExecution & (R extends PromiseLike<unknown> ? { kind: 'async' } : unknown)
-    execute: (figma: FigmaAPI, args: v.InferOutput<v.ObjectSchema<P, undefined>>) => R
+    execute: (figma: FigmaAPI, args: v.InferOutput<v.StrictObjectSchema<P, undefined>>) => R
   }
 ): ToolDef {
   return {
@@ -63,8 +65,24 @@ export function defineTool<P extends v.ObjectEntries, R>(
     get mutates() {
       return def.execution.mutation !== 'none'
     },
-    execute: (figma, args) => def.execute(figma, v.parse(def.input, args))
+    execute: (figma, args) => def.execute(figma, parseToolArgs(def.name, def.input, args))
   }
+}
+
+/**
+ * Every tool run goes through here, so a wrong call from AI chat, the CLI, or WebMCP names the
+ * tool and lists each problem with its argument, as `v.summarize` formats them. MCP clients get
+ * the MCP SDK's own report, which validates the same schema before the handler runs. Inputs are
+ * strict objects, so a misspelled or mis-nested argument fails here instead of being dropped.
+ */
+export function parseToolArgs<S extends v.GenericSchema>(
+  name: string,
+  schema: S,
+  args: unknown
+): v.InferOutput<S> {
+  const result = v.safeParse(schema, args)
+  if (result.success) return result.output
+  throw new Error(`Invalid arguments for ${name}:\n${v.summarize(result.issues)}`)
 }
 
 export function toolChangesDocument(def: Pick<ToolDef, 'execution'>): boolean {
@@ -100,6 +118,11 @@ export function requireNodes(figma: FigmaAPI, ids: ReadonlyArray<string>): Figma
     nodes.push(node)
   }
   return nodes
+}
+
+/** A tool's answer when the operation it wraps throws: the error's message for the caller. */
+export function toolFailure(error: unknown): { error: string } {
+  return { error: error instanceof Error ? error.message : String(error) }
 }
 
 export function nodeNotFound(id: string): { error: string } {

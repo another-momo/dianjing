@@ -50,6 +50,12 @@ const MD_PATH = resolve(
  * ③ 上游 schema 扩张带入、教学面未评估项（暂不教，评估见仓外 backlog）：
  *    属性：constraints / dashPattern / italic / locked / mask / strokeCap /
  *    strokeJoin / strokes / strokeWeights / visible
+ * ④ 2026-10-11 合并窗 #893 behaviours/reka-ui 扩张（behaviours 面放行归 VC MVP
+ *    统一裁决，窗内不教）：元素 Tabs.Root/Tabs.Trigger/Textarea.Input/Textarea.Root/
+ *    TextField.Input/TextField.Root/Toggle.Root/ToggleGroup.Item/ToggleGroup.Root；
+ *    helper shader；属性 defaultValue/disabled/filled/max/min/modelValue/open/states/step；
+ *    元素续：Accordion.*5 / Button.Root / Checkbox.*2 / Collapsible.*3 / NumberField.*4 /
+ *    Progress.*3 / RadioGroup.*3 / Slider.*4 / Switch.*2 / Tabs.Content/Tabs.List
  */
 export const EXCLUDE: ReadonlySet<string> = new Set([
   'Component',
@@ -73,7 +79,55 @@ export const EXCLUDE: ReadonlySet<string> = new Set([
   'strokeJoin',
   'strokes',
   'strokeWeights',
-  'visible'
+  'visible',
+  'Tabs.Root',
+  'Tabs.Trigger',
+  'Textarea.Input',
+  'Textarea.Root',
+  'TextField.Input',
+  'TextField.Root',
+  'Toggle.Root',
+  'ToggleGroup.Item',
+  'ToggleGroup.Root',
+  'shader',
+  'defaultValue',
+  'disabled',
+  'filled',
+  'max',
+  'min',
+  'modelValue',
+  'open',
+  'states',
+  'step',
+  'Accordion.Content',
+  'Accordion.Header',
+  'Accordion.Item',
+  'Accordion.Root',
+  'Accordion.Trigger',
+  'Button.Root',
+  'Checkbox.Indicator',
+  'Checkbox.Root',
+  'Collapsible.Content',
+  'Collapsible.Root',
+  'Collapsible.Trigger',
+  'NumberField.Decrement',
+  'NumberField.Increment',
+  'NumberField.Input',
+  'NumberField.Root',
+  'Progress.Indicator',
+  'Progress.Root',
+  'Progress.Track',
+  'RadioGroup.Indicator',
+  'RadioGroup.Item',
+  'RadioGroup.Root',
+  'Slider.Range',
+  'Slider.Root',
+  'Slider.Thumb',
+  'Slider.Track',
+  'Switch.Root',
+  'Switch.Thumb',
+  'Tabs.Content',
+  'Tabs.List'
 ])
 
 export type DriftKind = 'element' | 'helper' | 'property'

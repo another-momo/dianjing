@@ -31,6 +31,7 @@ function original(node: {
     strokeGeometry: [],
     derivedTextGlyphs: null,
     strokes: [],
+    textPathData: null,
     textPathBox: null
   }
 }
@@ -73,6 +74,7 @@ describe('constraint resize geometry', () => {
     strokeGeometry: [],
     derivedTextGlyphs: null,
     strokes: [],
+    textPathData: null,
     textPathBox: null
   }
   const expectedX: Record<ConstraintType, [number, number]> = {
@@ -128,7 +130,9 @@ describe('constraint resize geometry', () => {
       origStrokeGeometry: [],
       origDerivedTextGlyphs: null,
       origStrokes: [],
+      origTextPathData: null,
       origTextPathBox: null,
+      lockedAspectRatio: null,
       origChildren: new Map([
         [nested.id, original(nested)],
         [grandchild.id, original(grandchild)]
@@ -176,7 +180,9 @@ describe('constraint resize geometry', () => {
       origStrokeGeometry: [],
       origDerivedTextGlyphs: null,
       origStrokes: [],
+      origTextPathData: null,
       origTextPathBox: null,
+      lockedAspectRatio: null,
       origChildren: collectResizeDescendants(graph, root.id)
     }
 

@@ -1,8 +1,18 @@
+import {
+  collectionPluginDataNodeChange,
+  variableMetadataNodeChange
+} from '@open-pencil/fig/node-change'
 import type { GUID, NodeChange, VariableDataEntry } from '@open-pencil/kiwi/fig/codec'
-import { stringToGuid } from '@open-pencil/kiwi/fig/guid'
-import type { SceneGraph, SceneNode, VariableValue } from '@open-pencil/scene-graph'
+import { guidToString, stringToGuid } from '@open-pencil/kiwi/fig/guid'
+import {
+  modesDefaultFirst,
+  type SceneGraph,
+  type SceneNode,
+  type VariableValue
+} from '@open-pencil/scene-graph'
+import { fractionalPosition } from '@open-pencil/scene-graph/order-keys'
 
-import { fractionalPosition, safeColor } from '#core/kiwi/fig/node-change/serialize'
+import { safeColor } from '#core/kiwi/fig/node-change/serialize'
 
 /**
  * Identity allocation shared by the two writers. The document exporter and the clipboard
@@ -13,9 +23,15 @@ export function assignVariableGuid(
   id: string,
   localIdCounter: { value: number },
   assignedGuidValues: Set<string>,
-  nodeSourceGuidValues: Set<string>
+  nodeSourceGuidValues: Set<string>,
+  keepsGuid: (id: string) => boolean = () => true
 ): GUID {
-  if (/^\d+:\d+$/.test(id) && !assignedGuidValues.has(id) && !nodeSourceGuidValues.has(id)) {
+  if (
+    keepsGuid(id) &&
+    /^\d+:\d+$/.test(id) &&
+    !assignedGuidValues.has(id) &&
+    !nodeSourceGuidValues.has(id)
+  ) {
     const guid = stringToGuid(id)
     assignedGuidValues.add(id)
     return guid
@@ -31,14 +47,16 @@ export function assignVariableGuids(
   varIdToGuid: Map<string, GUID>,
   modeIdToGuid: Map<string, GUID>,
   assignedGuidValues: Set<string>,
-  nodeSourceGuidValues: Set<string>
+  nodeSourceGuidValues: Set<string>,
+  keepsGuid?: (id: string) => boolean
 ): void {
   for (const [colId, col] of graph.variableCollections) {
     const colGuid = assignVariableGuid(
       colId,
       localIdCounter,
       assignedGuidValues,
-      nodeSourceGuidValues
+      nodeSourceGuidValues,
+      keepsGuid
     )
     varIdToGuid.set(colId, colGuid)
     for (const mode of col.modes) {
@@ -46,7 +64,8 @@ export function assignVariableGuids(
         mode.modeId,
         localIdCounter,
         assignedGuidValues,
-        nodeSourceGuidValues
+        nodeSourceGuidValues,
+        keepsGuid
       )
       modeIdToGuid.set(mode.modeId, modeGuid)
     }
@@ -55,7 +74,8 @@ export function assignVariableGuids(
         varId,
         localIdCounter,
         assignedGuidValues,
-        nodeSourceGuidValues
+        nodeSourceGuidValues,
+        keepsGuid
       )
       varIdToGuid.set(varId, varGuid)
     }
@@ -122,6 +142,7 @@ export function appendVariableNodeChanges(
   modes: Map<string, GUID>,
   nextPosition: () => string = sequentialPositions()
 ): void {
+  const modeKey = (modeId: string) => guidToString(modes.get(modeId) ?? stringToGuid(modeId))
   for (const collection of graph.variableCollections.values()) {
     const guid = ids.get(collection.id) ?? stringToGuid(collection.id)
     changes.push({
@@ -132,11 +153,12 @@ export function appendVariableNodeChanges(
       phase: 'CREATED',
       strokeAlign: 'CENTER',
       strokeJoin: 'BEVEL',
-      variableSetModes: collection.modes.map((mode, i) => ({
+      variableSetModes: modesDefaultFirst(collection).map((mode, i) => ({
         id: modes.get(mode.modeId) ?? stringToGuid(mode.modeId),
         name: mode.name,
         sortPosition: fractionalPosition(i)
-      }))
+      })),
+      pluginData: collectionPluginDataNodeChange(collection, modeKey)
     })
     for (const id of collection.variableIds) {
       const variable = graph.variables.get(id)
@@ -157,7 +179,7 @@ export function appendVariableNodeChanges(
             variableData: variableValueToKiwi(value, variable.type, ids)
           }))
         },
-        variableScopes: ['ALL_SCOPES'],
+        ...variableMetadataNodeChange(variable, modeKey),
         key: variable.key,
         version: variable.version
       })

@@ -1,15 +1,15 @@
 import { expect, test } from 'bun:test'
 
+import { expectDefined } from '#core-tests/helpers/assert'
+import { CapturedFigRecords, readFixture } from '#core-tests/helpers/fig/fixtures'
+
 import { buildFigmaClipboardHTML } from '@open-pencil/core/clipboard'
 import { createEditor } from '@open-pencil/core/editor'
 import { initCodec } from '@open-pencil/core/kiwi'
 import { materializeFigFragment } from '@open-pencil/fig'
 import { CommittedGraphEventError } from '@open-pencil/scene-graph'
 
-import { expectDefined } from '#core-tests/helpers/assert'
-import { readFixtureJSON } from '#core-tests/helpers/fig/fixtures'
-
-const fixture = readFixtureJSON<Record<string, unknown>[]>('nested-binding-ownership-records.json')
+const fixture = readFixture('nested-binding-ownership-records.json', CapturedFigRecords)
 
 for (const failObserver of [false, true]) {
   for (const replaceSelection of [false, true]) {

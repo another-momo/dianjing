@@ -8,34 +8,38 @@ const {
   updateProp,
   commitProp,
   cancelProp,
-  node,
   ids,
   align,
   flip,
   rotate,
   isMulti,
   active,
-  prop: multiProp
+  prop: multiProp,
+  panelProp,
+  x,
+  y,
+  rotation,
+  inAutoLayout,
+  ignoresAutoLayout,
+  toggleIgnoreAutoLayout
 } = usePosition()
 
-const xValue = computed(() =>
-  isMulti.value ? multiProp('x').value : Math.round(node.value?.x ?? 0)
-)
-const yValue = computed(() =>
-  isMulti.value ? multiProp('y').value : Math.round(node.value?.y ?? 0)
-)
+const multiX = panelProp('x')
+const multiY = panelProp('y')
+const multiRotation = panelProp('rotation')
+const xValue = computed(() => (isMulti.value ? multiX.value : x.value))
+const yValue = computed(() => (isMulti.value ? multiY.value : y.value))
 const wValue = multiProp('width')
 const hValue = multiProp('height')
-const rotationValue = computed(() =>
-  isMulti.value ? multiProp('rotation').value : Math.round(node.value?.rotation ?? 0)
-)
+const rotationValue = computed(() => (isMulti.value ? multiRotation.value : rotation.value))
 const actions = {
   updateProp,
   commitProp,
   cancelProp,
   align,
   flip,
-  rotate
+  rotate,
+  toggleIgnoreAutoLayout
 }
 </script>
 
@@ -49,6 +53,8 @@ const actions = {
     :w-value="wValue"
     :h-value="hValue"
     :rotation-value="rotationValue"
+    :in-auto-layout="inAutoLayout"
+    :ignores-auto-layout="ignoresAutoLayout"
     :mixed="MIXED"
     :actions="actions"
   />

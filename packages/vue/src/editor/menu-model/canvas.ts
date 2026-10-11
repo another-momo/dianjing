@@ -11,6 +11,7 @@ type CanvasMenuCommand =
   | 'selection.componentAction'
   | 'selection.componentSetAction'
   | 'selection.instanceActions'
+  | 'selection.iconActions'
   | 'selection.ungroupWhenGroup'
   | 'selection.moveToPageWhenAvailable'
 
@@ -47,7 +48,12 @@ const CANVAS_MENU_GROUPS = [
     'selection.outlineText',
     'selection.outlineStroke'
   ],
-  ['selection.componentAction', 'selection.componentSetAction', 'selection.instanceActions'],
+  [
+    'selection.componentAction',
+    'selection.componentSetAction',
+    'selection.instanceActions',
+    'selection.iconActions'
+  ],
   ['selection.toggleVisibility', 'selection.toggleLock'],
   ['selection.flipHorizontal', 'selection.flipVertical']
 ] satisfies readonly CanvasMenuGroup[]
@@ -69,7 +75,8 @@ function componentItems({ commandMenuItem, selection }: CanvasMenuOptions): Menu
   return [
     selection.isComponent.value
       ? commandMenuItem('selection.createInstance')
-      : commandMenuItem('selection.createComponent')
+      : commandMenuItem('selection.createComponent'),
+    ...(selection.canCreateSlot.value ? [commandMenuItem('selection.createSlot')] : [])
   ]
 }
 
@@ -85,6 +92,10 @@ function instanceItems({ commandMenuItem, selection }: CanvasMenuOptions): MenuE
     : []
 }
 
+function iconItems({ commandMenuItem, selection }: CanvasMenuOptions): MenuEntry[] {
+  return selection.isIcon.value ? [commandMenuItem('selection.detachIcon')] : []
+}
+
 function conditionalCommand(command: CanvasMenuCommand, options: CanvasMenuOptions): MenuEntry[] {
   switch (command) {
     case 'selection.moveToPageWhenAvailable':
@@ -95,6 +106,8 @@ function conditionalCommand(command: CanvasMenuCommand, options: CanvasMenuOptio
       return componentSetItems(options)
     case 'selection.instanceActions':
       return instanceItems(options)
+    case 'selection.iconActions':
+      return iconItems(options)
     case 'selection.ungroupWhenGroup':
       return options.selection.isGroup.value ? [options.commandMenuItem('selection.ungroup')] : []
     default:

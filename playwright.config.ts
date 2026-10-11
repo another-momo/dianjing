@@ -15,12 +15,8 @@ if (reuse !== undefined && reuse !== '0' && reuse !== '1') {
 }
 
 const server = process.env.OPENPENCIL_TEST_SERVER ?? 'all'
-if (!['app', 'storybook', 'all'].includes(server)) {
-  throw new Error('OPENPENCIL_TEST_SERVER must be app, storybook, or all')
-}
-const storybookPort = 6017
-if (server === 'all' && [appPort, bridgePort].some((port) => Number(port) === storybookPort)) {
-  throw new Error('App, MCP, and Storybook test ports must differ')
+if (!['app', 'all'].includes(server)) {
+  throw new Error('OPENPENCIL_TEST_SERVER must be app or all')
 }
 
 const appDefaults = {
@@ -36,6 +32,21 @@ const appDefaults = {
   },
   use: {
     baseURL: origin,
+    // Tests start past the first-run AI setup offer; its own spec clears this.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin,
+          localStorage: [
+            {
+              name: 'open-pencil:preferences:v1',
+              value: JSON.stringify({ version: 1, onboarding: { aiSetup: 'done' } })
+            }
+          ]
+        }
+      ]
+    },
     testIdAttribute: 'data-test-id',
     viewport: { width: 1280, height: 800 },
     deviceScaleFactor: 2,
@@ -55,14 +66,14 @@ export default defineConfig({
       ...appDefaults,
       name: 'openpencil',
       testDir: './tests/e2e',
-      testIgnore: ['**/native/**', '**/storybook/**'],
+      testIgnore: ['**/native/**'],
       fullyParallel: false
     },
     {
       ...appDefaults,
       name: 'openpencil-webkit',
       testDir: './tests/e2e',
-      testIgnore: ['**/native/**', '**/storybook/**'],
+      testIgnore: ['**/native/**'],
       testMatch: [
         '**/*.webkit.spec.ts',
         '**/design/panel.spec.ts',
@@ -79,45 +90,19 @@ export default defineConfig({
       ...appDefaults,
       name: 'figma',
       testDir: './tests/figma'
-    },
-    {
-      name: 'storybook-chromium',
-      testDir: './tests/e2e/storybook',
-      timeout: 30_000,
-      use: {
-        baseURL: `http://localhost:${storybookPort}`,
-        viewport: { width: 800, height: 600 },
-        deviceScaleFactor: 1,
-        contextOptions: { reducedMotion: 'reduce' }
-      }
     }
   ],
   webServer: [
-    ...(server === 'storybook'
-      ? []
-      : [
-          {
-            command: `bun run dev --port ${appPort} --strictPort`,
-            cwd: import.meta.dirname,
-            url: origin,
-            env: {
-              DIANJING_DEV_ORIGIN: origin,
-              DIANJING_DEV_BRIDGE_PORT: bridgePort,
-              PORTLESS_URL: ''
-            },
-            reuseExistingServer: !process.env.CI && reuse === '1'
-          }
-        ]),
-    ...(server === 'app'
-      ? []
-      : [
-          {
-            command: `bun run storybook -- --port ${storybookPort} --ci --no-open`,
-            cwd: import.meta.dirname,
-            url: `http://localhost:${storybookPort}`,
-            reuseExistingServer: false,
-            timeout: 120_000
-          }
-        ])
+    {
+      command: `bun run dev --port ${appPort} --strictPort`,
+      cwd: import.meta.dirname,
+      url: origin,
+      env: {
+        DIANJING_DEV_ORIGIN: origin,
+        DIANJING_DEV_BRIDGE_PORT: bridgePort,
+        PORTLESS_URL: ''
+      },
+      reuseExistingServer: !process.env.CI && reuse === '1'
+    }
   ]
 })

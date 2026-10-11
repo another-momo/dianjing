@@ -3,6 +3,8 @@ import { readdir } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { uniq } from 'es-toolkit/array'
+
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 
 /**
@@ -23,7 +25,7 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 export const UNIT_TEST_GROUPS = {
   app: ['tests/app', 'tests/integration', 'tests/engine/app', 'tests/engine/rebuild'],
   dom: [
-    'packages/codegen/tests',
+    'packages/emit/tests',
     'packages/design-jsx/tests',
     'packages/dom-css/tests',
     'packages/pen/tests',
@@ -68,12 +70,23 @@ export const UNIT_TEST_GROUPS = {
 
 export type UnitTestGroup = keyof typeof UNIT_TEST_GROUPS | 'all'
 
+/**
+ * Fixture corpora of tens of megabytes; parsing one takes gigabytes, so every test that reads
+ * them is heavy and runs in its own process.
+ */
+export const LARGE_FIXTURES = ['material3.fig', 'nuxtui.fig'] as const
+
+/**
+ * Tests that parse large fixtures. Quick runs skip them, and full runs give each its own
+ * process, since one alone can take several gigabytes.
+ */
 export const HEAVY_UNIT_TEST_PATTERNS = [
   'tests/engine/clipboard/fixtures/',
   'tests/engine/io/fig/heavy/',
-  'tests/engine/io/fig/roundtrip/exhaustive.test.ts',
-  'tests/engine/io/fig/roundtrip/glyph-blob.test.ts',
-  'tests/engine/io/fig/roundtrip/variables.test.ts',
+  'packages/core/tests/io/formats/fig/roundtrip/exhaustive.test.ts',
+  'packages/core/tests/io/formats/fig/roundtrip/glyph-blob.test.ts',
+  'packages/core/tests/io/formats/fig/roundtrip/variables.test.ts',
+  'packages/core/tests/io/formats/fig/import/stale-overrides.test.ts',
   'tests/engine/io/fig/export/text.test.ts',
   'tests/engine/io/fig/export/worker.test.ts',
   'tests/engine/io/fig/import/group-reclassify.test.ts',
@@ -132,7 +145,7 @@ export async function listHeavyUnitTests(group: UnitTestGroup = 'all'): Promise<
 
 async function listTestFiles(paths: string[]): Promise<string[]> {
   const files = await Promise.all(paths.map((path) => listTestFilesInPath(path)))
-  return [...new Set(files.flat())].sort()
+  return uniq(files.flat()).sort()
 }
 
 async function listTestFilesInPath(path: string): Promise<string[]> {

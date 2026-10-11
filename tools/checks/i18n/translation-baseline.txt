@@ -4,8 +4,11 @@ zh-cn:automation.transportHttp
 zh-cn:automation.transportStdio
 zh-cn:code.editorDesignLabel
 zh-cn:code.sourceDesignJSX
-zh-cn:code.sourceHTMLCSS
-zh-cn:code.sourceTailwindJSX
+zh-cn:code.sourceHTML
+zh-cn:code.sourceReact
+zh-cn:code.sourceVue
+zh-cn:code.stylingCSS
+zh-cn:code.stylingTailwind
 zh-cn:panels.ai
 zh-cn:panels.colorFormatHsb
 zh-cn:panels.colorFormatHsl
@@ -16,4 +19,3 @@ zh-cn:panels.maskTypeAlpha
 zh-cn:storage.providerAmazonS3
 zh-cn:storage.providerBackblaze
 zh-cn:storage.providerR2
-

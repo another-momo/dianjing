@@ -52,6 +52,7 @@ for (const theme of ['light', 'dark']) {
         editor.updateNode(id, {
           strokes: [
             {
+              type: 'SOLID',
               color: { r: 0, g: 0, b: 0, a: 1 },
               weight: 1,
               opacity: 1,
@@ -66,6 +67,7 @@ for (const theme of ['light', 'dark']) {
         editor.select([id])
       })
       const section = page.getByRole('region', { name: 'Typography', exact: true })
+      const picker = page.getByRole('dialog', { name: 'Apply variable' })
       const field = section.locator('[data-property="letterSpacing"]')
       await expect(field.locator('[data-slot="pill"]')).toHaveAttribute('data-unresolved')
       await expect(field).toContainText('Tracking/Missing alias')
@@ -83,6 +85,8 @@ for (const theme of ['light', 'dark']) {
         await expect(paint.locator('[data-slot="pill"]')).toHaveAttribute('data-unresolved')
         await paint.getByRole('button', { name: 'Apply variable' }).click()
         await page.getByRole('option', { name: 'Paint/Replacement' }).click()
+        // A closed picker stays in the page while it animates out; the next field's must be the only one.
+        await expect(picker).toHaveCount(0)
         await expect(paint).toContainText('Paint/Replacement')
         await expect(paint.locator('[data-slot="pill"]')).not.toHaveAttribute('data-unresolved')
       }

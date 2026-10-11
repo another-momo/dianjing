@@ -7,7 +7,13 @@ import Yoga, {
   type Node as YogaNode
 } from 'yoga-layout'
 
-import type { GridTrack, SceneNode } from '@open-pencil/scene-graph'
+import {
+  enforcedAspectRatio,
+  layoutSizingInParent,
+  type GridTrack,
+  type SceneGraph,
+  type SceneNode
+} from '@open-pencil/scene-graph'
 
 const yogaConfig = Yoga.Config.create()
 yogaConfig.setPointScaleFactor(0)
@@ -48,6 +54,33 @@ export function configureNonTextLeaf(
       if (!stretchCross) yogaChild.setWidth(w)
     }
   }
+}
+
+/**
+ * A locked aspect ratio sizes the axis Fill does not drive, as Figma lays it out: Fill along the
+ * parent's primary axis drives when set, else Fill across it, and the other axis follows even past
+ * the parent's edge. An axis that hugs keeps its own size.
+ */
+export function applyLockedAspectRatio(
+  yogaNode: YogaNode,
+  node: SceneNode,
+  parent: SceneNode
+): void {
+  const ratio = enforcedAspectRatio(node)
+  if (ratio === null) return
+  const width = layoutSizingInParent(parent, node, 'HORIZONTAL')
+  const height = layoutSizingInParent(parent, node, 'VERTICAL')
+  const primaryIsWidth = parent.layoutMode !== 'VERTICAL'
+  const primary = primaryIsWidth ? width : height
+  const cross = primaryIsWidth ? height : width
+  let drivesWidth: boolean
+  if (primary === 'FILL') drivesWidth = primaryIsWidth
+  else if (cross === 'FILL') drivesWidth = !primaryIsWidth
+  else return
+  if ((drivesWidth ? height : width) === 'HUG') return
+  yogaNode.setAspectRatio(ratio)
+  if (drivesWidth) yogaNode.setHeight('auto')
+  else yogaNode.setWidth('auto')
 }
 
 export function applyMinMaxConstraints(yogaNode: YogaNode, node: SceneNode): void {
@@ -118,4 +151,19 @@ export function mapAlignSelf(alignSelf: string): Align | null {
     default:
       return null
   }
+}
+
+/** The axis a frame's auto layout parent stretches it along, if any. */
+export function parentStretchedAxis(
+  graph: SceneGraph,
+  frame: SceneNode
+): 'width' | 'height' | null {
+  const parent = frame.parentId ? graph.getNode(frame.parentId) : undefined
+  if (!parent || frame.layoutPositioning === 'ABSOLUTE') return null
+  if (parent.layoutMode !== 'HORIZONTAL' && parent.layoutMode !== 'VERTICAL') return null
+  const stretched =
+    frame.layoutAlignSelf === 'STRETCH' ||
+    (frame.layoutAlignSelf === 'AUTO' && parent.counterAxisAlign === 'STRETCH')
+  if (!stretched) return null
+  return parent.layoutMode === 'VERTICAL' ? 'width' : 'height'
 }

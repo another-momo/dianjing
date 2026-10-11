@@ -1,3 +1,4 @@
+import { compact } from 'es-toolkit/array'
 import svgpath from 'svgpath'
 
 import type { Rect, Size, Vector } from '@open-pencil/scene-graph/primitives'
@@ -31,7 +32,7 @@ export function resolveSVGViewportMapping(
 
   const value =
     parseSVGDocument(svg)?.documentElement?.getAttribute('preserveAspectRatio')?.trim() ?? ''
-  const tokens = value.split(/\s+/).filter(Boolean)
+  const tokens = compact(value.split(/\s+/))
   if (tokens.includes('none')) return { space, scaleX, scaleY, offsetX: 0, offsetY: 0 }
   const align = tokens.find((token) => token.startsWith('x')) ?? 'xMidYMid'
 
@@ -55,6 +56,19 @@ export function mapSVGPathToViewport(d: string, mapping: SVGViewportMapping): st
     .scale(mapping.scaleX, mapping.scaleY)
     .translate(mapping.offsetX, mapping.offsetY)
     .toString()
+}
+
+/** A point through an SVG transform attribute, such as a gradient's own transform. */
+export function transformSVGPoint(x: number, y: number, transform: string | null): Vector {
+  if (!transform) return { x, y }
+  let point: Vector = { x, y }
+  svgpath(`M${x} ${y}`)
+    .transform(transform)
+    .abs()
+    .iterate((segment) => {
+      if (segment[0] === 'M') point = { x: segment[1], y: segment[2] }
+    })
+  return point
 }
 
 export function mapSVGPointToViewport(

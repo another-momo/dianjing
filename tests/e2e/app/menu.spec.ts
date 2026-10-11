@@ -1,4 +1,5 @@
 import { expect, test, useEditorSetup } from '#tests/e2e/fixtures'
+import { openAppMenu } from '#tests/helpers/menu'
 
 const editor = useEditorSetup()
 
@@ -14,9 +15,7 @@ test('menu bar has all top-level menus', async () => {
 })
 
 test('File menu opens and shows items', async () => {
-  await editor.page.locator('[role="menubar"] [role="menuitem"]', { hasText: 'File' }).click()
-  const menu = editor.page.locator('[role="menu"]')
-  await expect(menu).toBeVisible()
+  const menu = await openAppMenu(editor.page, 'File')
 
   const items = await menu.locator('[role="menuitem"]').allTextContents()
   expect(items.some((t) => t.includes('Open'))).toBe(true)
@@ -28,9 +27,7 @@ test('File menu opens and shows items', async () => {
 })
 
 test('Edit menu shows Undo/Redo/Delete', async () => {
-  await editor.page.locator('[role="menubar"] [role="menuitem"]', { hasText: 'Edit' }).click()
-  const menu = editor.page.locator('[role="menu"]')
-  await expect(menu).toBeVisible()
+  const menu = await openAppMenu(editor.page, 'Edit')
 
   const items = await menu.locator('[role="menuitem"]').allTextContents()
   expect(items.some((t) => t.includes('Undo'))).toBe(true)
@@ -42,9 +39,7 @@ test('Edit menu shows Undo/Redo/Delete', async () => {
 })
 
 test('View menu shows zoom options', async () => {
-  await editor.page.locator('[role="menubar"] [role="menuitem"]', { hasText: 'View' }).click()
-  const menu = editor.page.locator('[role="menu"]')
-  await expect(menu).toBeVisible()
+  const menu = await openAppMenu(editor.page, 'View')
 
   const items = await menu.locator('[role="menuitem"]').allTextContents()
   expect(items.some((t) => t.includes('Zoom to fit'))).toBe(true)
@@ -55,9 +50,7 @@ test('View menu shows zoom options', async () => {
 })
 
 test('Object menu shows Group/Ungroup/Component', async () => {
-  await editor.page.locator('[role="menubar"] [role="menuitem"]', { hasText: 'Object' }).click()
-  const menu = editor.page.locator('[role="menu"]')
-  await expect(menu).toBeVisible()
+  const menu = await openAppMenu(editor.page, 'Object')
 
   const items = await menu.locator('[role="menuitem"]').allTextContents()
   expect(items.some((t) => t.includes('Group'))).toBe(true)
@@ -86,13 +79,13 @@ test('Move to page is disabled without a selection', async () => {
     store.switchPage(store.graph.getPages()[0].id)
   })
 
-  await editor.page.locator('[role="menubar"] [role="menuitem"]', { hasText: 'Object' }).click()
+  await openAppMenu(editor.page, 'Object')
   const moveToPage = editor.page.getByRole('menuitem', { name: 'Move to page' })
   await expect(moveToPage).toHaveAttribute('data-disabled')
   await editor.page.keyboard.press('Escape')
 
   await editor.canvas.drawRect(200, 200, 100, 100)
-  await editor.page.locator('[role="menubar"] [role="menuitem"]', { hasText: 'Object' }).click()
+  await openAppMenu(editor.page, 'Object')
   await expect(editor.page.getByRole('menuitem', { name: 'Move to page' })).not.toHaveAttribute(
     'data-disabled'
   )
@@ -111,7 +104,7 @@ test('Undo via Edit menu works', async () => {
   const beforeUndo = await getStoreStateNumber('selectedIds')
   expect(beforeUndo).toBe(1)
 
-  await editor.page.locator('[role="menubar"] [role="menuitem"]', { hasText: 'Edit' }).click()
+  await openAppMenu(editor.page, 'Edit')
   const undoItem = editor.page.getByRole('menuitem', { name: /^Undo\b/ })
   await expect(undoItem).toBeEnabled()
   await undoItem.click()
@@ -120,7 +113,7 @@ test('Undo via Edit menu works', async () => {
   const afterUndo = await getStoreStateNumber('selectedIds')
   expect(afterUndo).toBe(0)
 
-  await editor.page.getByRole('menuitem', { name: 'Edit', exact: true }).click()
+  await openAppMenu(editor.page, 'Edit')
   await expect(editor.page.getByRole('menuitem', { name: /^Redo\b/ })).toBeEnabled()
   await editor.page.keyboard.press('Escape')
 })
@@ -134,8 +127,8 @@ test('Duplicate via Edit menu works', async () => {
     return store.graph.getChildren(store.state.currentPageId).length
   })
 
-  await editor.page.locator('[role="menubar"] [role="menuitem"]', { hasText: 'Edit' }).click()
-  await editor.page.locator('[role="menu"] [role="menuitem"]', { hasText: 'Duplicate' }).click()
+  const editMenu = await openAppMenu(editor.page, 'Edit')
+  await editMenu.locator('[role="menuitem"]', { hasText: 'Duplicate' }).click()
   await editor.canvas.waitForRender()
 
   const countAfter = await editor.page.evaluate(() => {
@@ -148,15 +141,15 @@ test('Duplicate via Edit menu works', async () => {
 })
 
 test('Zoom to fit via View menu works', async () => {
-  await editor.page.locator('[role="menubar"] [role="menuitem"]', { hasText: 'View' }).click()
-  await editor.page.locator('[role="menu"] [role="menuitem"]', { hasText: 'Zoom in' }).click()
+  const zoomInMenu = await openAppMenu(editor.page, 'View')
+  await zoomInMenu.locator('[role="menuitem"]', { hasText: 'Zoom in' }).click()
   await editor.canvas.waitForRender()
 
   const zoomBefore = await getStoreStateNumber('zoom')
   expect(zoomBefore).toBeGreaterThan(1)
 
-  await editor.page.locator('[role="menubar"] [role="menuitem"]', { hasText: 'View' }).click()
-  await editor.page.locator('[role="menu"] [role="menuitem"]', { hasText: 'Zoom to fit' }).click()
+  const zoomToFitMenu = await openAppMenu(editor.page, 'View')
+  await zoomToFitMenu.locator('[role="menuitem"]', { hasText: 'Zoom to fit' }).click()
   await editor.canvas.waitForRender()
 
   const zoomAfter = await getStoreStateNumber('zoom')

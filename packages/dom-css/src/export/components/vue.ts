@@ -1,0 +1,488 @@
+import { HEADING_RESET } from '#dom-css/behaviours/reset'
+import { stateStylesToCSS } from '#dom-css/behaviours/states/css'
+import { claimName } from '#dom-css/behaviours/states/names'
+import dedent from 'dedent'
+import { compact } from 'es-toolkit/array'
+import { omit } from 'es-toolkit/object'
+import { camelCase, kebabCase, upperFirst } from 'es-toolkit/string'
+
+import { es, vue } from '@open-pencil/emit'
+import type { ShaderComponent } from '@open-pencil/scene-graph'
+
+import { progressWidth } from './fields'
+import type {
+  ComponentBinding,
+  ComponentElement,
+  ComponentGenerator,
+  ComponentModel,
+  ComponentNode,
+  GeneratedKind
+} from './model'
+import type { ComponentReference } from './references'
+import {
+  drawnEffects,
+  SHADER_CANVAS,
+  shaderCSS,
+  shaderEffectName,
+  shaderImport,
+  type ShaderLayer
+} from './shaders'
+import { componentClasses } from './styling'
+
+/** The Reka UI components a kind renders, by part, and the prop its model binds. */
+const REKA: Record<
+  GeneratedKind,
+  { parts: Record<string, string>; model?: 'modelValue' | 'open' }
+> = {
+  button: { parts: {} },
+  switch: { parts: { root: 'SwitchRoot', thumb: 'SwitchThumb' }, model: 'modelValue' },
+  checkbox: {
+    parts: { root: 'CheckboxRoot', indicator: 'CheckboxIndicator' },
+    model: 'modelValue'
+  },
+  toggle: { parts: { root: 'Toggle' }, model: 'modelValue' },
+  collapsible: {
+    parts: {
+      root: 'CollapsibleRoot',
+      trigger: 'CollapsibleTrigger',
+      content: 'CollapsibleContent'
+    },
+    model: 'open'
+  },
+  tabs: {
+    parts: { root: 'TabsRoot', list: 'TabsList', trigger: 'TabsTrigger', content: 'TabsContent' },
+    model: 'modelValue'
+  },
+  radioGroup: { parts: { root: 'RadioGroupRoot' }, model: 'modelValue' },
+  toggleGroup: { parts: { root: 'ToggleGroupRoot' }, model: 'modelValue' },
+  accordion: { parts: { root: 'AccordionRoot' }, model: 'modelValue' },
+  radioGroupItem: { parts: { root: 'RadioGroupItem', indicator: 'RadioGroupIndicator' } },
+  toggleGroupItem: { parts: { root: 'ToggleGroupItem' } },
+  accordionItem: {
+    parts: { root: 'AccordionItem', trigger: 'AccordionTrigger', content: 'AccordionContent' }
+  },
+  slider: {
+    parts: { root: 'SliderRoot', track: 'SliderTrack', range: 'SliderRange', thumb: 'SliderThumb' },
+    model: 'modelValue'
+  },
+  progress: {
+    parts: { root: 'ProgressRoot', indicator: 'ProgressIndicator' },
+    model: 'modelValue'
+  },
+  numberField: {
+    parts: {
+      root: 'NumberFieldRoot',
+      increment: 'NumberFieldIncrement',
+      decrement: 'NumberFieldDecrement'
+    },
+    model: 'modelValue'
+  },
+  // Reka has no text field; the root is the design's own element around a native input.
+  textField: { parts: {} },
+  textarea: { parts: {} },
+  // A component without a behaviour is the design's own elements.
+  plain: { parts: {} }
+}
+
+/** Kinds whose two-way value is their input's, which binds it rather than the root. */
+const INPUT_MODEL: ReadonlySet<GeneratedKind> = new Set(['textField', 'textarea'])
+
+/** What a group's root fixes: one item chosen at a time, and an accordion that can all close. */
+const ROOT_ATTRIBUTES: Partial<Record<GeneratedKind, vue.VueAttribute[]>> = {
+  toggleGroup: [vue.attribute('type', 'single')],
+  accordion: [vue.attribute('type', 'single'), vue.bound('collapsible', es.parseExpression('true'))]
+}
+
+const identifier = (name: string) => es.identifier(name)
+
+const HEADING_STYLE = Object.entries(HEADING_RESET)
+  .map(([property, value]) => `${property}: ${value}`)
+  .join('; ')
+
+/** `disabled || undefined`, so a native button sets `data-disabled` only while disabled. */
+const DISABLED_FLAG = es.parseExpression('disabled || undefined')
+
+function bindingAttributes(
+  binding: ComponentBinding,
+  uses: TemplateUses,
+  native: boolean
+): vue.VueAttribute[] {
+  const { kind } = uses
+  if (binding.type === 'model') {
+    if (INPUT_MODEL.has(kind)) return []
+    // Reka's slider takes a list of values, which the model's single one stands in.
+    const bound = uses.sliderValues ?? binding.name
+    return [vue.model(identifier(bound), REKA[kind].model === 'open' ? 'open' : undefined)]
+  }
+  if (binding.type === 'prop') return [vue.bound(binding.attribute, identifier(binding.prop.name))]
+  if (binding.type === 'value') return [vue.bound('value', identifier('value'))]
+  // Reka sets `data-disabled` on its own roots; a native root needs it for the state styles.
+  return [
+    ...(native && kind !== 'button' ? [] : [vue.bound('disabled', identifier('disabled'))]),
+    ...(native ? [vue.bound('data-disabled', DISABLED_FLAG)] : [])
+  ]
+}
+
+/** The number range a slider, progress bar, or number field's root is given. */
+function rangeAttributes(component: ComponentModel): vue.VueAttribute[] {
+  const { range } = component
+  if (!range) return []
+  const bound = (name: 'min' | 'max' | 'step') => vue.bound(name, es.number(range[name]))
+  // A progress bar only takes its maximum; its minimum is where the indicator is empty.
+  return component.kind === 'progress'
+    ? [bound('max')]
+    : [bound('min'), bound('max'), bound('step')]
+}
+
+function progressStyle(component: ComponentModel): vue.VueAttribute[] {
+  const { range, model } = component
+  const style = range && model ? progressWidth(range, identifier(model)) : null
+  return style ? [vue.bound('style', style)] : []
+}
+
+/** `element`, recorded as drawing `layerId`, so code can link back to that layer. */
+function drawing(
+  element: vue.VueElement,
+  layerId: string | undefined,
+  uses: TemplateUses
+): vue.VueElement {
+  if (layerId) uses.layers.set(element, layerId)
+  return element
+}
+
+/** A field's input: Reka's for a number field, else a native input or textarea. */
+function inputNode(className: string, uses: TemplateUses): vue.VueElement {
+  const { component } = uses
+  if (component.kind === 'numberField') {
+    uses.reka.add('NumberFieldInput')
+    return vue.element('NumberFieldInput', [vue.attribute('class', uses.classOf(className))])
+  }
+  const placeholder = component.text?.placeholder
+  return vue.element(component.kind === 'textarea' ? 'textarea' : 'input', [
+    vue.attribute('class', uses.classOf(className)),
+    ...(component.model ? [vue.model(identifier(component.model))] : []),
+    ...(placeholder ? [vue.attribute('placeholder', placeholder)] : []),
+    ...(component.disabled ? [vue.bound('disabled', identifier('disabled'))] : [])
+  ])
+}
+
+/** What a template uses, which its script imports and declares. */
+interface TemplateUses {
+  component: ComponentModel
+  kind: GeneratedKind
+  /** The list a slider's root binds, standing in for its single value. */
+  sliderValues: string | null
+  /** Reka components. */
+  reka: Set<string>
+  /** Other generated components. */
+  components: Set<string>
+  icons: boolean
+  /** The class a layer's readable class name stands for, as the component is styled. */
+  classOf: (className: string) => string
+  /** The layer each element draws, which code links back to. */
+  layers: WeakMap<vue.VueElement, string>
+  /** Effects of the `shaders` library its layers fill with. */
+  shaders: Set<string>
+  /** A ref per nested control drawn on, which its `v-model` binds. */
+  models: { name: string }[]
+  taken: Set<string>
+}
+
+/** The Iconify component, named apart from any component the design calls `Icon`. */
+const ICONIFY = 'IconifyIcon'
+
+function reference(node: ComponentReference, uses: TemplateUses): vue.VueElement {
+  uses.components.add(node.component)
+  const model = node.model
+    ? claimName(`${camelCase(node.component)}${upperFirst(node.model)}`, uses.taken)
+    : null
+  if (model) uses.models.push({ name: model })
+  return vue.element(node.component, [
+    vue.attribute('class', uses.classOf(node.className)),
+    ...node.props.map((prop) =>
+      typeof prop.value === 'boolean'
+        ? vue.bound(prop.name, es.parseExpression(String(prop.value)))
+        : vue.attribute(prop.name, prop.value)
+    ),
+    // The control stays operable, starting from the value the design draws.
+    ...(model && node.model ? [vue.model(identifier(model), node.model)] : [])
+  ])
+}
+
+/** A design element's attributes: what shows it, its part's own, the design's, and bindings. */
+function elementAttributes(
+  node: ComponentElement,
+  uses: TemplateUses,
+  { native, button }: { native: boolean; button: boolean }
+): vue.VueAttribute[] {
+  const root = node.part === 'root'
+  return [
+    ...(node.shownBy ? [vue.renderIf(identifier(node.shownBy))] : []),
+    ...(button ? [vue.attribute('type', 'button')] : []),
+    ...(root ? [...(ROOT_ATTRIBUTES[uses.kind] ?? []), ...rangeAttributes(uses.component)] : []),
+    ...(uses.kind === 'progress' && node.part === 'indicator' ? progressStyle(uses.component) : []),
+    ...Object.entries(omit(node.attrs, ['class'])).map(([name, value]) =>
+      vue.attribute(name, value)
+    ),
+    vue.attribute('class', compact([node.attrs.class, uses.classOf(node.className)]).join(' ')),
+    ...(node.value === undefined ? [] : [vue.attribute('value', node.value)]),
+    ...node.bindings.flatMap((binding) => bindingAttributes(binding, uses, native))
+  ]
+}
+
+/** A shader playing behind its layer's content, with telemetry off, as every export has it. */
+function shaderCanvas(shader: ShaderLayer, uses: TemplateUses): vue.VueNode {
+  const effect = (component: ShaderComponent): vue.VueNode => {
+    uses.shaders.add(component.type)
+    return vue.element(
+      shaderEffectName(component.type),
+      Object.entries(component.props ?? {}).map(([key, value]) =>
+        typeof value === 'string'
+          ? vue.attribute(kebabCase(key), value)
+          : vue.bound(kebabCase(key), es.json(value))
+      ),
+      drawnEffects(component.children).map(effect)
+    )
+  }
+  return vue.element(
+    SHADER_CANVAS,
+    [
+      vue.attribute('class', uses.classOf(shader.className)),
+      vue.bound('disable-telemetry', es.json(true))
+    ],
+    drawnEffects(shader.preset.components).map(effect)
+  )
+}
+
+function designElement(node: ComponentElement, uses: TemplateUses): vue.VueElement {
+  const reka = node.part ? REKA[uses.kind].parts[node.part] : undefined
+  if (reka) uses.reka.add(reka)
+  const native = node.part === 'root' && !reka
+  const button = native && uses.kind === 'button'
+  const content = node.children.map((child) => templateNode(child, uses))
+  const children = node.shader ? [shaderCanvas(node.shader, uses), ...content] : content
+  const element = drawing(
+    vue.element(
+      reka ?? (button ? 'button' : node.tag),
+      elementAttributes(node, uses, { native, button }),
+      // A slot frame shows what the caller passes, or the design's content.
+      node.slot
+        ? [
+            ...(node.shader ? [shaderCanvas(node.shader, uses)] : []),
+            vue.element('slot', [vue.attribute('name', node.slot)], content)
+          ]
+        : children
+    ),
+    node.layerId,
+    uses
+  )
+  // Reka puts an accordion item's trigger in a header, which carries the heading level.
+  if (uses.kind !== 'accordionItem' || node.part !== 'trigger') return element
+  uses.reka.add('AccordionHeader')
+  return vue.element('AccordionHeader', [vue.attribute('style', HEADING_STYLE)], [element])
+}
+
+function templateNode(node: ComponentNode, uses: TemplateUses): vue.VueNode {
+  if (node.type === 'text') return vue.text(node.value)
+  if (node.type === 'textProp') return vue.interpolation(identifier(node.name))
+  if (node.type === 'reference') return drawing(reference(node, uses), node.layerId, uses)
+  if (node.type === 'input') return drawing(inputNode(node.className, uses), node.layerId, uses)
+  if (node.type === 'icon') {
+    uses.icons = true
+    const icon = vue.element(ICONIFY, [
+      vue.attribute('icon', node.icon),
+      vue.attribute('class', uses.classOf(node.className))
+    ])
+    return drawing(icon, node.layerId, uses)
+  }
+  return designElement(node, uses)
+}
+
+function propsType(component: ComponentModel): es.SyntaxNode {
+  const members: [string, es.SyntaxNode, boolean][] = component.props.map((prop) => [
+    prop.name,
+    es.stringUnionType(prop.options),
+    true
+  ])
+  if (component.disabled) members.unshift(['disabled', es.parseType('boolean'), true])
+  // A group's item always stands for a value, which has no default.
+  if (component.valueProp) members.unshift(['value', es.parseType('string'), false])
+  for (const text of component.texts) members.push([text.name, es.parseType('string'), true])
+  for (const prop of component.booleans) members.push([prop.name, es.parseType('boolean'), true])
+  return es.objectType(members)
+}
+
+/** `defineProps`, with `withDefaults` when any prop has a default to give. */
+/** Whether any prop has a default to give: `disabled`, a variant, a text, or a boolean. */
+const hasDefaults = (component: ComponentModel) =>
+  component.disabled ||
+  component.props.length > 0 ||
+  component.texts.length > 0 ||
+  component.booleans.length > 0
+
+function propsDeclaration(component: ComponentModel): es.SyntaxNode[] {
+  const optional = hasDefaults(component)
+  return optional
+    ? es.fill(PROPS, { $Props: propsType(component), $defaults: propsDefaults(component) }).body
+    : es.fill(REQUIRED_PROPS, { $Props: propsType(component) }).body
+}
+
+function propsDefaults(component: ComponentModel): es.SyntaxNode {
+  return es.object([
+    ...(component.disabled ? [['disabled', es.parseExpression('false')] as const] : []),
+    ...component.props.map((prop) => [prop.name, es.string(prop.default)] as const),
+    ...component.texts.map((text) => [text.name, es.string(text.default)] as const),
+    ...component.booleans.map(
+      (prop) => [prop.name, es.parseExpression(String(prop.default))] as const
+    )
+  ])
+}
+
+const PROPS = es.parseModule('withDefaults(defineProps<$Props>(), $defaults)')
+const REQUIRED_PROPS = es.parseModule('defineProps<$Props>()')
+const MODEL = es.parseModule('const $model = defineModel<boolean>($name, { default: false })')
+const CHOICE_MODEL = es.parseModule(
+  'const $model = defineModel<$Type>($name, { default: $default })'
+)
+const OPEN_CHOICE_MODEL = es.parseModule('const $model = defineModel<$Type>($name)')
+const VALUE_MODEL = es.parseModule(
+  'const $model = defineModel<$Type>($name, { default: $default })'
+)
+const SLIDER_VALUES = es.parseModule(dedent`
+  const $values = computed({
+    get: () => [$model.value],
+    set: (next: number[] | undefined) => {
+      $model.value = next?.[0] ?? $model.value
+    }
+  })
+`)
+
+function namedImport(names: readonly string[], source: string, local = (name: string) => name) {
+  return {
+    type: 'ImportDeclaration',
+    importKind: 'value',
+    specifiers: names.map((name) => ({
+      type: 'ImportSpecifier',
+      imported: identifier(name),
+      local: identifier(local(name))
+    })),
+    source: es.string(source)
+  }
+}
+
+const IMPORT_COMPONENT = es.parseModule(`import $Component from '$path'`)
+const MODEL_REF = es.parseModule('const $name = ref(true)')
+
+/** What the script imports: Vue's helpers, Iconify, Reka, and other generated components. */
+function scriptImports(uses: TemplateUses): es.SyntaxNode[] {
+  const helpers = compact([uses.sliderValues && 'computed', uses.models.length > 0 && 'ref'])
+  return [
+    ...(helpers.length > 0 ? [namedImport(helpers, 'vue')] : []),
+    ...(uses.icons ? [namedImport(['Icon'], '@iconify/vue', () => ICONIFY)] : []),
+    ...(uses.reka.size > 0 ? [namedImport([...uses.reka].sort(), 'reka-ui')] : []),
+    ...(uses.shaders.size > 0 ? [shaderImport('shaders/vue', uses.shaders)] : []),
+    ...[...uses.components].sort().flatMap(
+      (name) =>
+        es.fill(IMPORT_COMPONENT, {
+          $Component: identifier(name),
+          $path: es.string(`./${name}.vue`)
+        }).body
+    )
+  ]
+}
+
+/** The model's declaration: a choice, a number or text, or a boolean, and a slider's list. */
+function modelDeclaration(component: ComponentModel, uses: TemplateUses): es.SyntaxNode[] {
+  const name = component.model
+  if (!name) return []
+  const { choice, range, text } = component
+  const base = { $model: identifier(name), $name: es.string(name) }
+  if (choice)
+    return es.fill(choice.default === null ? OPEN_CHOICE_MODEL : CHOICE_MODEL, {
+      ...base,
+      $Type: es.stringUnionType(choice.options),
+      $default: choice.default === null ? es.OMIT : es.string(choice.default)
+    }).body
+  if (!range && !text) return es.fill(MODEL, base).body
+  const model = es.fill(VALUE_MODEL, {
+    ...base,
+    $Type: es.parseType(range ? 'number' : 'string'),
+    $default: range ? es.number(range.default) : es.string(text?.default ?? '')
+  }).body
+  const values = uses.sliderValues
+    ? es.fill(SLIDER_VALUES, { $values: identifier(uses.sliderValues), $model: identifier(name) })
+        .body
+    : []
+  return [...model, ...values]
+}
+
+function script(component: ComponentModel, uses: TemplateUses): es.SyntaxNode {
+  const props = component.valueProp || hasDefaults(component) ? propsDeclaration(component) : []
+  const refs = uses.models.flatMap(
+    (item) => es.fill(MODEL_REF, { $name: identifier(item.name) }).body
+  )
+  return {
+    type: 'Program',
+    sourceType: 'module',
+    body: [...scriptImports(uses), ...props, ...modelDeclaration(component, uses), ...refs]
+  }
+}
+
+/**
+ * A component as a Vue single-file component on Reka UI: its variants' state styles in a
+ * scoped stylesheet, its parts as Reka components, and its props from the behaviour and its
+ * other variant properties.
+ */
+export const vueComponent: ComponentGenerator = async (component, options = {}) => {
+  const styling = options.styling ?? 'css'
+  const taken = new Set([
+    ...component.props.map((prop) => prop.name),
+    ...component.texts.map((text) => text.name),
+    ...component.booleans.map((prop) => prop.name),
+    ...component.slots.map((slot) => slot.name),
+    ...(component.model ? [component.model] : []),
+    'disabled'
+  ])
+  const uses: TemplateUses = {
+    component,
+    classOf: componentClasses(component, styling),
+    layers: new WeakMap(),
+    kind: component.kind,
+    sliderValues:
+      component.kind === 'slider' && component.model ? claimName('values', taken) : null,
+    reka: new Set(),
+    components: new Set(),
+    icons: false,
+    shaders: new Set(),
+    models: [],
+    // Refs share the script with the component's own props and model.
+    taken
+  }
+  const template = templateNode(component.tree, uses)
+  // Tailwind styles the markup itself; a stylesheet is written beside it otherwise.
+  const style =
+    styling === 'css'
+      ? compact([(await stateStylesToCSS(component.styles)).css, shaderCSS(component.tree)]).join(
+          '\n'
+        )
+      : undefined
+  const path = `${component.name}.vue`
+  // A group's items are their own component, which the group's template uses.
+  const item = component.item ? await vueComponent(component.item, options) : null
+  const sfc = { script: script(component, uses), template, style }
+  return {
+    files: [
+      ...(item?.files ?? []),
+      {
+        path,
+        content: vue.printComponent(sfc),
+        layerIds: vue
+          .componentElements(sfc)
+          .map((element) => (element && uses.layers.get(element)) ?? null)
+      }
+    ],
+    entry: { path: `./${path}`, named: false },
+    // `v-model` binds the value, and its prop takes a story's initial value.
+    valueArg: component.model
+  }
+}

@@ -221,23 +221,6 @@ jobs:
           ! grep -q "createPortal)(<" attic/dsh-workbench/lib/client.js
           head -c 200 attic/dsh-workbench/lib/client.js | grep -q "__ModuleLoader__.load"
 
-  storybook:
-    name: Component workshop
-    timeout-minutes: 10
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-bun
-
-      - name: Build component dependencies
-        run: bun run build:packages
-
-      - name: Build static Storybook
-        run: bun run build-storybook
-
   unit-tests:
     timeout-minutes: 10
     runs-on: ubuntu-latest

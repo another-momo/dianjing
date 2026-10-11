@@ -28,7 +28,7 @@ export const stockPhoto = defineTool({
     'If no key is configured or the API returns 401, return the error to the user — do NOT fall back to eval-drawn gradients or rectangles as fake photos; leave placeholder colors as-is.',
   execution: { kind: 'async', mutation: 'document' },
   capabilities: ['document:write', 'network:access'],
-  input: v.object({
+  input: v.strictObject({
     requests: v.pipe(
       v.string(),
       v.description(

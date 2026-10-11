@@ -23,6 +23,7 @@ import {
   openPencilAutomationPlugin
 } from './vite/automation'
 import { copyCanvasKitAssetsPlugin } from './vite/canvaskit-assets'
+import { aiIconCollection } from './vite/icons'
 import { rawMarkdownPlugin } from './vite/raw-markdown'
 import { createDevServerOptions } from './vite/server'
 
@@ -38,6 +39,8 @@ export default defineConfig(async ({ command }) => ({
     // 原字面量相同的字符串键，vite 字符串替换语义不变；Phase 2 改名只动
     // src/app/orchestration/runtime-globals.ts。
     [LOCAL_AUTOMATION_APP_VERSION_KEY]: JSON.stringify(packageJson.version),
+    // 上游文件读原版全局名（runtime/version、diagnostics/environment）——同名值双烘焙，消费方零 patch
+    __OPENPENCIL_APP_VERSION__: JSON.stringify(packageJson.version),
     [LOCAL_AUTOMATION_TOKEN_KEY]: JSON.stringify(localAutomationToken(command)),
     [LOCAL_AUTOMATION_URL_KEY]: JSON.stringify(automationRoute.browserURL),
     [LOCAL_AUTOMATION_HTTP_URL_KEY]: JSON.stringify(
@@ -50,8 +53,8 @@ export default defineConfig(async ({ command }) => ({
     rawMarkdownPlugin(),
     copyCanvasKitAssetsPlugin(),
     tailwindcss(),
-    Icons({ compiler: 'vue3' }),
-    Components({ resolvers: [IconsResolver({ prefix: 'icon' })] }),
+    Icons({ compiler: 'vue3', customCollections: { ai: aiIconCollection() } }),
+    Components({ resolvers: [IconsResolver({ prefix: 'icon', customCollections: ['ai'] })] }),
     openPencilAutomationPlugin(command, host),
     // T38：bridgeRuntimeId 与 automation 桥插件单源（同一 automationRoute），
     // 让 pi 后端能定位被上游 0f981ff2 隔离到 tmpdir 的桥 discovery 文件

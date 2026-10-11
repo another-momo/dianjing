@@ -1,5 +1,9 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
 
+import { releaseFigPopulationWorker } from '#core/kiwi/fig/population/client'
+
+import { FIXTURES } from '#core-tests/helpers/fig/fixtures'
+
 import {
   exportFigFile,
   initCodec,
@@ -10,8 +14,6 @@ import {
 import { parseFigBuffer } from '@open-pencil/fig'
 import type { NodeChange } from '@open-pencil/kiwi/fig/codec'
 import { slotPropertyId } from '@open-pencil/scene-graph'
-
-import { FIXTURES } from '#core-tests/helpers/fig/fixtures'
 
 let original: SceneGraph
 let reopened: SceneGraph
@@ -43,12 +45,12 @@ function slotContents(graph: SceneGraph): Record<string, string[]> {
 beforeAll(async () => {
   await initCodec()
   original = await parseFigFile(await Bun.file(`${FIXTURES}/slots.fig`).arrayBuffer())
-  // An unedited document exports its original archive; an edit makes the export re-encode.
-  const untouched = original.getPages().find((page) => page.name === 'Page 1')
-  if (!untouched) throw new Error('Missing Page 1')
-  original.updateNode(untouched.id, { name: 'Page 1 (edited)' })
+  // Without its archive the export encodes every record, which is what this checks.
+  releaseFigPopulationWorker(original)
   const exported = await exportFigFile(original)
-  expect(exported).not.toEqual(new Uint8Array(await Bun.file(`${FIXTURES}/slots.fig`).arrayBuffer()))
+  expect(exported).not.toEqual(
+    new Uint8Array(await Bun.file(`${FIXTURES}/slots.fig`).arrayBuffer())
+  )
   records = parseFigBuffer(exported.slice().buffer).nodeChanges
   reopened = await parseFigFile(exported.slice().buffer)
 })
@@ -61,9 +63,7 @@ describe('slots round trip', () => {
   })
 
   test('slot properties are written as SLOT definitions with their settings', () => {
-    const definitions = records.flatMap(
-      (record) => (record as SlotRecord).componentPropDefs ?? []
-    )
+    const definitions = records.flatMap((record) => (record as SlotRecord).componentPropDefs ?? [])
     const slots = definitions.filter((definition) => definition.type === 'SLOT')
     // Card empty slot, Card default content, List, Panel, and Panel's two variants. Figma
     // links a variant's definition to the set's through `parentPropDefId`; the exporter

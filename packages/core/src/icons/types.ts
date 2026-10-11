@@ -37,6 +37,19 @@ export interface IconSearchResult {
   collections: Record<string, { name: string; total: number; category?: string }>
 }
 
+/** An icon set: what a picker shows to choose one. */
+export interface IconCollection {
+  /** The set's part of an icon name, such as `lucide`. */
+  prefix: string
+  name: string
+  total: number
+  category: string | null
+  /** The license's title, such as `MIT`. */
+  license: string | null
+  /** Drawn in the set's own colors, which an icon color does not change. */
+  multicolor: boolean
+}
+
 export interface IconPathInfo {
   d: string
   fill: string | null
@@ -45,15 +58,66 @@ export interface IconPathInfo {
   strokeCap: string
   strokeJoin: string
   fillRule: WindingRule
+  fillOpacity: number
+  strokeOpacity: number
   /** Nested SVG clip regions, ordered from outermost to innermost. */
   clipPaths?: SVGClipPathRegion[]
   /** Raw transform attribute from the source SVG element. */
   transform?: string | null
+  /** The `<g>` elements around the shape, outermost first, then the shape itself. */
+  elements: SVGElementLayer[]
+}
+
+/** An element an import turns into a layer: a group or the shape. */
+export interface SVGElementLayer {
+  /** Shared by every path drawn inside the same element. */
+  key: number
+  kind: 'group' | 'shape'
+  /** The element's `id`, when it is drawn directly rather than through `<use>`. */
+  name: string | null
+  opacity: number
+  /** The clip region this element adds to `clipPaths`, by index. */
+  clip: number | null
+}
+
+/** A stretch of SVG text in one style, such as a `<tspan>` on the same line. */
+export interface SVGTextRun {
+  text: string
+  fill: string | null
+  fillOpacity: number
+  /** The first family the SVG names that is not a generic one such as `sans-serif`. */
+  fontFamily: string | null
+  fontSize: number
+  fontWeight: number
+  italic: boolean
+  letterSpacing: number
+  textDecoration: 'NONE' | 'UNDERLINE' | 'STRIKETHROUGH'
+}
+
+/** Text that starts at one position: a `<text>`, or a `<tspan>` that moves to a new one. */
+export interface SVGTextPiece {
+  /** The baseline origin, in the text element's own coordinates. */
+  x: number
+  y: number
+  anchor: 'start' | 'middle' | 'end'
+  runs: SVGTextRun[]
+}
+
+export interface SVGTextInfo {
+  pieces: SVGTextPiece[]
+  transform: string | null
+  clipPaths?: SVGClipPathRegion[]
+  /** As for a path; the last entry is the `<text>` element. */
+  elements: SVGElementLayer[]
+  /** How many paths come before the text in drawing order. */
+  pathIndex: number
 }
 
 export type SVGClipPathInfo = Pick<IconPathInfo, 'd' | 'fillRule' | 'transform'>
 
 export interface SVGClipPathRegion {
+  /** The `<clipPath>` element's `id`. */
+  id: string
   paths: SVGClipPathInfo[]
   units: 'userSpaceOnUse' | 'objectBoundingBox'
 }

@@ -1,5 +1,6 @@
-import { recordInstanceOverride } from '@open-pencil/scene-graph'
+import { recordInstanceOverride, slotPropertyId } from '@open-pencil/scene-graph'
 import type {
+  GroupFitOptions,
   SceneGraph,
   SceneNode,
   NodeType,
@@ -14,11 +15,12 @@ import {
   setNodeStrokeOkHCL
 } from '@open-pencil/scene-graph/color'
 import type { OkHCLColor, OkHCLPayload } from '@open-pencil/scene-graph/color'
-import type { Rect } from '@open-pencil/scene-graph/primitives'
+import type { Rect, Vector } from '@open-pencil/scene-graph/primitives'
 
 import { assertNodeEditable } from '#core/editor/capabilities'
 import type { FigmaEffect } from '#core/figma-api/effects'
 
+import { fitGroupsAround } from './accessor-utils'
 import { installBasicNodeProxyAccessors } from './accessors/basic'
 import { installLayoutNodeProxyAccessors } from './accessors/layout'
 import { installStrokeNodeProxyAccessors } from './accessors/strokes'
@@ -29,13 +31,21 @@ import {
   type FigmaVectorNetwork,
   type FigmaVectorPath
 } from './accessors/vector'
-import { installVisualNodeProxyAccessors } from './accessors/visual'
+import {
+  figmaPaintToFill,
+  installVisualNodeProxyAccessors,
+  type FigmaPaint
+} from './accessors/visual'
 import { installComponentPropertyAccessors } from './components'
 import type { FigmaFontName } from './fonts'
+import type { FigmaFrameNode, FigmaInstanceNode } from './node-types'
 import { getPageBackgrounds, setPageBackgrounds } from './page-backgrounds'
 import * as PluginData from './plugin-data'
 import { nodeProxyToJSON } from './serialization'
+import { installSlotAccessors, prepareSlotMove, prepareSlotRemoval } from './slots'
+import type { FigmaLetterSpacing, FigmaLineHeight } from './text'
 import * as TextProxy from './text'
+import { containerTransform, setContainerTransform } from './transform'
 import * as Traversal from './traversal'
 import type { FigmaTransform } from './types'
 
@@ -50,6 +60,8 @@ export const INTERNAL_API = Symbol('api')
 export interface NodeProxyHost {
   wrapNode(id: string): FigmaNodeProxy
   readonly currentPageId: string
+  /** How groups and booleans refit; booleans size to their result when a renderer is attached. */
+  readonly groupFitOptions: GroupFitOptions
 }
 
 export { MIXED }
@@ -60,7 +72,8 @@ export class FigmaNodeProxy {
   [INTERNAL_API]: NodeProxyHost
 
   declare readonly id: string
-  declare readonly type: NodeType
+  /** A slot frame reads as `'SLOT'`, as Figma's `SlotNode` does. */
+  declare readonly type: NodeType | 'SLOT'
   declare name: string
   declare readonly removed: boolean
   declare x: number
@@ -68,7 +81,7 @@ export class FigmaNodeProxy {
   declare readonly width: number
   declare readonly height: number
   declare rotation: number
-  declare readonly relativeTransform: FigmaTransform
+  declare relativeTransform: FigmaTransform
   declare resize: (width: number, height: number) => void
   declare resizeWithoutConstraints: (width: number, height: number) => void
   declare rescale: (scale: number) => void
@@ -117,6 +130,11 @@ export class FigmaNodeProxy {
   declare maxWidth: number | null
   declare minHeight: number | null
   declare maxHeight: number | null
+  declare readonly targetAspectRatio: Vector | null
+  /** @deprecated Figma's alias for whether `targetAspectRatio` is set. */
+  declare constrainProportions: boolean
+  declare lockAspectRatio: () => void
+  declare unlockAspectRatio: () => void
   declare vectorPaths: readonly FigmaVectorPath[]
   declare vectorNetwork: FigmaVectorNetwork
   declare setVectorNetworkAsync: (vectorNetwork: FigmaVectorNetwork) => Promise<void>
@@ -143,11 +161,15 @@ export class FigmaNodeProxy {
   declare textAlignVertical: string
   declare textDirection: string
   declare textAutoResize: string
-  declare letterSpacing: number
-  declare lineHeight: number | null
+  declare letterSpacing: FigmaLetterSpacing
+  declare lineHeight: FigmaLineHeight
   declare textCase: string
   declare textDecoration: string
   declare maxLines: number | null
+  declare listSpacing: number | symbol
+  declare paragraphSpacing: number | symbol
+  declare paragraphIndent: number | symbol
+  declare hangingList: boolean
   declare textTruncation: string
   declare autoRename: boolean
 
@@ -186,6 +208,72 @@ export class FigmaNodeProxy {
     TextProxy.deleteCharacters(this[INTERNAL_GRAPH], this._raw(), start, end)
   }
 
+  getRangeListOptions(start: number, end: number): TextListOptions | symbol {
+    return TextProxy.getRangeListOptions(this._raw(), start, end, MIXED)
+  }
+
+  setRangeListOptions(start: number, end: number, value: TextListOptions): void {
+    assertNodeEditable(this[INTERNAL_GRAPH], this[INTERNAL_ID])
+    TextProxy.setRangeListOptions(this[INTERNAL_GRAPH], this._raw(), start, end, value)
+  }
+
+  getRangeIndentation(start: number, end: number): number | symbol {
+    return TextProxy.getRangeIndentation(this._raw(), start, end, MIXED)
+  }
+
+  setRangeIndentation(start: number, end: number, value: number): void {
+    assertNodeEditable(this[INTERNAL_GRAPH], this[INTERNAL_ID])
+    TextProxy.setRangeIndentation(this[INTERNAL_GRAPH], this._raw(), start, end, value)
+  }
+
+  getRangeListSpacing(start: number, end: number): number | symbol {
+    return TextProxy.getRangeParagraphSpacing(this._raw(), 'listSpacing', start, end, MIXED)
+  }
+
+  setRangeListSpacing(start: number, end: number, value: number): void {
+    assertNodeEditable(this[INTERNAL_GRAPH], this[INTERNAL_ID])
+    TextProxy.setRangeParagraphSpacing(
+      this[INTERNAL_GRAPH],
+      this._raw(),
+      'listSpacing',
+      start,
+      end,
+      value
+    )
+  }
+
+  getRangeParagraphSpacing(start: number, end: number): number | symbol {
+    return TextProxy.getRangeParagraphSpacing(this._raw(), 'paragraphSpacing', start, end, MIXED)
+  }
+
+  setRangeParagraphSpacing(start: number, end: number, value: number): void {
+    assertNodeEditable(this[INTERNAL_GRAPH], this[INTERNAL_ID])
+    TextProxy.setRangeParagraphSpacing(
+      this[INTERNAL_GRAPH],
+      this._raw(),
+      'paragraphSpacing',
+      start,
+      end,
+      value
+    )
+  }
+
+  getRangeParagraphIndent(start: number, end: number): number | symbol {
+    return TextProxy.getRangeParagraphSpacing(this._raw(), 'paragraphIndent', start, end, MIXED)
+  }
+
+  setRangeParagraphIndent(start: number, end: number, value: number): void {
+    assertNodeEditable(this[INTERNAL_GRAPH], this[INTERNAL_ID])
+    TextProxy.setRangeParagraphSpacing(
+      this[INTERNAL_GRAPH],
+      this._raw(),
+      'paragraphIndent',
+      start,
+      end,
+      value
+    )
+  }
+
   get isMask(): boolean {
     return this._raw().isMask
   }
@@ -218,8 +306,8 @@ export class FigmaNodeProxy {
     return getPageBackgrounds(this._raw())
   }
 
-  set backgrounds(value: readonly Fill[]) {
-    setPageBackgrounds(this[INTERNAL_GRAPH], this._raw(), value)
+  set backgrounds(value: readonly FigmaPaint[]) {
+    setPageBackgrounds(this[INTERNAL_GRAPH], this._raw(), value.map(figmaPaintToFill))
   }
 
   /** The async form Figma requires in dynamic-page mode; same result as mainComponent. */
@@ -235,22 +323,24 @@ export class FigmaNodeProxy {
     return this[INTERNAL_API].wrapNode(comp.id)
   }
 
-  createInstance(): FigmaNodeProxy {
+  createInstance(): FigmaInstanceNode {
     const n = this._raw()
     if (n.type !== 'COMPONENT') throw new Error('createInstance() can only be called on components')
     const pageId = this[INTERNAL_API].currentPageId
     const inst = this[INTERNAL_GRAPH].createInstance(n.id, pageId)
     if (!inst) throw new Error('Failed to create instance')
-    return this[INTERNAL_API].wrapNode(inst.id)
+    // `wrapNode` cannot know the node's type; this one just built an instance.
+    return this[INTERNAL_API].wrapNode(inst.id) as FigmaInstanceNode
   }
 
   /** Turns this instance into a frame that keeps its current content, like Figma's. */
-  detachInstance(): FigmaNodeProxy {
+  detachInstance(): FigmaFrameNode {
     const n = this._raw()
     if (n.type !== 'INSTANCE') throw new Error('detachInstance() can only be called on instances')
     assertNodeEditable(this[INTERNAL_GRAPH], this[INTERNAL_ID])
     this[INTERNAL_GRAPH].detachInstance(n.id)
-    return this[INTERNAL_API].wrapNode(n.id)
+    // The node is a frame once detached, which `wrapNode` has no way to tell.
+    return this[INTERNAL_API].wrapNode(n.id) as FigmaFrameNode
   }
 
   /** Points this instance at another component, as Figma's swapComponent does. */
@@ -280,13 +370,32 @@ export class FigmaNodeProxy {
   appendChild(child: FigmaNodeProxy): void {
     assertNodeEditable(this[INTERNAL_GRAPH], this[INTERNAL_ID])
     assertNodeEditable(this[INTERNAL_GRAPH], child[INTERNAL_ID])
-    this[INTERNAL_GRAPH].reparentNode(child[INTERNAL_ID], this[INTERNAL_ID])
+    prepareSlotMove(this[INTERNAL_GRAPH], this[INTERNAL_ID], child[INTERNAL_ID], 'appendChild')
+    this._reparentAndFit(child[INTERNAL_ID])
+  }
+
+  /**
+   * Moves a child here as Figma does: it keeps its transform into its container, so its `x`, `y`,
+   * and rotation stay and it moves with its new parent. The groups it left and joined refit.
+   */
+  private _reparentAndFit(childId: string): void {
+    const scene = this[INTERNAL_GRAPH]
+    const child = scene.getNode(childId)
+    if (!child) return
+    const previousParentId = child.parentId
+    const transform = containerTransform(child, scene)
+    scene.reparentNode(childId, this[INTERNAL_ID])
+    setContainerTransform(scene, child, transform)
+    const options = this[INTERNAL_API].groupFitOptions
+    fitGroupsAround(scene, previousParentId, options)
+    fitGroupsAround(scene, this[INTERNAL_ID], options)
   }
 
   insertChild(index: number, child: FigmaNodeProxy): void {
     assertNodeEditable(this[INTERNAL_GRAPH], this[INTERNAL_ID])
     assertNodeEditable(this[INTERNAL_GRAPH], child[INTERNAL_ID])
-    this[INTERNAL_GRAPH].reparentNode(child[INTERNAL_ID], this[INTERNAL_ID])
+    prepareSlotMove(this[INTERNAL_GRAPH], this[INTERNAL_ID], child[INTERNAL_ID], 'insertChild')
+    this._reparentAndFit(child[INTERNAL_ID])
     this[INTERNAL_GRAPH].reorderChild(child[INTERNAL_ID], this[INTERNAL_ID], index)
   }
 
@@ -296,12 +405,22 @@ export class FigmaNodeProxy {
     const parentId = n.parentId ?? this[INTERNAL_API].currentPageId
     const cloned = this[INTERNAL_GRAPH].cloneTree(this[INTERNAL_ID], parentId)
     if (!cloned) throw new Error(`Failed to clone node ${this[INTERNAL_ID]}`)
+    // A slot's copy is a plain frame: the slot binding belongs to the original alone.
+    if (slotPropertyId(cloned))
+      this[INTERNAL_GRAPH].updateNode(cloned.id, {
+        componentPropertyReferences: cloned.componentPropertyReferences.filter(
+          (reference) => reference.field !== 'SLOT_CONTENT'
+        )
+      })
     return this[INTERNAL_API].wrapNode(cloned.id)
   }
 
   remove(): void {
     assertNodeEditable(this[INTERNAL_GRAPH], this[INTERNAL_ID])
+    prepareSlotRemoval(this[INTERNAL_GRAPH], this[INTERNAL_ID])
+    const parentId = this._raw().parentId
     this[INTERNAL_GRAPH].deleteNode(this[INTERNAL_ID])
+    fitGroupsAround(this[INTERNAL_GRAPH], parentId, this[INTERNAL_API].groupFitOptions)
   }
 
   findAll(callback?: (node: FigmaNodeProxy) => boolean): FigmaNodeProxy[] {
@@ -428,7 +547,8 @@ const proxyInternals = {
 }
 
 installStrokeNodeProxyAccessors(FigmaNodeProxy.prototype, proxyInternals)
-installTextNodeProxyAccessors(FigmaNodeProxy.prototype, proxyInternals)
+installTextNodeProxyAccessors(FigmaNodeProxy.prototype, proxyInternals, MIXED)
 installLayoutNodeProxyAccessors(FigmaNodeProxy.prototype, proxyInternals)
 installVariableModeNodeProxyAccessors(FigmaNodeProxy.prototype, proxyInternals)
 installComponentPropertyAccessors(FigmaNodeProxy.prototype, proxyInternals)
+installSlotAccessors(FigmaNodeProxy.prototype, proxyInternals)

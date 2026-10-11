@@ -1,4 +1,4 @@
-import type { SceneNode } from '@open-pencil/scene-graph'
+import { readIcon, type SceneNode } from '@open-pencil/scene-graph'
 import type { Rect, Vector } from '@open-pencil/scene-graph/primitives'
 
 import {
@@ -28,8 +28,18 @@ export interface LabelLayout {
   maxTextWidth: number
 }
 
-export function hasFrameTitle(node: SceneNode, parent?: SceneNode | null): boolean {
-  return node.type === 'FRAME' && (!parent || parent.type === 'CANVAS' || parent.type === 'SECTION')
+const FRAME_TITLE_PARENT_TYPES = new Set(['CANVAS', 'SECTION'])
+
+/**
+ * Whether a frame shows its name above it: a frame on the page or in a section, as Figma titles
+ * them. An icon is a glyph rather than an artboard, so it goes untitled like a vector.
+ */
+export function hasFrameTitle(node: SceneNode, parentType: string | undefined): boolean {
+  return (
+    node.type === 'FRAME' &&
+    (parentType === undefined || FRAME_TITLE_PARENT_TYPES.has(parentType)) &&
+    !readIcon(node)
+  )
 }
 
 function sectionLabelLayout(
@@ -98,5 +108,30 @@ export function labelLayout(
     fontSize,
     fontWeight: 400,
     maxTextWidth
+  }
+}
+
+/** How far, in screen pixels, a label can reach outside the node it names. */
+const LABEL_REACH = Math.max(
+  LABEL_OFFSET_Y + LABEL_FONT_SIZE,
+  SECTION_TITLE_HEIGHT + SECTION_TITLE_GAP,
+  COMPONENT_LABEL_GAP + COMPONENT_LABEL_FONT_SIZE
+)
+
+/**
+ * The viewport widened by how far labels reach outside their nodes, so a node just outside the
+ * view whose name is inside it still has its name drawn and clickable.
+ */
+export function labelViewport<T extends { x: number; y: number; w: number; h: number }>(
+  viewport: T,
+  zoom: number
+): T {
+  const reach = LABEL_REACH / zoom
+  return {
+    ...viewport,
+    x: viewport.x - reach,
+    y: viewport.y - reach,
+    w: viewport.w + reach * 2,
+    h: viewport.h + reach * 2
   }
 }

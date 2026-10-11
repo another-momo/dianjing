@@ -8,11 +8,10 @@ import { computed, onMounted } from 'vue'
 import { provideEditor, useI18n } from '@open-pencil/vue'
 
 import { useDocumentCloseProtection } from '@/app/document/close/use'
-import { useEditorStore } from '@/app/editor/active-store'
+import { useFollowingEditorStore } from '@/app/editor/active-store'
 import { animationsEnabled } from '@/app/shell/motion'
 import { useAppTheme } from '@/app/shell/theme'
 import { toast } from '@/app/shell/ui'
-import { scheduleStartupUpdateCheck } from '@/app/shell/updater'
 import { kickSyncEngine } from '@/app/storage/sync'
 import { prepareForReload } from '@/app/tabs'
 import { startDomMeters } from '@/components/assistant/dom-meters'
@@ -25,8 +24,7 @@ import SettingsDialog from '@/components/settings/SettingsDialog.vue'
 import AppShell from '@/components/shell/AppShell.vue'
 import Toaster from '@/components/shell/Toaster.vue'
 
-const store = useEditorStore()
-const { updates, locale } = useI18n()
+const { locale } = useI18n()
 
 useHead({
   titleTemplate: (title) => (title ? `${title} — 点睛设计` : '点睛设计'),
@@ -36,7 +34,7 @@ useHead({
   }
 })
 
-provideEditor(store)
+provideEditor(useFollowingEditorStore())
 useAppTheme()
 useDocumentCloseProtection()
 useEventListener(window, 'pagehide', () => {
@@ -45,7 +43,6 @@ useEventListener(window, 'pagehide', () => {
 
 onMounted(() => {
   toast.setupGlobalErrorHandler()
-  scheduleStartupUpdateCheck(updates)
   void kickSyncEngine()
   startDomMeters()
 })

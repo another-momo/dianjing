@@ -259,7 +259,7 @@ export const placeImageFromBytesTool = defineTool({
   exposure: { ai: false, mcp: false, webmcp: false },
   description:
     'INTERNAL pipeline segment — called by the pi-backend load_image orchestrator, not meant for direct AI use. Places image bytes (base64) on the canvas: raster (PNG/JPEG/WEBP/GIF/BMP) goes through a real decode gate and a 64MP pixel cap before becoming an IMAGE-fill rectangle; SVG is vectorized into shape nodes. With replace_id, fills an existing node instead (raster only). Returns {id, width, height, imageHash}.',
-  input: v.object({
+  input: v.strictObject({
     name: v.pipe(v.string(), v.description('Original file name (used for node naming)')),
     image_data: v.pipe(v.string(), v.description('Base64-encoded image bytes')),
     mime: v.pipe(

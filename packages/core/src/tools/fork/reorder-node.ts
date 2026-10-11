@@ -15,7 +15,7 @@ export const reorderNodeTool = defineTool({
     'from its current position). Omit parent_id to reorder within the current parent; set ' +
     'parent_id to move the node under a different parent.',
   execution: { kind: 'sync', mutation: 'document' },
-  input: v.object({
+  input: v.strictObject({
     id: v.pipe(v.string(), v.description('Node ID to reorder')),
     parent_id: v.optional(
       v.pipe(

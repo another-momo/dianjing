@@ -1,44 +1,24 @@
-import type { LayoutMode, SceneGraph, SceneNode } from '@open-pencil/scene-graph'
+import {
+  aspectRatioLockEditable,
+  layoutSizing,
+  layoutSizingError,
+  layoutSizingUpdates,
+  lockedAspectRatioTarget,
+  type LayoutMode,
+  type LayoutSizing,
+  type LayoutSizingAxis,
+  type SceneNode,
+  type Vector
+} from '@open-pencil/scene-graph'
 
 import {
+  assertProxyEditable,
+  graph,
   raw,
   updateNode,
   type NodeProxyInternals,
   type ProxyThis
 } from '#core/figma-api/accessor-utils'
-
-function graph(target: ProxyThis, internals: NodeProxyInternals): SceneGraph {
-  return target[internals.graph] as SceneGraph
-}
-
-function parentLayout(
-  target: ProxyThis,
-  internals: NodeProxyInternals
-): 'HORIZONTAL' | 'VERTICAL' | 'NONE' {
-  const node = raw(target, internals)
-  if (!node.parentId) return 'NONE'
-  const parent = graph(target, internals).getNode(node.parentId)
-  if (!parent) return 'NONE'
-  const mode = parent.layoutMode
-  return mode === 'HORIZONTAL' || mode === 'VERTICAL' ? mode : 'NONE'
-}
-
-function setLayoutSizing(
-  target: ProxyThis,
-  internals: NodeProxyInternals,
-  axis: 'HORIZONTAL' | 'VERTICAL',
-  value: string
-): void {
-  const node = raw(target, internals)
-  const layout = node.layoutMode !== 'NONE' ? node.layoutMode : parentLayout(target, internals)
-  const isHorizontal = axis === 'HORIZONTAL'
-  const usesCounterAxis = isHorizontal ? layout === 'VERTICAL' : layout === 'HORIZONTAL'
-  const updates: Partial<SceneNode> = usesCounterAxis
-    ? { counterAxisSizing: value as SceneNode['counterAxisSizing'] }
-    : { primaryAxisSizing: value as SceneNode['primaryAxisSizing'] }
-  if (parentLayout(target, internals) === axis) updates.layoutGrow = value === 'FILL' ? 1 : 0
-  updateNode(target, internals, updates)
-}
 
 export function installLayoutNodeProxyAccessors(
   prototype: object,
@@ -98,7 +78,40 @@ export function installLayoutNodeProxyAccessors(
     minWidth: simpleAccessor(internals, 'minWidth'),
     maxWidth: simpleAccessor(internals, 'maxWidth'),
     minHeight: simpleAccessor(internals, 'minHeight'),
-    maxHeight: simpleAccessor(internals, 'maxHeight')
+    maxHeight: simpleAccessor(internals, 'maxHeight'),
+    targetAspectRatio: {
+      get(this: ProxyThis): Vector | null {
+        const target = raw(this, internals).targetAspectRatio
+        return target ? { ...target } : null
+      }
+    },
+    constrainProportions: {
+      get(this: ProxyThis): boolean {
+        return raw(this, internals).targetAspectRatio !== null
+      },
+      set(this: ProxyThis, value: boolean) {
+        setAspectRatioLock(this, internals, value)
+      }
+    }
+  })
+
+  Object.assign(prototype, {
+    lockAspectRatio(this: ProxyThis): void {
+      setAspectRatioLock(this, internals, true)
+    },
+    unlockAspectRatio(this: ProxyThis): void {
+      setAspectRatioLock(this, internals, false)
+    }
+  })
+}
+
+/** Figma ignores the call, without an error, on a layer inside an instance. */
+function setAspectRatioLock(target: ProxyThis, internals: NodeProxyInternals, locked: boolean) {
+  assertProxyEditable(target, internals)
+  const node = raw(target, internals)
+  if (!aspectRatioLockEditable(graph(target, internals), node)) return
+  updateNode(target, internals, {
+    targetAspectRatio: locked ? lockedAspectRatioTarget(node.width, node.height) : null
   })
 }
 
@@ -112,25 +125,36 @@ function axisSizingModeAccessor(
       return value === 'HUG' ? 'AUTO' : value
     },
     set(this: ProxyThis, value: string) {
-      const mapped = value === 'AUTO' ? 'HUG' : value
-      updateNode(this, internals, { [field]: mapped } as Partial<SceneNode>)
+      if (value !== 'FIXED' && value !== 'AUTO') {
+        throw new TypeError(`Invalid ${field}Mode: ${String(value)}`)
+      }
+      updateNode(this, internals, { [field]: value === 'AUTO' ? 'HUG' : 'FIXED' })
     }
   }
 }
 
+const LAYOUT_SIZINGS = new Set<unknown>(['FIXED', 'HUG', 'FILL'] satisfies LayoutSizing[])
+
+function isLayoutSizing(value: unknown): value is LayoutSizing {
+  return LAYOUT_SIZINGS.has(value)
+}
+
 function layoutSizingAccessor(
   internals: NodeProxyInternals,
-  axis: 'HORIZONTAL' | 'VERTICAL'
+  axis: LayoutSizingAxis
 ): PropertyDescriptor {
+  const property = axis === 'HORIZONTAL' ? 'layoutSizingHorizontal' : 'layoutSizingVertical'
   return {
-    get(this: ProxyThis): string {
-      const node = raw(this, internals)
-      const layout = node.layoutMode !== 'NONE' ? node.layoutMode : parentLayout(this, internals)
-      if (layout === 'NONE') return 'FIXED'
-      return layout === axis ? node.primaryAxisSizing : node.counterAxisSizing
+    get(this: ProxyThis): LayoutSizing {
+      return layoutSizing(graph(this, internals), raw(this, internals), axis)
     },
-    set(this: ProxyThis, value: string) {
-      setLayoutSizing(this, internals, axis, value)
+    set(this: ProxyThis, value: unknown) {
+      if (!isLayoutSizing(value)) throw new TypeError(`Invalid ${property}: ${String(value)}`)
+      const sceneGraph = graph(this, internals)
+      const node = raw(this, internals)
+      const error = layoutSizingError(sceneGraph, node, value)
+      if (error) throw new Error(`in set_${property}: ${error}`)
+      updateNode(this, internals, layoutSizingUpdates(sceneGraph, node, axis, value))
     }
   }
 }

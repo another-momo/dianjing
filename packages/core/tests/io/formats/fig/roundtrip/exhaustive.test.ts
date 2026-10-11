@@ -1,5 +1,9 @@
 import { beforeAll, afterAll, describe, expect, test, spyOn, setDefaultTimeout } from 'bun:test'
 
+import {
+  expectSaveLoadedOnlyInternalPages,
+  snapshotNodes
+} from '#core-tests/helpers/fig/save-contract'
 import { unzipSync } from 'fflate'
 
 import {
@@ -76,6 +80,9 @@ function buildPathMap(graph: SceneGraph): Map<string, SceneNode> {
   }
   return map
 }
+
+/** `SceneNode` has no index signature; the generic comparison reads its fields by name. */
+const nodeFields = (node: SceneNode): Map<string, unknown> => new Map(Object.entries(node))
 
 // oxlint-disable-next-line eslint(complexity)
 function deepCompare(
@@ -231,10 +238,12 @@ function compareSceneProps(
   for (const [p, aNode] of aNodes) {
     const bNode = bNodes.get(p)
     if (!bNode) continue
-    for (const k of new Set([...Object.keys(aNode as object), ...Object.keys(bNode as object)])) {
+    const aFields = nodeFields(aNode)
+    const bFields = nodeFields(bNode)
+    for (const k of new Set([...aFields.keys(), ...bFields.keys()])) {
       if (SKIP_KEYS.has(k)) continue
       if (k === 'source') continue
-      deepCompare((aNode as JSONObject)[k], (bNode as JSONObject)[k], k, p, opts)
+      deepCompare(aFields.get(k), bFields.get(k), k, p, opts)
     }
   }
   if (errors.length > 0) throw new Error(`${label} scene props:\n${summarize(errors)}`)
@@ -270,8 +279,8 @@ function compareRawNodeFields(
   for (const [p, aNode] of aNodes) {
     const bNode = bNodes.get(p)
     if (!bNode) continue
-    const aRaw = (aNode as JSONObject).source as JSONObject | undefined
-    const bRaw = (bNode as JSONObject).source as JSONObject | undefined
+    const aRaw = nodeFields(aNode).get('source') as JSONObject | undefined
+    const bRaw = nodeFields(bNode).get('source') as JSONObject | undefined
     const aFig = aRaw?.fig as JSONObject | undefined
     const bFig = bRaw?.fig as JSONObject | undefined
     const aFields = aFig?.rawNodeFields as JSONObject | undefined
@@ -531,16 +540,16 @@ function verifyFixture(spec: FixtureSpec): void {
       expect(g2Export).toEqual(g1Export)
     })
 
-    test('edited export re-encodes the document without mutating unloaded source pages', async () => {
+    test('edited export re-encodes the document without loading unloaded visible pages', async () => {
       await g0Ready
       const edited = await parseFigFile(g0Bytes.slice(0), { populate: 'first-page' })
       const page = edited.getPages()[0]
       const name = `${page.name} (edited)`
       edited.updateNode(page.id, { name })
-      const before = structuredClone([...edited.nodes])
+      const before = snapshotNodes(edited)
       const bytes = await exportFigFile(edited)
       expect(bytes).not.toEqual(new Uint8Array(g0Bytes))
-      expect([...edited.nodes]).toEqual(before)
+      expectSaveLoadedOnlyInternalPages(edited, before)
       const reopened = await parseFigFile(bytes.slice().buffer as ArrayBuffer)
       expect(reopened.getPages()[0].name).toBe(name)
       expect(reopened.figSchemaDeflated).toEqual(edited.figSchemaDeflated)

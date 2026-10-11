@@ -1,4 +1,4 @@
-import type { SceneNode } from '@open-pencil/scene-graph'
+import { readIcon, type SceneNode } from '@open-pencil/scene-graph'
 
 import type { EditorCommandMapOptions } from './context'
 import type { EditorCommand, EditorCommandId } from './types'
@@ -124,6 +124,19 @@ export function createSelectionCommands({
       enabled: capabilities.canDetachInstance,
       run: () => editor.detachInstance()
     },
+    'selection.detachIcon': {
+      id: 'selection.detachIcon',
+      get label() {
+        return t.value.detachIcon
+      },
+      enabled: capabilities.canDetachIcon,
+      run: () => {
+        const icons = editor.getSelectedNodes().filter((node) => readIcon(node))
+        editor.undo.runBatch('Detach icon', () => {
+          for (const icon of icons) editor.detachIcon(icon.id)
+        })
+      }
+    },
     'selection.goToMainComponent': {
       id: 'selection.goToMainComponent',
       get label() {
@@ -131,6 +144,14 @@ export function createSelectionCommands({
       },
       enabled: capabilities.canGoToMainComponent,
       run: () => void editor.goToMainComponent()
+    },
+    'selection.createSlot': {
+      id: 'selection.createSlot',
+      get label() {
+        return t.value.createSlot
+      },
+      enabled: capabilities.canCreateSlot,
+      run: () => void editor.createSlot()
     },
     'selection.wrapInAutoLayout': {
       id: 'selection.wrapInAutoLayout',

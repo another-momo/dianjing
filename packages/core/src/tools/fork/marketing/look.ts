@@ -293,7 +293,7 @@ export const lookTool = defineTool({
   exposure: { mcp: false, webmcp: false },
   description:
     'Visually inspect a node by rendering it to an image you can actually see. Use for questions describe cannot answer: text over busy backgrounds, visual style consistency, generated-image content (e.g. garbled text in AI images), or what a user-provided image shows. For text legibility on a large design, look at the section or text-bearing child node, not the root — the tool tells you when text is too small to read and lists child node ids to drill into. Nodes whose appearance depends on their surroundings (transparent frames, light text over images) are automatically rendered in their design context, and small nodes are upscaled to a legible size — both declared in the note. Observations are advisory — structural concerns (layout, hierarchy, alignment) come from `describe`; what the eye sees is not a substitute.',
-  input: v.object({
+  input: v.strictObject({
     id: v.pipe(
       v.string(),
       v.description(

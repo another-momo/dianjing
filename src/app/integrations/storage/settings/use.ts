@@ -1,5 +1,5 @@
 import { tryOnMounted, tryOnScopeDispose } from '@vueuse/core'
-import { isEqual } from 'es-toolkit'
+import { isEqual, uniq } from 'es-toolkit'
 import { computed, ref, watch, type Ref } from 'vue'
 
 import {
@@ -13,6 +13,7 @@ import { appCredentialServices } from '@/app/settings/credentials/app'
 import { credentialRef } from '@/app/settings/credentials/reference'
 import type { CredentialStatus } from '@/app/settings/credentials/types'
 import { resumeStorageSync } from '@/app/storage/sync'
+import { emitStorageWorkspaceEvent } from '@/app/storage/workspace/events'
 
 import { testStorageDraft } from './draft'
 
@@ -22,9 +23,12 @@ const storageSettingsServices = {
   statuses: storageCredentialStatuses,
   manager: appCredentialServices.manager,
   test: testStorageDraft,
-  resume: resumeStorageSync
+  resume: resumeStorageSync,
+  changed: (providerId: StorageProviderID) =>
+    emitStorageWorkspaceEvent({ providerId, kind: 'changed' })
 }
 
+import type { StorageProviderID } from '@/app/integrations/storage/types'
 import type { SettingsSaveResult } from '@/app/settings/save-result'
 
 export function useStorageSettings(
@@ -107,7 +111,7 @@ export function useStorageSettings(
   function clearCredential(field: string) {
     if (busy.value || !provider.value.credentialFields.some((item) => item.id === field)) return
     credentialDrafts.value = { ...credentialDrafts.value, [field]: '' }
-    cleared.value = [...new Set([...cleared.value, field])]
+    cleared.value = uniq([...cleared.value, field])
   }
 
   async function save(): Promise<SettingsSaveResult> {
@@ -154,6 +158,8 @@ export function useStorageSettings(
       return result
     } finally {
       operation.value = null
+      // The home workspace stays mounted and lists storage only when told to.
+      if (persisted) services.changed(target.id)
     }
   }
 

@@ -1,4 +1,4 @@
-import type { Tool } from '@open-pencil/core/editor'
+import type { MovePlace, Tool } from '@open-pencil/core/editor'
 import type {
   DerivedTextGlyph,
   GeometryPath,
@@ -11,14 +11,24 @@ import type {
 import type { Rect, Vector } from '@open-pencil/scene-graph/primitives'
 import type { ResizeSnapshot } from '@open-pencil/scene-graph/resize'
 
+import type { FlowDrag } from '#vue/shared/input/flow-reorder'
+import type { LayerSizing } from '#vue/shared/input/resize/sizing'
+
 export type HandlePosition = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
 
 export type CornerPosition = 'nw' | 'ne' | 'se' | 'sw'
 
 export interface DragDraw {
   type: 'draw'
+  /** Start point in the parent's axes. */
   startX: number
   startY: number
+  /** Maps a canvas point into the parent's axes. */
+  toLocal: (x: number, y: number) => Vector
+  /** A line is drawn by its length and angle, as in Figma, not as a box. */
+  line?: boolean
+  /** Lands a coordinate on the pixel grid while Snap to pixel grid is on. */
+  snap: (value: number) => number
   nodeId: string
   update: (changes: Partial<SceneNode>) => void
   commit: () => void
@@ -36,11 +46,23 @@ export interface DragMove {
   startScreenX: number
   startScreenY: number
   dragStarted: boolean
-  originals: Map<string, { x: number; y: number; parentId: string }>
+  originals: Map<string, MovePlace>
   duplicated?: boolean
   duplicatedPreviousSelection?: Set<string>
   autoLayoutParentId?: string
   brokeFromAutoLayout?: boolean
+  /** The auto layout flows the moved layers are dragged along, as blocks. */
+  flows?: FlowDrag[]
+  /** Each flow's slot for the block where the drag has reached. */
+  flowSlots?: number[]
+  /** Space is held: layers keep their parents wherever they are dropped. */
+  keepParents?: boolean
+  /** Control is held: auto layout frames take the layers as absolute-positioned children. */
+  ignoreAutoLayout?: boolean
+  /** Selected instead if the press ends as a click without dragging. */
+  selectOnClick?: string
+  /** Where Control drops layers among an auto layout frame's children. */
+  absoluteInsertIndex?: number
 }
 
 export interface DragPan {
@@ -67,13 +89,25 @@ export interface DragResize {
   origTextPathData: TextPathData | null
   origTextPathBox: Rect | null
   origChildren: Map<string, ResizeSnapshot> | null
+  /** The ratio the layer is locked to, kept unless Control frees it. */
+  lockedAspectRatio: number | null
+  /** Whether the latest step set the lock aside, so the commit stores the new size. */
+  freesLock?: boolean
   appliedRect?: Rect
+  /** The layer's edited fields before the drag marked its size, to put back if it changes nothing. */
+  origEditedFields?: string[]
+  /** The layer's sizing before the drag, taken on its first step. */
+  origSizing?: LayerSizing
+  /** The sizing the latest step left, which the commit keeps. */
+  appliedSizing?: LayerSizing
 }
 
 export interface DragMarquee {
   type: 'marquee'
   startX: number
   startY: number
+  /** The open frame or section the marquee started in, whose layers it selects. */
+  containerId?: string
 }
 
 export interface DragRotate {
@@ -149,8 +183,28 @@ export interface DragGuide {
   originalPosition?: number
 }
 
+/** Dragging a handle or stop of the gradient whose picker is open. */
+export interface DragGradient {
+  type: 'gradient'
+  /** Moves the dragged handle or stop to a screen point. */
+  update: (screenX: number, screenY: number, shiftKey: boolean) => void
+  commit: () => void
+  cancel: () => void
+}
+
+/** Dragging a radius, point count, or ratio handle of the selected rectangle, polygon, or star. */
+export interface DragShapeHandle {
+  type: 'shape-handle'
+  /** Sets the value under a screen point; Shift rounds a radius to tens. */
+  update: (screenX: number, screenY: number, shiftKey: boolean) => void
+  commit: () => void
+  cancel: () => void
+}
+
 export type DragState =
+  | DragShapeHandle
   | DragDraw
+  | DragGradient
   | DragMove
   | DragPan
   | DragResize

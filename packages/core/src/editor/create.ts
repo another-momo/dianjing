@@ -8,10 +8,17 @@ import { UndoManager } from '@open-pencil/scene-graph/undo'
 import type { SkiaRenderer } from '#core/canvas/renderer'
 import { prefetchFigmaSchema } from '#core/clipboard'
 import { hasWindowGlobal } from '#core/constants'
+import {
+  getPageColor,
+  hasStoredBackground,
+  setDefaultPageBackground
+} from '#core/figma-api/page-backgrounds'
+import { iconify } from '#core/icons'
 import { releaseFigPopulationWorker } from '#core/kiwi/fig/population/client'
 import { releaseOriginalFigArchive } from '#core/kiwi/fig/session/original-archive'
-import { computeAllLayouts, setTextMeasurer } from '#core/layout'
+import { computeAllLayouts, installTextMeasurer } from '#core/layout'
 import { createLayoutRunner } from '#core/layout/mutations'
+import { textAutoResizeChanges } from '#core/layout/text-auto-resize'
 import { emitNavigationTrace } from '#core/profiler'
 import { TextEditor } from '#core/text/editor'
 import { fontManager } from '#core/text/fonts'
@@ -20,23 +27,29 @@ import { fontResolver } from '#core/text/resolver'
 import { createAlignmentActions } from './alignment'
 import { createClipboardBridge } from './bridges/clipboard'
 import { createComponentBridge } from './bridges/components'
+import { createLintFixBridge } from './bridges/lint'
 import { createStructureBridge } from './bridges/structure'
 import { createUndoBridge } from './bridges/undo'
 import { createClipboardActions } from './clipboard'
 import { createColorSpaceActions } from './color-space'
 import { createComponentSyncScheduler } from './component-sync'
 import { createComponentActions } from './components'
+import { createDesignTokenActions } from './design-tokens'
 import { createGraphEventSubscription } from './graph-events'
 import { createGraphReadActions } from './graph-reads'
 import { createGuideActions } from './guides'
+import { createIconActions } from './icons'
+import { createDesignIssueActions } from './issues'
 import { createNodeActions } from './nodes'
 import { createPageActions } from './pages'
+import { createPlayActions } from './play/actions'
 import { createSelectionActions } from './selection'
+import { createShaderActions } from './shaders/actions'
+import { createShaderFrames } from './shaders/frames'
 import { createShapeActions } from './shapes'
 import { createDefaultEditorState } from './state'
 import { createStructureActions } from './structure'
 import { createTextActions } from './text'
-import { textAutoResizeChanges } from './text/auto-resize'
 import type {
   EditorContext,
   EditorEventName,
@@ -65,6 +78,7 @@ export function createEditor(options?: EditorOptions) {
   let _ck: CanvasKit | null = null
   let _renderer: SkiaRenderer | null = null
   const _renderers = new Set<SkiaRenderer>()
+  let uninstallTextMeasurer: (() => void) | null = null
   const interactiveEdits = new Set<symbol>()
   let _textEditor: TextEditor | null = null
   const events: Emitter<EditorEvents> = createNanoEvents()
@@ -126,6 +140,7 @@ export function createEditor(options?: EditorOptions) {
   function requestRender() {
     state.renderVersion++
     state.sceneVersion++
+    state.canvasVersion++
     emitNavigationTrace('render:requested', {
       kind: 'render',
       renderVersion: state.renderVersion,
@@ -135,6 +150,19 @@ export function createEditor(options?: EditorOptions) {
       renderVersion: state.renderVersion,
       sceneVersion: state.sceneVersion
     })
+  }
+
+  /**
+   * The caret or selection of the edited text moved: the canvas repaints its overlay and the
+   * views that follow the selection update, without the document counting as changed.
+   */
+  function textSelectionChanged() {
+    state.textSelectionVersion++
+    requestRepaint()
+  }
+
+  function requestRefresh() {
+    state.sceneVersion++
   }
 
   function requestRepaint() {
@@ -219,6 +247,13 @@ export function createEditor(options?: EditorOptions) {
 
   if (!skipInitialGraphSetup) {
     subscribeToGraph()
+    // A new document's first page takes Figma's background for the interface theme the app gives;
+    // a page that already has one keeps it.
+    const firstPage = _graph.getPages()[0]
+    if (options?.state?.theme && !hasStoredBackground(firstPage)) {
+      setDefaultPageBackground(_graph, firstPage, options.state.theme)
+      options.state.pageColor = getPageColor(firstPage)
+    }
   }
 
   // Build the shared context
@@ -234,10 +269,13 @@ export function createEditor(options?: EditorOptions) {
     loadFont: _loadFont,
     resolveFigmaClipboardImages: options?.resolveFigmaClipboardImages ?? null,
     getViewportSize: _getViewportSize,
+    icons: options?.icons ?? iconify,
     getCk: () => _ck,
     getRenderer: () => _renderer,
+    getRenderers: () => _renderers,
     getTextEditor: () => _textEditor,
     requestRender,
+    requestRefresh,
     requestRepaint,
     beginInteractiveEdit,
     onEditorEvent,
@@ -253,8 +291,10 @@ export function createEditor(options?: EditorOptions) {
   // Assemble domain modules
   const viewport = createViewportActions(ctx)
   const selection = createSelectionActions(ctx)
-  const pages = createPageActions(ctx)
+  const shaderFrames = createShaderFrames(ctx, options)
+  const pages = createPageActions(ctx, shaderFrames)
   const guides = createGuideActions(ctx)
+  const designIssues = createDesignIssueActions(ctx)
   const shapes = createShapeActions(ctx)
   const structure = createStructureActions(ctx)
   const components = createComponentActions(ctx)
@@ -264,23 +304,43 @@ export function createEditor(options?: EditorOptions) {
   const text = createTextActions(ctx)
   const nodes = createNodeActions(ctx)
   const variables = createVariableActions(ctx)
+  const designTokens = createDesignTokenActions(ctx, variables, nodes)
   const vectorize = createVectorizeActions(ctx)
+  const icons = createIconActions(ctx)
+  const shaders = createShaderActions(ctx, nodes)
   const alignment = createAlignmentActions(ctx)
+  const preview = createPlayActions(ctx)
   const clipboardBridge = createClipboardBridge(clipboard, selection)
   const componentBridge = createComponentBridge(components, selection, structure, pages)
   const structureBridge = createStructureBridge(structure, selection)
-  const undoBridge = createUndoBridge(undoActions, selection)
+  const undoBridge = createUndoBridge(undoActions, selection, nodes.flushNudge)
+  const lintFixBridge = createLintFixBridge(ctx, nodes, structure, clipboard)
+
+  // The edited text follows changes made outside the editor, such as a panel field being
+  // dragged, so its caret and selection move with the text instead of after the change.
+  const invalidateEditedText = (id: string) => {
+    if (id !== state.editingTextId) return
+    const node = _graph.getNode(id)
+    if (node) _textEditor?.invalidateParagraph(node)
+  }
+  onEditorEvent('node:updated', invalidateEditedText)
+  onEditorEvent('node:previewUpdated', invalidateEditedText)
 
   function setCanvasKit(ck: CanvasKit, renderer: SkiaRenderer) {
     _ck = ck
     _renderer = renderer
     _renderers.add(renderer)
     _textEditor ??= new TextEditor(ck)
-    setTextMeasurer(
+    uninstallTextMeasurer?.()
+    uninstallTextMeasurer =
       typeof renderer.measureTextNode === 'function'
-        ? (node, maxWidth) => renderer.measureTextNode(node, maxWidth)
+        ? installTextMeasurer((node, maxWidth) => renderer.measureTextNode(node, maxWidth))
         : null
-    )
+  }
+
+  function releaseTextMeasurer() {
+    uninstallTextMeasurer?.()
+    uninstallTextMeasurer = null
   }
 
   function removeCanvasRenderer(renderer: SkiaRenderer) {
@@ -288,6 +348,7 @@ export function createEditor(options?: EditorOptions) {
     if (_renderer === renderer) {
       _renderer = _renderers.values().next().value ?? null
     }
+    if (_renderers.size === 0) releaseTextMeasurer()
   }
 
   function replaceGraph(newGraph: SceneGraph) {
@@ -299,6 +360,7 @@ export function createEditor(options?: EditorOptions) {
     state.currentPageId = _graph.getPages()[0]?.id ?? _graph.rootId
     setSelectedIds(new Set())
     state.hoveredNodeId = null
+    state.transforming = false
     state.measurementMode = 'off'
     state.snapGuides = []
     state.guides = { preview: null, hovered: null, selected: null, redline: null }
@@ -314,6 +376,7 @@ export function createEditor(options?: EditorOptions) {
   }
 
   function dispose() {
+    releaseTextMeasurer()
     nodes.cancelNodePreviews()
     interactiveEdits.clear()
     if (fontSettleRelayoutTimer !== null) clearTimeout(fontSettleRelayoutTimer)
@@ -351,6 +414,8 @@ export function createEditor(options?: EditorOptions) {
     beginInteractiveEdit,
     isInteractiveEditing: () => interactiveEdits.size > 0,
     requestRender,
+    requestRefresh,
+    textSelectionChanged,
     requestRepaint,
     onEditorEvent,
     setCanvasKit,
@@ -369,6 +434,7 @@ export function createEditor(options?: EditorOptions) {
 
     // Canvas and frame guides
     ...guides,
+    ...designIssues,
 
     // Shapes & tools
     ...shapes,
@@ -382,11 +448,18 @@ export function createEditor(options?: EditorOptions) {
     // Alignment (align, flip, rotate)
     ...alignment,
 
+    // Preview: instances with a behaviour respond to the pointer on this canvas
+    ...preview,
+
     // Bitmap-to-vector replacement
     ...vectorize,
+    ...icons,
+    ...shaders,
+    ...shaderFrames,
 
     // Variables
     ...variables,
+    ...designTokens,
 
     // Text editing
     ...text,
@@ -396,6 +469,9 @@ export function createEditor(options?: EditorOptions) {
 
     // Undo — bridge functions that need cross-module refs
     ...undoBridge,
+    // While text is edited, what was typed undoes first and the editor keeps the result.
+    undoAction: () => text.runTextEditStep(undoBridge.undoAction),
+    redoAction: () => text.runTextEditStep(undoBridge.redoAction),
 
     setDocumentColorSpace: colorSpace.setDocumentColorSpace,
 
@@ -406,7 +482,10 @@ export function createEditor(options?: EditorOptions) {
     ...componentBridge,
 
     // Structure — bridge functions that need selectedNodes
-    ...structureBridge
+    ...structureBridge,
+
+    // Lint fixes, which touch nodes, structure and deletion in one undo step
+    ...lintFixBridge
   }
 }
 

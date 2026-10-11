@@ -47,7 +47,7 @@ export const readBriefTool = defineTool({
   exposure: { mcp: false, webmcp: false },
   description:
     'Read the 需求单 (design brief) in one call — content text, material entries (each with imageNodeId for `look`, caption, hasImage), AI conclusions (with per-design attribution), and the designs registered in its 关联设计区 (id + name; deleted designs are tombstoned, not removed). Pass briefId when several briefs exist on the page; without it the page must contain exactly one brief, otherwise the result is { brief: null, ambiguous: true, candidates } — ask the user which brief to use, do NOT create another one. Returns { brief: null } when no brief exists — a normal state, not an error; the marketing workflow then creates one with create_brief. Prefer this over find_nodes + describe when looking for the brief.',
-  input: v.object({
+  input: v.strictObject({
     briefId: v.optional(
       v.pipe(
         v.string(),
@@ -112,7 +112,7 @@ export const createBriefTool = defineTool({
   exposure: { mcp: false, webmcp: false },
   description:
     "Create a 需求单 (design brief) frame on the canvas with the four-zone structure (内容区 / 素材区 / AI结论区 / 关联设计区), placed to the right of existing content. The marketing workflow calls this directly when read_brief reports none exists — no need to ask the user first. Pass the user's original request verbatim as initial_content — it is transcribed into the content zone as-is (never embellished, paraphrased, or expanded); beyond that transcription the AI never invents brief content. Idempotent: when the page already has exactly one brief, nothing is created and the result is { briefId, created: false }. When the page has MULTIPLE briefs there is no way to tell which one to extend — the result is { created: false, ambiguous: true, candidates }; ask the user instead of creating yet another one.",
-  input: v.object({
+  input: v.strictObject({
     initial_content: v.optional(
       v.pipe(
         v.string(),
@@ -154,7 +154,7 @@ export const appendBriefConclusionTool = defineTool({
   exposure: { mcp: false, webmcp: false },
   description:
     'Append one confirmed conclusion line to the AI结论区 of the 需求单 (design brief) — locked direction, confirmed campaign facts, or a one-line material description. Styling and placement are handled automatically; pass only the conclusion text (one line, no leading "·"). Append-only by design: existing lines cannot be edited or removed. Pass design_id to attribute the line to that design (it lands in the design\'s own group); pass briefId when several briefs exist on the page, otherwise the result is { ok: false, ambiguous: true, candidates }. Returns { ok: false } when no brief exists — create one first with create_brief.',
-  input: v.object({
+  input: v.strictObject({
     text: v.pipe(
       v.string(),
       v.description('One conclusion line, e.g. "方向A：水彩萌趣（嫩绿 #A8D5BA / 米白 #F5EFE0）".')

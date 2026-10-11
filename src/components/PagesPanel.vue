@@ -13,7 +13,10 @@ import { ref, watch, type ComponentPublicInstance } from 'vue'
 import type { SceneNode } from '@open-pencil/scene-graph'
 import { PageListRoot, useFlatReorderDrag, useI18n, useInlineRename } from '@open-pencil/vue'
 
+import { useActiveEditorStoreRef } from '@/app/editor/active-store'
+import { appPreferences } from '@/app/settings/preferences/store'
 import { useLocusState } from '@/components/assistant/locus-state'
+import PageIssueBadge from '@/components/design-check/PageIssueBadge.vue'
 import IconButton from '@/components/ui/button/IconButton.vue'
 import { useMenuUI } from '@/components/ui/menu/menu'
 import pageListTheme from '@/theme/page-list'
@@ -30,11 +33,19 @@ const pageInput = templateRef<HTMLInputElement>('pageInput')
 const rename = useInlineRename((id, name) => pageActions.value?.rename(id, name))
 const { panels, pages: pageMessages } = useI18n()
 const menuCls = useMenuUI({
-  content: 'min-w-36 shadow-[0_8px_30px_rgb(0_0_0/0.4)]',
+  content: 'min-w-36',
   item: 'justify-start gap-2'
 })
 const pageListStyles = tv(pageListTheme)
 const baseStyles = pageListStyles()
+
+const storeRef = useActiveEditorStoreRef()
+
+/** Errors and warnings per page, following the View → Design issues toggle like the markers. */
+function pageIssues(pageId: string) {
+  if (!appPreferences.value.designCheck.showOnCanvas) return null
+  return storeRef.value?.designCheck.pages.counts.value.get(pageId) ?? null
+}
 
 const pageActions = ref<Pick<PageActions, 'rename'> | null>(null)
 const currentPages = ref<readonly PageItem[]>([])
@@ -132,6 +143,7 @@ function setupPageRowRef(
                   <input
                     ref="pageInput"
                     data-test-id="pages-item-input"
+                    :aria-label="pageMessages.pageNameLabel"
                     :class="pageStyles(pg, currentPageId).renameInput()"
                     :value="pg.name"
                     @blur="rename.commit(pg.id, $event)"
@@ -164,6 +176,9 @@ function setupPageRowRef(
                     aria-hidden="true"
                   >
                     <span class="inline-block size-1.5 animate-pulse rounded-full bg-accent" />
+                  </span>
+                  <span :class="pageStyles(pg, currentPageId).trailing()">
+                    <PageIssueBadge :counts="pageIssues(pg.id)" />
                   </span>
                 </button>
                 <div

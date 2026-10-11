@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 
 import { SkiaRenderer } from '@open-pencil/core/canvas'
 import { BLACK, TRANSPARENT } from '@open-pencil/core/constants'
@@ -8,6 +8,14 @@ import { fontManager } from '@open-pencil/core/text'
 
 import { textNodeToOutlineLayout } from '#core/text/outlines'
 
+const cleanups: (() => void)[] = []
+
+// A renderer installs the shared layout text measurer until its editor is disposed; left
+// installed, it measures text in later files without their fonts.
+afterEach(() => {
+  for (const cleanup of cleanups.splice(0)) cleanup()
+})
+
 async function createEditorWithRenderer() {
   const ck = await initCanvasKit()
   const surface = ck.MakeSurface(200, 200)
@@ -15,7 +23,11 @@ async function createEditorWithRenderer() {
   const renderer = new SkiaRenderer(ck, surface)
   const editor = createEditor()
   editor.setCanvasKit(ck, renderer)
-  return { editor, surface }
+  cleanups.push(() => {
+    editor.dispose()
+    renderer.destroy()
+  })
+  return { editor, renderer }
 }
 
 async function loadInterRegular() {
@@ -40,7 +52,7 @@ async function loadNotoSansSC() {
 
 describe('flattenSelected', () => {
   test('converts selected shapes into a vector path', async () => {
-    const { editor, surface } = await createEditorWithRenderer()
+    const { editor } = await createEditorWithRenderer()
     const pageId = editor.state.currentPageId
     const first = editor.graph.createNode('RECTANGLE', pageId, {
       x: 10,
@@ -68,11 +80,10 @@ describe('flattenSelected', () => {
     expect(vector?.vectorNetwork?.vertices.length).toBeGreaterThan(0)
     expect(editor.graph.getNode(first.id)).toBeUndefined()
     expect(editor.graph.getNode(second.id)).toBeUndefined()
-    surface.delete()
   })
 
   test('outlines visible strokes into a vector path', async () => {
-    const { editor, surface } = await createEditorWithRenderer()
+    const { editor } = await createEditorWithRenderer()
     const pageId = editor.state.currentPageId
     const rect = editor.graph.createNode('RECTANGLE', pageId, {
       x: 20,
@@ -80,7 +91,9 @@ describe('flattenSelected', () => {
       width: 40,
       height: 30,
       fills: [{ type: 'SOLID', color: TRANSPARENT, opacity: 1, visible: true }],
-      strokes: [{ color: BLACK, weight: 8, opacity: 1, visible: true, align: 'CENTER' }]
+      strokes: [
+        { type: 'SOLID', color: BLACK, weight: 8, opacity: 1, visible: true, align: 'CENTER' }
+      ]
     })
 
     editor.select([rect.id])
@@ -96,11 +109,10 @@ describe('flattenSelected', () => {
     expect(vector?.height).toBe(38)
     expect(vector?.vectorNetwork?.vertices.length).toBeGreaterThan(0)
     expect(editor.graph.getNode(rect.id)).toBeUndefined()
-    surface.delete()
   })
 
   test('outlines stroked descendants inside groups', async () => {
-    const { editor, surface } = await createEditorWithRenderer()
+    const { editor } = await createEditorWithRenderer()
     const pageId = editor.state.currentPageId
     const rect = editor.graph.createNode('RECTANGLE', pageId, {
       x: 20,
@@ -108,7 +120,9 @@ describe('flattenSelected', () => {
       width: 40,
       height: 30,
       fills: [{ type: 'SOLID', color: TRANSPARENT, opacity: 1, visible: true }],
-      strokes: [{ color: BLACK, weight: 8, opacity: 1, visible: true, align: 'CENTER' }]
+      strokes: [
+        { type: 'SOLID', color: BLACK, weight: 8, opacity: 1, visible: true, align: 'CENTER' }
+      ]
     })
     editor.select([rect.id])
     editor.groupSelected()
@@ -120,11 +134,10 @@ describe('flattenSelected', () => {
     expect(vector?.type).toBe('VECTOR')
     expect(vector?.name).toBe('Outline stroke')
     expect(vector?.vectorNetwork?.vertices.length).toBeGreaterThan(0)
-    surface.delete()
   })
 
   test('does not outline fill-only shapes as strokes', async () => {
-    const { editor, surface } = await createEditorWithRenderer()
+    const { editor } = await createEditorWithRenderer()
     const pageId = editor.state.currentPageId
     const rect = editor.graph.createNode('RECTANGLE', pageId, {
       x: 20,
@@ -139,12 +152,11 @@ describe('flattenSelected', () => {
 
     expect(result).toBeNull()
     expect(editor.graph.getNode(rect.id)?.type).toBe('RECTANGLE')
-    surface.delete()
   })
 
   test('outlines loaded text through the shared text outline path', async () => {
     await loadInterRegular()
-    const { editor, surface } = await createEditorWithRenderer()
+    const { editor } = await createEditorWithRenderer()
     const pageId = editor.state.currentPageId
     const text = editor.graph.createNode('TEXT', pageId, {
       text: 'Hi',
@@ -164,12 +176,11 @@ describe('flattenSelected', () => {
     expect(vector?.name).toBe('Outline text')
     expect(vector?.vectorNetwork?.vertices.length).toBeGreaterThan(0)
     expect(editor.graph.getNode(text.id)).toBeUndefined()
-    surface.delete()
   })
 
   test('flattens loaded text as outlines', async () => {
     await loadInterRegular()
-    const { editor, surface } = await createEditorWithRenderer()
+    const { editor } = await createEditorWithRenderer()
     const pageId = editor.state.currentPageId
     const text = editor.graph.createNode('TEXT', pageId, {
       text: 'Hi',
@@ -188,8 +199,41 @@ describe('flattenSelected', () => {
     expect(vector?.type).toBe('VECTOR')
     expect(vector?.vectorNetwork?.vertices.length).toBeGreaterThan(0)
     expect(editor.graph.getNode(text.id)).toBeUndefined()
-    surface.delete()
   })
+
+  // Saved glyphs draw a decoration on one baseline; outlines carry none, so lines don't matter.
+  test.each(['NONE', 'UNDERLINE'] as const)(
+    'flattens a list with its bullets, as the canvas draws it (%s)',
+    async (textDecoration) => {
+    await loadInterRegular()
+    const { editor, renderer } = await createEditorWithRenderer()
+    await renderer.loadFonts()
+    const pageId = editor.state.currentPageId
+    const text = editor.graph.createNode('TEXT', pageId, {
+      x: 100,
+      text: 'One\nTwo',
+      fontFamily: 'Inter',
+      fontWeight: 400,
+      fontSize: 16,
+      width: 120,
+      height: 40,
+      textDecoration,
+      textParagraphs: [
+        { listType: 'UNORDERED', indentation: 1 },
+        { listType: 'UNORDERED', indentation: 1 }
+      ]
+    })
+
+    editor.select([text.id])
+    editor.flattenSelected()
+
+    const [vectorId] = [...editor.state.selectedIds]
+    const vector = editor.graph.getNode(vectorId)
+    // The bullets sit in the first 24px of indent, left of the items' text.
+    expect(vector?.x).toBeGreaterThan(106)
+    expect(vector?.x).toBeLessThan(112)
+    }
+  )
 
   test('wraps loaded text style runs as outlines', async () => {
     await loadInterRegular()
@@ -215,7 +259,7 @@ describe('flattenSelected', () => {
   test('flattens loaded text style runs as outlines', async () => {
     await loadInterRegular()
     await loadInterBold()
-    const { editor, surface } = await createEditorWithRenderer()
+    const { editor } = await createEditorWithRenderer()
     const pageId = editor.state.currentPageId
     const text = editor.graph.createNode('TEXT', pageId, {
       text: 'Hi',
@@ -234,14 +278,13 @@ describe('flattenSelected', () => {
     const vector = editor.graph.getNode(vectorId)
     expect(vector?.type).toBe('VECTOR')
     expect(vector?.vectorNetwork?.vertices.length).toBeGreaterThan(0)
-    surface.delete()
   })
 
   test('flattens mixed Latin and CJK text with loaded fallback outlines', async () => {
     await loadInterRegular()
     const hasCJKFallback = await loadNotoSansSC()
     if (!hasCJKFallback) return
-    const { editor, surface } = await createEditorWithRenderer()
+    const { editor } = await createEditorWithRenderer()
     const pageId = editor.state.currentPageId
     const text = editor.graph.createNode('TEXT', pageId, {
       text: 'Hi你',
@@ -259,12 +302,11 @@ describe('flattenSelected', () => {
     const vector = editor.graph.getNode(vectorId)
     expect(vector?.type).toBe('VECTOR')
     expect(vector?.vectorNetwork?.vertices.length).toBeGreaterThan(0)
-    surface.delete()
   })
 
   test('does not flatten complex script text without shaping support', async () => {
     await loadInterRegular()
-    const { editor, surface } = await createEditorWithRenderer()
+    const { editor } = await createEditorWithRenderer()
     const pageId = editor.state.currentPageId
     const text = editor.graph.createNode('TEXT', pageId, {
       text: 'مرحبا',
@@ -280,11 +322,10 @@ describe('flattenSelected', () => {
 
     expect(result).toBeNull()
     expect(editor.graph.getNode(text.id)?.type).toBe('TEXT')
-    surface.delete()
   })
 
   test('does not flatten unsupported text nodes', async () => {
-    const { editor, surface } = await createEditorWithRenderer()
+    const { editor } = await createEditorWithRenderer()
     const pageId = editor.state.currentPageId
     const text = editor.graph.createNode('TEXT', pageId, {
       text: 'Nope',
@@ -298,11 +339,10 @@ describe('flattenSelected', () => {
     expect(result).toBeNull()
     expect(editor.graph.getNode(pageId)?.childIds).toEqual([text.id, rect.id])
     expect(editor.state.selectedIds).toEqual(new Set([text.id, rect.id]))
-    surface.delete()
   })
 
   test('does not flatten containers with unsupported descendants', async () => {
-    const { editor, surface } = await createEditorWithRenderer()
+    const { editor } = await createEditorWithRenderer()
     const pageId = editor.state.currentPageId
     const rect = editor.graph.createNode('RECTANGLE', pageId)
     const image = editor.graph.createNode('RECTANGLE', pageId, {
@@ -325,11 +365,10 @@ describe('flattenSelected', () => {
 
     expect(result).toBeNull()
     expect(editor.graph.getNode(groupId)?.type).toBe('GROUP')
-    surface.delete()
   })
 
   test('flattens visual descendants from groups', async () => {
-    const { editor, surface } = await createEditorWithRenderer()
+    const { editor } = await createEditorWithRenderer()
     const pageId = editor.state.currentPageId
     const rect = editor.graph.createNode('RECTANGLE', pageId, {
       x: 10,
@@ -354,11 +393,10 @@ describe('flattenSelected', () => {
     expect(vector?.type).toBe('VECTOR')
     expect(vector?.vectorNetwork?.vertices.length).toBeGreaterThan(0)
     expect(editor.graph.getNode(groupId)).toBeUndefined()
-    surface.delete()
   })
 
   test('includes stroke-only rectangles as flattenable outlines', async () => {
-    const { editor, surface } = await createEditorWithRenderer()
+    const { editor } = await createEditorWithRenderer()
     const pageId = editor.state.currentPageId
     const rect = editor.graph.createNode('RECTANGLE', pageId, {
       x: 10,
@@ -366,7 +404,9 @@ describe('flattenSelected', () => {
       width: 50,
       height: 40,
       fills: [],
-      strokes: [{ color: BLACK, opacity: 1, visible: true, weight: 8, align: 'CENTER' }]
+      strokes: [
+        { type: 'SOLID', color: BLACK, opacity: 1, visible: true, weight: 8, align: 'CENTER' }
+      ]
     })
 
     editor.select([rect.id])
@@ -377,11 +417,10 @@ describe('flattenSelected', () => {
     expect(vector?.type).toBe('VECTOR')
     expect(vector?.width).toBeGreaterThan(50)
     expect(vector?.height).toBeGreaterThan(40)
-    surface.delete()
   })
 
   test('undo and redo restore flattened children and vector', async () => {
-    const { editor, surface } = await createEditorWithRenderer()
+    const { editor } = await createEditorWithRenderer()
     const pageId = editor.state.currentPageId
     const before = editor.graph.createNode('RECTANGLE', pageId, { name: 'Before' })
     const first = editor.graph.createNode('RECTANGLE', pageId, { name: 'First' })
@@ -405,6 +444,5 @@ describe('flattenSelected', () => {
     editor.undo.redo()
     expect(editor.graph.getNode(pageId)?.childIds).toEqual([before.id, vectorId, after.id])
     expect(editor.graph.getNode(vectorId)?.type).toBe('VECTOR')
-    surface.delete()
   })
 })

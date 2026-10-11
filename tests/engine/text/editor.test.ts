@@ -1,16 +1,32 @@
 import { describe, test, expect } from 'bun:test'
 
-import type { CanvasKit, Paragraph, RectWithDirection } from 'canvaskit-wasm'
+import type { CanvasKit, LineMetrics, Paragraph, RectWithDirection } from 'canvaskit-wasm'
 
 import { TextEditor, type SceneNode } from '@open-pencil/core'
 import { createDefaultNode } from '@open-pencil/scene-graph/node-defaults'
 
-import { expectDefined } from '#tests/helpers/assert'
+import { TextLayout } from '#core/canvas/text/layout'
 
-const mockCk = {
+import { expectDefined } from '#tests/helpers/assert'
+import { asDouble } from '#tests/helpers/doubles'
+
+const mockCk = asDouble<CanvasKit>({
   RectHeightStyle: { Max: 0 },
   RectWidthStyle: { Tight: 0 }
-} as Pick<CanvasKit, 'RectHeightStyle' | 'RectWidthStyle'> as CanvasKit
+})
+
+/** A layout of one native paragraph double holding `length` characters. */
+function layoutOf(native: Partial<Paragraph>, length: number): TextLayout {
+  const paragraph = asDouble<Paragraph>({
+    layout: () => undefined,
+    didExceedMaxLines: () => false,
+    getLongestLine: () => 0,
+    ...native
+  })
+  const layout = TextLayout.ofParagraph(mockCk, paragraph, length)
+  layout.layout(100)
+  return layout
+}
 
 function createEditor(text = 'Hello World') {
   const editor = new TextEditor(mockCk)
@@ -25,40 +41,33 @@ function editorState(editor: TextEditor) {
 
 function createParagraphEditor(textAlignVertical: SceneNode['textAlignVertical']) {
   const hitTestYs: number[] = []
-  const rects = [{ rect: [4, 2, 14, 12] }] as RectWithDirection[]
+  const rects = [asDouble<RectWithDirection>({ rect: [4, 2, 14, 12] })]
   const lineMetrics = {
     endExcludingWhitespaces: 5,
     height: 10,
     left: 3,
     startIndex: 0
   }
-  const paragraph = {
-    delete: () => undefined,
-    getGlyphPositionAtCoordinate: (_x: number, y: number) => {
-      hitTestYs.push(y)
-      return { pos: Math.round(y) }
-    },
-    getHeight: () => 20,
-    getLineMetrics: () => [lineMetrics],
-    getLineMetricsAt: () => lineMetrics,
-    getLineNumberAt: () => 0,
-    getRectsForRange: () => rects
-  } as Pick<
-    Paragraph,
-    | 'delete'
-    | 'getGlyphPositionAtCoordinate'
-    | 'getHeight'
-    | 'getLineMetrics'
-    | 'getLineMetricsAt'
-    | 'getLineNumberAt'
-    | 'getRectsForRange'
-  > as Paragraph
-  const renderer = {
-    buildParagraph: () => paragraph,
+  const renderer = asDouble<Parameters<TextEditor['setRenderer']>[0]>({
+    buildParagraph: (node: SceneNode) =>
+      layoutOf(
+        {
+          delete: () => undefined,
+          getGlyphPositionAtCoordinate: (_x: number, y: number) => {
+            hitTestYs.push(y)
+            return asDouble({ pos: Math.round(y) })
+          },
+          getHeight: () => 20,
+          getLineMetrics: () => [asDouble(lineMetrics)],
+          getLineNumberAt: () => 0,
+          getRectsForRange: () => rects
+        },
+        node.text.length
+      ),
     fontGeneration: 1
-  }
+  })
   const editor = new TextEditor(mockCk)
-  editor.setRenderer(renderer as Parameters<TextEditor['setRenderer']>[0])
+  editor.setRenderer(renderer)
   const node = createDefaultNode(() => 'aligned-text', 'TEXT', {
     height: 100,
     text: 'Hello',
@@ -195,6 +204,67 @@ describe('TextEditor', () => {
       editor.moveDown()
       expect(hitTestYs.at(-1)).toBe(17)
     }
+  })
+
+  test('places the caret of empty text, which CanvasKit lays out no line for', () => {
+    const empty = {
+      delete: () => undefined,
+      getHeight: () => 0,
+      getLineMetrics: () => []
+    }
+    const space = {
+      delete: () => undefined,
+      getHeight: () => 17,
+      getLineMetrics: () => [asDouble<LineMetrics>({ height: 17, left: 0 })]
+    }
+    const editor = new TextEditor(mockCk)
+    editor.setRenderer(
+      asDouble<Parameters<TextEditor['setRenderer']>[0]>({
+        buildParagraph: (node: SceneNode) =>
+          node.text === '' ? layoutOf(empty, 0) : layoutOf(space, 1),
+        fontGeneration: 1
+      })
+    )
+    editor.start(
+      createDefaultNode(() => 'new-text', 'TEXT', {
+        text: '',
+        width: 120,
+        height: 57,
+        textAlignHorizontal: 'CENTER',
+        textAlignVertical: 'BOTTOM'
+      })
+    )
+    expect(editor.getCaretRect()).toEqual({ x: 60, y0: 40, y1: 57 })
+  })
+
+  test('lays the text out again when its node changes outside the editor', () => {
+    const built: number[] = []
+    const editor = new TextEditor(mockCk)
+    editor.setRenderer(
+      asDouble<Parameters<TextEditor['setRenderer']>[0]>({
+        buildParagraph: (node: SceneNode) => {
+          built.push(node.paragraphSpacing)
+          return layoutOf(
+            {
+              delete: () => undefined,
+              getHeight: () => 20,
+              getLineMetrics: () => [],
+              getRectsForRange: () => []
+            },
+            node.text.length
+          )
+        },
+        fontGeneration: 1
+      })
+    )
+    const node = createDefaultNode(() => 'spaced-text', 'TEXT', { text: 'A\nB' })
+    editor.start(node)
+    editor.invalidateParagraph({ ...node, paragraphSpacing: 12 })
+    expect(built).toEqual([0])
+    // A panel field previews a value: the selection drawn next follows it.
+    editor.getSelectionRects()
+    editor.getSelectionRects()
+    expect(built).toEqual([0, 12])
   })
 
   test('offsets the empty-text caret for vertical alignment', () => {

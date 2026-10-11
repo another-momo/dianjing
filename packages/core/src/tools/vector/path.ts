@@ -6,6 +6,7 @@ import type { SceneNode, VectorNetwork } from '@open-pencil/scene-graph'
 import type { FigmaAPI } from '#core/figma-api'
 import { toolNumber, nodeIdInput, nodeInput } from '#core/tools/input'
 import { defineTool } from '#core/tools/schema'
+import { parseVectorNetworkJSON } from '#core/tools/vector/network'
 
 function getVectorNode(
   figma: FigmaAPI,
@@ -36,15 +37,16 @@ export const pathSet = defineTool({
 
   description: 'Set vector path data on a node. Provide a VectorNetwork JSON.',
   execution: { kind: 'sync', mutation: 'document' },
-  input: v.object({
+  input: v.strictObject({
     id: nodeIdInput,
     path: v.pipe(v.string(), v.description('VectorNetwork JSON'))
   }),
   execute: (figma, args) => {
     const raw = figma.graph.getNode(args.id)
     if (!raw) return { error: `Node "${args.id}" not found` }
-    const network = JSON.parse(args.path)
-    figma.graph.updateNode(args.id, { vectorNetwork: network })
+    const parsed = parseVectorNetworkJSON(args.path)
+    if ('error' in parsed) return parsed
+    figma.graph.updateNode(args.id, { vectorNetwork: parsed.network })
     return { id: args.id }
   }
 })
@@ -54,7 +56,7 @@ export const pathScale = defineTool({
 
   description: 'Scale vector path from center.',
   execution: { kind: 'sync', mutation: 'document' },
-  input: v.object({
+  input: v.strictObject({
     id: nodeIdInput,
     factor: toolNumber(v.pipe(v.number(), v.description('Scale factor (e.g. 2 for double)')))
   }),
@@ -85,7 +87,7 @@ export const pathFlip = defineTool({
 
   description: 'Flip vector path horizontally or vertically.',
   execution: { kind: 'sync', mutation: 'document' },
-  input: v.object({
+  input: v.strictObject({
     id: nodeIdInput,
     axis: v.pipe(v.picklist(['horizontal', 'vertical']), v.description('Flip axis'))
   }),
@@ -116,7 +118,7 @@ export const pathMove = defineTool({
 
   description: 'Move all path points by an offset.',
   execution: { kind: 'sync', mutation: 'document' },
-  input: v.object({
+  input: v.strictObject({
     id: nodeIdInput,
     dx: toolNumber(v.pipe(v.number(), v.description('X offset'))),
     dy: toolNumber(v.pipe(v.number(), v.description('Y offset')))

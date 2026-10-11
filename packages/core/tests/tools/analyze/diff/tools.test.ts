@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 
-import { FigmaAPI } from '@open-pencil/core/figma-api'
-import { ALL_TOOLS, diffDocuments } from '@open-pencil/core/tools'
-import { SceneGraph } from '@open-pencil/scene-graph'
-
 import { expectDefined, getNodeOrThrow } from '#core-tests/helpers/assert'
 
-type DiffResult = { diff?: string | null; error?: string }
+import { FigmaAPI } from '@open-pencil/core/figma-api'
+import { ALL_TOOLS, diffDocuments } from '@open-pencil/core/tools'
+import { SceneGraph, type Color } from '@open-pencil/scene-graph'
+
+type DiffResult = { diff?: string | null; message?: string; error?: string }
 type ApplyResult = {
   error?: string
   applied?: number
@@ -25,13 +25,15 @@ async function run<Result>(figma: FigmaAPI, name: string, args: Record<string, u
   return (await tool(name).execute(figma, args)) as Result
 }
 
+const WHITE: Color = { r: 1, g: 1, b: 1, a: 1 }
+
 function setup() {
   const graph = new SceneGraph()
   const figma = new FigmaAPI(graph)
   const card = figma.createFrame()
   card.name = 'Card'
   card.resize(200, 100)
-  card.fills = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1, a: 1 }, opacity: 1, visible: true }]
+  card.fills = [{ type: 'SOLID', color: WHITE, opacity: 1, visible: true }]
   const label = figma.createRectangle()
   label.name = 'Label'
   label.resize(80, 20)
@@ -84,7 +86,9 @@ describe('diff_create and diff_apply', () => {
     const copy = card.clone()
     copy.opacity = 0.5
 
-    await run<ApplyResult>(figma, 'diff_apply', { patch: await createPatch(figma, card.id, copy.id) })
+    await run<ApplyResult>(figma, 'diff_apply', {
+      patch: await createPatch(figma, card.id, copy.id)
+    })
     expect(getNodeOrThrow(graph, card.id).opacity).toBe(0.5)
     expect(card.getPluginData('note')).toBe('kept')
   })

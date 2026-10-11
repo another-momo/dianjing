@@ -41,6 +41,7 @@ export default defineConfig([
       'open-pencil/no-production-test-ids-in-shared-layers': 'error',
       'open-pencil/no-native-title-attributes-in-vue': 'error',
       'open-pencil/no-ui-imports-in-core': 'error',
+      'open-pencil/no-graph-builders-in-front-ends': 'error',
       'open-pencil/scripts-are-entrypoint-shims': 'error',
       'open-pencil/strict-tools-layout': 'error',
       // T27：规则 drift 收口（实现 28 条 vs 原注册 20 条）——以下 5 条实测零违规，补注册：

@@ -1,16 +1,14 @@
-import type { useCollabInjected } from '@/app/collab/use'
 import type { EditorStore } from '@/app/editor/active-store'
 
-type Collaboration = ReturnType<typeof useCollabInjected>
-
-export function useCanvasCollaborationAwareness(store: EditorStore, collab: Collaboration) {
+/**
+ * 画布光标坐标跟踪器：写入 store，供「在光标处粘贴」类动作（画布菜单、剪贴板）读取。
+ * collab 房间发布面随死域出清摘除，本体保留。
+ */
+export function useCanvasCollaborationAwareness(store: EditorStore) {
   function updateCursor(cx: number, cy: number) {
     store.state.cursorCanvasX = cx
     store.state.cursorCanvasY = cy
-    collab?.updateCursor(cx, cy, store.state.currentPageId)
   }
-
-  store.onEditorEvent('selection:changed', (ids) => collab?.updateSelection(ids))
 
   return { updateCursor }
 }

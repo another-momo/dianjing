@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test'
 
-import { exportFigFile, initCodec, parseFigFile, SceneGraph } from '@open-pencil/core'
-
 import { collectAllNodes } from '#core-tests/helpers/fig/traversal'
+
+import { exportFigFile, initCodec, parseFigFile, SceneGraph } from '@open-pencil/core'
 
 setDefaultTimeout(60_000)
 
@@ -30,7 +30,7 @@ describe('roundtrip: GROUP survives export → re-import', () => {
     })
 
     const bytes = await exportFigFile(graph)
-    const reImported = await parseFigFile(bytes)
+    const reImported = await parseFigFile(bytes.buffer as ArrayBuffer)
     const nodes = collectAllNodes(reImported)
 
     const roundTripped = nodes.find((n) => n.name === 'My Group')

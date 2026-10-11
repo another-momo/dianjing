@@ -8,26 +8,24 @@
 import svgpath from 'svgpath'
 
 import type { Fill, Stroke, VectorNetwork, WindingRule } from '@open-pencil/scene-graph'
-import { mergeVectorNetworks } from '@open-pencil/scene-graph'
 import { parseColor } from '@open-pencil/scene-graph/color'
 import { computeBounds } from '@open-pencil/scene-graph/geometry'
+import type { Mat3 } from '@open-pencil/scene-graph/matrix'
 import { parseSVGPath } from '@open-pencil/scene-graph/parse-path'
-import type { Rect, Size } from '@open-pencil/scene-graph/primitives'
+import type { Rect, Size, Vector } from '@open-pencil/scene-graph/primitives'
 
 import { createPathStroke } from '#core/icons/path-style'
-import { extractRichContent, transformStrokeScale } from '#core/icons/svg'
-import type { SVGImageElementInfo, SVGTextElementInfo } from '#core/icons/svg'
-import type { IconPathInfo } from '#core/icons/types'
+import { extractSVGContent, type SVGImageElementInfo } from '#core/icons/svg'
+import type { IconPathInfo, SVGElementLayer, SVGTextPiece, SVGTextRun } from '#core/icons/types'
 import { parseSVGSize, parseSVGViewBox } from '#core/io/formats/svg/metadata'
 import { computeAccurateBounds } from '#core/vector/curve-math'
 
 import { parseSVGGradients, resolveGradientFill } from './gradients'
 import {
+  type SVGViewportMapping,
   applySVGTransformToPath,
   mapSVGPathToViewport,
-  mapSVGPointToViewport,
-  resolveSVGViewportMapping,
-  type SVGViewportMapping
+  resolveSVGViewportMapping
 } from './transform'
 
 function parseSVGCoordinateSpace(svg: string): Rect {
@@ -44,17 +42,10 @@ function unionPathBounds(paths: VectorizedPath[]): Rect {
   return computeBounds(rects)
 }
 
-/** SVG 规范默认 font-size（medium）——<text> 未声明时的基准 */
-const SVG_DEFAULT_FONT_SIZE = 16
-/** 基线 y → 节点顶边的经验换算（典型 ascent ≈ 0.8em） */
-const TEXT_ASCENT_RATIO = 0.8
-/** contentBounds 用的文本宽度经验估算（无字体度量可用时的上限防收紧偏移） */
-const TEXT_WIDTH_PER_CHAR = 0.6
-
 function resolveFill(path: IconPathInfo, defaultColor: string): Fill[] {
   if (path.fill && path.fill !== 'none') {
     const color = path.fill === 'currentColor' ? parseColor(defaultColor) : parseColor(path.fill)
-    return [{ type: 'SOLID', color, opacity: 1, visible: true }]
+    return [{ type: 'SOLID', color, opacity: path.fillOpacity, visible: true }]
   }
   if (path.fill === null && !path.stroke) {
     return [{ type: 'SOLID', color: parseColor(defaultColor), opacity: 1, visible: true }]
@@ -65,29 +56,46 @@ function resolveFill(path: IconPathInfo, defaultColor: string): Fill[] {
 function resolveStrokes(path: IconPathInfo, defaultColor: string, strokeScale = 1): Stroke[] {
   if (!path.stroke || path.stroke === 'none') return []
   const color = path.stroke === 'currentColor' ? parseColor(defaultColor) : parseColor(path.stroke)
-  return [createPathStroke(color, path.strokeWidth * strokeScale, path.strokeCap, path.strokeJoin)]
+  const stroke = createPathStroke(
+    color,
+    path.strokeWidth * strokeScale,
+    path.strokeCap,
+    path.strokeJoin
+  )
+  return [{ ...stroke, opacity: path.strokeOpacity }]
+}
+
+export interface VectorizedClip {
+  /** The `<clipPath>` element's `id`. */
+  id: string
+  /** One network per clip shape. */
+  shapes: VectorNetwork[]
 }
 
 export interface VectorizedPath {
   vectorNetwork: VectorNetwork
   fills: Fill[]
   strokes: Stroke[]
-  clipNetworks?: VectorNetwork[]
+  /** The clip regions around the path, ordered like `IconPathInfo.clipPaths`. */
+  clips?: VectorizedClip[]
+  elements: SVGElementLayer[]
 }
 
-/** 目标视口坐标系下的文本元素（y 仍是 SVG 基线语义，建节点侧换算顶边） */
+/** SVG text, placed by the matrix from its element's coordinates into the target bounds. */
+export type VectorizedTextPiece = Omit<SVGTextPiece, 'runs'> & {
+  runs: Array<SVGTextRun & { fills: Fill[] }>
+}
+
 export interface VectorizedText {
-  x: number
-  y: number
-  content: string
-  fontFamily: string | null
-  fontSize: number
-  fontWeight: number | null
-  fill: string | null
-  textAnchor: 'start' | 'middle' | 'end' | null
+  pieces: VectorizedTextPiece[]
+  matrix: Mat3
+  clips?: VectorizedClip[]
+  elements: SVGElementLayer[]
+  /** How many paths come before the text in drawing order. */
+  pathIndex: number
 }
 
-/** 目标视口坐标系下的内嵌位图元素（旋转/剪切变换退化为轴对齐包围盒） */
+/** <image> 元素映射到目标坐标系的矩形（import 侧落成 IMAGE-fill 矩形；外链 href 由消费方跳过） */
 export interface VectorizedImage {
   x: number
   y: number
@@ -104,39 +112,17 @@ export interface SVGVectorizeResult {
   contentBounds: Rect
 }
 
-function mapTextElement(
-  text: SVGTextElementInfo,
-  viewport: SVGViewportMapping,
-  defaultColor: string
-): VectorizedText {
-  const point = mapSVGPointToViewport(text.x, text.y, text.transform, null, viewport)
-  const scale =
-    Math.min(viewport.scaleX, viewport.scaleY) * transformStrokeScale(text.transform ?? null)
-  const fill = text.fill === 'currentColor' ? defaultColor : text.fill
-  return {
-    x: point.x,
-    y: point.y,
-    content: text.content,
-    fontFamily: text.fontFamily,
-    fontSize: (text.fontSize ?? SVG_DEFAULT_FONT_SIZE) * scale,
-    fontWeight: text.fontWeight,
-    fill,
-    textAnchor: text.textAnchor
-  }
-}
-
 function mapImageElement(
   image: SVGImageElementInfo,
   viewport: SVGViewportMapping
 ): VectorizedImage {
-  const topLeft = mapSVGPointToViewport(image.x, image.y, image.transform, null, viewport)
-  const bottomRight = mapSVGPointToViewport(
-    image.x + image.width,
-    image.y + image.height,
-    image.transform,
-    null,
-    viewport
-  )
+  const m = transformMatrix(image.transform, viewport)
+  const map = (x: number, y: number) => ({
+    x: m[0] * x + m[1] * y + m[2],
+    y: m[3] * x + m[4] * y + m[5]
+  })
+  const topLeft = map(image.x, image.y)
+  const bottomRight = map(image.x + image.width, image.y + image.height)
   return {
     x: Math.min(topLeft.x, bottomRight.x),
     y: Math.min(topLeft.y, bottomRight.y),
@@ -146,43 +132,12 @@ function mapImageElement(
   }
 }
 
-/** 文本无精确度量时的经验宽度（0.6em/字符、下限 1em）——contentBounds 估算框与建节点锚点换算共用同一口径，防两处漂移 */
-export function estimateVectorizedTextWidth(text: { content: string; fontSize: number }): number {
-  return Math.max(text.content.length * text.fontSize * TEXT_WIDTH_PER_CHAR, text.fontSize)
-}
-
-/** 文本无精确度量，contentBounds 用经验估算框防止收紧偏移误裁 */
-function estimateTextBounds(text: VectorizedText): Rect {
-  const width = estimateVectorizedTextWidth(text)
-  const height = text.fontSize * (1 + (1 - TEXT_ASCENT_RATIO) * 2)
-  // lint/format 双约束（no-nested-ternary 要括号、oxfmt 剥括号）——锚点偏移用 if 链
-  let x = text.x
-  if (text.textAnchor === 'middle') x = text.x - width / 2
-  else if (text.textAnchor === 'end') x = text.x - width
-  return { x, y: text.y - text.fontSize * TEXT_ASCENT_RATIO, width, height }
-}
-
-function unionRichContentBounds(
-  paths: VectorizedPath[],
-  texts: VectorizedText[],
-  images: VectorizedImage[]
-): Rect {
-  const rects: Rect[] = []
-  if (paths.length > 0) rects.push(unionPathBounds(paths))
-  for (const image of images) {
-    if (image.width > 0 && image.height > 0) rects.push(image)
-  }
-  for (const text of texts) rects.push(estimateTextBounds(text))
-  return computeBounds(rects)
-}
-
 export function svgToVectorPaths(
   svgText: string,
   bounds: Size,
   options?: { defaultColor?: string; preserveAspectRatio?: boolean }
 ): SVGVectorizeResult | null {
-  const rich = extractRichContent(svgText)
-  const { paths, texts, images } = rich
+  const { paths, texts, images } = extractSVGContent(svgText)
   if (paths.length === 0 && texts.length === 0 && images.length === 0) return null
 
   const space = parseSVGCoordinateSpace(svgText)
@@ -199,13 +154,18 @@ export function svgToVectorPaths(
   const strokeScale = Math.min(viewport.scaleX, viewport.scaleY)
 
   const vectorized: VectorizedPath[] = []
-  const clipCache = new WeakMap<NonNullable<IconPathInfo['clipPaths']>, VectorNetwork[]>()
+  const clipCache: ClipCache = new WeakMap()
   for (const path of paths) {
     const fillRule: WindingRule = path.fillRule
     const transform = path.transform ?? null
     const pathData = applySVGTransformToPath(path.d, transform)
     const scaledD = mapSVGPathToViewport(pathData, viewport)
-    const network = parseSVGPath(scaledD, fillRule)
+    const solidFills = resolveFill(path, defaultColor)
+    const strokes = resolveStrokes(path, defaultColor, strokeScale)
+    // A stroke would also trace the closing edge of an open subpath in the fill region.
+    const network = parseSVGPath(scaledD, fillRule, {
+      includeOpenRegions: solidFills.length > 0 && strokes.length === 0
+    })
     const pathBounds = computeAccurateBounds(network)
     const gradientFill =
       gradients.size > 0
@@ -217,45 +177,101 @@ export function svgToVectorPaths(
             computeAccurateBounds(network)
           )
         : null
-    let clipNetworks: VectorNetwork[] | undefined
-    if (path.clipPaths) {
-      const hasObjectBoundingBoxClip = path.clipPaths.some(
-        ({ units }) => units === 'objectBoundingBox'
-      )
-      clipNetworks = hasObjectBoundingBoxClip ? undefined : clipCache.get(path.clipPaths)
-      if (!clipNetworks) {
-        clipNetworks = path.clipPaths.map((clipRegion) =>
-          mergeVectorNetworks(
-            clipRegion.paths.map((clipPath) => {
-              let clipData = applySVGTransformToPath(clipPath.d, clipPath.transform ?? null)
-              if (clipRegion.units === 'objectBoundingBox') {
-                clipData = svgpath(clipData)
-                  .scale(pathBounds.width, pathBounds.height)
-                  .translate(pathBounds.x, pathBounds.y)
-                  .toString()
-                return parseSVGPath(clipData, clipPath.fillRule)
-              }
-              return parseSVGPath(mapSVGPathToViewport(clipData, viewport), clipPath.fillRule)
-            })
-          )
-        )
-        if (!hasObjectBoundingBoxClip) clipCache.set(path.clipPaths, clipNetworks)
-      }
-    }
+    const clips = path.clipPaths && vectorizeClips(path.clipPaths, viewport, pathBounds, clipCache)
     vectorized.push({
       vectorNetwork: network,
-      fills: gradientFill ? [gradientFill] : resolveFill(path, defaultColor),
-      strokes: resolveStrokes(path, defaultColor, strokeScale),
-      clipNetworks
+      fills: gradientFill ? [{ ...gradientFill, opacity: path.fillOpacity }] : solidFills,
+      strokes,
+      clips,
+      elements: path.elements
     })
   }
 
-  const vectorizedTexts = texts.map((text) => mapTextElement(text, viewport, defaultColor))
   const vectorizedImages = images.map((image) => mapImageElement(image, viewport))
   return {
     paths: vectorized,
-    texts: vectorizedTexts,
+    texts: texts.map((text) => ({
+      pieces: text.pieces.map((piece) => ({
+        ...piece,
+        runs: piece.runs.map((run) => ({ ...run, fills: resolveTextFill(run, defaultColor) }))
+      })),
+      matrix: transformMatrix(text.transform, viewport),
+      clips: text.clipPaths && vectorizeClips(text.clipPaths, viewport, null, clipCache),
+      elements: text.elements,
+      pathIndex: text.pathIndex
+    })),
     images: vectorizedImages,
-    contentBounds: unionRichContentBounds(vectorized, vectorizedTexts, vectorizedImages)
+    contentBounds: computeBounds([
+      ...(vectorized.length > 0 ? [unionPathBounds(vectorized)] : []),
+      ...vectorizedImages.filter((image) => image.width > 0 && image.height > 0)
+    ])
   }
+}
+
+type ClipCache = WeakMap<NonNullable<IconPathInfo['clipPaths']>, VectorizedClip[]>
+
+/**
+ * Clip regions as networks in the target space. An objectBoundingBox clip follows the bounds of
+ * what it clips, which text has only once laid out, so without bounds such a clip has no shapes.
+ */
+function vectorizeClips(
+  clipPaths: NonNullable<IconPathInfo['clipPaths']>,
+  viewport: SVGViewportMapping,
+  objectBounds: Rect | null,
+  cache: ClipCache
+): VectorizedClip[] {
+  const hasObjectBoundingBoxClip = clipPaths.some(({ units }) => units === 'objectBoundingBox')
+  const cached = hasObjectBoundingBoxClip ? undefined : cache.get(clipPaths)
+  if (cached) return cached
+  const clips = clipPaths.map((clipRegion) => ({
+    id: clipRegion.id,
+    shapes:
+      clipRegion.units === 'objectBoundingBox' && !objectBounds
+        ? []
+        : clipRegion.paths.map((clipPath) => {
+            let clipData = applySVGTransformToPath(clipPath.d, clipPath.transform ?? null)
+            if (clipRegion.units === 'objectBoundingBox' && objectBounds) {
+              clipData = svgpath(clipData)
+                .scale(objectBounds.width, objectBounds.height)
+                .translate(objectBounds.x, objectBounds.y)
+                .toString()
+              return parseSVGPath(clipData, clipPath.fillRule, { includeOpenRegions: true })
+            }
+            return parseSVGPath(mapSVGPathToViewport(clipData, viewport), clipPath.fillRule, {
+              includeOpenRegions: true
+            })
+          })
+  }))
+  if (!hasObjectBoundingBoxClip) cache.set(clipPaths, clips)
+  return clips
+}
+
+/** The matrix taking an element's own coordinates, under `transform`, into the target space. */
+function transformMatrix(transform: string | null, viewport: SVGViewportMapping): Mat3 {
+  const points: Vector[] = []
+  svgpath(mapSVGPathToViewport(applySVGTransformToPath('M0 0M1 0M0 1', transform), viewport))
+    .abs()
+    .iterate((segment) => {
+      if (segment[0] === 'M') points.push({ x: segment[1], y: segment[2] })
+    })
+  const [origin = { x: 0, y: 0 }, unitX = { x: 1, y: 0 }, unitY = { x: 0, y: 1 }] = points
+  return [
+    unitX.x - origin.x,
+    unitY.x - origin.x,
+    origin.x,
+    unitX.y - origin.y,
+    unitY.y - origin.y,
+    origin.y,
+    0,
+    0,
+    1
+  ]
+}
+
+function resolveTextFill(run: SVGTextRun, defaultColor: string): Fill[] {
+  const color =
+    run.fill === null || run.fill === 'currentColor'
+      ? parseColor(defaultColor)
+      : parseColor(run.fill)
+  return [{ type: 'SOLID', color, opacity: run.fillOpacity, visible: true }]
 }

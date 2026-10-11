@@ -13,7 +13,9 @@ function selection(overrides: Partial<CanvasMenuOptions['selection']> = {}) {
     isGroup: ref(false),
     isComponent: ref(false),
     isInstance: ref(false),
+    isIcon: ref(false),
     canCreateComponentSet: ref(false),
+    canCreateSlot: ref(false),
     ...overrides
   } as CanvasMenuOptions['selection']
 }
@@ -72,6 +74,16 @@ describe('buildCanvasContextMenu', () => {
         )
       )
     ).toContain('selection.detachInstance')
+  })
+
+  test('offers Create slot for layers of a main component', () => {
+    const ids = itemIds(
+      buildCanvasContextMenu(
+        options({ selection: selection({ canCreateSlot: computed(() => true) }) })
+      )
+    )
+    expect(ids).toContain('selection.createSlot')
+    expect(itemIds(buildCanvasContextMenu(options()))).not.toContain('selection.createSlot')
   })
 
   test('does not emit empty leading or repeated separators', () => {

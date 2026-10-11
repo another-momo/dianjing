@@ -1,16 +1,67 @@
 import { useLocalStorage } from '@vueuse/core'
+import { uniq } from 'es-toolkit'
+import * as v from 'valibot'
 
 import { DEFAULT_SNAPPING_PREFERENCES, type SnappingPreferences } from '@open-pencil/core/editor'
+import { COMMENT_SORTS, type CommentSort } from '@open-pencil/scene-graph'
 
-export type AnimationPreference = 'system' | 'off'
+import {
+  DEFAULT_TOOLBAR_LAYOUT,
+  normalizeToolbarLayout,
+  type ToolbarLayout
+} from '@/app/editor/toolbar/layout'
+import {
+  accentPreferenceSchema,
+  DEFAULT_ACCENT,
+  type AccentPreference
+} from '@/app/shell/accent/palette'
 
-export type ReasoningDisplay = 'collapsed' | 'while-thinking' | 'expanded'
+export const ANIMATION_PREFERENCES = ['system', 'off'] as const
+export type AnimationPreference = (typeof ANIMATION_PREFERENCES)[number]
 
-export type CanvasRenderingMode = 'retained' | 'tiled'
+export const REASONING_DISPLAYS = ['collapsed', 'while-thinking', 'expanded'] as const
+export type ReasoningDisplay = (typeof REASONING_DISPLAYS)[number]
+
+export const CHANGE_PREVIEW_SIZES = ['off', 'small', 'medium', 'large'] as const
+/** How large the before/after images kept for each AI edit are; `off` keeps only the JSX diff. */
+export type ChangePreviewSize = (typeof CHANGE_PREVIEW_SIZES)[number]
+
+export const CANVAS_RENDERING_MODES = ['retained', 'tiled'] as const
+export type CanvasRenderingMode = (typeof CANVAS_RENDERING_MODES)[number]
+
+export const DESIGN_CHECK_PRESETS = ['recommended', 'strict', 'accessibility'] as const
+export type DesignCheckPreset = (typeof DESIGN_CHECK_PRESETS)[number]
+
+export interface DesignCheckPreferences {
+  /** Marks layers with errors and warnings on the canvas. */
+  showOnCanvas: boolean
+  preset: DesignCheckPreset
+  /** Rules turned off on top of the preset. */
+  disabledRules: string[]
+}
+
+export interface CommentPreferences {
+  /** Pins on the canvas outside the Comment tool; View → Comments, Shift+C. */
+  showOnCanvas: boolean
+  /** The comments list and the canvas also show resolved threads. */
+  showResolved: boolean
+  /** The comments list shows only the current page's threads. */
+  onlyPage: boolean
+  /** The comments list shows only threads you started or replied to. */
+  onlyMine: boolean
+  sort: CommentSort
+}
 
 export interface AppPreferences {
-  appearance: { animations: AnimationPreference }
-  chat: { reasoningDisplay: ReasoningDisplay; followLocusPage: boolean }
+  appearance: { animations: AnimationPreference; accent: AccentPreference }
+  chat: {
+    reasoningDisplay: ReasoningDisplay
+    changePreviewSize: ChangePreviewSize
+    /** Whether the view follows our AI agents while they work. */
+    followAgents: boolean
+    /** sl-w2-locus-gate：视图跟随 AI 当前施工页 */
+    followLocusPage: boolean
+  }
   version: 1
   recovery: {
     enabled: boolean
@@ -21,95 +72,129 @@ export interface AppPreferences {
   rendering: {
     canvasMode: CanvasRenderingMode
   }
+  designCheck: DesignCheckPreferences
+  comments: CommentPreferences
+  toolbar: ToolbarLayout
 }
 
 export const DEFAULT_APP_PREFERENCES: Readonly<AppPreferences> = {
-  appearance: { animations: 'system' },
-  chat: { reasoningDisplay: 'collapsed', followLocusPage: false },
+  appearance: { animations: 'system', accent: { ...DEFAULT_ACCENT } },
+  chat: {
+    reasoningDisplay: 'collapsed',
+    changePreviewSize: 'medium',
+    followAgents: true,
+    followLocusPage: false
+  },
   version: 1,
   recovery: { enabled: true },
   editing: {
     snapping: { ...DEFAULT_SNAPPING_PREFERENCES }
   },
-  rendering: { canvasMode: 'retained' }
+  rendering: { canvasMode: 'retained' },
+  designCheck: { showOnCanvas: true, preset: 'recommended', disabledRules: [] },
+  comments: {
+    showOnCanvas: true,
+    showResolved: false,
+    onlyPage: false,
+    onlyMine: false,
+    sort: 'newest'
+  },
+  toolbar: structuredClone(DEFAULT_TOOLBAR_LAYOUT)
 }
 
 const STORAGE_KEY = 'open-pencil:preferences:v1'
 
-function booleanOrDefault(value: unknown, fallback: boolean): boolean {
-  return typeof value === 'boolean' ? value : fallback
+/** An object whose fields each fall back to their default, and that is all defaults when absent. */
+function section<TEntries extends v.ObjectEntries>(entries: TEntries) {
+  const schema = v.object(entries)
+  return v.fallback(schema, () => v.parse(schema, {}))
 }
 
-interface StoredSnappingPreferences {
-  geometry?: unknown
-  objects?: unknown
-  pixelGrid?: unknown
-}
+const defaults = DEFAULT_APP_PREFERENCES
+const snapping = defaults.editing.snapping
 
-interface StoredAppPreferences {
-  appearance?: { animations?: unknown }
-  chat?: { reasoningDisplay?: unknown; followLocusPage?: unknown }
-  recovery?: { enabled?: unknown }
-  editing?: { snapping?: StoredSnappingPreferences }
-  rendering?: { canvasMode?: unknown }
-}
-
-function isStoredAppPreferences(value: unknown): value is StoredAppPreferences {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
-function normalizeAnimationPreference(value: unknown): AnimationPreference {
-  return value === 'off' ? 'off' : 'system'
-}
-
-function normalizeReasoningDisplay(value: unknown): ReasoningDisplay {
-  return value === 'expanded' || value === 'while-thinking' ? value : 'collapsed'
-}
-
-function normalizeSnapping(stored: StoredSnappingPreferences | undefined): SnappingPreferences {
-  return {
-    geometry: booleanOrDefault(stored?.geometry, DEFAULT_APP_PREFERENCES.editing.snapping.geometry),
-    objects: booleanOrDefault(stored?.objects, DEFAULT_APP_PREFERENCES.editing.snapping.objects),
-    pixelGrid: booleanOrDefault(
-      stored?.pixelGrid,
-      DEFAULT_APP_PREFERENCES.editing.snapping.pixelGrid
+/** Stored preferences, read field by field so one bad value keeps the rest. */
+const appPreferencesSchema = section({
+  appearance: section({
+    animations: v.fallback(v.picklist(ANIMATION_PREFERENCES), defaults.appearance.animations),
+    accent: v.fallback(accentPreferenceSchema, () => ({ ...DEFAULT_ACCENT }))
+  }),
+  chat: section({
+    reasoningDisplay: v.fallback(v.picklist(REASONING_DISPLAYS), defaults.chat.reasoningDisplay),
+    changePreviewSize: v.fallback(
+      v.picklist(CHANGE_PREVIEW_SIZES),
+      defaults.chat.changePreviewSize
+    ),
+    followAgents: v.fallback(v.boolean(), defaults.chat.followAgents),
+    followLocusPage: v.fallback(v.boolean(), defaults.chat.followLocusPage)
+  }),
+  version: v.fallback(v.literal(1), 1),
+  recovery: section({ enabled: v.fallback(v.boolean(), defaults.recovery.enabled) }),
+  editing: section({
+    snapping: section({
+      geometry: v.fallback(v.boolean(), snapping.geometry),
+      objects: v.fallback(v.boolean(), snapping.objects),
+      pixelGrid: v.fallback(v.boolean(), snapping.pixelGrid)
+    })
+  }),
+  rendering: section({
+    canvasMode: v.fallback(v.picklist(CANVAS_RENDERING_MODES), defaults.rendering.canvasMode)
+  }),
+  designCheck: section({
+    showOnCanvas: v.fallback(v.boolean(), defaults.designCheck.showOnCanvas),
+    preset: v.fallback(v.picklist(DESIGN_CHECK_PRESETS), defaults.designCheck.preset),
+    disabledRules: v.fallback(
+      v.pipe(
+        v.array(v.unknown()),
+        v.transform((rules) => uniq(rules.filter((rule) => typeof rule === 'string')))
+      ),
+      () => []
     )
-  }
-}
+  }),
+  comments: section({
+    showOnCanvas: v.fallback(v.boolean(), defaults.comments.showOnCanvas),
+    showResolved: v.fallback(v.boolean(), defaults.comments.showResolved),
+    onlyPage: v.fallback(v.boolean(), defaults.comments.onlyPage),
+    onlyMine: v.fallback(v.boolean(), defaults.comments.onlyMine),
+    sort: v.fallback(v.picklist(COMMENT_SORTS), defaults.comments.sort)
+  }),
+  toolbar: v.fallback(
+    v.pipe(
+      v.object({
+        groups: v.fallback(v.array(v.array(v.unknown())), () =>
+          structuredClone(DEFAULT_TOOLBAR_LAYOUT.groups)
+        ),
+        hidden: v.fallback(v.array(v.unknown()), () => [])
+      }),
+      v.transform(({ groups, hidden }) => normalizeToolbarLayout(groups, hidden))
+    ),
+    () => structuredClone(DEFAULT_TOOLBAR_LAYOUT)
+  )
+})
 
-function normalizePreferences(value: unknown): AppPreferences {
-  const stored = isStoredAppPreferences(value) ? value : undefined
-
-  return {
-    appearance: { animations: normalizeAnimationPreference(stored?.appearance?.animations) },
-    chat: {
-      reasoningDisplay: normalizeReasoningDisplay(stored?.chat?.reasoningDisplay),
-      followLocusPage: booleanOrDefault(
-        stored?.chat?.followLocusPage,
-        DEFAULT_APP_PREFERENCES.chat.followLocusPage
-      )
-    },
-    version: 1,
-    recovery: {
-      enabled: booleanOrDefault(stored?.recovery?.enabled, DEFAULT_APP_PREFERENCES.recovery.enabled)
-    },
-    editing: {
-      snapping: normalizeSnapping(stored?.editing?.snapping)
-    },
-    rendering: {
-      canvasMode: stored?.rendering?.canvasMode === 'tiled' ? 'tiled' : 'retained'
-    }
-  }
+/** Reads stored preferences, keeping every valid field and defaulting the rest. */
+export function parseAppPreferences(value: unknown): AppPreferences {
+  return v.parse(appPreferencesSchema, value)
 }
 
 export const appPreferences = useLocalStorage<AppPreferences>(
   STORAGE_KEY,
   structuredClone(DEFAULT_APP_PREFERENCES),
-  { mergeDefaults: (storageValue) => normalizePreferences(storageValue) }
+  { mergeDefaults: (storageValue) => parseAppPreferences(storageValue) }
 )
 
 export function updateAnimationPreference(animations: AnimationPreference): void {
-  appPreferences.value = { ...appPreferences.value, appearance: { animations } }
+  appPreferences.value = {
+    ...appPreferences.value,
+    appearance: { ...appPreferences.value.appearance, animations }
+  }
+}
+
+export function updateAccentPreference(accent: AccentPreference): void {
+  appPreferences.value = {
+    ...appPreferences.value,
+    appearance: { ...appPreferences.value.appearance, accent }
+  }
 }
 
 export function updateRecoveryEnabled(enabled: boolean): void {
@@ -146,4 +231,22 @@ export function updateSnappingPreferences(changes: Partial<SnappingPreferences>)
       }
     }
   }
+}
+
+export function updateDesignCheckPreferences(changes: Partial<DesignCheckPreferences>): void {
+  appPreferences.value = {
+    ...appPreferences.value,
+    designCheck: { ...appPreferences.value.designCheck, ...changes }
+  }
+}
+
+export function updateCommentPreferences(changes: Partial<CommentPreferences>): void {
+  appPreferences.value = {
+    ...appPreferences.value,
+    comments: { ...appPreferences.value.comments, ...changes }
+  }
+}
+
+export function updateToolbarLayout(toolbar: ToolbarLayout): void {
+  appPreferences.value = { ...appPreferences.value, toolbar }
 }

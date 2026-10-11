@@ -3,7 +3,9 @@ import type { Canvas } from 'canvaskit-wasm'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 import { computeDescendantVisualBounds } from '@open-pencil/scene-graph/geometry'
 
+import { needsImagePreviews } from '#core/canvas/images/previews'
 import type { RenderOverlays, SkiaRenderer } from '#core/canvas/renderer'
+import { playIslandRoots } from '#core/editor/play/islands'
 import type { EditorState } from '#core/editor/types'
 import { emitNavigationTrace } from '#core/profiler'
 
@@ -12,20 +14,24 @@ import { renderSceneBacking, updateSceneBackingPreviewState } from './retained-b
 import { hasTransientPreviews, renderPageWithPreviews } from './transient-previews'
 
 export function renderSceneToCanvas(
-  r: SkiaRenderer,
+  r: Pick<SkiaRenderer, 'worldViewport' | 'viewportImageRendering' | 'renderNode'>,
   canvas: Canvas,
   graph: SceneGraph,
   pageId: string
 ): void {
   const prevViewport = r.worldViewport
+  const previewMode = r.viewportImageRendering
+  r.viewportImageRendering = false
   r.worldViewport = { x: -1e9, y: -1e9, w: 2e9, h: 2e9 }
-  const pageNode = graph.getNode(pageId)
-  if (pageNode) {
-    for (const childId of pageNode.childIds) {
-      r.renderNode(canvas, graph, childId, {})
+  try {
+    const pageNode = graph.getNode(pageId)
+    if (pageNode) {
+      for (const childId of pageNode.childIds) r.renderNode(canvas, graph, childId, {})
     }
+  } finally {
+    r.worldViewport = prevViewport
+    r.viewportImageRendering = previewMode
   }
-  r.worldViewport = prevViewport
 }
 
 export type RenderLayer = 'full' | 'scene' | 'overlays'
@@ -42,6 +48,21 @@ export function renderFromEditorState(
   layer: RenderLayer = 'full',
   interactive = false
 ): void {
+  const previewMode = r.imagePreviews.enabled && needsImagePreviews(graph)
+  if (
+    r.imageMemoryGraph !== graph ||
+    r.viewportImageRendering !== previewMode ||
+    (previewMode && r.imageMemoryPage !== state.currentPageId)
+  ) {
+    r.invalidateAllPictures()
+    r.imageCache.clear()
+    // Previews of another document hold its encoded images, which a document without
+    // previews would otherwise keep alive.
+    if (r.imageMemoryGraph !== graph) r.imagePreviews.release()
+    r.imageMemoryGraph = graph
+    r.imageMemoryPage = state.currentPageId
+  }
+  r.viewportImageRendering = previewMode
   r.dpr = dpr
   r.panX = state.panX
   r.panY = state.panY
@@ -51,15 +72,23 @@ export function renderFromEditorState(
   r.showRulers = showRulers
   r.pageColor = state.pageColor
   r.rulerTheme = state.rulerTheme ?? null
+  r.setSelectionTheme(state.selectionTheme)
   r.pageId = state.currentPageId
   r.navigationPhase = state.navigation.phase
   r.navigationGeneration = state.navigation.generation
+  // A previewing canvas shows the design as it runs: no selection, hover, or edit chrome.
+  const previewing = state.play !== null
   render(
     r,
     graph,
-    state.selectedIds,
+    previewing ? new Set<string>() : state.selectedIds,
     {
-      hoveredNodeId: state.hoveredNodeId,
+      playing: previewing,
+      playIslands: previewing ? new Set(playIslandRoots(graph, state.currentPageId)) : undefined,
+      hoveredNodeId: previewing ? null : state.hoveredNodeId,
+      showPixelGrid: !previewing && state.showPixelGrid !== false,
+      gradientEdit: state.gradientEdit,
+      transforming: state.transforming,
       measurementMode: state.measurementMode,
       enteredContainerId: state.enteredContainerId,
       editingTextId: state.editingTextId,
@@ -79,9 +108,13 @@ export function renderFromEditorState(
         : null,
       nodeEditState: state.nodeEditState ?? null,
       presenceCursors: state.presenceCursors,
-      autoLayoutHover: state.autoLayoutHover
+      designIssues: state.designIssues,
+      codeFocusNodeId: state.codeFocusNodeId,
+      autoLayoutHover: state.autoLayoutHover,
+      shapeHandleHover: state.shapeHandleHover
     },
-    state.sceneVersion,
+    // Recorded pictures follow what the canvas draws, not every document change.
+    state.canvasVersion,
     layer,
     interactive
   )
@@ -89,10 +122,7 @@ export function renderFromEditorState(
 
 function sceneContentDependsOnOverlay(overlays: RenderOverlays): boolean {
   return (
-    overlays.dropTargetId != null ||
-    overlays.rotationPreview != null ||
-    overlays.editingTextId != null ||
-    overlays.nodeEditState != null
+    overlays.rotationPreview != null || overlays.nodeEditState != null || overlays.playing === true
   )
 }
 
@@ -142,6 +172,7 @@ function getSceneRenderPolicy(
     graph.positionPreviewVersion !== r.scenePicturePositionPreviewVersion &&
     sceneVersion === r.scenePictureVersion
   const requiresUncachedSceneRender =
+    r.viewportImageRendering ||
     interactive ||
     hasPositionPreview ||
     sceneContentDependsOnOverlay(overlays) ||
@@ -161,6 +192,28 @@ function measure<T>(fn: () => T): { value: T; duration: number } {
   const start = now()
   const value = fn()
   return { value, duration: now() - start }
+}
+
+/** Labels, editing overlays, and rulers; a previewing canvas keeps only the rulers' chrome pass. */
+function drawAboveScene(
+  r: SkiaRenderer,
+  canvas: Canvas,
+  graph: SceneGraph,
+  selectedIds: Set<string>,
+  overlays: RenderOverlays,
+  sceneVersion: number
+): void {
+  canvas.save()
+  canvas.scale(r.dpr, r.dpr)
+  r.labelCache.update(graph, r.pageId, sceneVersion, graph.positionPreviewVersion)
+  if (!overlays.playing) drawLabelPass(r, canvas, graph, selectedIds, overlays)
+  canvas.restore()
+
+  canvas.save()
+  canvas.scale(r.dpr, r.dpr)
+  if (!overlays.playing) drawOverlayPass(r, canvas, graph, selectedIds, overlays)
+  drawChromePass(r, canvas, graph, selectedIds, overlays)
+  canvas.restore()
 }
 
 export function render(
@@ -271,21 +324,7 @@ export function render(
     canvas.restore()
   }
 
-  if (layer !== 'scene') {
-    canvas.save()
-    canvas.scale(r.dpr, r.dpr)
-    r.labelCache.update(graph, r.pageId, sceneVersion, graph.positionPreviewVersion)
-    drawLabelPass(r, canvas, graph, overlays)
-    canvas.restore()
-
-    canvas.save()
-    canvas.scale(r.dpr, r.dpr)
-
-    drawOverlayPass(r, canvas, graph, selectedIds, overlays)
-    drawChromePass(r, canvas, graph, selectedIds, overlays)
-
-    canvas.restore()
-  }
+  if (layer !== 'scene') drawAboveScene(r, canvas, graph, selectedIds, overlays, sceneVersion)
 
   p.beginPhase('render:flush')
   const { duration: flushDuration } = measure(() => r.surface.flush())

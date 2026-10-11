@@ -1,7 +1,12 @@
 /// <reference types="@figma/plugin-typings" />
 
 import type { FigmaAPI } from './index'
-import type { FigmaComponentNode, FigmaComponentSetNode } from './node-types'
+import type {
+  FigmaComponentNode,
+  FigmaComponentSetNode,
+  FigmaInstanceNode,
+  FigmaSlotNode
+} from './node-types'
 import type { FigmaNodeProxy } from './proxy'
 
 type Expect<T extends true> = T
@@ -20,6 +25,7 @@ export type SupportedPluginAPI = Pick<
   | 'createEllipse'
   | 'createFrame'
   | 'createLine'
+  | 'createNodeFromSvg'
   | 'createPolygon'
   | 'createRectangle'
   | 'createSection'
@@ -64,7 +70,7 @@ const _componentSetPropertyMethodsMatch: ComponentSetPropertyMethodsMatch = true
 type InstancePropertySurfaceMatch = Expect<
   Extends<
     Pick<
-      FigmaNodeProxy & InstanceNode,
+      FigmaInstanceNode,
       | 'componentProperties'
       | 'componentPropertyReferences'
       | 'setProperties'
@@ -90,6 +96,48 @@ type InstancePropertySurfaceMatch = Expect<
 
 const _instancePropertySurfaceMatch: InstancePropertySurfaceMatch = true
 
+type SlotSurfaceMatch = Expect<
+  Extends<
+    Pick<FigmaComponentNode, 'createSlot'> &
+      Pick<FigmaSlotNode, 'type' | 'resetSlot' | 'limitViolations'>,
+    Pick<ComponentNode, 'createSlot'> & Pick<SlotNode, 'type' | 'resetSlot' | 'limitViolations'>
+  >
+>
+const _slotSurfaceMatch: SlotSurfaceMatch = true
+
 // `Effect` here is Figma's plugin-typings union; OpenPencil reads and writes a subset of it.
 type EffectShapeMatch = Expect<Extends<FigmaNodeProxy['effects'][number], Effect>>
 const _effectShapeMatch: EffectShapeMatch = true
+
+type TextListKeys =
+  | 'setRangeListOptions'
+  | 'setRangeIndentation'
+  | 'setRangeListSpacing'
+  | 'setRangeParagraphSpacing'
+  | 'setRangeParagraphIndent'
+  | 'hangingList'
+type TextListSurfaceMatch = Expect<
+  Extends<Pick<FigmaNodeProxy, TextListKeys>, Pick<TextNode, TextListKeys>>
+>
+const _textListSurfaceMatch: TextListSurfaceMatch = true
+
+// Figma's mixed values are its own `figma.mixed` unique symbol; ours are a plain symbol.
+type WithoutMixed<T> = T extends (...args: infer A) => infer R
+  ? (...args: A) => Exclude<R, symbol>
+  : Exclude<T, symbol>
+type TextMixedKeys =
+  | 'getRangeListOptions'
+  | 'getRangeIndentation'
+  | 'getRangeListSpacing'
+  | 'getRangeParagraphSpacing'
+  | 'getRangeParagraphIndent'
+  | 'listSpacing'
+  | 'paragraphSpacing'
+  | 'paragraphIndent'
+type TextMixedMatch = Expect<
+  Extends<
+    { [K in TextMixedKeys]: WithoutMixed<FigmaNodeProxy[K]> },
+    { [K in TextMixedKeys]: WithoutMixed<TextNode[K]> }
+  >
+>
+const _textMixedMatch: TextMixedMatch = true

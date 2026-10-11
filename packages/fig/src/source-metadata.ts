@@ -49,6 +49,7 @@ const EDITED_RAW_FIELDS: Partial<Record<string, readonly string[]>> = {
     ...STROKE_GEOMETRY_RAW_FIELDS
   ],
   strokeWeight: ['strokeWeight', ...STROKE_GEOMETRY_RAW_FIELDS],
+  strokeAlign: ['strokeAlign', ...STROKE_GEOMETRY_RAW_FIELDS],
   strokeJoin: ['strokeJoin', ...STROKE_GEOMETRY_RAW_FIELDS],
   strokeMiterLimit: ['miterLimit', ...STROKE_GEOMETRY_RAW_FIELDS],
   strokeCap: [...STROKE_GEOMETRY_RAW_FIELDS],
@@ -70,6 +71,11 @@ const EDITED_RAW_FIELDS: Partial<Record<string, readonly string[]>> = {
   textUnderlineOffset: ['textUnderlineOffset', ...TEXT_DERIVED_RAW_FIELDS],
   leadingTrim: ['leadingTrim', ...TEXT_DERIVED_RAW_FIELDS],
   maxLines: ['maxLines', ...TEXT_DERIVED_RAW_FIELDS],
+  textParagraphs: [...TEXT_DERIVED_RAW_FIELDS],
+  listSpacing: ['listSpacing', ...TEXT_DERIVED_RAW_FIELDS],
+  paragraphSpacing: ['paragraphSpacing', ...TEXT_DERIVED_RAW_FIELDS],
+  paragraphIndent: ['paragraphIndent', ...TEXT_DERIVED_RAW_FIELDS],
+  hangingList: ['hangingList', ...TEXT_DERIVED_RAW_FIELDS],
   fontVariations: ['fontVariations', ...TEXT_DERIVED_RAW_FIELDS],
   fontFeatures: [
     'fontVariantCommonLigatures',

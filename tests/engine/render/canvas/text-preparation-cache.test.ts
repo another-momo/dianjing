@@ -1,14 +1,17 @@
 import { describe, expect, test } from 'bun:test'
 
-import type { CanvasKit, Paragraph } from 'canvaskit-wasm'
+import type { CanvasKit } from 'canvaskit-wasm'
 
 import { initCanvasKit } from '@open-pencil/core/io'
 import { SceneGraph } from '@open-pencil/scene-graph'
 
 import { buildParagraph, nodeFontReadiness } from '#core/canvas/text'
-import type { ParagraphNode } from '#core/canvas/text/paragraph-inputs'
-import { TextPreparationCache } from '#core/canvas/text/preparation-cache'
+import { TextLayout } from '#core/canvas/text/layout'
+import type { ParagraphNode } from '#core/canvas/text/paragraph/inputs'
+import { TextPreparationCache } from '#core/canvas/text/preparation/cache'
 import { fontManager } from '#core/text/fonts'
+
+import { expectDefined } from '#tests/helpers/assert'
 
 async function fixture(maxEntries = 8, maxUnits = 1000) {
   const ck = await initCanvasKit()
@@ -20,18 +23,18 @@ async function fixture(maxEntries = 8, maxUnits = 1000) {
     height: 50
   })
   const cache = new TextPreparationCache(maxEntries, maxUnits)
-  const built: Paragraph[] = []
+  const built: TextLayout[] = []
   function build() {
     const builder = ck.ParagraphBuilder.MakeFromFontProvider(
       new ck.ParagraphStyle({ textStyle: { fontSize: 16 } }),
       provider
     )
     builder.addText(node.text)
-    const paragraph = builder.build()
+    const layout = TextLayout.ofParagraph(ck, builder.build(), node.text.length)
     builder.delete()
-    paragraph.layout(node.width)
-    built.push(paragraph)
-    return paragraph
+    layout.layout(node.width)
+    built.push(layout)
+    return layout
   }
   function use(variant = 'draw', generation = 1) {
     return cache.use(node, variant, generation, provider, build, ({ paragraph }) =>
@@ -80,7 +83,7 @@ describe('text preparation cache', () => {
       textPreparationCache: f.cache
     }
     const nodes = Array.from({ length: 6 }, (_, i) =>
-      f.graph.createNode('TEXT', f.node.parentId, {
+      f.graph.createNode('TEXT', expectDefined(f.node.parentId, 'text node parent'), {
         text: `Label ${i}`,
         fontFamily: 'Inter',
         fontWeight: 400,
@@ -133,7 +136,19 @@ describe('text preparation cache', () => {
       expect(f.cache.hasGlyphCoverage(f.node, 1, otherProvider)).toBe(false)
       f.graph.updateNodePreview(f.node.id, { x: 50, rotation: 20 })
       expect(f.cache.hasGlyphCoverage(f.node, 1, f.provider)).toBe(true)
+      // Layout resizing the box shapes the same glyphs, unless truncation hides some of them.
       f.graph.updateNodePreview(f.node.id, { width: 80 })
+      expect(f.cache.hasGlyphCoverage(f.node, 1, f.provider)).toBe(true)
+      f.cache.deleteNode(f.node.id, { keepShaping: true })
+      expect(f.cache.hasGlyphCoverage(f.node, 1, f.provider)).toBe(true)
+      f.graph.updateNodePreview(f.node.id, { textTruncation: 'ENDING' })
+      expect(f.cache.hasGlyphCoverage(f.node, 1, f.provider)).toBe(false)
+      f.cache.recordGlyphCoverage(f.node)
+      f.graph.updateNodePreview(f.node.id, { width: 60 })
+      expect(f.cache.hasGlyphCoverage(f.node, 1, f.provider)).toBe(false)
+      f.graph.updateNodePreview(f.node.id, { textTruncation: 'DISABLED' })
+      f.cache.recordGlyphCoverage(f.node)
+      f.cache.deleteNode(f.node.id)
       expect(f.cache.hasGlyphCoverage(f.node, 1, f.provider)).toBe(false)
       f.use('coverage', 1)
       f.cache.recordGlyphCoverage(f.node)
@@ -147,6 +162,44 @@ describe('text preparation cache', () => {
       expect(f.cache.hasGlyphCoverage(f.node, 2, f.provider)).toBe(false)
     } finally {
       otherProvider.delete()
+      f.dispose()
+    }
+  })
+
+  test('measures a text once per shaping and layout width', async () => {
+    const f = await fixture()
+    let measured = 0
+    const measure = (width: number, generation = 1) =>
+      f.cache.measure(f.node, width, generation, f.provider, () => {
+        measured++
+        return { width, height: f.node.text.length }
+      })
+    try {
+      measure(200)
+      measure(200)
+      measure(120)
+      expect(measured).toBe(2)
+      // Layout resizing the box changes neither the shaping nor the sizes at a given width.
+      f.graph.updateNodePreview(f.node.id, { width: 80, height: 30 })
+      f.cache.deleteNode(f.node.id, { keepShaping: true })
+      measure(200)
+      expect(measured).toBe(2)
+      // Drawing rebuilds its paragraph for the new box without dropping the measurements.
+      f.use()
+      f.graph.updateNodePreview(f.node.id, { width: 90 })
+      f.use()
+      expect(f.built).toHaveLength(2)
+      measure(200)
+      expect(measured).toBe(2)
+      f.graph.updateNodePreview(f.node.id, { text: 'Edited text' })
+      expect(measure(200).height).toBe('Edited text'.length)
+      expect(measured).toBe(3)
+      f.cache.deleteNode(f.node.id)
+      measure(200)
+      expect(measured).toBe(4)
+      measure(200, 2)
+      expect(measured).toBe(5)
+    } finally {
       f.dispose()
     }
   })
@@ -182,6 +235,11 @@ describe('text preparation cache', () => {
         ],
         textTruncation: 'ENDING',
         maxLines: 2,
+        textParagraphs: [{ listType: 'UNORDERED', indentation: 1 }],
+        listSpacing: 4,
+        paragraphSpacing: 6,
+        paragraphIndent: 8,
+        hangingList: true,
         textAutoResize: 'WIDTH_AND_HEIGHT',
         width: 100,
         height: 80,

@@ -1,4 +1,11 @@
-import type { Fill, SceneNode, Stroke } from '@open-pencil/scene-graph'
+import {
+  newStrokeGeometry,
+  type Color,
+  type Fill,
+  type GradientStop,
+  type SceneNode,
+  type Stroke
+} from '@open-pencil/scene-graph'
 import { normalizeColor } from '@open-pencil/scene-graph/color'
 import { copyFills, copyStrokes } from '@open-pencil/scene-graph/copy'
 
@@ -24,6 +31,33 @@ function styleReference(
   }
 }
 
+/** Figma treats a paint's `opacity` and `visible` as optional, defaulting to 1 and `true`. */
+function paintDefaults(paint: Partial<Pick<Fill, 'opacity' | 'visible'>>) {
+  return { opacity: paint.opacity ?? 1, visible: paint.visible ?? true }
+}
+
+/** A colour as Figma's plugin API takes it, RGB with an optional alpha. */
+type FigmaColor = Omit<Color, 'a'> & Partial<Pick<Color, 'a'>>
+
+/** A paint as Figma's plugin API takes it: RGB colours, optional opacity and visibility. */
+export type FigmaPaint = Omit<Fill, 'color' | 'opacity' | 'visible' | 'gradientStops'> &
+  Partial<Pick<Fill, 'opacity' | 'visible'>> & {
+    color?: FigmaColor
+    gradientStops?: Array<Omit<GradientStop, 'color'> & { color: FigmaColor }>
+  }
+
+export function figmaPaintToFill(fill: FigmaPaint): Fill {
+  return {
+    ...fill,
+    ...paintDefaults(fill),
+    color: normalizeColor(fill.color),
+    gradientStops: fill.gradientStops?.map((stop) => ({
+      ...stop,
+      color: normalizeColor(stop.color)
+    }))
+  }
+}
+
 export function installVisualNodeProxyAccessors(
   prototype: object,
   internals: NodeProxyInternals,
@@ -35,25 +69,40 @@ export function installVisualNodeProxyAccessors(
         return Object.freeze(copyFills(raw(this, internals).fills))
       },
       set(this: ProxyThis, value: readonly Fill[]) {
-        updateNode(this, internals, {
-          fills: value.map((fill) => ({
-            ...fill,
-            color: normalizeColor(fill.color),
-            gradientStops: fill.gradientStops?.map((stop) => ({
-              ...stop,
-              color: normalizeColor(stop.color)
-            }))
-          }))
-        })
+        updateNode(this, internals, { fills: value.map(figmaPaintToFill) })
       }
     },
     strokes: {
       get(this: ProxyThis): readonly Stroke[] {
         return Object.freeze(copyStrokes(raw(this, internals).strokes))
       },
-      set(this: ProxyThis, value: readonly Stroke[]) {
+      // Figma paints carry no geometry; a stroke takes the node's weight and alignment, which
+      // outlast its strokes.
+      set(
+        this: ProxyThis,
+        value: readonly (Omit<Stroke, 'weight' | 'align'> &
+          Partial<Pick<Stroke, 'weight' | 'align'>>)[]
+      ) {
+        const geometry = newStrokeGeometry(raw(this, internals))
+        // The script keeps its paint objects; the node gets its own copies of every nested value.
+        const strokes = copyStrokes(
+          value.map((stroke) => ({
+            ...stroke,
+            ...paintDefaults(stroke),
+            weight: stroke.weight ?? geometry.weight,
+            align: stroke.align ?? geometry.align,
+            color: normalizeColor(stroke.color)
+          }))
+        )
+        const kept = newStrokeGeometry({
+          strokes,
+          strokeWeight: geometry.weight,
+          strokeAlign: geometry.align
+        })
         updateNode(this, internals, {
-          strokes: value.map((stroke) => ({ ...stroke, color: normalizeColor(stroke.color) }))
+          strokes,
+          strokeWeight: kept.weight,
+          strokeAlign: kept.align
         })
       }
     },

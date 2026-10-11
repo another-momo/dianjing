@@ -7,7 +7,9 @@ import type { EditorContext } from '#core/editor/types'
 import { computeImageHash } from '#core/figma-api'
 import {
   createSVGNodesFromImport,
+  isSVGMarkup,
   prepareSVGImport,
+  svgImportFonts,
   type SVGImportData
 } from '#core/io/formats/svg'
 import { computeAllLayouts } from '#core/layout'
@@ -27,7 +29,8 @@ interface PreparedRasterAsset {
 interface PreparedSVGAsset {
   kind: 'svg'
   data: SVGImportData
-  name: string
+  /** A dropped file's name; pasted markup is named as Figma names it. */
+  name?: string
   width: number
   height: number
 }
@@ -96,7 +99,7 @@ export function createClipboardAssetActions(
             asset: {
               kind: 'svg',
               data,
-              name: file.name.replace(/\.svg$/i, '') || 'SVG',
+              name: file.name.replace(/\.svg$/i, '') || undefined,
               width: data.width,
               height: data.height
             }
@@ -137,12 +140,15 @@ export function createClipboardAssetActions(
     }).id
   }
 
-  /** failures 携带逐文件失败原因——调用方据此给用户分文案反馈 */
-  async function placeFiles(files: File[], cx: number, cy: number): Promise<PlaceFilesResult> {
-    const outcomes = await Promise.all(files.map(prepareAsset))
-    const prepared = outcomes.flatMap((outcome) => ('asset' in outcome ? [outcome.asset] : []))
-    const failures = outcomes.flatMap((outcome) => ('failure' in outcome ? [outcome.failure] : []))
-    if (prepared.length === 0) return { placed: 0, failures }
+  /** 放置核心——返回落画布节点数；failures 收集建节点阶段才暴露的失败（如纯外链 SVG） */
+  function placeAssets(
+    prepared: PreparedAsset[],
+    cx: number,
+    cy: number,
+    label: string,
+    failures: PlaceFileFailure[] = []
+  ): number {
+    if (prepared.length === 0) return 0
 
     const previousSelection = new Set(ctx.state.selectedIds)
     const parentId = resolvePasteTarget(ctx)
@@ -166,7 +172,7 @@ export function createClipboardAssetActions(
               })?.id
         // 例如 SVG 仅含外链 <image>（data: 以外 href 跳过）——矢量化阶段拦不住，建节点阶段才归零
         if (id) created.push(id)
-        else failures.push({ name: asset.name, reason: 'corrupted' })
+        else failures.push({ name: asset.name ?? 'SVG', reason: 'corrupted' })
         x += asset.width + ASSET_GAP
       }
     } catch (error) {
@@ -174,17 +180,46 @@ export function createClipboardAssetActions(
       throw error
     }
 
-    if (created.length === 0) return { placed: 0, failures }
+    if (created.length === 0) return 0
     computeAllLayouts(ctx.graph, ctx.state.currentPageId)
     ctx.setSelectedIds(new Set(created))
-    pushCreatedNodesUndo(created, previousSelection, 'Place files')
+    pushCreatedNodesUndo(created, previousSelection, label)
     ctx.requestRender()
-    return { placed: created.length, failures }
+    return created.length
+  }
+
+  /** Load the fonts of imported SVG text, so it is measured and placed with them. */
+  async function loadSVGFonts(assets: PreparedAsset[]) {
+    const fonts = assets.flatMap((asset) =>
+      asset.kind === 'svg' ? svgImportFonts(asset.data) : []
+    )
+    await Promise.all(
+      fonts.map((font) => ctx.loadFont(font.family, font.style, font.characters).catch(() => null))
+    )
+  }
+
+  /** failures 携带逐文件失败原因——调用方据此给用户分文案反馈 */
+  async function placeFiles(files: File[], cx: number, cy: number): Promise<PlaceFilesResult> {
+    const outcomes = await Promise.all(files.map(prepareAsset))
+    const prepared = outcomes.flatMap((outcome) => ('asset' in outcome ? [outcome.asset] : []))
+    const failures = outcomes.flatMap((outcome) => ('failure' in outcome ? [outcome.failure] : []))
+    await loadSVGFonts(prepared)
+    const placed = placeAssets(prepared, cx, cy, 'Place files', failures)
+    return { placed, failures }
+  }
+
+  /** Paste SVG markup as layers, as Figma does; false when the text is not SVG. */
+  async function pasteSVG(markup: string, cx: number, cy: number): Promise<boolean> {
+    const data = isSVGMarkup(markup) ? prepareSVGImport(markup) : null
+    if (!data) return false
+    const asset: PreparedAsset = { kind: 'svg', data, width: data.width, height: data.height }
+    await loadSVGFonts([asset])
+    return placeAssets([asset], cx, cy, 'Paste SVG') > 0
   }
 
   function placeImageFiles(files: File[], cx: number, cy: number) {
     return placeFiles(files.filter(isSupportedImageFile), cx, cy)
   }
 
-  return { storeImage, placeFiles, placeImageFiles }
+  return { storeImage, placeFiles, placeImageFiles, pasteSVG }
 }

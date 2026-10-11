@@ -29,6 +29,7 @@ export function cloneCanvasPaneState(id: string, source: CanvasPaneState): Canva
     id,
     selectedIds: new Set<string>(),
     hoveredNodeId: null,
+    transforming: false,
     measurementMode: 'off',
     editingTextId: null,
     marquee: null,
@@ -38,12 +39,15 @@ export function cloneCanvasPaneState(id: string, source: CanvasPaneState): Canva
     dropTargetId: null,
     layoutInsertIndicator: null,
     autoLayoutHover: null,
+    shapeHandleHover: null,
     penState: null,
     penCursorX: null,
     penCursorY: null,
     nodeEditState: null,
     cursorCanvasX: null,
     cursorCanvasY: null,
+    // A new canvas edits; preview belongs to the canvas that started it.
+    play: null,
     viewportWidth: source.viewportWidth,
     viewportHeight: source.viewportHeight
   })

@@ -38,6 +38,7 @@ describe('component property control model', () => {
     })
     expect(
       instanceSwapOptions(
+        graph,
         [secondary, preferred],
         {
           id: '1:3',
@@ -49,8 +50,8 @@ describe('component property control model', () => {
         'missing-id'
       )
     ).toEqual([
-      { value: preferred.id, label: 'Preferred' },
-      { value: secondary.id, label: 'Secondary' },
+      { value: preferred.id, label: 'Preferred', preferred: true },
+      { value: secondary.id, label: 'Secondary', preferred: false },
       { value: 'missing-id', label: 'missing-id', missing: true }
     ])
   })

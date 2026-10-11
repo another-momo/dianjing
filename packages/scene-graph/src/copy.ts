@@ -28,8 +28,9 @@ import { cloneVectorNetwork } from './vector-network'
 
 // --- Individual copy functions ---
 
-export function copyFill(f: Fill): Fill {
-  const copy: Fill = { ...f, color: { ...f.color } }
+/** Generic over the paint shape so a stroke keeps its own fields while the paint deep-copies. */
+export function copyFill<T extends Fill>(f: T): T {
+  const copy: T = { ...f, color: { ...f.color } }
   if (f.gradientStops) copy.gradientStops = f.gradientStops.map(copyGradientStop)
   if (f.gradientTransform) copy.gradientTransform = { ...f.gradientTransform }
   if (f.imageTransform) copy.imageTransform = { ...f.imageTransform }
@@ -39,7 +40,7 @@ export function copyFill(f: Fill): Fill {
 }
 
 export function copyStroke(s: Stroke): Stroke {
-  const copy: Stroke = { ...s, color: { ...s.color } }
+  const copy = copyFill(s)
   if (s.dashPattern) {
     copy.dashPattern = [...s.dashPattern]
   }
@@ -271,6 +272,7 @@ export function cloneNodeProps(
     dashPattern: copyOpt(src.dashPattern, (a) => [...a]),
     fontVariations: copyOpt(src.fontVariations, (a) => a.map((v) => ({ ...v }))),
     fontFeatures: copyOpt(src.fontFeatures, (a) => a.map((v) => ({ ...v }))),
+    textParagraphs: copyOpt(src.textParagraphs, (a) => a.map((v) => ({ ...v }))),
     textDecorationFills: copyOpt(src.textDecorationFills, copyFills),
     fillGeometry: copyOpt(src.fillGeometry, copyGeometryPaths),
     strokeGeometry: copyOpt(src.strokeGeometry, copyGeometryPaths),
@@ -294,6 +296,7 @@ export function cloneNodeProps(
       : null,
     textPathData: src.textPathData ? structuredClone(src.textPathData) : null,
     textPathBox: src.textPathBox ? { ...src.textPathBox } : null,
-    gridPosition: src.gridPosition ? { ...src.gridPosition } : null
+    gridPosition: src.gridPosition ? { ...src.gridPosition } : null,
+    targetAspectRatio: src.targetAspectRatio ? { ...src.targetAspectRatio } : null
   }
 }

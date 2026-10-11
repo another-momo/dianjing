@@ -19,7 +19,7 @@ const layerTreeTheme = {
   },
   variants: {
     selected: {
-      true: { row: 'bg-panel-selected text-white hover:bg-panel-selected' },
+      true: { row: 'bg-panel-selected text-on-accent hover:bg-panel-selected' },
       false: { row: 'bg-transparent text-surface hover:bg-hover' }
     },
     focused: {
@@ -32,11 +32,15 @@ const layerTreeTheme = {
     },
     visible: {
       true: {},
-      false: { row: 'opacity-50' }
+      false: {}
     },
     component: {
       true: { icon: 'text-component opacity-100' },
       false: { icon: 'opacity-70' }
+    },
+    slot: {
+      true: { icon: 'text-slot opacity-100', label: 'text-slot' },
+      false: {}
     },
     expanded: {
       true: { disclosure: 'rotate-90' },
@@ -72,13 +76,17 @@ const layerTreeTheme = {
     {
       selected: true,
       focused: true,
-      class: { icon: 'text-white opacity-100' }
+      class: { icon: 'text-on-accent opacity-100' }
     },
     {
       selected: true,
       focused: false,
       class: { row: 'bg-panel-selected-muted text-surface hover:bg-panel-selected-muted' }
-    }
+    },
+    // A hidden layer dims while its name still reads at 4.5:1. Once selected, fading the row would
+    // fade its highlight too, so only the icon dims.
+    { visible: false, selected: false, class: { row: 'opacity-65' } },
+    { visible: false, selected: true, class: { icon: 'opacity-50' } }
   ],
   defaultVariants: {
     selected: false,
@@ -86,6 +94,7 @@ const layerTreeTheme = {
     dragging: false,
     visible: true,
     component: false,
+    slot: false,
     expanded: false,
     actionsVisible: true,
     actionActive: false,

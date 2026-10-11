@@ -13,7 +13,7 @@ export const setText = defineTool({
 
   description: 'Set text content of a text node.',
   execution: { kind: 'sync', mutation: 'properties' },
-  input: v.object({
+  input: v.strictObject({
     id: nodeIdInput,
     text: v.pipe(v.string(), v.description('Text content'))
   }),
@@ -34,7 +34,7 @@ export const setFont = defineTool({
     'For font_size / font_weight, prefer `update_node` (it accepts numeric font_weight 100–900). ' +
     'There is no bulk font-change tool — loop set_font per node. `batch_update` accepts no font properties.',
   execution: { kind: 'sync', mutation: 'properties' },
-  input: v.object({
+  input: v.strictObject({
     id: nodeIdInput,
     family: v.optional(v.pipe(v.string(), v.description('Font family name'))),
     size: v.optional(toolNumber(v.pipe(v.number(), v.minValue(1), v.description('Font size')))),
@@ -62,7 +62,7 @@ export const setFontRange = defineTool({
 
   description: 'Set font properties for a text range.',
   execution: { kind: 'sync', mutation: 'properties' },
-  input: v.object({
+  input: v.strictObject({
     id: nodeIdInput,
     start: toolNumber(v.pipe(v.number(), v.minValue(0), v.description('Start character index'))),
     end: toolNumber(v.pipe(v.number(), v.minValue(0), v.description('End character index'))),
@@ -102,7 +102,7 @@ export const setTextResize = defineTool({
     'Use `update_node` with explicit `width` / `height` for a fixed-size text box (combine with mode=NONE / TRUNCATE). ' +
     'For other text layout properties at the same time (alignment, direction, decoration), prefer `set_text_properties` instead.',
   execution: { kind: 'sync', mutation: 'properties' },
-  input: v.object({
+  input: v.strictObject({
     id: nodeIdInput,
     mode: v.pipe(
       v.picklist(['NONE', 'WIDTH_AND_HEIGHT', 'HEIGHT', 'TRUNCATE']),
@@ -123,7 +123,7 @@ export const setTextProperties = defineTool({
   description:
     'Set text layout properties: alignment, auto-resize, text case, decoration, truncation.',
   execution: { kind: 'sync', mutation: 'properties' },
-  input: v.object({
+  input: v.strictObject({
     id: v.pipe(v.string(), v.description('Text node ID')),
     align_horizontal: v.optional(
       v.pipe(

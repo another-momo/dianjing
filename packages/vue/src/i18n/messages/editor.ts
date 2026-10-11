@@ -5,7 +5,17 @@ import { i18n } from '#vue/i18n/create'
 export const editorMessageDefaults = {
   toolOptions: params('{tool} options'),
   removeGradientStop: 'Remove gradient stop',
-  showUI: params('Show UI ({shortcut})')
+  /** The word before a corner's radius in the label beside a dragged radius handle. */
+  cornerRadius: 'Radius',
+  /** The word before a polygon's or star's point count beside its dragged handle. */
+  pointCount: 'Count',
+  /** The word before a star's inner ratio beside its dragged handle. */
+  starRatio: 'Ratio',
+  showUI: params('Show UI ({shortcut})'),
+  previewing: 'Previewing',
+  startPreview: params('Preview ({shortcut})'),
+  resetPreview: 'Reset',
+  leavePreview: params('Leave preview ({shortcut})')
 } as const
 
 export const editorMessages = i18n('editor', editorMessageDefaults)

@@ -1,41 +1,54 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 
+import { getNodeEditCapability } from '@open-pencil/core/editor'
+import { readIcon } from '@open-pencil/scene-graph'
 import { useI18n, useSelectionState, useEditorCommands } from '@open-pencil/vue'
 
 import { useEditorStore } from '@/app/editor/active-store'
-import { COMPONENT_TYPES, nodeIcon } from '@/app/editor/icons'
+import { COMPONENT_TYPES, sceneNodeIcon } from '@/app/editor/icons'
+import { openVariablesDialog } from '@/app/editor/tokens/dialog'
 import { openLibraryReview, useLibraryService } from '@/app/libraries'
+import IconButton from '@/components/ui/button/IconButton.vue'
 import Tip from '@/components/ui/overlay/Tip.vue'
 import PanelHeader from '@/components/ui/panel/PanelHeader.vue'
 
 import AppearanceSection from './properties/AppearanceSection.vue'
+import BehaviourPanel from './properties/component-properties/behaviour/BehaviourPanel.vue'
 import ComponentPropertiesSection from './properties/component-properties/ComponentPropertiesSection.vue'
+import ComponentPropertyListSection from './properties/component-properties/ComponentPropertyListSection.vue'
 import InstanceUpdateAction from './properties/component-properties/instance-update/InstanceUpdateAction.vue'
-import VariantAuthoringSection from './properties/component-properties/VariantAuthoringSection.vue'
+import PropertyBindButton from './properties/component-properties/PropertyBindButton.vue'
+import PropertyBoundField from './properties/component-properties/PropertyBoundField.vue'
+import SlotAuthoringSection from './properties/component-properties/slot/SlotAuthoringSection.vue'
+import { usePropertyBinding } from './properties/component-properties/usePropertyBinding'
+import VariantAuthoringSection from './properties/component-properties/variant/VariantAuthoringSection.vue'
 import ConstraintsSection from './properties/constraints/ConstraintsSection.vue'
 import EffectsSection from './properties/EffectsSection.vue'
 import ExportSection from './properties/ExportSection.vue'
 import FillSection from './properties/FillSection.vue'
 import FramePresetSelect from './properties/frame-presets/FramePresetSelect.vue'
 import FramePresetsSection from './properties/frame-presets/FramePresetsSection.vue'
+import IconSection from './properties/IconSection.vue'
 import LayoutGridSection from './properties/layout/guides/LayoutGridSection.vue'
 import LayoutSection from './properties/layout/LayoutSection.vue'
 import MaskSection from './properties/MaskSection.vue'
 import PageSection from './properties/PageSection.vue'
 import RetainedPanel from './properties/panel/RetainedPanel.vue'
 import PositionSection from './properties/PositionSection.vue'
+import SelectionColorsSection from './properties/selection/SelectionColorsSection.vue'
+import SelectionLayoutSection from './properties/selection/SelectionLayoutSection.vue'
 import SelectionActionsControl from './properties/SelectionActionsControl.vue'
 import StrokeSection from './properties/stroke/StrokeSection.vue'
 import TypographySection from './properties/TypographySection.vue'
 import VariablesSection from './properties/VariablesSection.vue'
-import VariablesDialog from './variables/VariablesDialog.vue'
 
-const variablesOpen = ref(false)
 const store = useEditorStore()
 const libraryService = useLibraryService()
 const activeTool = computed(() => store.state.activeTool)
 const { selectedNode: node, selectedCount: multiCount } = useSelectionState()
+const swapBinding = usePropertyBinding('INSTANCE_SWAP')
+const swapLinked = computed(() => !!swapBinding.definition.value)
 const showBooleanOperations = computed(() => multiCount.value >= 2)
 const { getCommand } = useEditorCommands()
 const goToMainComponent = getCommand('selection.goToMainComponent')
@@ -44,7 +57,11 @@ const isComponentType = computed(() => {
   const type = node.value?.type
   return type ? COMPONENT_TYPES.has(type) : false
 })
-const selectedIcon = computed(() => (node.value ? nodeIcon(node.value) : undefined))
+// A library's components are edited in the library, so Add variant has nothing to change here.
+const canAddVariant = computed(
+  () => !!node.value && getNodeEditCapability(store.graph, node.value.id).editable
+)
+const selectedIcon = computed(() => (node.value ? sceneNodeIcon(node.value) : undefined))
 function openSelectedInstanceReview() {
   const instance = node.value
   if (instance?.type !== 'INSTANCE' || !instance.componentId) return
@@ -85,7 +102,7 @@ const { panels } = useI18n()
         <icon-lucide-layers-3 class="size-3.5" aria-hidden="true" />
       </template>
       <span role="heading" aria-level="2">
-        {{ panels.layersCount({ count: String(multiCount) }) }}
+        {{ panels.selectedCount({ count: String(multiCount) }) }}
       </span>
       <template #actions>
         <SelectionActionsControl :show-boolean-operations="showBooleanOperations" />
@@ -94,10 +111,13 @@ const { panels } = useI18n()
     <ComponentPropertiesSection />
     <PositionSection />
     <ConstraintsSection />
+    <SelectionLayoutSection />
     <AppearanceSection />
+    <TypographySection />
     <FillSection />
     <StrokeSection />
     <EffectsSection />
+    <SelectionColorsSection />
     <ExportSection />
   </div>
 
@@ -116,8 +136,22 @@ const { panels } = useI18n()
             </span>
           </Tip>
         </template>
-        <span role="heading" aria-level="2">{{ node.name }}</span>
+        <span role="heading" aria-level="2" class="min-w-0">
+          <!-- A swap linked to a property shows the property in place of the layer, as Figma does. -->
+          <PropertyBoundField v-if="swapLinked" field="INSTANCE_SWAP" compact />
+          <template v-else>{{ node.name }}</template>
+        </span>
         <template #actions>
+          <IconButton
+            v-if="node.type === 'COMPONENT' || node.type === 'COMPONENT_SET'"
+            :label="panels.addVariant"
+            data-test-id="add-variant"
+            :disabled="!canAddVariant"
+            @click="store.addVariant(node.id)"
+          >
+            <icon-lucide-diamond-plus class="size-3.5" />
+          </IconButton>
+          <PropertyBindButton v-if="node.type === 'INSTANCE'" field="INSTANCE_SWAP" />
           <InstanceUpdateAction
             v-if="node.type === 'INSTANCE'"
             :node="node"
@@ -126,29 +160,24 @@ const { panels } = useI18n()
             @review="openSelectedInstanceReview"
           />
           <SelectionActionsControl />
+          <template v-if="node.type === 'INSTANCE'">
+            <IconButton
+              :label="goToMainComponent.label"
+              data-test-id="instance-go-to-main"
+              @click="goToMainComponent.run()"
+            >
+              <icon-lucide-crosshair class="size-3.5" />
+            </IconButton>
+            <IconButton
+              :label="detachInstance.label"
+              data-test-id="instance-detach"
+              @click="detachInstance.run()"
+            >
+              <icon-lucide-unlink class="size-3.5" />
+            </IconButton>
+          </template>
         </template>
       </PanelHeader>
-
-      <!-- Component actions -->
-      <div
-        v-if="node.type === 'INSTANCE'"
-        class="flex flex-col gap-1 border-b border-border px-3 py-2"
-      >
-        <button
-          type="button"
-          class="rounded bg-component/10 px-2 py-1 text-left text-[11px] text-component hover:bg-component/20"
-          @click="goToMainComponent.run()"
-        >
-          {{ panels.goToMainComponent }}
-        </button>
-        <button
-          type="button"
-          class="rounded px-2 py-1 text-left text-[11px] text-muted hover:bg-hover"
-          @click="detachInstance.run()"
-        >
-          {{ panels.detachInstance }}
-        </button>
-      </div>
 
       <ComponentPropertiesSection v-if="node.type === 'INSTANCE'" />
       <VariantAuthoringSection
@@ -160,8 +189,14 @@ const { panels } = useI18n()
         "
       />
 
-      <FramePresetSelect v-if="node.type === 'FRAME'" />
+      <ComponentPropertyListSection />
+      <SlotAuthoringSection />
+      <BehaviourPanel v-if="node.type === 'COMPONENT' || node.type === 'COMPONENT_SET'" />
 
+      <!-- Presets size artboards; an icon is a glyph. -->
+      <FramePresetSelect v-if="node.type === 'FRAME' && !readIcon(node)" />
+
+      <IconSection />
       <PositionSection />
       <ConstraintsSection />
       <LayoutSection />
@@ -172,6 +207,7 @@ const { panels } = useI18n()
       <StrokeSection />
       <LayoutGridSection v-if="supportsLayoutGuides" />
       <EffectsSection />
+      <SelectionColorsSection />
 
       <ExportSection />
     </div>
@@ -183,9 +219,7 @@ const { panels } = useI18n()
     class="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto pb-4"
   >
     <PageSection />
-    <VariablesSection @open-dialog="variablesOpen = true" />
+    <VariablesSection @open-dialog="openVariablesDialog(store)" />
     <ExportSection />
   </div>
-
-  <VariablesDialog v-model:open="variablesOpen" />
 </template>

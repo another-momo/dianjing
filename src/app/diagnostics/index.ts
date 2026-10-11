@@ -7,10 +7,11 @@ export {
   recordModelStepCompleted,
   preparationDurationBucket,
   recordPreparationOutcome,
+  recordRuntimeError,
   recordStorageFailure,
   storageOperationForJob
 } from './events'
-export { describeDiagnosticError } from './error'
+export { describeDiagnosticError, diagnosticErrorDetails } from './error'
 export { diagnostics } from './recorder'
 export type {
   AIDiagnosticUsage,

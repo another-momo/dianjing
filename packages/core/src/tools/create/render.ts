@@ -10,7 +10,7 @@ export const render = defineTool({
   description:
     'Render JSX to design nodes. Supports inline SVG paths, including open stroked paths: <svg viewBox="0 0 24 24" size={24}><path d="M2 12 L22 12" stroke="#000" fill="none" /></svg>. Use replace_id to replace a placeholder while preserving its position.',
   execution: { kind: 'async', mutation: 'document' },
-  input: v.object({
+  input: v.strictObject({
     replace_id: v.optional(
       v.pipe(
         v.string(),
@@ -33,7 +33,8 @@ export const render = defineTool({
     jsx: v.pipe(v.string(), v.description('JSX string to render'))
   }),
   execute: async (figma, args) => {
-    const { renderJSX } = await import('#core/design-jsx')
+    const { designJSXRenderer } = await import('#core/design-jsx')
+    const { renderJSX } = designJSXRenderer(figma.icons)
 
     const placement = resolveRenderPlacement(figma.graph, args, figma.currentPageId)
     const results = await renderJSX(figma.graph, args.jsx, placement)

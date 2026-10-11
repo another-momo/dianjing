@@ -48,7 +48,7 @@ export const getPageTree = defineTool({
   description:
     'Get the node tree of the current page. Returns lightweight hierarchy: id, type, name, size. Use depth, root_id, or node_types to keep large pages small. Use get_node for full properties of a specific node.',
   execution: { kind: 'sync', mutation: 'none' },
-  input: v.object({
+  input: v.strictObject({
     depth: v.optional(
       toolNumber(
         v.pipe(
@@ -98,7 +98,7 @@ export const getNode = defineTool({
   description:
     'Get detailed properties of a node by ID. Use depth to limit child recursion (0 = node only, 1 = direct children, etc). Default: unlimited.',
   execution: { kind: 'sync', mutation: 'none' },
-  input: v.object({
+  input: v.strictObject({
     id: nodeIdInput,
     depth: v.optional(
       toolNumber(
@@ -121,7 +121,7 @@ export const findNodes = defineTool({
   description:
     'Find nodes by name pattern and/or type. Defaults to the current page; pass `page` (page id from list_pages, or an unambiguous page name) to scope the search to a specific page. Use this for simple within-page lookups by name/type; use query_nodes for XPath selectors or when you need to scan pages other than the current one. Call when the user asks to locate nodes on a specific page or to filter by name/type.',
   execution: { kind: 'sync', mutation: 'none' },
-  input: v.object({
+  input: v.strictObject({
     name: v.optional(
       v.pipe(v.string(), v.description('Name substring to match (case-insensitive)'))
     ),

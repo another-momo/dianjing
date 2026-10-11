@@ -19,13 +19,13 @@ import {
 } from '@/constants'
 
 import ChatPanel from './assistant/ChatPanel.vue'
-import CodePanel from './CodePanel.vue'
+import CommentsPanel from './comments/CommentsPanel.vue'
 import DesignPanel from './DesignPanel.vue'
 import LayerTree from './LayerTree/LayerTree.vue'
 import PagesPanel from './PagesPanel.vue'
 
 type Snap = 'closed' | 'half' | 'full'
-type DrawerTab = 'layers' | 'design' | 'code' | 'ai'
+type DrawerTab = 'layers' | 'design' | 'ai'
 
 const store = useEditorStore()
 const { settings } = useI18n()
@@ -43,13 +43,12 @@ const snap = computed({
 })
 
 function getDrawerTab(): DrawerTab {
-  if (store.state.activeRibbonTab === 'code') return 'code'
   if (store.state.activeRibbonTab === 'ai') return 'ai'
   return store.state.panelMode === 'design' ? 'design' : 'layers'
 }
 
 function setDrawerTab(tab: DrawerTab) {
-  if (tab === 'code' || tab === 'ai') {
+  if (tab === 'ai') {
     store.state.activeRibbonTab = tab
     return
   }
@@ -136,7 +135,7 @@ const drawerTransition = useMotionTransition({
           <TabsTrigger
             data-test-id="mobile-ribbon-layers"
             value="layers"
-            class="flex h-full cursor-pointer items-center justify-center gap-1.5 px-4 text-xs transition-colors outline-none select-none data-[state=active]:text-accent"
+            class="flex h-full cursor-pointer items-center justify-center gap-1.5 px-4 text-xs transition-colors outline-none select-none data-[state=active]:text-primary"
             @click="toggleTab('layers')"
           >
             <icon-lucide-layers class="size-4" />
@@ -145,7 +144,7 @@ const drawerTransition = useMotionTransition({
           <TabsTrigger
             data-test-id="mobile-ribbon-design"
             value="design"
-            class="flex h-full cursor-pointer items-center justify-center gap-1.5 px-4 text-xs transition-colors outline-none select-none data-[state=active]:text-accent"
+            class="flex h-full cursor-pointer items-center justify-center gap-1.5 px-4 text-xs transition-colors outline-none select-none data-[state=active]:text-primary"
             @click="toggleTab('design')"
           >
             <icon-lucide-sliders-horizontal class="size-4" />
@@ -154,18 +153,9 @@ const drawerTransition = useMotionTransition({
           <div class="flex-1" />
 
           <TabsTrigger
-            data-test-id="mobile-ribbon-code"
-            value="code"
-            class="flex h-full cursor-pointer items-center justify-center px-3 transition-colors outline-none select-none data-[state=active]:text-accent"
-            @click="toggleTab('code')"
-          >
-            <icon-lucide-code class="size-4" />
-          </TabsTrigger>
-
-          <TabsTrigger
             data-test-id="mobile-ribbon-ai"
             value="ai"
-            class="flex h-full cursor-pointer items-center justify-center px-3 transition-colors outline-none select-none data-[state=active]:text-accent"
+            class="flex h-full cursor-pointer items-center justify-center px-3 transition-colors outline-none select-none data-[state=active]:text-primary"
             @click="toggleTab('ai')"
           >
             <icon-lucide-sparkles class="size-4" />
@@ -187,13 +177,9 @@ const drawerTransition = useMotionTransition({
 
         <TabsContent value="design" class="mt-0 h-full data-[state=inactive]:hidden">
           <div data-test-id="mobile-drawer-design" class="flex h-full flex-col">
-            <DesignPanel />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="code" class="mt-0 h-full data-[state=inactive]:hidden">
-          <div data-test-id="mobile-drawer-code" class="flex h-full flex-col">
-            <CodePanel :active="isOpen && getDrawerTab() === 'code'" />
+            <!-- The Comment tool turns the properties into the comments list, as on desktop. -->
+            <CommentsPanel v-if="store.state.activeTool === 'COMMENT'" />
+            <DesignPanel v-else />
           </div>
         </TabsContent>
 

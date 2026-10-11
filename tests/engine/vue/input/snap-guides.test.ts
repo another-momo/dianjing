@@ -1,13 +1,28 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createEditor } from '@open-pencil/core/editor'
-import { computeSnap } from '@open-pencil/scene-graph'
+import { computeSnap, createDefaultNode } from '@open-pencil/scene-graph'
 
 import { computePixelGridSnap, resolveObjectPixelSnap } from '#vue/shared/input/snap'
 
 describe('move snap guide presentation', () => {
+  // Figma desktop 126 ends a move on whole pixels at any zoom, even from a fractional start.
+  test('pixel rounding applies however far zoomed in', () => {
+    const editor = createEditor()
+    editor.state.snappingPreferences = { geometry: false, objects: true, pixelGrid: true }
+    editor.state.zoom = 16
+    const result = resolveObjectPixelSnap(
+      new Set(['frame']),
+      { x: 10.4, y: 20.6, width: 100, height: 80 },
+      [],
+      editor
+    )
+    expect(result.correction.x).toBeCloseTo(-0.4)
+    expect(result.correction.y).toBeCloseTo(0.4)
+  })
+
   test('pixel rounding adjusts a lone frame without drawing self-alignment guides', () => {
-    const pixel = computePixelGridSnap({ x: 10.25, y: 20.4, width: 100, height: 80 }, 5)
+    const pixel = computePixelGridSnap({ x: 10.25, y: 20.4, width: 100, height: 80 })
     expect(pixel.delta).toEqual({ x: -0.25, y: -0.3999999999999986 })
     expect(pixel.guides).toEqual([])
     const editor = createEditor()
@@ -43,8 +58,14 @@ describe('move snap guide presentation', () => {
 
   test('multiple moving nodes are excluded from object targets', () => {
     const nodes = [
-      { id: 'first', x: 0, y: 0, width: 50, height: 50, rotation: 0 },
-      { id: 'second', x: 50, y: 0, width: 50, height: 50, rotation: 0 }
+      createDefaultNode(() => 'first', 'FRAME', { x: 0, y: 0, width: 50, height: 50, rotation: 0 }),
+      createDefaultNode(() => 'second', 'FRAME', {
+        x: 50,
+        y: 0,
+        width: 50,
+        height: 50,
+        rotation: 0
+      })
     ]
     expect(
       computeSnap(

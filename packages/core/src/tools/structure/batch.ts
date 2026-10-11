@@ -123,7 +123,7 @@ export const batchUpdate = defineTool({
     `Unrecognized prop keys are reported per operation (known keys in the same op are still applied). ` +
     `Callers MUST inspect errors and the top-level partial flag — if partial: true, some operations failed; treat the result as a partial success and continue with the errors fixed.`,
   execution: { kind: 'sync', mutation: 'document' },
-  input: v.object({
+  input: v.strictObject({
     operations: v.pipe(
       v.string(),
       v.description(

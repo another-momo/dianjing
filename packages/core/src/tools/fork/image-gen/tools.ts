@@ -26,7 +26,7 @@ export const imageGenBegin = defineTool({
   exposure: { ai: false, mcp: false, webmcp: false },
   description:
     'INTERNAL pipeline segment — called by the pi-backend generate_image orchestrator, not meant for direct AI use. Resolves the output target (creating and auto-placing a new frame when no valid replace target is given), extracts reference images (base64), and reports the final API size. Pair with image_gen_commit after the backend has generated the image bytes.',
-  input: v.object({
+  input: v.strictObject({
     prompt: v.pipe(v.string(), v.description('Generation prompt')),
     width: v.optional(
       v.pipe(v.number(), v.description('Requested width (raw; normalized for the API call)'))
@@ -90,7 +90,7 @@ export const imageGenCommit = defineTool({
   exposure: { ai: false, mcp: false, webmcp: false },
   description:
     'INTERNAL pipeline segment — called by the pi-backend generate_image orchestrator, not meant for direct AI use. Writes generated image bytes (base64) into the target node resolved by image_gen_begin, snapshotting the previous image into the page generation-history container first (only IMAGE fills; same-hash dedupe).',
-  input: v.object({
+  input: v.strictObject({
     id: v.pipe(v.string(), v.description('Target node id from image_gen_begin')),
     image_data: v.pipe(v.string(), v.description('Base64-encoded generated image bytes'))
   }),

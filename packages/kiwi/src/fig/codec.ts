@@ -221,6 +221,16 @@ export interface AssetRef {
 
 export type StyleReference = { guid: GUID; assetRef?: never } | { guid?: never; assetRef: AssetRef }
 
+/** One paragraph of a text: whether it is a list item, and how deeply it nests. */
+export interface TextLineData {
+  lineType?: 'PLAIN' | 'ORDERED_LIST' | 'UNORDERED_LIST' | 'BLOCKQUOTE' | 'HEADER'
+  styleId?: number
+  indentationLevel?: number
+  sourceDirectionality?: string
+  listStartOffset?: number
+  isFirstLineOfList?: boolean
+}
+
 export interface NodeChange {
   [key: string]: unknown
   guid?: GUID
@@ -270,6 +280,7 @@ export interface NodeChange {
   stackCounterSpacing?: number
   minSize?: { value?: Vector }
   maxSize?: { value?: Vector }
+  targetAspectRatio?: { value?: Vector }
   // Frame
   clipsContent?: boolean
   frameMaskDisabled?: boolean
@@ -288,7 +299,7 @@ export interface NodeChange {
   textAutoResize?: string
   textData?: {
     characters: string
-    lines?: Array<{ lineType?: string; styleId?: number; indentationLevel?: number }>
+    lines?: TextLineData[]
     characterStyleIDs?: number[]
     styleOverrideTable?: NodeChange[]
   }
@@ -307,7 +318,8 @@ export interface NodeChange {
       commandsBlob?: number
       position: Vector
       fontSize: number
-      firstCharacter: number
+      /** The character the glyph draws; Figma leaves it out for list markers. */
+      firstCharacter?: number
       advance: number
       /** Radians along the text path; kiwi omits the field for axis-aligned text. */
       rotation?: number
@@ -356,6 +368,10 @@ export interface NodeChange {
   emojiImageSet?: string
   lineHeight?: { value: number; units: string }
   letterSpacing?: { value: number; units: string }
+  paragraphSpacing?: number
+  paragraphIndent?: number
+  listSpacing?: number
+  hangingList?: boolean
   // Symbol/Instance
   symbolData?: { symbolID: GUID }
   // ComponentSet
@@ -370,6 +386,10 @@ export interface NodeChange {
   rectangleBottomRightCornerRadius?: number
   rectangleCornerRadiiIndependent?: boolean
   cornerSmoothing?: number
+  /** A polygon's sides or a star's points. */
+  count?: number
+  /** A star's inner radius as a share of its outer one. */
+  starInnerScale?: number
   // Constraints
   horizontalConstraint?: string
   verticalConstraint?: string
@@ -387,6 +407,10 @@ export interface NodeChange {
   variableResolvedType?: string
   variableDataValues?: { entries?: VariableDataValuesEntry[] }
   variableScopes?: string[]
+  codeSyntax?: { entries?: Array<{ platform: string; value: string }> }
+  description?: string
+  symbolDescription?: string
+  isPublishable?: boolean
   documentColorProfile?: 'SRGB' | 'DISPLAY_P3'
   pluginData?: PluginData[]
   pluginRelaunchData?: PluginRelaunchData[]

@@ -1,5 +1,7 @@
 import { ref } from 'vue'
 
+import { newStrokeGeometry, type Stroke } from '@open-pencil/scene-graph'
+
 import { useNodeProps } from '#vue/controls/node-props/use'
 import {
   BORDER_SIDES,
@@ -15,7 +17,8 @@ import {
   setDash,
   setGap,
   toggleDash,
-  updateAlign
+  updateAlign,
+  type StrokeSides
 } from '#vue/controls/stroke/helpers'
 import { useEditor } from '#vue/editor/context'
 import { useI18n } from '#vue/i18n'
@@ -61,16 +64,26 @@ export function useStrokeControls() {
     sideOptions: SIDE_OPTIONS,
     borderSides: BORDER_SIDES,
     sideMenuOpen,
-    defaultStroke: DEFAULT_STROKE,
-    updateAlign: updateAlign.bind(null, store),
-    currentAlign,
+    /** A new stroke for the selection: black, with the weight and alignment its first node keeps. */
+    get defaultStroke(): Stroke {
+      const first = nodes.value.at(0)
+      return { ...DEFAULT_STROKE, ...(first ? newStrokeGeometry(first) : {}) }
+    },
+    /** Aligns the strokes of every selected node. */
+    updateAlign: (align: Stroke['align']) => updateAlign(store, nodes.value, align),
+    /** The alignment the selected nodes share, or MIXED. */
+    currentAlign: () => currentAlign(nodes.value),
     currentSides,
     dashState,
     toggleDash,
     setDash,
     setGap,
-    borderWeight,
-    selectSide,
-    updateBorderWeight
+    /** One side's weight across the selection, or MIXED. */
+    borderWeight: (side: (typeof BORDER_SIDES)[number]) => borderWeight(nodes.value, side),
+    /** Strokes the chosen sides of every selected node. */
+    selectSide: (side: StrokeSides) => selectSide(side, nodes.value),
+    /** Changes one side's weight on every selected node. */
+    updateBorderWeight: (side: (typeof BORDER_SIDES)[number], value: number) =>
+      updateBorderWeight(side, value, nodes.value)
   }
 }

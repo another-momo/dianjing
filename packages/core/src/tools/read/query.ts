@@ -24,7 +24,7 @@ Examples:
 Call when the user asks for an XPath-style query or when the lookup needs filters beyond name/type.`,
   execution: { kind: 'async', mutation: 'none' },
   exposure: { webmcp: false },
-  input: v.object({
+  input: v.strictObject({
     selector: v.pipe(v.string(), v.description('XPath selector')),
     page: v.optional(
       v.pipe(

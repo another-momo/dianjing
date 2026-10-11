@@ -1,5 +1,5 @@
-import { resolve } from 'node:path'
 import { expect, test } from 'bun:test'
+import { resolve } from 'node:path'
 
 import { SkiaRenderer } from '@open-pencil/core'
 import { createEditor } from '@open-pencil/core/editor'
@@ -9,12 +9,17 @@ import type { NodeChange } from '@open-pencil/kiwi/fig/codec'
 import { rescaleNodeTree } from '@open-pencil/scene-graph'
 
 import { expectDefined } from '../helpers/assert'
+import {
+  CapturedFigRecords,
+  FIXTURES,
+  NestedLayoutScaleFixture,
+  readFixture
+} from '../helpers/fig/fixtures'
 import { inheritedNestedBindingRecords } from '../helpers/fig/nested-binding'
-import { FIXTURES, readFixtureJSON } from '../helpers/fig/fixtures'
 
-const fixture = readFixtureJSON<Record<string, unknown>[]>('nested-layout-scale.json')
+const fixture = readFixture('nested-layout-scale.json', NestedLayoutScaleFixture)
 
-const declared = readFixtureJSON<Record<string, unknown>[]>('nested-binding-ownership-records.json')
+const declared = readFixture('nested-binding-ownership-records.json', CapturedFigRecords)
 
 for (const edit of [
   'direct',

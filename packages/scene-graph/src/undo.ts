@@ -23,6 +23,7 @@ export class UndoManager {
   private undoStack: UndoEntry[] = []
   private redoStack: UndoEntry[] = []
   private batches: UndoBatch[] = []
+  private readonly settlers = new Set<() => void>()
   private readonly limit: number
   private readonly onChange: (() => void) | undefined
 
@@ -53,7 +54,21 @@ export class UndoManager {
     this.pushUndoEntry(entry)
   }
 
+  /**
+   * Registers a hook that commits an edit still being coalesced, such as a run of picker changes.
+   * Undo and redo run every hook first, so they act on the newest change.
+   */
+  onBeforeHistory(settle: () => void): () => void {
+    this.settlers.add(settle)
+    return () => this.settlers.delete(settle)
+  }
+
+  private settle() {
+    for (const settle of this.settlers) settle()
+  }
+
   undo(): string | null {
+    this.settle()
     const entry = this.undoStack.pop()
     if (!entry) return null
     entry.inverse()
@@ -63,6 +78,7 @@ export class UndoManager {
   }
 
   redo(): string | null {
+    this.settle()
     const entry = this.redoStack.pop()
     if (!entry) return null
     entry.forward()
@@ -119,12 +135,27 @@ export class UndoManager {
     return this.batches.length > 0
   }
 
+  /** Committed history, or changes in an open batch that a settling hook commits first. */
   get canUndo(): boolean {
-    return this.undoStack.length > 0
+    if (this.undoStack.length > 0) return true
+    return this.settlers.size > 0 && this.batches.some((batch) => batch.entries.length > 0)
   }
 
   get canRedo(): boolean {
     return this.redoStack.length > 0
+  }
+
+  /**
+   * The entry `depth` steps below the top of the undo stack, so a caller that pushed entries
+   * can tell whether they are still the most recent ones.
+   */
+  peekUndo(depth = 0): UndoEntry | undefined {
+    return this.undoStack.at(-1 - depth)
+  }
+
+  /** The entry `depth` steps below the top of the redo stack, the next one Redo applies at 0. */
+  peekRedo(depth = 0): UndoEntry | undefined {
+    return this.redoStack.at(-1 - depth)
   }
 
   get undoLabel(): string | null {

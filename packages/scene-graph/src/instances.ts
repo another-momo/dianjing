@@ -1,5 +1,4 @@
 import type { SceneGraph, SceneNode } from './'
-import { detachOwnedSlotContent, restoreOwnedSlotContent } from './components/slots'
 import type { NodeCloneMode } from './copy'
 import {
   clearInstanceOverrides,
@@ -19,6 +18,7 @@ import {
   syncChildren,
   updateSyncedProps
 } from './instances/sync'
+import { detachOwnedSlotContent, restoreOwnedSlotContent } from './slots/frames'
 
 export type { NodeCloneMode } from './copy'
 export {
@@ -94,10 +94,20 @@ function recordNestedSwap(graph: SceneGraph, instance: SceneNode, componentId: s
   graph.updateNode(owner.id, { instanceOverrides: owner.instanceOverrides })
 }
 
+export interface SwapInstanceOptions {
+  /**
+   * Keep the instance's name even when it is its old component's. A swap otherwise renames such
+   * an instance after the new component, as Figma does; a view that only shows another variant,
+   * such as preview, keeps names so layer paths stay the same.
+   */
+  keepName?: boolean
+}
+
 export function swapInstanceComponent(
   graph: SceneGraph,
   instanceId: string,
-  componentId: string
+  componentId: string,
+  { keepName = false }: SwapInstanceOptions = {}
 ): void {
   const instance = graph.nodes.get(instanceId)
   const component = graph.nodes.get(componentId)
@@ -112,7 +122,8 @@ export function swapInstanceComponent(
     copyProp(updates, source, key)
   }
 
-  if (!previousComponent || instance.name === previousComponent.name) updates.name = component.name
+  if (!keepName && (!previousComponent || instance.name === previousComponent.name))
+    updates.name = component.name
 
   const childIds = Array.from(instance.childIds)
   const slotContent = detachOwnedSlotContent(graph, instance)
@@ -125,6 +136,21 @@ export function swapInstanceComponent(
 const syncingComponentsByGraph = new WeakMap<SceneGraph, Set<string>>()
 
 export function syncInstances(graph: SceneGraph, componentId: string): void {
+  syncInstancesOf(graph, componentId, getInstances(graph, componentId))
+}
+
+/** Syncs one instance from its component, as `syncInstances` does for every instance. */
+export function syncInstance(graph: SceneGraph, instanceId: string): void {
+  const instance = graph.nodes.get(instanceId)
+  if (instance?.type !== 'INSTANCE' || !instance.componentId) return
+  syncInstancesOf(graph, instance.componentId, [instance])
+}
+
+function syncInstancesOf(
+  graph: SceneGraph,
+  componentId: string,
+  instances: Iterable<SceneNode>
+): void {
   const component = graph.nodes.get(componentId)
   if (component?.type !== 'COMPONENT') return
   let syncing = syncingComponentsByGraph.get(graph)
@@ -135,7 +161,7 @@ export function syncInstances(graph: SceneGraph, componentId: string): void {
   if (syncing.has(componentId)) return
   syncing.add(componentId)
   try {
-    for (const instance of getInstances(graph, componentId)) {
+    for (const instance of instances) {
       const enclosing = enclosingInstanceOverrideFields(graph, instance)
       enclosing.push(new Set(instance.instanceOverrides.self.keys()))
       const protectedField = bindingProtection(enclosing)

@@ -23,7 +23,7 @@ export const composeBackdropTool = defineTool({
   execution: { kind: 'async', mutation: 'document' },
   exposure: { mcp: false, webmcp: false },
   description: COMPOSE_TEXTS.toolDescription,
-  input: v.object({
+  input: v.strictObject({
     root_id: v.pipe(v.string(), v.description(COMPOSE_TEXTS.paramRootId)),
     scaffold_id: v.optional(v.pipe(v.string(), v.description(COMPOSE_TEXTS.paramScaffoldId))),
     hero_image_from: v.optional(

@@ -1,10 +1,12 @@
 import { useEventListener } from '@vueuse/core'
 import { ref } from 'vue'
 
+import { recordRuntimeError } from '@/app/diagnostics'
 import { isTauri } from '@/app/tauri/env'
-import type { ToastProgress, ToastVariant } from '@/components/ui/feedback/toast'
+import type { ProgressAmount } from '@/components/ui/feedback/progress'
+import type { ToastVariant } from '@/components/ui/feedback/toast'
 
-export type { ToastProgress, ToastVariant } from '@/components/ui/feedback/toast'
+export type { ToastVariant } from '@/components/ui/feedback/toast'
 
 export interface ToastAction {
   label: string
@@ -19,7 +21,7 @@ export interface Toast {
   count: number
   action?: ToastAction
   /** Present while a long-running operation behind this toast reports progress. */
-  progress?: ToastProgress
+  progress?: ProgressAmount
   /** Measurement text beside the progress bar, formatted by the producing domain. */
   progressLabel?: string
 }
@@ -27,7 +29,7 @@ export interface Toast {
 export interface ToastPatch {
   message?: string
   /** `null` clears the bar, which resumes the toast's normal auto-dismissal. */
-  progress?: ToastProgress | null
+  progress?: ProgressAmount | null
   /** `null` removes the measurement line. */
   progressLabel?: string | null
 }
@@ -50,7 +52,8 @@ const toasts = ref<Toast[]>([])
 let nextId = 0
 let errorHandlersInitialized = false
 
-function push(message: string, variant: ToastVariant, action?: ToastAction) {
+/** Returns the toast's ID, which `remove` takes, also when it merged into a visible one. */
+function push(message: string, variant: ToastVariant, action?: ToastAction): number {
   // Dedupe: if the same message+variant is already visible, increment
   // its repeat count instead of stacking a duplicate. Prevents the
   // cascade-on-every-frame failure mode where a single unhealthy
@@ -62,10 +65,12 @@ function push(message: string, variant: ToastVariant, action?: ToastAction) {
   if (existing) {
     existing.count += 1
     existing.action = action
-    return
+    return existing.id
   }
-  toasts.value.push({ id: ++nextId, message, variant, count: 1, action })
+  const id = ++nextId
+  toasts.value.push({ id, message, variant, count: 1, action })
   trim()
+  return id
 }
 
 function trim() {
@@ -82,7 +87,7 @@ export function toastDuration(entry: Toast): number {
 
 function startProgress(
   message: string,
-  options: { variant?: ToastVariant; progress?: ToastProgress; progressLabel?: string } = {}
+  options: { variant?: ToastVariant; progress?: ProgressAmount; progressLabel?: string } = {}
 ): ToastHandle {
   const id = ++nextId
   toasts.value.push({
@@ -118,8 +123,8 @@ function warning(message: string) {
   push(message, 'warning')
 }
 
-function error(message: string, action?: ToastAction) {
-  push(message, 'error', action)
+function error(message: string, action?: ToastAction): number {
+  return push(message, 'error', action)
 }
 
 function remove(id: number) {
@@ -131,9 +136,11 @@ function setupGlobalErrorHandler() {
   errorHandlersInitialized = true
 
   useEventListener(window, 'error', (e) => {
+    recordRuntimeError(e.error ?? e.message, 'window')
     error(e.message || 'An unexpected error occurred')
   })
   useEventListener(window, 'unhandledrejection', (e) => {
+    recordRuntimeError(e.reason, 'rejection')
     const msg = e.reason instanceof Error ? e.reason.message : String(e.reason)
     error(msg || 'An unexpected error occurred')
   })

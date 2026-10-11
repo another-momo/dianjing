@@ -28,7 +28,7 @@ export const prepareHeroScaffoldTool = defineTool({
   exposure: { mcp: false, webmcp: false },
   description:
     "Pixel-first hero pipeline, step 1: clone the ALREADY-RENDERED headline layout (source_node_id — the headline is locked before any skeleton exists, so this tool never scans for a HeroContent slot) into a temporary scaffold frame sized exactly like the final hero image (source width × source height + underlap_px), placed as a page-level sibling to the RIGHT of existing page content (never inside the root — a hug-height root would be inflated). The scaffold carries a geometry record ({width, height, underlapPx, transitionZonePx} in pluginData) that compose_backdrop reads later instead of loose params — call prepare_hero_scaffold BEFORE compose_backdrop and pass the same underlap_px you intend for the final hero. transition_zone_px (soft blend band at the hero bottom) is clamped to underlap_px when larger — the result then carries clamped: true. Clone coordinates are copied verbatim (the source occupies the scaffold's top source-height px, no conversion needed). Idempotent: re-call after the copy changed to refresh the geometry record and re-clone the children; an already-generated IMAGE fill on the scaffold is preserved, otherwise fills reset to white.",
-  input: v.object({
+  input: v.strictObject({
     root_id: v.pipe(
       v.string(),
       v.description(

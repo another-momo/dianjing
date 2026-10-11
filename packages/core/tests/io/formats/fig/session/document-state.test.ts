@@ -1,5 +1,7 @@
 import { expect, test } from 'bun:test'
 
+import { inertPopulationWorker } from '#core-tests/helpers/fig/population-worker'
+
 import { createEditor } from '@open-pencil/core/editor'
 import { exportFigFile } from '@open-pencil/core/io'
 import { initCodec } from '@open-pencil/core/kiwi'
@@ -85,13 +87,7 @@ test('page preparation recovers an invalidated replacement worker without replac
   if (!secondResult.checkpoint) throw new Error('Missing checkpoint')
   updateReaderRecovery(graph, structuredClone(secondResult.checkpoint))
   const secondNode = graph.getChildren(graph.getPages()[1].id)[0]
-  const worker = {
-    terminate: () => undefined,
-    postMessage: () => undefined,
-    onerror: null,
-    onmessage: null
-  } as Worker
-  registerFigPopulationWorker(graph, worker)
+  registerFigPopulationWorker(graph, inertPopulationWorker())
   const editor = createEditor({ graph })
   const first = graph.getChildren(graph.getPages()[0].id)[0]
   graph.updateNode(first.id, { name: 'Edited' })

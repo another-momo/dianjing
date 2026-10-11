@@ -76,7 +76,9 @@ function dragFor(node: SceneNode, origChildren: DragResize['origChildren'] = nul
     origStrokeGeometry: geometry.strokes,
     origDerivedTextGlyphs: null,
     origStrokes: [],
+    origTextPathData: null,
     origTextPathBox: null,
+    lockedAspectRatio: null,
     origChildren
   }
 }

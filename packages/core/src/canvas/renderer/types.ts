@@ -3,20 +3,29 @@ import type { Color, Rect, Vector } from '@open-pencil/scene-graph/primitives'
 import type { SnapGuide } from '@open-pencil/scene-graph/snap'
 
 import type { GuideOverlayState } from '#core/canvas/guides/types'
+import type { DesignIssueOverlay } from '#core/canvas/issues/types'
+import type { ShapeHandleHover, GradientEdit } from '#core/editor/types'
 import type { RotationPreview } from '#core/geometry'
 import type { TextEditor } from '#core/text/editor'
+
+/** Selection chrome on the canvas and the text drawn on it, such as size pills and ruler badges. */
+export interface SelectionTheme {
+  color: Color
+  foreground: Color
+}
 
 export interface RulerTheme {
   background: Color
   tick: Color
   text: Color
-  label: Color
 }
 
 export type MeasurementMode = 'off' | 'shallow' | 'deep'
 
 /** Where a collaborator or an agent is working, in world coordinates. */
 export interface PresenceCursor {
+  /** Who it is, kept between updates; editors use it to glide a cursor rather than jump it. */
+  id?: string
   kind: 'person' | 'agent'
   name: string
   /** A person's color, or the color of the person who runs the agent. */
@@ -24,10 +33,22 @@ export interface PresenceCursor {
   x: number
   y: number
   selection?: string[]
+  /** Outlines in world coordinates of what is not a layer yet, such as streamed JSX. */
+  outline?: Rect[]
 }
 
 export interface RenderOverlays {
+  /** Whether the canvas previews: it draws the design without labels or editing outlines. */
+  playing?: boolean
+  /** Nodes a previewing canvas draws from its preview session instead of the document. */
+  /** Layers a previewing canvas leaves to its live islands. */
+  playIslands?: ReadonlySet<string>
   hoveredNodeId?: string | null
+  /** Draw the pixel grid when zoomed in far enough. */
+  showPixelGrid?: boolean
+  /** The gradient whose handles to draw in place of the selection. */
+  gradientEdit?: GradientEdit | null
+  transforming?: boolean
   measurementMode?: MeasurementMode
   enteredContainerId?: string | null
   editingTextId?: string | null
@@ -49,6 +70,8 @@ export interface RenderOverlays {
     index?: number
     side?: 'top' | 'right' | 'bottom' | 'left'
   } | null
+  /** The selected shape's handles and the label of the one in use. */
+  shapeHandleHover?: ShapeHandleHover | null
   penState?: {
     vertices: Vector[]
     segments: Array<{
@@ -79,4 +102,6 @@ export interface RenderOverlays {
     hoveredHandleInfo?: { segmentIndex: number; tangentField: 'tangentStart' | 'tangentEnd' } | null
   } | null
   presenceCursors?: PresenceCursor[]
+  designIssues?: DesignIssueOverlay | null
+  codeFocusNodeId?: string | null
 }

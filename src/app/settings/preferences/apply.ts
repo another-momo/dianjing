@@ -2,19 +2,63 @@ import type { SnappingPreferences } from '@open-pencil/core/editor'
 
 import { getTabsSnapshot } from '@/app/tabs'
 
-import { syncNativeSnappingMenu } from './native-menu'
-import { appPreferences, updateSnappingPreferences } from './store'
+import {
+  syncNativeCommentsMenu,
+  syncNativeDesignIssuesMenu,
+  syncNativeSnappingMenu
+} from './native-menu'
+import {
+  appPreferences,
+  updateCommentPreferences,
+  updateDesignCheckPreferences,
+  updateSnappingPreferences,
+  type DesignCheckPreset
+} from './store'
 
 export function setSnappingPreference(
   preference: keyof SnappingPreferences,
   enabled: boolean
 ): void {
-  updateSnappingPreferences({ [preference]: enabled })
+  applySnappingPreferences({ [preference]: enabled })
+}
+
+/** Stores snapping changes and pushes them to every open editor and the native menu. */
+export function applySnappingPreferences(changes: Partial<SnappingPreferences>): void {
+  updateSnappingPreferences(changes)
   const snapping = appPreferences.value.editing.snapping
   for (const tab of getTabsSnapshot()) {
     tab.store.state.snappingPreferences = { ...snapping }
   }
   void syncNativeSnappingMenu(snapping).catch((error: unknown) => {
     console.error('[Settings] Failed to synchronize native snapping preferences:', error)
+  })
+}
+
+export function setDesignIssuesOnCanvas(showOnCanvas: boolean): void {
+  updateDesignCheckPreferences({ showOnCanvas })
+  void syncNativeDesignIssuesMenu(showOnCanvas).catch((error: unknown) => {
+    console.error('[Settings] Failed to synchronize the native design issues menu:', error)
+  })
+}
+
+export function setDesignCheckPreset(preset: DesignCheckPreset): void {
+  updateDesignCheckPreferences({ preset })
+}
+
+export function turnOffDesignCheckRule(ruleId: string): void {
+  const disabledRules = new Set(appPreferences.value.designCheck.disabledRules)
+  disabledRules.add(ruleId)
+  updateDesignCheckPreferences({ disabledRules: [...disabledRules] })
+}
+
+export function turnOnDesignCheckRules(): void {
+  updateDesignCheckPreferences({ disabledRules: [] })
+}
+
+/** View → Comments: pins outside the Comment tool, here and in the native menu. */
+export function setCommentsOnCanvas(showOnCanvas: boolean): void {
+  updateCommentPreferences({ showOnCanvas })
+  void syncNativeCommentsMenu(showOnCanvas).catch((error: unknown) => {
+    console.error('[Settings] Failed to synchronize the native comments menu:', error)
   })
 }

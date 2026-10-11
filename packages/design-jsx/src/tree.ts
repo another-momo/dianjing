@@ -7,6 +7,8 @@ export interface TreeNode {
   type: string
   props: Record<string, unknown>
   children: (TreeNode | string)[]
+  /** Where the element was written, when the source is known. */
+  source?: { line: number }
 }
 
 /** A fragment (`<>…</>`) groups siblings without creating a node of its own. */
@@ -107,9 +109,9 @@ export type StyleProps = {
   columnGap?: number | DesignVariable
   justify?: 'start' | 'end' | 'center' | 'between'
   justifyContent?: 'start' | 'end' | 'center' | 'between'
-  items?: 'start' | 'end' | 'center' | 'stretch'
-  align?: 'start' | 'end' | 'center' | 'stretch'
-  alignItems?: 'start' | 'end' | 'center' | 'stretch'
+  items?: 'start' | 'end' | 'center' | 'stretch' | 'baseline'
+  align?: 'start' | 'end' | 'center' | 'stretch' | 'baseline'
+  alignItems?: 'start' | 'end' | 'center' | 'stretch' | 'baseline'
   grow?: number
 
   w?: number | 'fill' | 'hug' | DesignVariable

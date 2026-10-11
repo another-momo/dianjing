@@ -12,7 +12,7 @@ test('font settings gear opens the settings dialog fonts section directly', asyn
     if (!store) throw new Error('OpenPencil store not initialized')
     const id = store.createShape('TEXT', 120, 120, 240, 40)
     store.updateNode(id, {
-      characters: 'Font settings smoke',
+      text: 'Font settings smoke',
       fontFamily: 'Missing Test Sans'
     })
     store.select([id])

@@ -2,7 +2,12 @@ import { effectiveFigmaRawNodeFields } from '#fig/source-metadata'
 
 import type { NodeChange, Paint } from '@open-pencil/kiwi/fig/codec'
 import { stringToGuid } from '@open-pencil/kiwi/fig/guid'
-import type { ComponentPropertyDefinition, SceneGraph, SceneNode } from '@open-pencil/scene-graph'
+import type {
+  ComponentPropertyDefinition,
+  PluginDataEntry,
+  SceneGraph,
+  SceneNode
+} from '@open-pencil/scene-graph'
 import type { Color, GUID, Matrix } from '@open-pencil/scene-graph/primitives'
 
 export type KiwiNodeChange = NodeChange & Record<string, unknown>
@@ -58,10 +63,23 @@ export interface SceneNodeToKiwiContext {
   propertyIdToGuid: Map<string, GUID>
   componentPropertyDefinitionsById: ReadonlyMap<string, ComponentPropertyDefinition>
   /**
+   * Writing records into the archive a document came from: the layer each archive GUID
+   * belongs to, so a copy that kept its original's `source.id` gets a GUID of its own.
+   */
+  recordOwners?: ReadonlyMap<string, string>
+  /** Positions the caller decided, kept so untouched siblings keep theirs. */
+  orderKeys?: ReadonlyMap<string, string>
+  /** False to write a layer's record alone, as when only some records change. */
+  writeChildren?: boolean
+  /**
    * Receives the content frames of instance slots. Figma stores them on the internal canvas,
    * so the caller re-parents the `isSlotContent` roots there after serializing its nodes.
    */
   slotContentRecords?: KiwiNodeChange[]
+  /** Plugin data a node is written with instead of its own, by node ID. */
+  pluginDataOverrides?: ReadonlyMap<string, PluginDataEntry[]>
+  /** Nodes with their bindings resolved, kept for the length of one export. */
+  resolvedNodes?: WeakMap<SceneNode, SceneNode>
   fractionalPosition: (index: number) => string
   mapToFigmaType: (type: SceneNode['type']) => string
   fillToKiwiPaint: (fill: SceneNode['fills'][number]) => Paint
@@ -93,8 +111,14 @@ export interface SceneNodeToKiwiContext {
   ) => KiwiNodeChange[]
 }
 
+/** Figma reads both parts of a GUID as signed 32-bit integers and drops a paste beyond them. */
+const MAX_FIGMA_GUID_PART = 0x7fffffff
+
+/** The GUID an ID spells, or null when it spells none Figma can read. */
 export function parseGuidOrNull(value: string) {
-  return /^\d+:\d+$/.test(value) ? stringToGuid(value) : null
+  if (!/^\d+:\d+$/.test(value)) return null
+  const guid = stringToGuid(value)
+  return guid.sessionID <= MAX_FIGMA_GUID_PART && guid.localID <= MAX_FIGMA_GUID_PART ? guid : null
 }
 
 export function resolveInstanceComponentId(
@@ -121,7 +145,9 @@ export function getOrCreateNodeGuid(
   if (!node) return undefined
   const existing = context.nodeIdToGuid?.get(nodeId)
   if (existing) return existing
-  const importedGuid = node.source.id ? parseGuidOrNull(node.source.id) : null
+  const ownsSource =
+    !node.source.id || !context.recordOwners || context.recordOwners.get(node.source.id) === nodeId
+  const importedGuid = node.source.id && ownsSource ? parseGuidOrNull(node.source.id) : null
 
   // When source.id maps to a GUID value that is already assigned to a
   // different node (e.g. two nodes from different canvases with the same
@@ -207,18 +233,13 @@ export function createFillPaints(context: SceneNodeToKiwiContext, node: SceneNod
   )
 }
 
+/** A stroke is a paint, so it writes the same way a fill does, gradients and images included. */
 export function createStrokePaints(context: SceneNodeToKiwiContext, node: SceneNode): Paint[] {
   return node.strokes.map((stroke, index) =>
     applyColorVariableBinding(
       context,
       node,
-      {
-        type: 'SOLID',
-        color: context.safeColor(stroke.color),
-        opacity: stroke.opacity,
-        visible: stroke.visible,
-        blendMode: 'NORMAL'
-      },
+      context.fillToKiwiPaint(stroke),
       `strokes/${index}/color`
     )
   )

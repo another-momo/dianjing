@@ -375,9 +375,13 @@ function createCard(
     paddingLeft: padding,
     paddingRight: padding,
     cornerRadius: options.rounded ?? 22,
-    primaryAxisSizing: options.primary ?? 'HUG',
-    counterAxisSizing: options.counter ?? 'FILL'
+    primaryAxisSizing: (options.primary ?? 'HUG') === 'FILL' ? 'FIXED' : (options.primary ?? 'HUG'),
+    counterAxisSizing:
+      (options.counter ?? 'FILL') === 'FILL' ? 'FIXED' : (options.counter ?? 'FILL')
   }
+  // FILL 语义按新布局模型翻译：主轴填充 = FIXED+layoutGrow，交叉轴填充 = FIXED+STRETCH
+  if ((options.primary ?? 'HUG') === 'FILL') cardProps.layoutGrow = 1
+  if ((options.counter ?? 'FILL') === 'FILL') cardProps.layoutAlignSelf = 'STRETCH'
   if (options.width) cardProps.width = options.width
   if (options.justify) cardProps.primaryAxisAlign = options.justify
   cardProps.fills = [
@@ -408,7 +412,8 @@ function createLabelRow(figma: FigmaAPI, parentId: string, label: string, badge:
   const row = graph.createNode('FRAME', parentId, { name: 'LabelRow' })
   graph.updateNode(row.id, {
     layoutMode: 'HORIZONTAL',
-    primaryAxisSizing: 'FILL',
+    primaryAxisSizing: 'FIXED',
+    layoutGrow: 1,
     counterAxisSizing: 'HUG',
     primaryAxisAlign: 'SPACE_BETWEEN',
     counterAxisAlign: 'CENTER',
@@ -451,6 +456,7 @@ function createSlot(figma: FigmaAPI, parentId: string, name: string, caption: st
     fills: [{ type: 'SOLID', color: { ...SLOT_BG, a: 1 }, opacity: 1, visible: true }],
     strokes: [
       {
+        type: 'SOLID',
         color: { ...SLOT_STROKE, a: 1 },
         weight: 1,
         opacity: 1,
@@ -516,7 +522,8 @@ export function createBrief(figma: FigmaAPI, x = 0, y = 0): SceneNode {
     layoutMode: 'VERTICAL',
     itemSpacing: 36,
     primaryAxisSizing: 'HUG',
-    counterAxisSizing: 'FILL',
+    counterAxisSizing: 'FIXED',
+    layoutAlignSelf: 'STRETCH',
     layoutGrow: 1,
     fills: []
   })
@@ -526,7 +533,8 @@ export function createBrief(figma: FigmaAPI, x = 0, y = 0): SceneNode {
     layoutMode: 'VERTICAL',
     itemSpacing: 18,
     primaryAxisSizing: 'HUG',
-    counterAxisSizing: 'FILL',
+    counterAxisSizing: 'FIXED',
+    layoutAlignSelf: 'STRETCH',
     fills: []
   })
   const titleRow = graph.createNode('FRAME', header.id, { name: 'TitleRow' })
@@ -534,7 +542,8 @@ export function createBrief(figma: FigmaAPI, x = 0, y = 0): SceneNode {
     layoutMode: 'HORIZONTAL',
     itemSpacing: 18,
     counterAxisAlign: 'CENTER',
-    primaryAxisSizing: 'FILL',
+    primaryAxisSizing: 'FIXED',
+    layoutGrow: 1,
     counterAxisSizing: 'HUG',
     fills: []
   })
@@ -592,7 +601,8 @@ export function createBrief(figma: FigmaAPI, x = 0, y = 0): SceneNode {
     layoutWrap: 'WRAP',
     itemSpacing: 26,
     counterAxisSpacing: 26,
-    primaryAxisSizing: 'FILL',
+    primaryAxisSizing: 'FIXED',
+    layoutGrow: 1,
     counterAxisSizing: 'HUG',
     fills: []
   })
@@ -620,7 +630,8 @@ export function createBrief(figma: FigmaAPI, x = 0, y = 0): SceneNode {
     layoutMode: 'VERTICAL',
     itemSpacing: 13,
     primaryAxisSizing: 'HUG',
-    counterAxisSizing: 'FILL',
+    counterAxisSizing: 'FIXED',
+    layoutAlignSelf: 'STRETCH',
     fills: []
   })
   createText(figma, designsCard, BRIEF_EMPTY_HINT_NAME, BRIEF_TEXTS.designsEmptyHint, {
@@ -645,7 +656,8 @@ export function createBrief(figma: FigmaAPI, x = 0, y = 0): SceneNode {
     layoutMode: 'VERTICAL',
     itemSpacing: 18,
     primaryAxisSizing: 'HUG',
-    counterAxisSizing: 'FILL',
+    counterAxisSizing: 'FIXED',
+    layoutAlignSelf: 'STRETCH',
     fills: []
   })
   createText(figma, aiTop.id, 'Label', BRIEF_ZONE_CONCLUSIONS_NAME, {
@@ -664,7 +676,8 @@ export function createBrief(figma: FigmaAPI, x = 0, y = 0): SceneNode {
     layoutMode: 'VERTICAL',
     itemSpacing: 13,
     primaryAxisSizing: 'HUG',
-    counterAxisSizing: 'FILL',
+    counterAxisSizing: 'FIXED',
+    layoutAlignSelf: 'STRETCH',
     fills: []
   })
   const emptyState = graph.createNode('FRAME', aiCard, { name: BRIEF_EMPTY_STATE_NAME })
@@ -673,7 +686,8 @@ export function createBrief(figma: FigmaAPI, x = 0, y = 0): SceneNode {
     itemSpacing: 18,
     counterAxisAlign: 'CENTER',
     primaryAxisSizing: 'HUG',
-    counterAxisSizing: 'FILL',
+    counterAxisSizing: 'FIXED',
+    layoutAlignSelf: 'STRETCH',
     fills: []
   })
   const divider = graph.createNode('RECTANGLE', emptyState.id, { name: 'Divider' })
@@ -749,7 +763,8 @@ export function appendToBriefAIZone(
         layoutMode: 'VERTICAL',
         itemSpacing: 8,
         primaryAxisSizing: 'HUG',
-        counterAxisSizing: 'FILL',
+        counterAxisSizing: 'FIXED',
+        layoutAlignSelf: 'STRETCH',
         fills: []
       })
       setBriefMarker(graph, group.id, BRIEF_CONCLUSION_GROUP_DESIGN_KEY, design.id)
@@ -884,7 +899,8 @@ export function registerBriefDesignEntry(
     layoutMode: 'VERTICAL',
     itemSpacing: 8,
     primaryAxisSizing: 'HUG',
-    counterAxisSizing: 'FILL',
+    counterAxisSizing: 'FIXED',
+    layoutAlignSelf: 'STRETCH',
     fills: []
   })
   setBriefMarker(graph, entry.id, BRIEF_DESIGN_ENTRY_KEY, designId)

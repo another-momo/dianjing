@@ -3,11 +3,20 @@ import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 import type { RenderOverlays } from '#core/canvas/renderer'
 import { createSceneGeometry } from '#core/geometry'
 
+import { hasFrameTitle } from './layout'
+
 export interface CachedSection {
   nodeId: string
   absX: number
   absY: number
   nested: boolean
+}
+
+/** A frame on the page or in a section, which shows its name above it. */
+export interface CachedFrame {
+  nodeId: string
+  absX: number
+  absY: number
 }
 
 export interface CachedComponent {
@@ -57,6 +66,8 @@ function collectVisibleLabels<
 export class LabelCache {
   private sections: CachedSection[] = []
   private components: CachedComponent[] = []
+  private frames: CachedFrame[] = []
+  private componentSets: CachedFrame[] = []
   private cachedSceneVersion = -1
   private cachedPositionPreviewVersion = -1
   private cachedPageId: string | null = null
@@ -86,6 +97,8 @@ export class LabelCache {
     this.cachedPageId = null
     this.sections = []
     this.components = []
+    this.frames = []
+    this.componentSets = []
   }
 
   getSections(
@@ -120,6 +133,27 @@ export class LabelCache {
     )
   }
 
+  getFrames(
+    graph: SceneGraph,
+    viewport: Viewport,
+    preview?: RenderOverlays['rotationPreview']
+  ): Array<{ node: SceneNode; absX: number; absY: number }> {
+    return collectVisibleLabels(graph, viewport, this.frames, () => ({}), preview)
+  }
+
+  /** Every visible component set on the page in the viewport, wherever it is nested. */
+  getComponentSets(
+    graph: SceneGraph,
+    viewport: Viewport,
+    preview?: RenderOverlays['rotationPreview']
+  ): Array<{ node: SceneNode; absX: number; absY: number }> {
+    return collectVisibleLabels(graph, viewport, this.componentSets, () => ({}), preview)
+  }
+
+  getAllFrames(): readonly CachedFrame[] {
+    return this.frames
+  }
+
   getAllSections(): readonly CachedSection[] {
     return this.sections
   }
@@ -131,6 +165,8 @@ export class LabelCache {
   private rebuild(graph: SceneGraph, pageId: string | null): void {
     this.sections = []
     this.components = []
+    this.frames = []
+    this.componentSets = []
 
     const pageNode = graph.getNode(pageId ?? graph.rootId)
     if (!pageNode) return
@@ -157,6 +193,10 @@ export class LabelCache {
         })
         this.walkChildren(graph, childId, true)
       } else if (LABEL_TYPES.has(child.type)) {
+        if (child.type === 'COMPONENT_SET') {
+          const origin = graph.getAbsolutePosition(childId)
+          this.componentSets.push({ nodeId: childId, absX: origin.x, absY: origin.y })
+        }
         if (COMPONENT_LABEL_PARENT_TYPES.has(parentType)) {
           const origin = graph.getAbsolutePosition(childId)
           this.components.push({ nodeId: childId, absX: origin.x, absY: origin.y, parentType })
@@ -164,8 +204,12 @@ export class LabelCache {
         if (child.childIds.length > 0) {
           this.walkChildren(graph, childId, insideSection)
         }
-      } else if (child.childIds.length > 0) {
-        this.walkChildren(graph, childId, insideSection)
+      } else {
+        if (hasFrameTitle(child, parentType)) {
+          const origin = graph.getAbsolutePosition(childId)
+          this.frames.push({ nodeId: childId, absX: origin.x, absY: origin.y })
+        }
+        if (child.childIds.length > 0) this.walkChildren(graph, childId, insideSection)
       }
     }
   }

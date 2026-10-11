@@ -1,5 +1,5 @@
 export { IORegistry } from './registry'
-export { extractExportGraph } from './subgraph'
+export { extractExportGraph, findPageId } from './subgraph'
 export {
   BUILTIN_IO_FORMATS,
   type BuiltinIOFormatId,
@@ -30,6 +30,7 @@ export {
 export {
   createSVGNodes,
   createSVGNodesFromImport,
+  isSVGMarkup,
   prepareSVGImport,
   renderNodesToSVG,
   geometryBlobToSVGPath,
@@ -37,6 +38,7 @@ export {
   type SVGImportData,
   type SVGImportOptions
 } from './formats/svg'
+export { vectorElement } from './formats/html/vectors'
 export {
   renderNodesToPPTX,
   type PPTXExportOptions,

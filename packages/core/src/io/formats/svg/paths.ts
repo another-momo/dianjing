@@ -1,3 +1,5 @@
+import { compact } from 'es-toolkit/array'
+
 import type {
   SceneNode,
   VectorNetwork,
@@ -5,6 +7,7 @@ import type {
   VectorVertex
 } from '@open-pencil/scene-graph'
 import { polygonVertices } from '@open-pencil/scene-graph/geometry'
+import { polygonOutline } from '@open-pencil/scene-graph/polygon'
 
 import { nodeHasRadius } from '#core/canvas/shapes'
 
@@ -225,6 +228,18 @@ export function vectorNetworkToSVGPaths(
   return path ? [path] : []
 }
 
+/** The outline of a polygon or star whose corners are rounded, as path data. */
+export function roundedPolygonPath(node: SceneNode): string {
+  return polygonOutline(node)
+    .map((command) => {
+      if (command.type === 'Z') return 'Z'
+      if (command.type === 'C')
+        return `C${[command.x1, command.y1, command.x2, command.y2, command.x, command.y].map(round).join(' ')}`
+      return `${command.type}${round(command.x)} ${round(command.y)}`
+    })
+    .join('')
+}
+
 export function makePolygonPoints(node: SceneNode): string {
   return polygonVertices(node)
     .map((point) => `${round(point.x)},${round(point.y)}`)
@@ -251,7 +266,7 @@ export function roundedRectPath(node: SceneNode): string {
   br = Math.min(br, w / 2, h / 2)
   bl = Math.min(bl, w / 2, h / 2)
 
-  return [
+  return compact([
     `M${round(tl)} 0`,
     `L${round(w - tr)} 0`,
     tr > 0 ? `A${round(tr)} ${round(tr)} 0 0 1 ${round(w)} ${round(tr)}` : '',
@@ -262,9 +277,7 @@ export function roundedRectPath(node: SceneNode): string {
     `L0 ${round(tl)}`,
     tl > 0 ? `A${round(tl)} ${round(tl)} 0 0 1 ${round(tl)} 0` : '',
     'Z'
-  ]
-    .filter(Boolean)
-    .join('')
+  ]).join('')
 }
 
 export function arcPath(node: SceneNode): string {

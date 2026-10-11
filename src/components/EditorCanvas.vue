@@ -7,7 +7,7 @@ import {
   PopoverPortal,
   PopoverRoot
 } from 'reka-ui'
-import { computed, onUnmounted, ref, watch, type Component } from 'vue'
+import { computed, onUnmounted, ref, shallowRef, watch, type Component } from 'vue'
 import IconLucidePanelBottom from '~icons/lucide/panel-bottom'
 import IconLucidePanelLeft from '~icons/lucide/panel-left'
 import IconLucidePanelRight from '~icons/lucide/panel-right'
@@ -15,23 +15,36 @@ import IconLucidePanelTop from '~icons/lucide/panel-top'
 
 import {
   AUTO_LAYOUT_PADDING_EDITOR_OFFSET_X,
-  AUTO_LAYOUT_PADDING_EDITOR_OFFSET_Y
+  AUTO_LAYOUT_PADDING_EDITOR_OFFSET_Y,
+  COMPONENT_LABEL_ICON_GAP,
+  COMPONENT_LABEL_ICON_SIZE,
+  SECTION_TITLE_GAP,
+  SECTION_TITLE_HEIGHT
 } from '@open-pencil/core/constants'
+import type { ViewportTransform } from '@open-pencil/core/geometry'
 import {
+  PlayIslands,
   toolCursor,
   useCanvas,
   useCanvasDrop,
   useCanvasInput,
+  useCanvasIssueMarkers,
   useCanvasVirtualReference,
   useTextEdit
 } from '@open-pencil/vue'
 
-import { useCollabInjected } from '@/app/collab/use'
+import { useAIChat } from '@/app/ai/fork/use'
 import { useEditorStore } from '@/app/editor/active-store'
 import { useCanvasCollaborationAwareness } from '@/app/editor/canvas/collaboration-awareness'
 import { createCanvasContextSelection } from '@/app/editor/canvas/context-selection'
+import { canvasOverlayObstacles } from '@/app/editor/canvas/obstacles'
 import { appRuntimeConfig } from '@/app/runtime/config'
+import CommentsLayer from '@/components/comments/CommentsLayer.vue'
+import IssueMarkerTooltip from '@/components/design-check/IssueMarkerTooltip.vue'
 import PreparationOverlay from '@/components/preparation/canvas/Overlay.vue'
+import AppDropOverlay from '@/components/ui/feedback/AppDropOverlay.vue'
+import { motionStyles } from '@/theme/motion/styles'
+import { floatingSurface } from '@/theme/overlay'
 
 import CanvasMenu from './canvas/CanvasMenu.vue'
 import CanvasLabelEditor from './canvas/labels/CanvasLabelEditor.vue'
@@ -43,7 +56,6 @@ const { paneId } = defineProps<{
 }>()
 
 const store = useEditorStore()
-const collab = useCollabInjected()
 const sceneCanvasRef = ref<HTMLCanvasElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 
@@ -58,12 +70,14 @@ function updatePaneCursor(cx: number, cy: number) {
 }
 
 const getRenderState = paneId ? () => store.getPaneRenderState(paneId) : undefined
+/** This pane's view: its pan, zoom, page, and whether it previews. */
+const paneView = computed(() => (paneId ? store.getPaneRenderState(paneId) : store.state))
 const onViewportResize = (width: number, height: number) => {
   if (paneId) store.resizePane(paneId, width, height)
   if (isActivePane.value) store.setViewportSize(width, height)
 }
 
-const { updateCursor } = useCanvasCollaborationAwareness(store, collab)
+const { updateCursor } = useCanvasCollaborationAwareness(store)
 const { selectAtContextPoint } = createCanvasContextSelection(canvasRef, store)
 
 const shouldSuspendRender = () =>
@@ -71,8 +85,14 @@ const shouldSuspendRender = () =>
   store.state.preparation.kind !== 'font-retry' &&
   store.state.preparation.phase !== 'preparing-render'
 
+/** The pan and zoom of the scene's last drawn frame, which preview islands follow. */
+const drawnView = shallowRef<ViewportTransform | null>(null)
+
 useCanvas(sceneCanvasRef, store, {
   layer: 'scene',
+  onFrame: (view) => {
+    drawnView.value = view
+  },
   sceneRenderer: appRuntimeConfig.sceneRenderer,
   onReady: store.markCanvasReady,
   shouldSuspendRender,
@@ -85,19 +105,17 @@ useCanvas(sceneCanvasRef, store, {
     store.state.canvasPresentation = colorSpace
   }
 })
-const { hitTestSectionTitle, hitTestComponentLabel, hitTestFrameTitle } = useCanvas(
-  canvasRef,
-  store,
-  {
+const { hitTestSectionTitle, hitTestComponentLabel, hitTestFrameTitle, hitTestIssueMarker } =
+  useCanvas(canvasRef, store, {
     layer: 'overlays',
     get showRulers() {
-      return appRuntimeConfig.showRulers && store.state.showRulers
+      return appRuntimeConfig.showRulers && store.state.showRulers && paneView.value.play === null
     },
+    getOverlayObstacles: () => canvasOverlayObstacles(canvasRef.value),
     shouldSuspendRender,
     getRenderState,
     onViewportResize
-  }
-)
+  })
 const {
   cursorOverride,
   canvasLabelEdit,
@@ -125,6 +143,24 @@ watch(isActivePane, (active) => {
 })
 onUnmounted(cleanupInteractions)
 
+const { activeTab: propertiesTab } = useAIChat()
+const { detailMarker: hoveredIssueMarker, cursor: issueMarkerCursor } = useCanvasIssueMarkers(
+  canvasRef,
+  store,
+  {
+    hitTest: hitTestIssueMarker,
+    onHover: (marker) => store.designCheck.highlightMarker(marker?.nodeIds ?? null),
+    onActivate: (marker) => {
+      activatePane()
+      propertiesTab.value = 'lint'
+      // An edge pin leads to its nearest issue; a marker opens every layer it covers.
+      const nodeIds = marker.direction ? marker.nodeIds.slice(0, 1) : marker.nodeIds
+      store.designCheck.openMarker(nodeIds)
+      if (marker.direction) store.revealNodes(nodeIds)
+    }
+  }
+)
+
 useTextEdit(canvasRef, store, { isEnabled: () => isActivePane.value })
 const { isDraggingOver } = useCanvasDrop(canvasRef, store, activatePane)
 
@@ -142,12 +178,31 @@ const canvasLabelEditNode = computed(() => {
 const canvasLabelEditAnchor = computed(() => {
   const node = canvasLabelEditNode.value
   if (!node) return null
-  const abs = store.graph.getAbsolutePosition(node.id)
+  const origin = store.graph.getAbsolutePosition(node.id)
+  const { zoom, panX, panY } = store.state
+  const kind = canvasLabelEdit.value?.kind
+  // The canvas starts an upright label on a whole screen pixel; the field starts on the same one.
+  const abs = {
+    x: (Math.round(origin.x * zoom + panX) - panX) / zoom,
+    y: (Math.round(origin.y * zoom + panY) - panY) / zoom
+  }
+  // A component's name starts after its diamond, which keeps its screen size at any zoom.
+  if (kind === 'component-label')
+    return { x: abs.x + (COMPONENT_LABEL_ICON_SIZE + COMPONENT_LABEL_ICON_GAP) / zoom, y: abs.y }
+  // A section inside another draws its title inside its top-left corner instead of above it.
+  const nested = node.parentId && store.graph.closest(node.parentId, (n) => n.type === 'SECTION')
+  if (kind === 'section-title' && nested) {
+    const inset = SECTION_TITLE_GAP / zoom
+    return {
+      x: abs.x + inset,
+      y: abs.y + inset + (SECTION_TITLE_HEIGHT + SECTION_TITLE_GAP) / zoom
+    }
+  }
   return { x: abs.x, y: abs.y }
 })
 const canvasLabelEditReference = useCanvasVirtualReference(canvasRef, store, canvasLabelEditAnchor)
 const canvasLabelEditPresentation = computed(() =>
-  canvasLabelPresentation(store, canvasLabelEditNode.value ?? null)
+  canvasLabelPresentation(store, canvasLabelEditNode.value ?? null, canvasLabelEdit.value?.kind)
 )
 
 const paddingEditorAnchor = computed(() => {
@@ -169,7 +224,9 @@ const paddingEditorIcon = computed(() => {
   return edit ? paddingSideIcons[edit.side] : IconLucidePanelTop
 })
 
-const cursor = computed(() => toolCursor(store.state.activeTool, cursorOverride.value))
+const cursor = computed(() =>
+  toolCursor(store.state.activeTool, issueMarkerCursor.value ?? cursorOverride.value)
+)
 </script>
 
 <template>
@@ -201,17 +258,9 @@ const cursor = computed(() => toolCursor(store.state.activeTool, cursorOverride.
           :style="{ cursor }"
           class="absolute inset-0 block size-full touch-none outline-none"
         />
-        <Transition
-          enter-active-class="transition-opacity duration-150"
-          enter-from-class="opacity-0"
-          leave-active-class="transition-opacity duration-150"
-          leave-to-class="opacity-0"
-        >
-          <div
-            v-if="isDraggingOver"
-            class="pointer-events-none absolute inset-0 z-40 border-2 border-dashed border-accent/60 bg-accent/5"
-          />
-        </Transition>
+        <PlayIslands :view="paneView" :drawn="drawnView" :canvas="canvasRef" />
+        <AppDropOverlay :visible="isDraggingOver" />
+        <IssueMarkerTooltip :marker="hoveredIssueMarker" :canvas="canvasRef" />
         <CanvasLabelEditor
           :edit="canvasLabelEdit"
           :presentation="canvasLabelEditPresentation"
@@ -230,7 +279,7 @@ const cursor = computed(() => toolCursor(store.state.activeTool, cursorOverride.
               :side-offset="AUTO_LAYOUT_PADDING_EDITOR_OFFSET_Y"
               :align-offset="AUTO_LAYOUT_PADDING_EDITOR_OFFSET_X"
               :collision-padding="8"
-              class="z-50 w-20 rounded-md bg-panel p-1 shadow-lg"
+              :class="['z-50 w-20 p-1', floatingSurface, motionStyles.floating]"
               data-test-id="auto-layout-padding-editor"
               @keydown.escape.prevent="cancelAutoLayoutPaddingEdit"
               @open-auto-focus.prevent
@@ -256,6 +305,7 @@ const cursor = computed(() => toolCursor(store.state.activeTool, cursorOverride.
             </PopoverContent>
           </PopoverPortal>
         </PopoverRoot>
+        <CommentsLayer v-if="isActivePane" :canvas-el="canvasRef" :drawn="drawnView" />
         <PreparationOverlay
           v-if="store.state.preparation && store.state.preparation.kind !== 'font-retry'"
           :preparation="store.state.preparation"
