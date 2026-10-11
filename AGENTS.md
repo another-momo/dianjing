@@ -37,7 +37,7 @@
 - `tools/zone-registry/zones.json` 是唯一所有权真相：`ownedRoots` / `ownedFiles` 内自由改；改动其他（上游供血）文件必须登记 `patches`；删除走 `deletedPaths`；搬移登记 `relocations`。台账登记与代码改动同批提交——漏登 = 交付不完整。
 - pre-commit 强制 `check:zones`；`bun run check:zones:drift` 查看对上游漂移明细。
 - `disposition: "revoked"` 的 patch **不提供覆盖**——改动曾 revoked 退役的文件（回 follow-pure）须新登 P-id，往 revoked 条目上追加备注不算登记。
-- 上游合并 SOP：合并前 check:zones 绿 → 按 zone 裁定冲突 → 合并窗口内每次 check:zones 输出的 RELOCATION_WATCH advisory 必读（上游残迹落进 ownedRoot 的最早信号），逐条裁定后再 commit → 合并后 ownedFiles 字节审计 + relocations / tarball 台账更新。裁撤目录必须以目录条目登记 deletedPaths——逐文件条目挡不住上游新增，目录条目才有 checkDeletedAbsent 复活硬拦截。判上游版式/内容演进方向时以最新 release tag 为准，不锚本地 origin 分支 ref——release tag 会超前于分支头。合并窗内 check:zones 以 MERGE_HEAD 为 diff base，窗内报的假违规 commit 后自消、不据此处决路径；吸收/拒收决议落到常量表（如 steiger 别名属主表）时 merge 结果须对该表 diff 级核对——旧值截留式漏吸只有逐行对账能兜。patch 幻影化（文件变上游纯、MODIFIED 信号消失）一律先核 fork 分歧应否存续再谈退役——政策级分歧（locale 收窄、品牌置换 baseline）会被 merge staging 静默覆盖成上游版，「与上游字节一致」是复活假象而非收敛（2026-10-11 i18n baseline 案），处置 = 恢复 fork 版并保留登记；package.json 的 merge 自动并可静默丢 fork 私货 exports 块——收口必核 exports 清单 diff（同窗 random 案）；steiger 别名属主表类常量勿收窄上游口径（#vue/ 收窄 src/ 对上游测试件是永久合并摩擦），只许按包退役精度摘行。
+- 上游合并 SOP：合并前 check:zones 绿 → 按 zone 裁定冲突 → 合并窗口内每次 check:zones 输出的 RELOCATION_WATCH advisory 必读（上游残迹落进 ownedRoot 的最早信号），逐条裁定后再 commit → 合并后 ownedFiles 字节审计 + relocations / tarball 台账更新。裁撤目录必须以目录条目登记 deletedPaths——逐文件条目挡不住上游新增，目录条目才有 checkDeletedAbsent 复活硬拦截。判上游版式/内容演进方向时以最新 release tag 为准，不锚本地 origin 分支 ref——release tag 会超前于分支头。合并窗内 check:zones 以 MERGE_HEAD 为 diff base，窗内报的假违规 commit 后自消、不据此处决路径；吸收/拒收决议落到常量表（如 steiger 别名属主表）时 merge 结果须对该表 diff 级核对——旧值截留式漏吸只有逐行对账能兜。patch 幻影化（文件变上游纯、MODIFIED 信号消失）一律先核 fork 分歧应否存续再谈退役——政策级分歧（locale 收窄、品牌置换 baseline）会被 merge staging 静默覆盖成上游版，「与上游字节一致」是复活假象而非收敛（2026-10-11 i18n baseline 案），处置 = 恢复 fork 版并保留登记；package.json 的 merge 自动并可静默丢 fork 私货 exports 块——收口必核 exports 清单 diff（同窗 random 案）；steiger 别名属主表类常量勿收窄上游口径（#vue/ 收窄 src/ 对上游测试件是永久合并摩擦），只许按包退役精度摘行；keep-ours 消解的 patch 邻域会吞同 hunk 上游增量行（实证：ci.yml lfs-include 白名单被吞掉上游新夹具条目，fig 分片三轮 fail-fast 遮蔽后才浮红）——凡 keep-ours 过的文件收口时整文件 diff 上游 tip 逐行过一遍，zones 台账只保我方 patch 在位、不保上游新增行被收。
 - 复活带 `deletedPaths` 墓碑的路径 = ①摘墓碑 ②**git add 暂存新文件**（未暂存时 git diff vs merge-base 不覆盖 untracked，该路径呈 D 撞 checkDeletedRegistered；暂存后翻 M 走豁免）③check:zones 实跑验收——只验 JSON 可解析不等于过语义闸。
 - `tools/zone-registry/` 自身与 `.github/workflows/` 均为 ownedRoot，fork 治理设施自由改。
 - 设置类工作流归各业务域自己的 `settings/` 目录（`use.ts` 编排 + 兄弟模块分工、持久化留在 domain services），不建全局 composables 桶——采上游 2026-09 family 重组语义。
@@ -98,6 +98,9 @@
 - vue 模板判别联合分支禁布尔 computed guard——`v-if="isX"` 不收窄联合，模板取成员独有字段即 TS2339（.vue 盲区下只有 check:vue 能兜）；用返回收窄对象的 computed（`xRequest = computed<X | null>(() => …)`），模板改取收窄对象。
 - 偏好 store（useLocalStorage）的 value 是 Vue reactive proxy——禁 structuredClone 整体拷贝后赋回（proxy 抛 DataCloneError，赋值中断、开关静默失效）；改值一律展开式局部替换（逐键赋新值）。
 - 对外文本面（UI 文案 / 对话框 / 错误提示 + prompt / skill 文档 / 工具描述）禁内部坐标：仓内路径行号、内部 slug / workstream 名、机制名（T 号 / 门禁项 / zone 编号）、BOARD / 决策 log / 讨论稿 / commit 引用、协作机制术语——用户与 agent 可见文本用对方语言（工具用 agent 可见名、设置项用 UI 名）。
+- 本地 type-aware/tsgo 跨包报错（TS2305/TS2554 族）先核 packages/*/dist 构建时间——跨包 import 经 dist 解析，合并窗/包面变动后陈旧 dist 出幻影错；`bun run build:packages` 刷鲜后再定性，勿据幻影改源码。
+- 对接要 `typeof fetch` 的库（smithy 等）：check:tools 程序载 bun-types，其 fetch 带 preconnect 静态成员，纯函数实现注 `typeof fetch` 必 TS2741——导出结构化最小签名（`(input, init?) => Promise<Response>`）供调用两侧对接，构造边界单断言（本仓先例 = S3Fetch）。
+- pi-backend 新 HTTP 端点：method 闸 + body 解析一律走 http-utils `parsePostBody`/`parseMethodBody`/`parseJSONBody`——jscpd 0 阈值下各 handler 铺开 405+try/catch 序列即成克隆（已二次复发）。
 
 ## 6. 测试纪律
 
@@ -107,6 +110,7 @@
 - 页内注入的探针/采样器（rAF 循环、定时器）随用随清——遗留插桩在状态变更后可能变幽灵循环每帧抛错刷屏；无法精准确认清干净时重载页面兜底。
 - bun mock 生命周期：`mock.restore()` 只恢复 spy，**不撤销 `mock.module()` 覆盖**——模块级 mock 不随 cleanup 钩子隔离；引入全局/模块级插桩前先读现装 runner 的 mock 文档。
 - `mock.module()` 注册表按解析路径去重且全进程共享——共享消费方模块的 mock 绑定归首个加载它的测试文件所有（file URL / 查询串 / createRequire 均绕不过去重）；钉真实依赖行为走 DI 缝直测或干净子进程探针，不靠 `mock.module` 覆盖。
+- `mock.module()` 泄漏不止造红还可造**假绿**——no-op 替身跨文件污染同进程后续文件，被替函数空转致断言失真（实证：布局引擎被替后 HUG 塌高断言跳过真计算，红潜伏一轮才浮出）；替代范式 = `spyOn` + 用后 `mockRestore`（finally 兜底），不靠 mock.module 重注册。
 - globalThis 桩（fetch 等）的还原钩子禁放共享 helpers 的模块级 `afterEach`——bun 模块缓存致该钩子只随首个 import 者注册一次，第二消费者的桩无人还原、泄漏污染同进程分片后续全部 fetch；每个消费文件各自 `afterEach` 还原。
 - 桩贴真实故障边界：协议/验真类路径桩全局 fetch（或 socket），不桩 SDK 方法——SDK 方法桩遵守 throw/成功契约，盖不住实现吞状态。
 - 夹具用的虚空路径/名字必须在所有 CI 平台都不存在——`/etc/hosts/x` 在 Linux 是真实文件（报 ENOTDIR 而非 ENOENT）；虚空名用唯一造名。
