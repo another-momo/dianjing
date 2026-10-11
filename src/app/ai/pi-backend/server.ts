@@ -58,6 +58,7 @@ import {
   PayloadTooLargeError,
   optionalString,
   parseJSONBody,
+  parseMethodBody,
   parsePostBody,
   readBody,
   sendJSON,
@@ -253,21 +254,12 @@ async function handleCapabilitiesRequest(
     sendJSON(res, 200, service.getCapabilities())
     return
   }
-  if (req.method !== 'PUT') {
-    res.writeHead(405).end('Method Not Allowed')
-    return
-  }
-  let body: { agentSkills?: unknown; builtinTools?: unknown }
-  try {
-    body = JSON.parse(await readBody(req))
-  } catch (error) {
-    if (error instanceof PayloadTooLargeError) {
-      sendPayloadTooLarge(req, res)
-      return
-    }
-    res.writeHead(400).end('Bad Request: invalid JSON')
-    return
-  }
+  const body = await parseMethodBody<{ agentSkills?: unknown; builtinTools?: unknown }>(
+    req,
+    res,
+    'PUT'
+  )
+  if (body === null) return
   try {
     const next = service.setCapabilities({
       agentSkills: body.agentSkills,
@@ -317,21 +309,8 @@ async function handleSkillDeleteRequest(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<void> {
-  if (req.method !== 'POST') {
-    res.writeHead(405).end('Method Not Allowed')
-    return
-  }
-  let body: { name?: unknown }
-  try {
-    body = JSON.parse(await readBody(req))
-  } catch (error) {
-    if (error instanceof PayloadTooLargeError) {
-      sendPayloadTooLarge(req, res)
-      return
-    }
-    res.writeHead(400).end('Bad Request: invalid JSON')
-    return
-  }
+  const body = await parsePostBody<{ name?: unknown }>(req, res)
+  if (body === null) return
   if (typeof body.name !== 'string' || body.name === '') {
     res.writeHead(400).end('Bad Request: name required')
     return
@@ -360,21 +339,8 @@ async function handleSkillsDisabledRequest(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<void> {
-  if (req.method !== 'PUT') {
-    res.writeHead(405).end('Method Not Allowed')
-    return
-  }
-  let body: { disabled?: unknown }
-  try {
-    body = JSON.parse(await readBody(req))
-  } catch (error) {
-    if (error instanceof PayloadTooLargeError) {
-      sendPayloadTooLarge(req, res)
-      return
-    }
-    res.writeHead(400).end('Bad Request: invalid JSON')
-    return
-  }
+  const body = await parseMethodBody<{ disabled?: unknown }>(req, res, 'PUT')
+  if (body === null) return
   try {
     const disabled = service.setDisabledSkills(body.disabled)
     sendJSON(res, 200, { disabled })

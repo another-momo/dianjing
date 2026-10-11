@@ -35,7 +35,7 @@ export type UploadProgress = { sentBytes: number; totalBytes: number | null }
  * fetch() cannot observe upload progress — send the signed request over
  * XMLHttpRequest when a progress callback is attached (uploads only).
  */
-function xhrFetch(onUploadProgress: (progress: UploadProgress) => void): typeof fetch {
+function xhrFetch(onUploadProgress: (progress: UploadProgress) => void): S3SDK.S3Fetch {
   return async (input) => {
     if (!(input instanceof Request)) throw new TypeError('Expected a signed S3 request')
     // A Blob has a known size, so the browser sends Content-Length (required by B2).
@@ -63,7 +63,7 @@ function xhrFetch(onUploadProgress: (progress: UploadProgress) => void): typeof 
 async function send<Output>(
   config: S3CompatibleConfig,
   run: (client: S3Client, sdk: typeof S3SDK) => Promise<Output>,
-  customFetch: typeof fetch = storageFetch
+  customFetch: S3SDK.S3Fetch = storageFetch
 ): Promise<Output> {
   // Storage is opt-in, so the AWS SDK loads with the first request rather than the editor.
   const sdk = await import('@/app/integrations/storage/s3/sdk')

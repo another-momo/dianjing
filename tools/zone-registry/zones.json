@@ -2817,6 +2817,27 @@
       "reason": "2026-10-11 合并窗 CI 修红：tools/test.ts 的 package.json 读取改 valibot schema 校验（no-unvalidated-json-parse 合规化），补 valibot devDependency（knip unlisted 口径逐 workspace 声明）",
       "disposition": "permanent",
       "lastReviewed": "2026-10-11"
+    },
+    {
+      "id": "P440",
+      "file": "tools/tsconfig.json",
+      "reason": "2026-10-11 合并窗 CI 修红：check:tools（tsgo -p tools/tsconfig.json）程序经 i18n 检查器 → @open-pencil/vue → core io → dom-css/src 链路透传，上游窗内新增无类型包 @acemir/cssom 的 ambient 声明 cssom.d.ts 不在本程序 → TS7016 族（TS2538/TS2339/TS7006 皆其级联）；include 补登该 d.ts（与既有四个 ../ d.ts 显式条目同例）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-11"
+    },
+    {
+      "id": "P441",
+      "file": "src/app/integrations/storage/s3/sdk.ts",
+      "reason": "2026-10-11 合并窗 CI 修红：check:tools 程序载入 bun-types，其 typeof fetch 带 preconnect 静态成员，纯函数 fetch 实现天然没有 → TS2741；导出结构化最小签名 S3Fetch 供调用两侧对接，仅在 smithy FetchHttpHandler 构造边界做一次 as typeof fetch 断言",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-11"
+    },
+    {
+      "id": "P442",
+      "file": "src/app/integrations/storage/s3/client.ts",
+      "reason": "2026-10-11 合并窗 CI 修红：与 P441 同源——send() customFetch 形参与 xhrFetch 返回类型改注 S3SDK.S3Fetch 结构化签名，消除 bun-types typeof fetch（preconnect 静态成员）与纯函数实现的 TS2741 错位",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-11"
     }
   ],
   "deletedPaths": [
@@ -2837,9 +2858,13 @@
     "desktop",
     "packages/cli/",
     "packages/core/AGENTS.md",
+    "packages/core/src/random.ts",
     "packages/demos",
     "packages/docs",
     "packages/dom-css/src/export/storybook",
+    "packages/dom-css/tests/export/components/react.test.ts",
+    "packages/dom-css/tests/export/components/shader-fixtures.ts",
+    "packages/dom-css/tests/export/components/vue.test.ts",
     "packages/dom-css/tests/export/storybook",
     "packages/fig/AGENTS.md",
     "packages/harness",

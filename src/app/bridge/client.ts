@@ -4,7 +4,7 @@
  * Connects to the bridge via WebSocket, receives RPC requests,
  * executes them against the live EditorStore, and sends results back.
  */
-import { randomHex } from '@open-pencil/core/random'
+import { randomHex } from '@open-pencil/scene-graph/random'
 
 import { makeFigmaFromStore } from '@/app/bridge/figma-factory'
 import { createAutomationCommandHandlers } from '@/app/bridge/handlers'

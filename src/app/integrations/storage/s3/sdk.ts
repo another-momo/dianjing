@@ -4,6 +4,11 @@ import { FetchHttpHandler } from '@smithy/fetch-http-handler'
 import { inferS3Region } from '@/app/integrations/storage/s3/region'
 import type { S3CompatibleConfig } from '@/app/integrations/storage/s3/types'
 
+/** 结构化最小 fetch 签名。bun-types 的 typeof fetch 带 preconnect 静态成员，
+ *  纯函数实现（storageFetch / xhrFetch）天然没有它——调用两侧用本类型对接，
+ *  只在 smithy 构造边界做一次断言。 */
+export type S3Fetch = (input: URL | RequestInfo, init?: RequestInit) => Promise<Response>
+
 export {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -26,7 +31,7 @@ function normalizeEndpoint(endpoint: string): string {
   return `https://${trimmed}`
 }
 
-export function createS3Client(config: S3CompatibleConfig, customFetch: typeof fetch): S3Client {
+export function createS3Client(config: S3CompatibleConfig, customFetch: S3Fetch): S3Client {
   return new S3Client({
     endpoint: normalizeEndpoint(config.endpoint),
     region: resolveS3Region(config),
@@ -42,7 +47,7 @@ export function createS3Client(config: S3CompatibleConfig, customFetch: typeof f
     // storageFetch already bounds every attempt; retries would multiply its timeout.
     maxAttempts: 1,
     requestHandler: new FetchHttpHandler({
-      customFetch,
+      customFetch: customFetch as typeof fetch,
       // Never send cookies; avoids credentialed CORS mode.
       credentials: 'omit',
       // Objects change under the same URL, and a ranged read answered with 200 would

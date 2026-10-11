@@ -87,20 +87,28 @@ export async function parseJSONBody(
 }
 
 /**
- * POST JSON handler 公共头（jscpd 0 阈值纪律——各 handler 不再各自铺开
- * 405 + parseJSONBody 序列）：非 POST 写 405 返 null；body 解析失败
- * （parseJSONBody 已写 400）返 null；成功返 body。
+ * 指定方法 JSON handler 公共头（jscpd 0 阈值纪律——各 handler 不再各自铺开
+ * 405 + parseJSONBody 序列）：方法不符写 405 返 null；body 解析失败
+ * （parseJSONBody 已写 400/413）返 null；成功返 body。
  */
-export async function parsePostBody<T>(
+export async function parseMethodBody<T>(
   req: IncomingMessage,
-  res: ServerResponse
+  res: ServerResponse,
+  method: string
 ): Promise<T | null> {
-  if (req.method !== 'POST') {
+  if (req.method !== method) {
     res.writeHead(405).end('Method Not Allowed')
     return null
   }
   const parsed = await parseJSONBody(req, res)
   return parsed.ok ? (parsed.body as T) : null
+}
+
+export async function parsePostBody<T>(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<T | null> {
+  return parseMethodBody<T>(req, res, 'POST')
 }
 
 /** 从 unknown 取非空字符串；缺/类型错回 undefined——统一 T98 路由字段提取形态。 */
