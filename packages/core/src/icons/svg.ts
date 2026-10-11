@@ -316,7 +316,7 @@ function collectImageElements(root: Element): SVGImageElementInfo[] {
       const transform = current.getAttribute('transform')
       if (transform) chain.unshift(transform)
       const parent: XMLNode | null = current.parentNode
-      current = parent && parent.nodeType === 1 ? (parent as Element) : null
+      current = parent?.nodeType === 1 ? (parent as Element) : null
     }
     if (hidden) continue
     images.push({

@@ -198,6 +198,7 @@ function createDesignRoot(
   size: { width: number; height: number | null },
   position: Vector
 ): SceneNode {
+  const hug = size.height === null
   return figma.graph.createNode('FRAME', figma.currentPage.id, {
     name,
     x: position.x,
@@ -206,7 +207,10 @@ function createDesignRoot(
     height: size.height ?? SETUP_HUG_INITIAL_HEIGHT,
     layoutMode: 'VERTICAL',
     counterAxisSizing: 'FIXED',
-    primaryAxisSizing: size.height === null ? 'HUG' : 'FIXED',
+    primaryAxisSizing: hug ? 'HUG' : 'FIXED',
+    // 新布局引擎下 HUG 高随内容结算，空框会塌成 0——初始占位 400 改以 minHeight
+    // 地板表达（空框可见、内容超 400 照常生长，与旧引擎「初始 400 + HUG」同义）。
+    minHeight: hug ? SETUP_HUG_INITIAL_HEIGHT : null,
     clipsContent: true,
     fills: [{ type: 'SOLID', color: { r: 1, g: 1, b: 1, a: 1 }, opacity: 1, visible: true }]
   })
