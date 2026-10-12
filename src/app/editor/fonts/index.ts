@@ -20,6 +20,7 @@ import {
 } from '@open-pencil/core/text'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
+import { fetchInstalledFonts, readFontBytes } from '@/app/ai/pi-backend/client-fonts'
 import { browserWebFontFetch } from '@/app/editor/fonts/browser-fetch'
 import {
   clearDownloadedFontCache as clearTauriDownloadedFontCache,
@@ -207,6 +208,22 @@ watch(
 // T40 S5：cn-font piece 级磁盘缓存（IndexedDB，200MB LRU；idb 缺失自动降级内存）。
 // 与 Tauri 请求级缓存并存——前者服务 CDN 子集片（URL 键），后者服务 unifont 请求。
 fontManager.setCnFontPieceCache(createCnFontPieceCache())
+
+/**
+ * 应用字体库（用户安装）注入：把 client-fonts 适配成 UserFontProvider 接口。
+ * core 域不直接访问 HTTP——本适配在 app 层完成。安装/卸载/加载均经此。
+ */
+fontManager.setUserFontProvider({
+  list: fetchInstalledFonts,
+  read: async (family, styleKey) => {
+    try {
+      return await readFontBytes(family, styleKey)
+    } catch (e) {
+      console.warn(`Installed font read failed for "${family}" (${styleKey}):`, e)
+      return null
+    }
+  }
+})
 
 // The browser's local-fonts permission persists across sessions, but
 // fontManager's access state is in-memory ('prompt' on every load). Sync it

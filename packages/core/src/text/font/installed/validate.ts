@@ -172,12 +172,7 @@ function isTtcCollection(bytes: Uint8Array): boolean {
 function parseWithOpentype(bytes: Uint8Array, container: ContainerFormat): ValidationResult {
   const slice = toArrayBuffer(bytes)
   let font: {
-    names: {
-      fontFamily?: Record<string, string>
-      fontSubfamily?: Record<string, string>
-      preferredFamily?: Record<string, string>
-      preferredSubfamily?: Record<string, string>
-    }
+    names?: unknown
     tables: { fvar?: unknown; head?: unknown }
   }
   try {
@@ -191,8 +186,8 @@ function parseWithOpentype(bytes: Uint8Array, container: ContainerFormat): Valid
     }
   }
 
-  const names = font.names
-  if (!names || !names.fontFamily) {
+  const names = extractNames(font.names)
+  if (!names) {
     return {
       ok: false,
       reason: 'no-name-table',
@@ -201,7 +196,7 @@ function parseWithOpentype(bytes: Uint8Array, container: ContainerFormat): Valid
     }
   }
 
-  const family = readLocalizedName(names.preferredFamily ?? names.fontFamily)
+  const family = readLocalizedName(names.preferredFamily ?? names.fontFamily ?? {})
   const displayName = family // 族名 = displayName（本地化族名一阶，无独立字段）
   const style = readLocalizedName(names.preferredSubfamily ?? names.fontSubfamily ?? {})
   if (family.length === 0) {
@@ -239,6 +234,29 @@ function parseWithOpentype(bytes: Uint8Array, container: ContainerFormat): Valid
 }
 
 // ── name 表本地化解析 ────────────────────────────────────────────────
+
+/** opentype.js v2 的 name 表形态：按平台分组（unicode/macintosh/windows），
+ * 每组内键为字段名（fontFamily 等）、值为 { lang: string } 本地化字典。
+ * 多数真实字体只有 windows 组——本函数跨平台组合并取首个含 fontFamily 的组。
+ */
+function extractNames(names: unknown): {
+  fontFamily?: Record<string, string>
+  fontSubfamily?: Record<string, string>
+  preferredFamily?: Record<string, string>
+  preferredSubfamily?: Record<string, string>
+} | null {
+  if (names === null || typeof names !== 'object') return null
+  const groups = names as Record<string, unknown>
+  for (const key of ['unicode', 'macintosh', 'windows']) {
+    const group = groups[key]
+    if (group === null || typeof group !== 'object') continue
+    const g = group as Record<string, unknown>
+    if (g.fontFamily !== null && typeof g.fontFamily === 'object') {
+      return g as ReturnType<typeof extractNames>
+    }
+  }
+  return null
+}
 
 /**
  * Uint8Array → ArrayBuffer 切片拷贝。

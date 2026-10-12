@@ -144,9 +144,15 @@
     "packages/core/src/text/font/installed/manifest.ts",
     "packages/core/src/text/font/installed/validate.ts",
     "packages/core/src/text/font/installed/layout.ts",
+    "packages/core/src/text/font/installed/woff2.ts",
+    "packages/core/src/text/font/installed/wawoff2.d.ts",
+    "packages/core/src/text/font/installed/install.ts",
+    "src/app/ai/pi-backend/client-fonts.ts",
     "tests/engine/text/fonts/installed/manifest.test.ts",
     "tests/engine/text/fonts/installed/validate.test.ts",
-    "tests/engine/text/fonts/installed/layout.test.ts"
+    "tests/engine/text/fonts/installed/layout.test.ts",
+    "tests/engine/text/fonts/installed/install.test.ts",
+    "tests/engine/text/fonts/installed/woff2.test.ts"
   ],
   "stubs": [],
   "pendingReclass": [],

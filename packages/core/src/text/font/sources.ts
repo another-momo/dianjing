@@ -13,6 +13,7 @@ export type FontFamilySource =
   | 'bundled'
   | 'cdn'
   | 'custom'
+  | 'user'
   | 'fallback'
   | WebFontProviderId
 export type FontLoadedSource = FontFamilySource | 'cache' | 'registered'
@@ -32,6 +33,21 @@ export interface DownloadedFontCache {
 }
 
 export type HostFontLoader = (family: string, style: string) => Promise<ArrayBuffer | null>
+
+/**
+ * 应用字体库（用户安装）提供者：list 返 FamilyView 聚合视图，read 返指定
+ * 族内 style 的字节（FamilyView.styles[].key）。core 域不依赖 HTTP——app 层
+ * 把 client-fonts 适配成该接口后注入。
+ */
+export interface UserFontProvider {
+  list(): Promise<
+    {
+      family: string
+      styles: { key: string; weight: number; italic: boolean; variable: boolean }[]
+    }[]
+  >
+  read(family: string, styleKey: string): Promise<ArrayBuffer | null>
+}
 
 /** Why an installed face could not be loaded, when the host can tell. */
 export type FontUnavailableReason = 'unsupported-format'

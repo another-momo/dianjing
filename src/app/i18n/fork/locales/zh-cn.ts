@@ -222,6 +222,7 @@ const zhCN = {
     fontsSourceCatalog: '中文网字计划 CDN 更多字体',
     fontsSourceLocal: '系统',
     fontsSourceOnline: '在线',
+    fontsSourceUser: '已安装',
     fontsLockedHint: '内置字体始终启用——它们是渲染兜底。',
     fontsLocalAccessPrompt: '允许访问系统字体后可在此管理。',
     fontsLocalAllow: '允许访问系统字体',

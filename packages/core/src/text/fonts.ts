@@ -49,7 +49,8 @@ import type {
   FontLoadedSource,
   FontUnavailableReason,
   HostFontLoader,
-  LocalFontAccessState
+  LocalFontAccessState,
+  UserFontProvider
 } from '#core/text/font/sources'
 import { collectGraphFontKeys } from '#core/text/requirements'
 import { cnFontSubsetResolver, formatUnicodeRanges } from '#core/text/web-font/cn-fonts'
@@ -72,6 +73,25 @@ const BUNDLED_FONTS: Record<string, string> = {
 // Alibaba PuHuiTi 9 字重（T39，CJK 骨干）：从注册表派生避免双源漂移。
 for (const weight of FONT_REGISTRY.find((e) => e.family === 'Alibaba PuHuiTi')?.weights ?? []) {
   BUNDLED_FONTS[`Alibaba PuHuiTi|${weight}`] = `/AlibabaPuHuiTi-${weight}.ttf`
+}
+
+/**
+ * 应用字体库（用户安装）族视图的 style 键匹配：精确命中 → weight+italic 派生
+ * 两级回退（manifest 端 styleKey 与 caller style 名异构场景下走派生通道）。
+ * 命中返回 manifest 端 key 供 read 用；未命中返 null。
+ */
+function matchUserStyleKey(
+  view: { styles: { key: string; weight: number; italic: boolean; variable: boolean }[] },
+  callerStyle: string
+): string | null {
+  for (const s of view.styles) {
+    if (s.key === callerStyle) return s.key
+  }
+  const requested = parseFontStyle(callerStyle)
+  for (const s of view.styles) {
+    if (s.weight === requested.weight && s.italic === requested.italic) return s.key
+  }
+  return null
 }
 
 /**
@@ -158,6 +178,12 @@ export class FontManager {
   private customDisabledFamilies = new Set<string>()
   /** 最近一次注入的 web 字体 fetcher（目录懒加载沿用；缺省回退全局 fetch） */
   private webFontFetch: WebFontFetch | null = null
+  /**
+   * 应用字体库（用户安装）提供者：list/read 注入；core 域不直接访问 HTTP，
+   * 由 app 层把 client-fonts 适配为该接口。注入时机晚于构造（首调 list/read
+   * 时读快照），便于 app 启动时按需绑定。
+   */
+  private userFontProvider: UserFontProvider | null = null
 
   attachProvider(canvasKit: CanvasKit, provider: TypefaceFontProvider): void {
     this.fontProviders.add(provider)
@@ -316,6 +342,14 @@ export class FontManager {
     this.webFontFetch = fetcher
     this.webFonts.setRemoteFetch(fetcher)
     if (fetcher) cnFontSubsetResolver.setFetcher(fetcher)
+  }
+
+  /**
+   * 注入应用字体库（用户安装）提供者；null = 关停该来源。
+   * 与其他 set* 注入惯例一致——构造期不接 IO，app 层启动时按需绑定。
+   */
+  setUserFontProvider(provider: UserFontProvider | null): void {
+    this.userFontProvider = provider
   }
 
   /** 注入 cn-font piece 级磁盘缓存（T40 S5，浏览器侧 IndexedDB 实现）。 */
@@ -569,6 +603,21 @@ export class FontManager {
         ...(entry.displayName ? { displayName: entry.displayName } : {})
       })
     }
+    // 应用字体库（用户安装）族枚举：注入存在时拉取；同名族不覆盖既有键
+    // ——web provider 同构（`if (!byFamily.has(family))`），与本地族段同优先级
+    // （安装在后的来源胜，但 web/local 都先于 user 写键，user 仅补漏）
+    if (this.userFontProvider) {
+      try {
+        const userViews = await this.userFontProvider.list()
+        for (const view of userViews) {
+          if (!includeDisabled && !this.allowlist.isEnabled(view.family)) continue
+          if (!byFamily.has(view.family))
+            byFamily.set(view.family, { family: view.family, source: 'user' })
+        }
+      } catch (e) {
+        console.warn('User font provider list failed:', e)
+      }
+    }
     return [...byFamily.values()].sort((a, b) => a.family.localeCompare(b.family))
   }
 
@@ -749,6 +798,24 @@ export class FontManager {
       if (hostBuffer) return this.registerAndCache(family, style, hostBuffer, 'local')
       const localBuffer = await this.findLocalFont(family, style)
       if (localBuffer) return this.registerAndCache(family, style, localBuffer, 'local')
+    }
+
+    // 应用字体库（用户安装）段：注入存在时按 style 键匹配取字节。失败静默——不阻断
+    // bundled 兜底链路（与 local 段同构 catch-all）。
+    if (this.userFontProvider) {
+      try {
+        const views = await this.userFontProvider.list()
+        const view = views.find((v) => v.family === family)
+        if (view) {
+          const key = matchUserStyleKey(view, style)
+          if (key) {
+            const buffer = await this.userFontProvider.read(family, key)
+            if (buffer) return this.registerAndCache(family, style, buffer, 'user')
+          }
+        }
+      } catch (e) {
+        console.warn(`User font provider load failed for "${family}" (${style}):`, e)
+      }
     }
 
     const bundledURL = BUNDLED_FONTS[cacheKey]

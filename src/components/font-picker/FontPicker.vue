@@ -113,7 +113,13 @@ function rowLabel(family: string, source: string): string {
         <span
           class="font-sans ml-auto shrink-0 rounded bg-input px-1.5 py-0.5 text-[9px] uppercase text-muted"
         >
-          {{ source === 'custom' ? forkMsgs.fontsSourceCustom : source }}
+          {{
+            source === 'custom'
+              ? forkMsgs.fontsSourceCustom
+              : source === 'user'
+                ? forkMsgs.fontsSourceUser
+                : source
+          }}
         </span>
       </div>
     </template>

@@ -71,8 +71,16 @@ const statusFilter = ref<'all' | 'enabled' | 'disabled'>('all')
 const requestingLocal = ref(false)
 const localAccess = ref(localFontAccessState())
 
-type SourceGroup = 'bundled' | 'custom' | 'cdn' | 'catalog' | 'online' | 'local'
-const GROUP_ORDER: SourceGroup[] = ['bundled', 'custom', 'cdn', 'catalog', 'online', 'local']
+type SourceGroup = 'bundled' | 'custom' | 'cdn' | 'catalog' | 'online' | 'local' | 'user'
+const GROUP_ORDER: SourceGroup[] = [
+  'bundled',
+  'custom',
+  'cdn',
+  'catalog',
+  'online',
+  'local',
+  'user'
+]
 /** 长列表组默认折叠；bundled/custom/cdn 族少默认展开 */
 const collapsed = reactive<Record<SourceGroup, boolean>>({
   bundled: false,
@@ -209,6 +217,7 @@ function groupOf(option: FontFamilyOption): SourceGroup {
   if (option.source === 'cdn') return option.catalog ? 'catalog' : 'cdn'
   if (option.source === 'custom') return 'custom'
   if (option.source === 'local') return 'local'
+  if (option.source === 'user') return 'user'
   return 'online'
 }
 
@@ -218,7 +227,8 @@ const groupLabels = computed<Record<SourceGroup, string>>(() => ({
   cdn: msgs.value.fontsSourceCdn,
   catalog: msgs.value.fontsSourceCatalog,
   online: msgs.value.fontsSourceOnline,
-  local: msgs.value.fontsSourceLocal
+  local: msgs.value.fontsSourceLocal,
+  user: msgs.value.fontsSourceUser
 }))
 
 // 响应式依赖锚点：白名单两集合 + 专属关停集合变更时重算（核心语义判定走 core，单一真源）

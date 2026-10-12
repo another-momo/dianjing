@@ -362,6 +362,7 @@ export const fontsMessageDefaults = {
   fontsSourceCatalog: 'Chinese Fonts CDN more fonts',
   fontsSourceLocal: 'System',
   fontsSourceOnline: 'Online',
+  fontsSourceUser: 'Installed',
   fontsLockedHint: 'Built-in fonts stay always on — they are the rendering fallback.',
   fontsLocalAccessPrompt: 'Allow access to system fonts to manage them here.',
   fontsLocalAllow: 'Allow system fonts',

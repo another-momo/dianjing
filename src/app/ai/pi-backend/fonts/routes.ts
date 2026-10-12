@@ -275,7 +275,7 @@ async function handleDelete(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<boolean> {
-  if (req.method !== 'POST') {
+  if (req.method !== 'POST' && req.method !== 'DELETE') {
     sendJSON(res, 405, { error: 'method not allowed' })
     return true
   }
