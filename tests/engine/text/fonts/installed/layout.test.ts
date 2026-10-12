@@ -68,8 +68,14 @@ describe('subsetPieceRelativePath', () => {
     expect(subsetPieceRelativePath('Noto Sans SC VF', HASH)).toBe(`noto-sans-sc-vf/${HASH}.ttf`)
   })
 
-  test('族名含非 ASCII → slug 替换', () => {
-    expect(subsetPieceRelativePath('思源黑体', HASH)).toBe(`family/${HASH}.ttf`)
+  test('族名含非 ASCII → slug UTF-8 字节编码（可逆、唯一）', () => {
+    const a = subsetPieceRelativePath('思源黑体', HASH)
+    const b = subsetPieceRelativePath('平方江西黑', HASH)
+    // 两个不同 CJK 族不得坍缩到同一目录
+    expect(a).not.toBe(b)
+    expect(a.startsWith('family/')).toBe(false)
+    // 编码形态：~xNN 序列，仅含目录安全字符
+    expect(a).toMatch(/^[a-z0-9\-_~]+\//)
   })
 })
 
@@ -115,8 +121,14 @@ describe('slugifyFamilyName', () => {
     expect(slugifyFamilyName('Inter Display')).toBe('inter-display')
   })
 
-  test('非 ASCII 字符 → -', () => {
-    expect(slugifyFamilyName('思源黑体')).toBe('family')
+  test('非 ASCII 字符处理：CJK 编码、空白/标点归连字符', () => {
+    // CJK 族名 ~xNN 编码：不坍缩、各族唯一
+    const a = slugifyFamilyName('思源黑体')
+    const b = slugifyFamilyName('平方江西黑')
+    expect(a).not.toBe('family')
+    expect(a).not.toBe(b)
+    expect(a).toMatch(/^[a-z0-9_~-]+$/)
+    // 拉丁 + 空白混合：空白归连字符（原语义）
     expect(slugifyFamilyName('LXGW WenKai')).toBe('lxgw-wenkai')
     expect(slugifyFamilyName('foo/bar')).toBe('foo-bar')
   })

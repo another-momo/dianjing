@@ -112,16 +112,35 @@ export function hashBytesToHex(bytes: Uint8Array, hasher: Hasher): ContentHash {
 
 /**
  * 族名 → 目录安全 slug：
- *  - 大小写不敏感（目录命名大小写不敏感平台如 Windows 兼容）
- *  - 非 [a-z0-9-_] 字符 → '-'
- *  - 连续连字符折叠单
- *  - 头尾连字符剥
- *  - 空 slug 兜 'family'
+ *  - ASCII 小写字母/数字/连字符/下划线原样保留（大小写折叠）
+ *  - 其他字符按 UTF-8 字节流百分号编码（'~xNN' 形态——'~' 不在白名单字符集内，
+ *    编码可逆无歧义；用 '~' 而非 '%' 因为 % 在 Windows 部分 API 语义过载）
+ *  - 连续连字符折叠单、头尾剥
+ *  - 全不可编码字符（如纯符号）兜 'family'
+ *
+ * 唯一性：不同族名（哪怕全是 CJK）产生不同 slug——'思源黑体' 与 '平方江西黑'
+ * 不再坍缩到同一目录。
  */
 export function slugifyFamilyName(family: string): string {
   const lowered = family.toLowerCase()
-  const replaced = lowered.replace(/[^a-z0-9-_]+/g, '-')
-  const collapsed = replaced.replace(/-+/g, '-')
-  const trimmed = collapsed.replace(/^-+|-+$/g, '')
-  return trimmed.length > 0 ? trimmed : 'family'
+  let out = ''
+  for (const char of lowered) {
+    if (/[a-z0-9_-]/.test(char)) {
+      out += char
+      continue
+    }
+    // 空白与标点归入连字符（与原语义一致：'Noto Sans SC' → 'noto-sans-sc'）
+    if (/[\s\p{P}\p{S}]/u.test(char)) {
+      out += '-'
+      continue
+    }
+    // 其余（CJK 等文字字符）按 UTF-8 字节流 ~xNN 编码——可逆且唯一，
+    // 不同 CJK 族名不再坍缩到同一目录
+    const bytes = new TextEncoder().encode(char)
+    for (const byte of bytes) {
+      out += `~x${byte.toString(16).padStart(2, '0')}`
+    }
+  }
+  const collapsed = out.replace(/-+/g, '-').replace(/^-+|-+$/g, '')
+  return collapsed.length > 0 ? collapsed : 'family'
 }

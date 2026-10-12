@@ -2866,6 +2866,13 @@
       "reason": "字体域改造批 2：useTypography 返回的 weights 从静态 TYPOGRAPHY_WEIGHTS 改为 computed——以 typographyState.fontFamily 经 fontManager.variableWeightRange 过滤九档中落在 VF 区间内的档；非 VF 族返回全九档，差异化的 picker 拒选了缺失档",
       "disposition": "permanent",
       "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P445",
+      "file": "packages/core/src/text/fonts.ts",
+      "reason": "字体域改造：custom-service 状态机抽离 CustomServiceManager（委托注入 webFontFetch/timeout/allowlist 兜底）+ UserFontProvider 'user' 源（listFamilyOptions 枚举段 + loadLocalFont 读取段 + matchUserStyleKey 派生）+ cnFontDescriptor 改走 customService.getCatalog",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-12"
     }
   ],
   "deletedPaths": [

@@ -131,9 +131,26 @@ export function createFontsStore({ rootDir }: { rootDir: string }): FontsStore {
     writeFileSync(tmpPath, args.bytes)
     renameSync(tmpPath, absPath)
     const manifest = readManifest()
+    // 同 (family, key) 重装但字节已变：先摘出旧条目 hash，manifest 落盘后再删旧字节
+    // ——不能先删字节再写 manifest（中途崩溃会 manifest 指着不存在的文件）
+    const familyEntry = manifest.families.find((f) => f.family === args.family)
+    const previous = familyEntry?.styles.find((st) => st.key === args.style.key)
+    const staleHash =
+      previous && previous.hash !== hash && previous.artifact === 'full' ? previous.hash : null
+    const staleExt = previous?.ext ?? 'ttf'
     upsertStyle(manifest, args.family, args.style)
     manifest.updatedAt = Date.now()
     writeManifest(manifest)
+    if (staleHash) {
+      const stalePath = join(fontsRoot, ...fullFontRelativePath(staleHash, staleExt).split('/'))
+      if (existsSync(stalePath)) {
+        try {
+          rmSync(stalePath, { force: true })
+        } catch {
+          // 孤儿清理失败不阻断安装——字节泄漏留给下次族删除兜底
+        }
+      }
+    }
     return { hash, manifestPath }
   }
 

@@ -142,22 +142,14 @@ describe('detectContainer', () => {
 // ── validateFontBytes ────────────────────────────────────────────────
 
 describe('validateFontBytes 接受 / 拒绝矩阵', () => {
-  test('接受 ttf + fvar：VF 嗅探 + 区间', () => {
-    // ttf 容器 + fvar 表；本批 validate 走 sniffVariableFont（不 parse）路径
-    // 但 parse 路径会拒（head 表缺失）—— 故此处仅测 sniff 路径，sfnt 容器走 sniff
+  test('拒绝：sfnt 容器 fvar 存但 head/name 表缺失 → corrupt 或 no-name-table', () => {
+    // sfntVfBytes 只构造 fvar 头表段——opentype.js parse 必拒。sfnt 容器
+    // 恒走 parse + sniff 链，parse 失败即整体拒收（sniff 不单独放行）。
     const bytes = sfntVfBytes(100, 400, 900)
-    // 改写 validate：sfnt 容器必走 parse + sniff——此处仅看 sniff 字段
     const result = validateFontBytes(bytes)
-    // parse 会因 head 缺失抛错 → 应返 'corrupt' 或 'no-name-table'。
-    // 接受矩阵：本测试只断言 sniff 字段正确（用 woff/woff2 容器）
-    if (result.ok) {
-      // 若 parse 兼容 stub，验证 VF
-      expect(result.variable).toBe(true)
-      expect(result.wghtRange).toEqual({ min: 100, default: 400, max: 900 })
-    } else {
-      // 否则只是 sniff 失败——属预期
-      expect(result.reason).toMatch(/corrupt|no-name-table/)
-    }
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('expected reject')
+    expect(result.reason).toMatch(/corrupt|no-name-table/)
   })
 
   test('接受 woff2 + fvar 标签：VF=true，wghtRange=null', () => {

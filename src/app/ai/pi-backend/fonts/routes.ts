@@ -1,4 +1,3 @@
-import { existsSync, readFileSync } from 'node:fs'
 /**
  * pi-backend 字体库 HTTP 路由。
  *
@@ -9,9 +8,9 @@ import { existsSync, readFileSync } from 'node:fs'
  *  - GET    /api/pi/fonts/read?family=&style=    → bytes（按 content-type 推 mime）
  *  - POST   /api/pi/fonts/delete                body { family, style? } → 删字节 + manifest
  *
- * 入参形态：path 形态由 Electron 走（用户经文件对话框选出的路径，服务端
- * 直读磁盘）；dev web 形态收字节 body。经 query 参数 `?source=path` 选形态，
- * body=raw bytes 或 JSON {path,ext} 二选一。
+ * 入参形态：raw bytes body（Content-Type application/octet-stream）。Electron
+ * 形态也走 bytes——renderer 侧经文件对话框通道读字节后上传，服务端不直读
+ * 任意路径（最小权限：端点不收磁盘路径参数）。
  *
  * 校验口径：完整校验链走 core/text/font/installed/validate（魔数 + 大小 +
  * opentype parse + VF 嗅探 + name 表）。坏字节按拒绝原因映射本地化文案。
@@ -47,19 +46,10 @@ const FONT_MIME: Record<'ttf' | 'otf', string> = {
   otf: 'font/otf'
 }
 
-interface InstallJsonBody {
-  path?: string
-  /** Electron 形态收路径直读磁盘——服务进程与 main 同主机时可走 fs 直读 */
-  familyOverride?: string
-  styleKey?: string
-}
-
 // ── 公开端点调度 ─────────────────────────────────────────────────────
 
 export interface FontsRouteDeps {
   store: FontsStore
-  /** 服务端 fs read 钩子——本批默认 node:fs.readFileSync 实现；测试可注入 */
-  readDiskBytes?: (path: string) => Uint8Array | null
 }
 
 export async function handleFontsRequest(
@@ -116,47 +106,20 @@ async function handleInstall(
     return true
   }
 
-  // 形态分发：query ?source=path 走 JSON { path }；否则按 bytes body 读
-  const url = new URL(req.url ?? '/', 'http://127.0.0.1')
-  const sourceMode = url.searchParams.get('source') ?? 'bytes'
-
-  let bytes: Uint8Array
-
-  if (sourceMode === 'path') {
-    // 读 JSON body → 取 path + ext + 选填 styleKey
-    const parsed = await readJsonBody(req)
-    if (!parsed.ok) {
-      sendJSON(res, 400, { error: parsed.error })
+  // bytes 形态：raw body = font bytes；per-route 上限 60MB（独立于全局 32MB）
+  const read = await readRawBytesWithLimit(req, INSTALL_BODY_LIMIT)
+  if (!read.ok) {
+    if (read.code === 'too-large') {
+      sendJSON(res, 413, {
+        error: `font body exceeds ${INSTALL_BODY_LIMIT / 1024 / 1024} MB limit`,
+        code: 'too-large'
+      })
       return true
     }
-    const body = parsed.body as InstallJsonBody
-    if (typeof body.path !== 'string' || body.path.length === 0) {
-      sendJSON(res, 400, { error: 'path required', code: 'path-required' })
-      return true
-    }
-    const reader = deps.readDiskBytes ?? defaultReadDiskBytes
-    const disk = reader(body.path)
-    if (disk === null) {
-      sendJSON(res, 404, { error: `cannot read path: ${body.path}`, code: 'path-not-readable' })
-      return true
-    }
-    bytes = disk
-  } else {
-    // bytes 形态：raw body = font bytes；per-route 上限 60MB（独立于全局 32MB）
-    const read = await readRawBytesWithLimit(req, INSTALL_BODY_LIMIT)
-    if (!read.ok) {
-      if (read.code === 'too-large') {
-        sendJSON(res, 413, {
-          error: `font body exceeds ${INSTALL_BODY_LIMIT / 1024 / 1024} MB limit`,
-          code: 'too-large'
-        })
-        return true
-      }
-      sendJSON(res, 400, { error: read.error })
-      return true
-    }
-    bytes = read.bytes
+    sendJSON(res, 400, { error: read.error })
+    return true
   }
+  const bytes = read.bytes
 
   // 校验链：完整 validateFontBytes（魔数 + 大小 + opentype parse + VF + name）
   const validation = validateFontBytes(bytes)
@@ -414,9 +377,4 @@ function mapRejectionToText(reason: RejectionReason, detail: string): string {
     case 'no-name-table':
       return 'this font file has no name table — family/style cannot be derived'
   }
-}
-
-function defaultReadDiskBytes(path: string): Uint8Array | null {
-  if (!existsSync(path)) return null
-  return readFileSync(path)
 }

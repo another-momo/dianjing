@@ -9,7 +9,7 @@
     校验 + 可选 woff2 转码，再提交到 pi-backend install 端点。
 -->
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 import { fontManager } from '@open-pencil/core/text'
 import type { FontFamilyOption } from '@open-pencil/core/text'
@@ -115,11 +115,8 @@ async function loadLibrary(): Promise<void> {
 }
 
 function isHealthy(view: FamilyView): boolean {
-  if (view.totalSize === 0) return false
-  for (const style of view.styles) {
-    if (style.variable && !style.wghtRange) return false
-  }
-  return true
+  // manifest 校验已保证 variable → wghtRange 必填；此处仅查空族/零字节
+  return view.styles.length > 0 && view.totalSize > 0
 }
 
 const badFamilies = computed(() => families.value.filter((family) => !family.healthy))
@@ -210,6 +207,12 @@ function onCancelInstall() {
   installConfirmOpen.value = false
   installPathsPending.value = null
 }
+
+// X / overlay / Escape 关闭对话框不触发 @cancel——open 变 false 即清 pending，
+// 防第二次安装把上次的文件数组接着堆
+watch(installConfirmOpen, (open) => {
+  if (!open) installPathsPending.value = null
+})
 
 async function runInstall(targets: File[]) {
   installBusy.value = true
