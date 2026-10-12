@@ -429,7 +429,22 @@ export const fontsMessageDefaults = {
   fontsOnlineEmptyProvidersOff:
     'Online font libraries are on, but every provider is off — enable at least one provider above.',
   fontsOnlineEmptyEnum: 'Enumeration failed or returned no families.',
-  fontsRetryEnumeration: 'Retry'
+  fontsRetryEnumeration: 'Retry',
+  // fonts-my-library: user-installed font library segment
+  fontsMyLibrary: 'My Library',
+  fontsStoreTab: 'Font Store',
+  fontsStoreComingSoon: 'Font store coming soon',
+  fontsInstallLocal: 'Install local fonts',
+  fontsInstallConfirm: 'I confirm I only import fonts I am licensed to use',
+  fontsCancel: 'Cancel',
+  fontsInstallResult: params('{ok} installed, {fail} failed'),
+  fontsInstallResultOk: params('{ok} fonts installed'),
+  fontsUninstallFamily: 'Remove',
+  fontsUninstallConfirm: params('This will remove {family} ({count} styles)'),
+  fontsBadFamilyBanner: params('{count} fonts have corrupt data'),
+  fontsStorageHint:
+    'Font files live in the app data directory under fonts/ — copy that folder and restart to migrate.',
+  fontsInstallAction: 'Install fonts'
 } as const
 
 /** ux-polish⑤（2026-09-09）：画布工具条「添加图片」文案域（Toolbar 按钮 / useAddImage 失败 toast） */

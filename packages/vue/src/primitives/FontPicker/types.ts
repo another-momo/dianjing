@@ -7,4 +7,5 @@ export interface FontPickerUI {
   viewport?: string
   empty?: string
   emptyAction?: string
+  emptyInstallAction?: string
 }

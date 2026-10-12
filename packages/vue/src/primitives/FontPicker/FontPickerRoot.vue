@@ -184,6 +184,7 @@ function familyOf(value: unknown): unknown {
               >
                 {{ loading ? 'Loading…' : 'Allow local fonts' }}
               </button>
+              <slot name="empty-install-action" />
             </div>
           </div>
         </ComboboxViewport>

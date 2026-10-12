@@ -32,6 +32,7 @@ import {
 import { useForkFonts } from '@/app/i18n/fork'
 import { isTauri } from '@/app/tauri/env'
 import { matchFontFamilyOrDisplayName } from '@/components/font-picker/font-option-filter'
+import MyFontLibrary from '@/components/settings/fonts/MyFontLibrary.vue'
 import SettingsGroup from '@/components/settings/layout/SettingsGroup.vue'
 import SettingsRow from '@/components/settings/layout/SettingsRow.vue'
 import SettingsSection from '@/components/settings/layout/SettingsSection.vue'
@@ -63,6 +64,15 @@ import AppSwitch from '@/components/ui/toggle/AppSwitch.vue'
  * 「枚举失败或为空」两档，后者带重试按钮（清枚举失败记录后重拉）。
  */
 const msgs = useForkFonts()
+
+// 两段式 tab：第一段挂「我的字体库」组件，第二段占位等商店功能落地；
+// 旧白名单/来源/维护区在 tab 之下保留——后续批次再拆。
+type FontsSegment = 'library' | 'store'
+const activeSegment = ref<FontsSegment>('library')
+const segments = computed<{ key: FontsSegment; label: string }[]>(() => [
+  { key: 'library', label: msgs.value.fontsMyLibrary },
+  { key: 'store', label: msgs.value.fontsStoreTab }
+])
 
 const families = ref<FontFamilyOption[]>([])
 const loading = ref(true)
@@ -397,6 +407,32 @@ watch([cnFontsEnabled, onlineFontsEnabled, localFontsEnabled, fontProviderSettin
         {{ msgs.fontsPanelDescription }}
       </p>
     </div>
+
+    <!-- 两段式外壳：第一段挂「我的字体库」完整组件；第二段占位等商店功能。
+         旧来源/维护/白名单区在两段 tab 之下继续渲染，后续批次拆分清理。 -->
+    <div class="flex gap-1 border-b border-border pb-2" data-test-id="fonts-panel-tabs">
+      <button
+        v-for="(segment, index) in segments"
+        :key="segment.key"
+        type="button"
+        class="rounded px-2 py-1 text-[11px]"
+        :class="
+          segment.key === activeSegment ? 'bg-input text-surface' : 'text-muted hover:bg-hover'
+        "
+        :data-test-id="`fonts-tab-${segment.key}`"
+        @click="activeSegment = segment.key"
+      >
+        {{ segment.label }}
+      </button>
+    </div>
+    <MyFontLibrary v-if="activeSegment === 'library'" />
+    <p
+      v-else
+      class="rounded border border-border px-3 py-4 text-center text-[10px] text-muted"
+      data-test-id="fonts-store-placeholder"
+    >
+      {{ msgs.fontsStoreComingSoon }}
+    </p>
 
     <SettingsSection>
       <template #title>{{ msgs.fontsSourcesSection }}</template>

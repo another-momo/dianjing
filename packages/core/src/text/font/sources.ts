@@ -1,4 +1,4 @@
-import type { WebFontProviderId } from '#core/text/web-fonts'
+import { WEB_FONT_PROVIDER_IDS, type WebFontProviderId } from '#core/text/web-fonts'
 
 export interface FontInfo {
   family: string
@@ -16,6 +16,19 @@ export type FontFamilySource =
   | 'user'
   | 'fallback'
   | WebFontProviderId
+
+/**
+ * Sources whose picker rows support an on-demand preview load via `loadFont`.
+ * The picker triggers `@vue:mounted` font fetch only when the row's source is in
+ * this set — list-driven routes (CDN / catalog / custom / local) are loaded
+ * through their own pipelines and would double-fetch or hit permission walls
+ * if preloaded here.
+ */
+export const PREVIEWABLE_FONT_SOURCES: readonly FontFamilySource[] = [
+  ...WEB_FONT_PROVIDER_IDS,
+  'user',
+  'bundled'
+] as const
 export type FontLoadedSource = FontFamilySource | 'cache' | 'registered'
 
 export interface FontFamilyOption {

@@ -65,6 +65,12 @@ export const disabledFontFamilies = useLocalStorage<string[]>('op-font-disabled-
 export const enabledCatalogFamilies = useLocalStorage<string[]>('op-font-enabled-catalog:v1', [])
 export const cnFontsEnabled = useLocalStorage('op-cn-fonts-enabled', true)
 export const fontListRevision = ref(0)
+/**
+ * Bumped by user-installed font library mutations (install / uninstall). Independent
+ * of `fontListRevision` (which is allowlist-driven); FontPicker :keys on the sum of
+ * both so newly installed families show on the next open without an allowlist change.
+ */
+export const userLibraryRevision = ref(0)
 
 /**
  * 专属字体服务（外部分发服务）配置：服务地址 + 访问令牌 + 启用开关，

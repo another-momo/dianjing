@@ -284,7 +284,21 @@ const zhCN = {
     fontsOnlineEmptyProvidersOff:
       '在线字体库已开启，但四个提供商全部关闭——请先在上方启用至少一个提供商。',
     fontsOnlineEmptyEnum: '枚举失败或列表为空。',
-    fontsRetryEnumeration: '重试'
+    fontsRetryEnumeration: '重试',
+    // fonts-my-library：用户已安装字体库段
+    fontsMyLibrary: '我的字体库',
+    fontsStoreTab: '字体商店',
+    fontsStoreComingSoon: '商店功能即将上线',
+    fontsInstallLocal: '安装本地字体',
+    fontsInstallConfirm: '我确认仅导入拥有使用授权的字体',
+    fontsCancel: '取消',
+    fontsInstallResult: '已安装 {ok} 个，失败 {fail} 个',
+    fontsInstallResultOk: '已安装 {ok} 个字体',
+    fontsUninstallFamily: '卸载',
+    fontsUninstallConfirm: '将卸载 {family}（{count} 个样式）',
+    fontsBadFamilyBanner: '{count} 个字体数据异常',
+    fontsStorageHint: '字体文件保存在应用数据目录的 fonts/ 下；换机时拷贝该目录后重启即可。',
+    fontsInstallAction: '安装字体'
   },
   pi: {
     providersTitle: '模型提供方',

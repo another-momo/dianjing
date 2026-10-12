@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { WEB_FONT_PROVIDER_IDS, fontFamilyDisplayName } from '@open-pencil/core/text'
+import { PREVIEWABLE_FONT_SOURCES, fontFamilyDisplayName } from '@open-pencil/core/text'
 import { FontPickerRoot, useI18n } from '@open-pencil/vue'
 import type { FontPickerUI } from '@open-pencil/vue'
 
@@ -10,9 +10,11 @@ import {
   listFamilies,
   loadFont,
   localFontAccessState,
-  requestLocalFontAccess
+  requestLocalFontAccess,
+  userLibraryRevision
 } from '@/app/editor/fonts'
 import { useForkFonts } from '@/app/i18n/fork'
+import { openSettingsDialog } from '@/app/settings/dialog'
 import { matchFontFamilyOrDisplayName } from '@/components/font-picker/font-option-filter'
 import { usePopoverUI } from '@/components/ui/overlay/popover'
 import { useSelectUI } from '@/components/ui/select/select'
@@ -41,7 +43,9 @@ const ui = computed<FontPickerUI>(() => ({
     'w-full border-b border-border bg-transparent px-3 py-2 text-sm text-surface outline-none placeholder:text-muted',
   empty: 'px-2 py-3 text-center text-xs text-muted',
   emptyAction:
-    'mt-2 rounded bg-accent px-2 py-1 text-xs font-medium text-on-accent disabled:opacity-50'
+    'mt-2 rounded bg-accent px-2 py-1 text-xs font-medium text-on-accent disabled:opacity-50',
+  emptyInstallAction:
+    'mt-1 inline-flex w-full items-center justify-center rounded border border-border px-2 py-1 text-xs font-medium text-surface hover:bg-hover disabled:opacity-50'
 }))
 
 const previewFontLoads = new Set<string>()
@@ -52,7 +56,9 @@ const localFontAccess = {
 }
 
 function loadPreviewFont(family: string, source: string) {
-  if (!WEB_FONT_PROVIDER_IDS.includes(source as (typeof WEB_FONT_PROVIDER_IDS)[number])) return
+  if (!PREVIEWABLE_FONT_SOURCES.includes(source as (typeof PREVIEWABLE_FONT_SOURCES)[number])) {
+    return
+  }
   if (previewFontLoads.has(family)) return
   previewFontLoads.add(family)
   void loadFont(family)
@@ -65,14 +71,21 @@ function rowLabel(family: string, source: string): string {
   }
   return family
 }
+
+/**
+ * Composite revision key — picker remounts on either allowlist toggles
+ * (T41 D-h) or user-installed font library mutations (install / uninstall).
+ */
+const pickerRevision = computed(() => fontListRevision.value + userLibraryRevision.value)
+
+function openFontLibrarySection() {
+  openSettingsDialog('fonts')
+}
 </script>
 
 <template>
-  <!-- T41（D-h）：白名单运行时开关后重挂载——useFontPicker 的 families 一次性缓存
-       无失效机制，:key 变更重建 picker 使关停的家族即时消失（picker 此时必然处于
-       关闭态——开关操作发生在设置面板，重挂载不损失任何打开态 UI 状态） -->
   <FontPickerRoot
-    :key="fontListRevision"
+    :key="pickerRevision"
     v-model="modelValue"
     data-test-id="font-picker-root"
     :list-families="listFamilies"
@@ -118,10 +131,23 @@ function rowLabel(family: string, source: string): string {
               ? forkMsgs.fontsSourceCustom
               : source === 'user'
                 ? forkMsgs.fontsSourceUser
-                : source
+                : source === 'bundled'
+                  ? forkMsgs.fontsSourceBundled
+                  : source
           }}
         </span>
       </div>
+    </template>
+
+    <template #empty-install-action>
+      <button
+        type="button"
+        :class="ui.emptyInstallAction"
+        data-test-id="font-picker-install-action"
+        @click="openFontLibrarySection"
+      >
+        {{ forkMsgs.fontsInstallAction }}
+      </button>
     </template>
   </FontPickerRoot>
 </template>
