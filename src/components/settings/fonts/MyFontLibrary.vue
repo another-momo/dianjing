@@ -435,7 +435,6 @@ onMounted(() => {
     <AppConfirmationDialog
       v-model:open="installConfirmOpen"
       :heading="forkMsgs.fontsInstallLocal"
-      :description="forkMsgs.fontsInstallConfirm"
       :cancel-label="forkMsgs.fontsCancel"
       :confirm-label="forkMsgs.fontsInstallLocal"
       :confirm-disabled="!installConfirmChecked"

@@ -8,10 +8,11 @@
  *  - 同 (family, key) 换装不同字节 → 旧哈希字节被清（不留孤儿文件）
  *  - deleteStyle → 字节文件与 manifest 条目同删
  *  - deleteFamily → 整族字节清空 + manifest 族条目消失
+ *  - manifest.json 损坏 → readManifest 兜空库不抛（读容错回归）
  */
 
 import { describe, expect, test } from 'bun:test'
-import { mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -135,5 +136,14 @@ describe('createFontsStore 真实落盘', () => {
     expect(store.readBytes(hashA, 'otf')).toBeNull()
     expect(store.readBytes(hashB, 'otf')).toBeNull()
     expect(store.readManifest().families).toHaveLength(0)
+  })
+
+  test('manifest.json 损坏 → readManifest 兜空库不抛', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'fonts-store-'))
+    mkdirSync(join(rootDir, 'fonts', 'v1'), { recursive: true })
+    writeFileSync(join(rootDir, 'fonts', 'v1', 'manifest.json'), '{not valid json', 'utf8')
+    const store = createFontsStore({ rootDir })
+    const manifest = store.readManifest()
+    expect(manifest.families).toEqual([])
   })
 })

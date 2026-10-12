@@ -433,7 +433,6 @@ export const fontsMessageDefaults = {
   // fonts-my-library: user-installed font library segment
   fontsMyLibrary: 'My Library',
   fontsStoreTab: 'Font Store',
-  fontsStoreComingSoon: 'Font store coming soon',
   fontsInstallLocal: 'Install local fonts',
   fontsInstallConfirm: 'I confirm I only import fonts I am licensed to use',
   fontsCancel: 'Cancel',
@@ -444,7 +443,43 @@ export const fontsMessageDefaults = {
   fontsBadFamilyBanner: params('{count} fonts have corrupt data'),
   fontsStorageHint:
     'Font files live in the app data directory under fonts/ — copy that folder and restart to migrate.',
-  fontsInstallAction: 'Install fonts'
+  fontsInstallAction: 'Install fonts',
+  // fonts-store：字体商店面板（FontStorePanel）
+  fontsStoreServicesTitle: 'Font services',
+  fontsStoreServiceBuiltin: 'Built-in',
+  fontsStoreServiceAdd: 'Add service',
+  fontsStoreServiceKindStandard: 'Standard catalog',
+  fontsStoreServiceKindGfApi: 'Google Fonts compatible',
+  fontsStoreServiceNameLabel: 'Service name',
+  fontsStoreServiceBaseUrlLabel: 'Service URL',
+  fontsStoreServiceApiKeyLabel: 'API key',
+  fontsStoreServiceSubmit: 'Register service',
+  fontsStoreServiceDelete: 'Remove',
+  fontsStoreServiceDeleteConfirm: params('Remove service "{name}"?'),
+  fontsStoreEmpty: 'No custom services registered.',
+  fontsStoreCatalogBack: 'Back to services',
+  fontsStoreCatalogSearch: 'Search families…',
+  fontsStoreCatalogEmpty: 'No families match your search.',
+  fontsStoreCatalogLoading: 'Loading catalog…',
+  fontsStoreCatalogUnavailable: 'Service temporarily unavailable — retry',
+  fontsStoreCatalogRetry: 'Retry',
+  fontsStoreFamilyLicenseMissing: 'License: unaudited',
+  fontsStoreFamilyStylesCount: params('{count} styles'),
+  fontsStoreFamilyInstall: 'Install',
+  fontsStoreFamilyInstalling: 'Installing…',
+  fontsStoreTaskProgress: params('{done}/{total}'),
+  fontsStoreTaskCancel: 'Cancel',
+  fontsStoreTaskStarted: params('Installing {family}…'),
+  fontsStoreTaskDoneOk: params('Installed {family} ({done} styles)'),
+  fontsStoreTaskDonePartial: params('Installed {family} — {done} ok, {fail} failed'),
+  fontsStoreTaskFailedAll: params('Failed to install {family}'),
+  fontsStoreTaskCancelled: params('Cancelled {family} install ({done}/{total})'),
+  fontsStoreRegisterSuccess: params('Registered "{name}"'),
+  fontsStoreRegisterFailed: params('Could not register service: {reason}'),
+  fontsStoreDeleteFailed: params('Could not remove service: {reason}'),
+  fontsStoreInstallConfirmTitle: 'Confirm font installation',
+  fontsStoreInstallConfirmBody:
+    'I confirm I only install fonts I am licensed to use from this catalog.'
 } as const
 
 /** ux-polish⑤（2026-09-09）：画布工具条「添加图片」文案域（Toolbar 按钮 / useAddImage 失败 toast） */

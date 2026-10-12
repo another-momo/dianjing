@@ -26,10 +26,10 @@ import type { StyleEntry } from '@open-pencil/core/text/font/installed/manifest'
 import { toFamilyViews } from '@open-pencil/core/text/font/installed/manifest'
 import {
   DEFAULT_MAX_BYTES,
-  validateFontBytes,
-  type RejectionReason
+  validateFontBytes
 } from '@open-pencil/core/text/font/installed/validate'
 
+import { mapRejectionToText, readJSONBody, readRawBytesWithLimit, sendJSON } from './http-helpers'
 import { type FontsStore } from './store'
 
 const LIST_PATHNAME = '/api/pi/fonts/list'
@@ -50,6 +50,8 @@ const FONT_MIME: Record<'ttf' | 'otf', string> = {
 
 export interface FontsRouteDeps {
   store: FontsStore
+  /** 商店路由挂载委托（来自 store-routes.ts）；缺省即不挂商店端点 */
+  storeRouter?: (req: IncomingMessage, res: ServerResponse, pathname: string) => Promise<boolean>
 }
 
 export async function handleFontsRequest(
@@ -64,6 +66,15 @@ export async function handleFontsRequest(
     pathname !== READ_PATHNAME &&
     pathname !== DELETE_PATHNAME
   ) {
+    if (deps.storeRouter) {
+      const handled = await deps.storeRouter(req, res, pathname)
+      if (handled) return true
+    }
+    // 商店前缀内的未知子路径必须有响应——否则 server.ts 已 return，请求挂起
+    if (pathname.startsWith('/api/pi/fonts/store/')) {
+      sendJSON(res, 404, { error: 'unknown fonts store endpoint', code: 'not-found' })
+      return true
+    }
     return false
   }
   try {
@@ -242,7 +253,7 @@ async function handleDelete(
     sendJSON(res, 405, { error: 'method not allowed' })
     return true
   }
-  const parsed = await readJsonBody(req)
+  const parsed = await readJSONBody(req)
   if (!parsed.ok) {
     sendJSON(res, 400, { error: parsed.error })
     return true
@@ -279,102 +290,4 @@ async function handleDelete(
 }
 
 // ── 内部 helper ──────────────────────────────────────────────────────
-
-function sendJSON(res: ServerResponse, status: number, payload: unknown): void {
-  res.writeHead(status, { 'content-type': 'application/json' })
-  res.end(JSON.stringify(payload))
-}
-
-type JsonReadResult = { ok: true; body: unknown } | { ok: false; error: string }
-
-async function readJsonBody(req: IncomingMessage): Promise<JsonReadResult> {
-  const raw = await readStringBody(req, 1024 * 1024)
-  if (!raw.ok) return { ok: false, error: raw.error }
-  try {
-    const body = JSON.parse(raw.body) as unknown
-    return { ok: true, body }
-  } catch (error) {
-    return {
-      ok: false,
-      error: `invalid JSON: ${error instanceof Error ? error.message : String(error)}`
-    }
-  }
-}
-
-type StringBodyResult = { ok: true; body: string } | { ok: false; error: string }
-
-function readStringBody(req: IncomingMessage, limit: number): Promise<StringBodyResult> {
-  return new Promise((resolve) => {
-    const chunks: Buffer[] = []
-    let total = 0
-    let aborted = false
-    req.on('data', (chunk: Buffer) => {
-      if (aborted) return
-      total += chunk.length
-      if (total > limit) {
-        aborted = true
-        resolve({ ok: false, error: `body exceeds ${limit} bytes` })
-        req.destroy()
-        return
-      }
-      chunks.push(chunk)
-    })
-    req.on('end', () => resolve({ ok: true, body: Buffer.concat(chunks).toString('utf8') }))
-    req.on('error', (error) => {
-      if (aborted) return
-      resolve({ ok: false, error: error instanceof Error ? error.message : String(error) })
-    })
-  })
-}
-
-type RawBytesResult =
-  | { ok: true; bytes: Uint8Array }
-  | { ok: false; error: string; code?: 'too-large' }
-
-async function readRawBytesWithLimit(req: IncomingMessage, limit: number): Promise<RawBytesResult> {
-  return new Promise((resolve) => {
-    const chunks: Buffer[] = []
-    let total = 0
-    let aborted = false
-    req.on('data', (chunk: Buffer) => {
-      if (aborted) return
-      total += chunk.length
-      if (total > limit) {
-        aborted = true
-        resolve({
-          ok: false,
-          error: `body exceeds ${limit} bytes`,
-          code: 'too-large'
-        })
-        req.destroy()
-        return
-      }
-      chunks.push(chunk)
-    })
-    req.on('end', () => {
-      if (aborted) return
-      resolve({ ok: true, bytes: new Uint8Array(Buffer.concat(chunks)) })
-    })
-    req.on('error', (error) => {
-      if (aborted) return
-      resolve({ ok: false, error: error instanceof Error ? error.message : String(error) })
-    })
-  })
-}
-
-function mapRejectionToText(reason: RejectionReason, detail: string): string {
-  switch (reason) {
-    case 'too-small':
-      return 'font bytes are too small to be a valid font'
-    case 'too-large':
-      return detail
-    case 'unknown-format':
-      return 'this font file is corrupted and cannot be recognized'
-    case 'is-collection':
-      return 'this is a font collection — please extract individual fonts first'
-    case 'corrupt':
-      return 'this font file is corrupted and cannot be parsed'
-    case 'no-name-table':
-      return 'this font file has no name table — family/style cannot be derived'
-  }
-}
+// 共享 helper 已迁至 ./http-helpers.ts（store 路由复用）；本文件不再持有实现。

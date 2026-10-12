@@ -32,6 +32,7 @@ import {
 import { useForkFonts } from '@/app/i18n/fork'
 import { isTauri } from '@/app/tauri/env'
 import { matchFontFamilyOrDisplayName } from '@/components/font-picker/font-option-filter'
+import FontStorePanel from '@/components/settings/fonts/FontStorePanel.vue'
 import MyFontLibrary from '@/components/settings/fonts/MyFontLibrary.vue'
 import SettingsGroup from '@/components/settings/layout/SettingsGroup.vue'
 import SettingsRow from '@/components/settings/layout/SettingsRow.vue'
@@ -98,7 +99,8 @@ const collapsed = reactive<Record<SourceGroup, boolean>>({
   cdn: false,
   catalog: true,
   online: true,
-  local: false
+  local: false,
+  user: false
 })
 /** 每组渲染上限（截断长列表，搜索时不受限） */
 const RENDER_PAGE = 100
@@ -108,7 +110,8 @@ const renderLimits = reactive<Record<SourceGroup, number>>({
   cdn: RENDER_PAGE,
   catalog: RENDER_PAGE,
   online: RENDER_PAGE,
-  local: RENDER_PAGE
+  local: RENDER_PAGE,
+  user: RENDER_PAGE
 })
 
 const providerEnabled = computed<Record<WebFontProviderId, boolean>>(() => ({
@@ -408,11 +411,11 @@ watch([cnFontsEnabled, onlineFontsEnabled, localFontsEnabled, fontProviderSettin
       </p>
     </div>
 
-    <!-- 两段式外壳：第一段挂「我的字体库」完整组件；第二段占位等商店功能。
-         旧来源/维护/白名单区在两段 tab 之下继续渲染，后续批次拆分清理。 -->
+    <!-- 两段式外壳：第一段「我的字体库」、第二段「字体商店」。
+         旧来源/维护/白名单区在两段 tab 之下继续渲染，随退役批拆分清理。 -->
     <div class="flex gap-1 border-b border-border pb-2" data-test-id="fonts-panel-tabs">
       <button
-        v-for="(segment, index) in segments"
+        v-for="segment in segments"
         :key="segment.key"
         type="button"
         class="rounded px-2 py-1 text-[11px]"
@@ -426,13 +429,7 @@ watch([cnFontsEnabled, onlineFontsEnabled, localFontsEnabled, fontProviderSettin
       </button>
     </div>
     <MyFontLibrary v-if="activeSegment === 'library'" />
-    <p
-      v-else
-      class="rounded border border-border px-3 py-4 text-center text-[10px] text-muted"
-      data-test-id="fonts-store-placeholder"
-    >
-      {{ msgs.fontsStoreComingSoon }}
-    </p>
+    <FontStorePanel v-else />
 
     <SettingsSection>
       <template #title>{{ msgs.fontsSourcesSection }}</template>

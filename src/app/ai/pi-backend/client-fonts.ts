@@ -14,17 +14,28 @@
  * Error(message)；上层在 try/catch 中映射为本地化文案。
  */
 import type { FamilyView } from '@open-pencil/core/text/font/installed/manifest'
+import type {
+  StoreCatalogFamily,
+  StoreServiceDescriptor,
+  StoreServiceKind
+} from '@open-pencil/core/text/font/store/types'
 
 export type { FamilyView } from '@open-pencil/core/text/font/installed/manifest'
+export type {
+  StoreCatalogFamily,
+  StoreCatalogStyle,
+  StoreServiceDescriptor,
+  StoreServiceKind
+} from '@open-pencil/core/text/font/store/types'
 
 const API_PREFIX = '/api/pi'
 
 async function readErrorBody(response: Response): Promise<string> {
-  try {
-    const body = (await response.json()) as { error?: string } | null
-    if (body && typeof body.error === 'string') return body.error
-  } catch {
-    // 非 JSON 错误响应（read 端点理论上不会，但兜底）
+  // 非 JSON 错误响应兜底为 null（同 client.ts 姿势）
+  const body: unknown = await response.json().catch(() => null)
+  if (body && typeof body === 'object' && 'error' in body) {
+    const message = (body as { error?: unknown }).error
+    if (typeof message === 'string' && message.length > 0) return message
   }
   return `HTTP ${response.status}`
 }
@@ -33,9 +44,11 @@ async function readErrorBody(response: Response): Promise<string> {
 export async function fetchInstalledFonts(): Promise<FamilyView[]> {
   const response = await fetch(`${API_PREFIX}/fonts/list`, { method: 'GET' })
   if (!response.ok) throw new Error(await readErrorBody(response))
-  const body = (await response.json()) as { families?: unknown }
-  if (!Array.isArray(body.families)) return []
-  return body.families as FamilyView[]
+  const body = (await response.json()) as unknown
+  if (!body || typeof body !== 'object') return []
+  const families = (body as { families?: unknown }).families
+  if (!Array.isArray(families)) return []
+  return families as FamilyView[]
 }
 
 /**
@@ -49,11 +62,13 @@ export async function installFontBytes(bytes: Uint8Array): Promise<{ family: str
     body: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
   })
   if (!response.ok) throw new Error(await readErrorBody(response))
-  const body = (await response.json()) as { family?: unknown }
-  if (typeof body.family !== 'string') {
-    throw new Error('install response missing family field')
+  const body = (await response.json()) as unknown
+  const family =
+    body && typeof body === 'object' ? (body as { family?: unknown }).family : undefined
+  if (typeof family !== 'string') {
+    throw new TypeError('install response missing family field')
   }
-  return { family: body.family }
+  return { family }
 }
 
 /** 读族内某 style 的字节（FamilyView 的 key 字段） */
@@ -82,4 +97,111 @@ export async function deleteInstalledFont(
   })
   if (!response.ok) throw new Error(await readErrorBody(response))
   return { deleted: true }
+}
+
+// ── 字体商店组 ──────────────────────────────────────────────────────────
+
+export async function fetchStoreServices(): Promise<StoreServiceDescriptor[]> {
+  const response = await fetch(`${API_PREFIX}/fonts/store/services`, { method: 'GET' })
+  if (!response.ok) throw new Error(await readErrorBody(response))
+  const body = (await response.json()) as unknown
+  if (!body || typeof body !== 'object') return []
+  const services = (body as { services?: unknown }).services
+  if (!Array.isArray(services)) return []
+  return services as StoreServiceDescriptor[]
+}
+
+export async function registerStoreService(input: {
+  name: string
+  baseURL: string
+  kind: StoreServiceKind
+  apiKey?: string
+}): Promise<StoreServiceDescriptor> {
+  const response = await fetch(`${API_PREFIX}/fonts/store/services`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input)
+  })
+  if (!response.ok) throw new Error(await readErrorBody(response))
+  const body = (await response.json()) as unknown
+  const service =
+    body && typeof body === 'object' ? (body as { service?: unknown }).service : undefined
+  if (!service || typeof service !== 'object') {
+    throw new TypeError('register response missing service field')
+  }
+  return service as StoreServiceDescriptor
+}
+
+export async function deleteStoreService(id: string): Promise<{ deleted: boolean }> {
+  const response = await fetch(`${API_PREFIX}/fonts/store/services/delete`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ id })
+  })
+  if (!response.ok) throw new Error(await readErrorBody(response))
+  return { deleted: true }
+}
+
+export async function fetchStoreCatalog(serviceId: string): Promise<StoreCatalogFamily[]> {
+  const params = new URLSearchParams({ service: serviceId })
+  const response = await fetch(`${API_PREFIX}/fonts/store/catalog?${params.toString()}`, {
+    method: 'GET'
+  })
+  if (!response.ok) throw new Error(await readErrorBody(response))
+  const body = (await response.json()) as unknown
+  if (!body || typeof body !== 'object') return []
+  const families = (body as { families?: unknown }).families
+  if (!Array.isArray(families)) return []
+  return families as StoreCatalogFamily[]
+}
+
+export async function installFromStore(input: {
+  service: string
+  family: string
+  styles?: string[]
+}): Promise<{ taskId: string; shortCircuited: boolean }> {
+  const response = await fetch(`${API_PREFIX}/fonts/store/install`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input)
+  })
+  if (!response.ok) throw new Error(await readErrorBody(response))
+  const body = (await response.json()) as unknown
+  const shaped =
+    body && typeof body === 'object' ? (body as { taskId?: unknown; shortCircuited?: unknown }) : {}
+  if (typeof shaped.taskId !== 'string') {
+    throw new TypeError('install response missing taskId field')
+  }
+  return { taskId: shaped.taskId, shortCircuited: shaped.shortCircuited === true }
+}
+
+export interface StoreInstallTaskView {
+  id: string
+  serviceId: string
+  family: string
+  total: number
+  done: number
+  failures: { style: string; reason: string }[]
+  status: 'running' | 'done' | 'failed' | 'cancelled'
+  startedAt: number
+  finishedAt?: number
+}
+
+export async function fetchStoreTasks(): Promise<StoreInstallTaskView[]> {
+  const response = await fetch(`${API_PREFIX}/fonts/store/tasks`, { method: 'GET' })
+  if (!response.ok) throw new Error(await readErrorBody(response))
+  const body = (await response.json()) as unknown
+  if (!body || typeof body !== 'object') return []
+  const tasks = (body as { tasks?: unknown }).tasks
+  if (!Array.isArray(tasks)) return []
+  return tasks as StoreInstallTaskView[]
+}
+
+export async function cancelStoreTask(taskId: string): Promise<void> {
+  const response = await fetch(`${API_PREFIX}/fonts/store/tasks/cancel`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ taskId })
+  })
+  if (!response.ok) throw new Error(await readErrorBody(response))
 }

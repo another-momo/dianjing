@@ -24,6 +24,8 @@
     "tools/git-rescue/",
     "desktop-electron/",
     "tools/design-jsx-doc/",
+    "packages/core/src/text/font/store/",
+    "tests/engine/text/fonts/store/",
     "build/"
   ],
   "ownedFiles": [
@@ -154,7 +156,19 @@
     "tests/engine/text/fonts/installed/validate.test.ts",
     "tests/engine/text/fonts/installed/layout.test.ts",
     "tests/engine/text/fonts/installed/install.test.ts",
-    "tests/engine/text/fonts/installed/woff2.test.ts"
+    "tests/engine/text/fonts/installed/woff2.test.ts",
+    "packages/core/src/text/font/store/adapters/fontsource.ts",
+    "packages/core/src/text/font/store/adapters/gf-api.ts",
+    "packages/core/src/text/font/store/adapters/standard.ts",
+    "packages/core/src/text/font/store/registry.ts",
+    "packages/core/src/text/font/store/types.ts",
+    "src/app/ai/pi-backend/fonts/http-helpers.ts",
+    "src/app/ai/pi-backend/fonts/services-store.ts",
+    "src/app/ai/pi-backend/fonts/store-routes.ts",
+    "src/app/ai/pi-backend/fonts/store-tasks.ts",
+    "src/components/settings/fonts/FontStorePanel.vue",
+    "tests/engine/rebuild/pi-backend/fonts-store-routes.test.ts",
+    "tests/engine/text/fonts/store/adapters.test.ts"
   ],
   "stubs": [],
   "pendingReclass": [],
@@ -2885,6 +2899,34 @@
       "id": "P447",
       "file": "src/components/properties/TypographySection.vue",
       "reason": "字体域改造：字重下拉 options 改接 ctx.weights.value（weights 由静态数组改为按可变字体字重轴过滤的 computed，沿用本组件 ctx.node.value 显式解包惯例）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P448",
+      "file": "src/app/ai/pi-backend/fonts/routes.ts",
+      "reason": "字体商店：抽出 http-helpers 至独立模块，store-routes 复用；routes.ts 调度函数加 storeRouter 委托参数",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P449",
+      "file": "src/app/ai/pi-backend/server.ts",
+      "reason": "字体商店：font 路由调度委托 storeRouter，handleFontsStoreRequest 接入 /api/pi/fonts/store/* 路径",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P452",
+      "file": "src/app/i18n/fork/locales/en.ts",
+      "reason": "字体商店：fonts 命名空间追加 FontStorePanel 文案 key",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P453",
+      "file": "src/app/i18n/fork/locales/zh-cn.ts",
+      "reason": "字体商店：fonts 命名空间追加同款 zh-CN 文案",
       "disposition": "permanent",
       "lastReviewed": "2026-10-12"
     }

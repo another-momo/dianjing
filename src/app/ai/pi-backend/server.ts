@@ -56,6 +56,8 @@ import { handleDecisionAnswerRequest } from './decision-answer-route'
 import { handleDesignAssignmentRequest } from './design-assignment-route'
 import { handleFontsRequest } from './fonts/routes'
 import { createFontsStore, type FontsStore } from './fonts/store'
+import { handleFontsStoreRequest } from './fonts/store-routes'
+import { StoreTaskRegistry } from './fonts/store-tasks'
 import {
   PayloadTooLargeError,
   optionalString,
@@ -588,6 +590,20 @@ function handleReadonlyPiRequest(
   return true
 }
 
+/**
+ * 字体域端点判定：四个存量 exact path + 商店前缀。抽成模块级 helper —
+ * 主请求分发函数的圈复杂度本就贴着上限，端点组判定外置以留余量。
+ */
+function isFontsEndpointPath(pathname: string): boolean {
+  return (
+    pathname === '/api/pi/fonts/list' ||
+    pathname === '/api/pi/fonts/install' ||
+    pathname === '/api/pi/fonts/read' ||
+    pathname === '/api/pi/fonts/delete' ||
+    pathname.startsWith('/api/pi/fonts/store/')
+  )
+}
+
 export function createPiBackendServer({
   rootDir,
   authToken,
@@ -613,6 +629,8 @@ export function createPiBackendServer({
   const mcpConnections = createMCPConnectionsStore({ agentDir })
   // 应用字体库存储——<rootDir>/fonts/v1/ 下 manifest.json + 字节
   const fontsStore: FontsStore = createFontsStore({ rootDir })
+  // 商店安装任务表——服务器级单例（跨请求共享，任务进度/取消才能查到）
+  const fontsStoreTasks = new StoreTaskRegistry()
   const service = createPiChatService({
     rootDir,
     admin,
@@ -712,14 +730,23 @@ export function createPiBackendServer({
       void handleOpenImageGenFolderRequest(rootDir, req, res, sendJSON, openFolder)
       return
     }
-    // fonts/list/install/read/delete 端点组（须在 /api/pi/ 管理面兜底 404 之前匹配）
-    if (
-      url.pathname === '/api/pi/fonts/list' ||
-      url.pathname === '/api/pi/fonts/install' ||
-      url.pathname === '/api/pi/fonts/read' ||
-      url.pathname === '/api/pi/fonts/delete'
-    ) {
-      void handleFontsRequest({ store: fontsStore }, req, res, url.pathname)
+    // fonts/list/install/read/delete + 商店端点组（须在 /api/pi/ 管理面兜底 404 之前匹配）
+    if (isFontsEndpointPath(url.pathname)) {
+      void handleFontsRequest(
+        {
+          store: fontsStore,
+          storeRouter: (routerReq, routerRes, routerPath) =>
+            handleFontsStoreRequest(
+              { store: fontsStore, rootDir, tasks: fontsStoreTasks },
+              routerReq,
+              routerRes,
+              routerPath
+            )
+        },
+        req,
+        res,
+        url.pathname
+      )
       return
     }
     if (url.pathname.startsWith('/api/pi/')) {
