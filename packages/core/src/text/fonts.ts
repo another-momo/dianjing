@@ -8,15 +8,8 @@ import { hasWindowGlobal, IS_BROWSER } from '#core/constants'
 import { parseFontStyle } from '#core/text/face'
 import { FontFamilyAllowlist } from '#core/text/font/allowlist'
 import { CN_FONT_CATALOG, cnCatalogEntry } from '#core/text/font/cn-catalog'
-import {
-  customServiceCatalogURL,
-  normalizeCustomServiceBase,
-  parseCustomServiceCatalog
-} from '#core/text/font/custom-service'
-import type {
-  CustomFontServiceCatalogEntry,
-  CustomFontServiceConfig
-} from '#core/text/font/custom-service'
+import type { CustomFontServiceConfig } from '#core/text/font/custom-service'
+import { CustomServiceManager } from '#core/text/font/custom-service-manager'
 import { FontMemoryLedger } from '#core/text/font/memory'
 import type { FontMemoryStats } from '#core/text/font/memory'
 import { cdnFontEntry, FONT_REGISTRY, isBundledFamilyAllowed } from '#core/text/font/registry'
@@ -161,21 +154,16 @@ export class FontManager {
    */
   private localFontsEnabled = true
   /**
-   * 专属字体服务（外部分发服务）状态：config + 目录条目（键 family）+ in-flight
-   * 拉取 promise（familiesPromises 同款）。目录懒加载，config 变更即清缓存重拉；
-   * 撞名自定义胜（cnFontDescriptor 查询链首位 + 枚举覆盖）。
+   * 专属字体服务（外部分发服务）状态机：委托 CustomServiceManager。
+   * 持有 config + 目录索引 + in-flight promise + epoch + 专属族关停集合；
+   * 依赖以 getter 回调注入（webFontFetch / webFontListTimeoutMs 透传 +
+   * allowlist 兜底），core 域不反向引用 FontManager。
    */
-  private customServiceConfig: CustomFontServiceConfig | null = null
-  private customServiceCatalog = new Map<string, CustomFontServiceCatalogEntry>()
-  private customServiceCatalogPromise: Promise<CustomFontServiceCatalogEntry[]> | null = null
-  /** picker 失效信号补偿：allowlist commit 有同态不空转守卫，config 变更经本地 epoch 并入 revision（cnSwitchEpoch 同款） */
-  private customServiceEpoch = 0
-  /**
-   * 专属族逐族关停集合（存原始 family 名；空 = 专属族默认全开）。与共享 disabled
-   * 集合隔离：撞名族（专属 Lato vs Google Lato）的开关互不污染，面板行开关经
-   * isFontFamilyEnabled/setFontFamilyEnabled 按源路由进本集合。
-   */
-  private customDisabledFamilies = new Set<string>()
+  private readonly customService = new CustomServiceManager({
+    getWebFontFetch: () => this.webFontFetch,
+    getWebFontListTimeoutMs: () => this.webFontListTimeoutMs,
+    isEnabledByAllowlist: (family) => this.allowlist.isEnabled(family)
+  })
   /** 最近一次注入的 web 字体 fetcher（目录懒加载沿用；缺省回退全局 fetch） */
   private webFontFetch: WebFontFetch | null = null
   /**
@@ -369,34 +357,22 @@ export class FontManager {
   }
 
   /**
-   * 返回 false = bundled 锁定族，操作未生效（D-d 恒开）。专属族写专属关停集合
-   * （原始名）而非共享 disabled 集合——共享集合混有 web 目录默认关停的同名条目，
-   * 写入会让撞名语境互相污染；同态重放不 bump revision（allowlist commit 同守卫）。
+   * 返回 false = bundled 锁定族，操作未生效。专属族写专属关停集合（原始名）而非
+   * 共享 disabled 集合——共享集合混有 web 目录默认关停的同名条目，写入会让撞名
+   * 语境互相污染；同态重放不 bump revision（allowlist commit 同守卫）。
    */
   setFontFamilyEnabled(family: string, enabled: boolean): boolean {
-    if (this.isCustomServiceFamily(family)) {
-      const wasDisabled = this.isCustomFamilyDisabled(family)
-      if (enabled && !wasDisabled) return true // 已开再开，同态
-      if (!enabled && wasDisabled) return true // 已关再关，同态
-      if (enabled) {
-        // 开：raw + normalizeFontFamily 双删——持久化恢复的历史条目可能存归一名
-        this.customDisabledFamilies.delete(family)
-        const normalized = normalizeFontFamily(family)
-        if (normalized !== family) this.customDisabledFamilies.delete(normalized)
-      } else {
-        // 关：写原始名（双查口径下归一名查询同样命中）
-        this.customDisabledFamilies.add(family)
-      }
-      this.customServiceEpoch++
-      return true
-    }
+    const handled = this.customService.setFamilyEnabled(family, enabled)
+    if (handled !== null) return handled
     return this.allowlist.setEnabled(family, enabled)
   }
 
   isFontFamilyEnabled(family: string): boolean {
     // 专属族查专属关停集合（默认开）；其余来源维持共享 allowlist 判定。
     // 撞名族的面板开关由此自动按源路由，共享集合的污染条目不再让专属行显示态说谎。
-    if (this.isCustomServiceFamily(family)) return !this.isCustomFamilyDisabled(family)
+    if (this.customService.isCustomServiceFamily(family)) {
+      return !this.customService.isCustomFamilyDisabled(family)
+    }
     return this.allowlist.isEnabled(family)
   }
 
@@ -410,35 +386,25 @@ export class FontManager {
 
   /** 专属族关停集合清单（面板回写持久化用，与 disabledFontFamilies 同型） */
   customDisabledFontFamilies(): string[] {
-    return [...this.customDisabledFamilies]
+    return this.customService.listDisabledFamilies()
   }
 
   /**
    * 专属族关停集合批量同步（app 层 localStorage watch 推入，setDisabledFontFamilies
-   * 同模式）：全量替换 + 同态不空转；变化经 customServiceEpoch 并入 revision
-   * （allowlist revision 为类内私有不可外部 bump，FontManager 侧既有 epoch 补偿
-   * 通路即本仓 revision 变化机制）。
+   * 同模式）：全量替换 + 同态不空转；变化经 epoch 并入 revision。
    */
   setCustomDisabledFontFamilies(families: string[]): void {
-    const next = new Set(families)
-    if (
-      next.size === this.customDisabledFamilies.size &&
-      [...next].every((family) => this.customDisabledFamilies.has(family))
-    ) {
-      return
-    }
-    this.customDisabledFamilies = next
-    this.customServiceEpoch++
+    this.customService.setDisabledFamilies(families)
   }
 
-  /** catalog 族已启用清单（T42 D-c，面板回写持久化用） */
+  /** catalog 族已启用清单（面板回写持久化用） */
   enabledCatalogFamilies(): string[] {
     return this.allowlist.listEnabledCatalog()
   }
 
-  /** picker 失效信号：白名单变更计数 + 专属字体服务 config 变更 epoch（D-h） */
+  /** picker 失效信号：白名单变更计数 + 专属字体服务 config 变更 epoch */
   fontAllowlistRevision(): number {
-    return this.allowlist.getRevision() + this.customServiceEpoch
+    return this.allowlist.getRevision() + this.customService.getEpoch()
   }
 
   // —— 专属字体服务（外部分发服务，运行时可配置 provider）——
@@ -448,12 +414,7 @@ export class FontManager {
    * （picker 依赖 fontAllowlistRevision 重挂载）。null = 关停/未配置。
    */
   setCustomFontService(config: CustomFontServiceConfig | null): void {
-    this.customServiceConfig = config
-      ? { ...config, baseURL: normalizeCustomServiceBase(config.baseURL) }
-      : null
-    this.customServiceCatalog.clear()
-    this.customServiceCatalogPromise = null
-    this.customServiceEpoch++
+    this.customService.setConfig(config)
   }
 
   // —— 本地字体应用级开关（统一批 B）——
@@ -518,7 +479,7 @@ export class FontManager {
     style = 'Regular',
     characters = ''
   ): Promise<ArrayBuffer | null> {
-    if (!(await this.isCustomOrAllowed(family))) return null
+    if (!(await this.customService.isCustomOrAllowed(family))) return null
     const cached = await this.readDownloadedFont(family, style, characters)
     if (!cached) return null
     // 上游 PR：缓存命中后补登 coverage——保证后续增量按需按字符查表命中，
@@ -595,7 +556,7 @@ export class FontManager {
     // 同名族覆盖内置条目）。逐族过滤查专属关停集合（默认开），不查共享 disabled
     // 集合——它混有 web 目录默认关停的同名条目，逐族查共享集合会让撞名自定义族
     // 静默消失；includeDisabled（管理面板）不过滤，与各源同构
-    for (const entry of await this.customServiceFamilyOptions()) {
+    for (const entry of await this.customService.familyOptions()) {
       if (!includeDisabled && !this.isFontFamilyEnabled(entry.family)) continue
       byFamily.set(entry.family, {
         family: entry.family,
@@ -623,11 +584,10 @@ export class FontManager {
 
   /**
    * 字体注册表（白名单）枚举 bundled 家族 + CDN 两组（registry 精选 / catalog 全量目录）。
-   * T42 D-a：CDN 家族枚举改判独立开关 cnFontsEnabled，与在线 provider 解耦
-   * （T40 时跟随 provider 全关而隐藏）。catalog 族（cn-catalog.ts，D-b 生成物）
-   * 同属 CDN：默认停用（opt-in D-c），allowlist 过滤后仅启用族进 picker；
-   * includeDisabled（T41 S5 管理面板）不过滤——面板要列出关停行才能重开。
-   * （complexity 治理：从 listFamilyOptions 抽出，2026-08-30 lint 实录 22>20）
+   * CDN 家族枚举改判独立开关 cnFontsEnabled，与在线 provider 解耦
+   * （早期跟随 provider 全关而隐藏）。catalog 族（cn-catalog.ts 生成物）
+   * 同属 CDN：默认停用（opt-in），allowlist 过滤后仅启用族进 picker；
+   * includeDisabled（管理面板）不过滤——面板要列出关停行才能重开。
    */
   private collectRegistryAndCatalogOptions(
     byFamily: Map<string, FontFamilyOption>,
@@ -642,6 +602,18 @@ export class FontManager {
       byFamily.set(entry.family, { family: entry.family, source: 'bundled' })
     }
     if (!this.cnFontsEnabled) return
+    this.collectCnCatalogOptions(byFamily, includeDisabled)
+  }
+
+  /**
+   * 中文网字计划全量目录枚举：与 registry 精选层互不重复，撞名让 registry 胜；
+   * 默认停用（opt-in），allowlist 过滤后仅启用族进 picker；管理面板
+   * includeDisabled 路径不过滤。
+   */
+  private collectCnCatalogOptions(
+    byFamily: Map<string, FontFamilyOption>,
+    includeDisabled: boolean
+  ): void {
     for (const entry of CN_FONT_CATALOG) {
       if (byFamily.has(entry.family)) continue
       if (!includeDisabled && !this.allowlist.isEnabled(entry.family)) continue
@@ -684,87 +656,6 @@ export class FontManager {
     }
   }
 
-  /**
-   * 专属字体服务目录懒加载（familiesPromises 同款模式）：有启用配置时经注入
-   * fetcher 取 catalog.json，沿用 webFontListTimeoutMs 6s 超时 + 失败 → 空清单
-   * 不 throw 的既有降级；config 变更即清缓存重拉（setCustomFontService）。
-   */
-  private async customServiceFamilyOptions(): Promise<CustomFontServiceCatalogEntry[]> {
-    const config = this.customServiceConfig
-    if (!config?.enabled || !config.baseURL || !config.token) return []
-    if (this.customServiceCatalog.size > 0) return [...this.customServiceCatalog.values()]
-    if (!this.customServiceCatalogPromise) {
-      this.customServiceCatalogPromise = this.loadCustomServiceCatalog(config)
-    }
-    let timer: ReturnType<typeof setTimeout> | undefined
-    try {
-      return await Promise.race([
-        this.customServiceCatalogPromise,
-        new Promise<CustomFontServiceCatalogEntry[]>((_, reject) => {
-          timer = setTimeout(
-            () => reject(new Error('custom font service catalog timeout')),
-            this.webFontListTimeoutMs
-          )
-        })
-      ])
-    } catch {
-      return []
-    } finally {
-      clearTimeout(timer)
-    }
-  }
-
-  /** 拉取并解析 catalog（防御式，任何失败 → 空清单）；成功后按 family 建索引 */
-  private async loadCustomServiceCatalog(
-    config: CustomFontServiceConfig
-  ): Promise<CustomFontServiceCatalogEntry[]> {
-    try {
-      const fetcher: WebFontFetch = this.webFontFetch ?? ((url, init) => fetch(url, init))
-      const response = await fetcher(customServiceCatalogURL(config))
-      if (!response.ok) return []
-      const parsed: unknown = await response.json()
-      // config 同一性守卫：拉取期间 config 被切换/清空时丢弃本次结果，
-      // 防止旧配置目录条目经后台 promise 写入缓存（后续 size>0 短路会返回旧族）
-      if (this.customServiceConfig !== config) return []
-      const entries = parseCustomServiceCatalog(parsed)
-      this.customServiceCatalog.clear()
-      for (const entry of entries) this.customServiceCatalog.set(entry.family, entry)
-      return entries
-    } catch (e) {
-      console.warn('Custom font service catalog load failed:', e)
-      return []
-    }
-  }
-
-  /** 专属服务目录族判定：原始名 + normalizeFontFamily 名双查（与 cnFontDescriptor 同口径） */
-  private isCustomServiceFamily(family: string): boolean {
-    if (this.customServiceCatalog.has(family)) return true
-    const normalized = normalizeFontFamily(family)
-    return normalized !== family && this.customServiceCatalog.has(normalized)
-  }
-
-  /** 专属族关停判定：原始名 + normalizeFontFamily 名双查（与 isCustomServiceFamily 同口径） */
-  private isCustomFamilyDisabled(family: string): boolean {
-    if (this.customDisabledFamilies.has(family)) return true
-    const normalized = normalizeFontFamily(family)
-    return normalized !== family && this.customDisabledFamilies.has(normalized)
-  }
-
-  /**
-   * 加载门控：专属目录族查专属逐族开关（服务整体 opt-in 默认开，用户可在面板逐族
-   * 关停）；共享 disabled 集合不参与专属族判定——它混有 web 目录默认关停的同名
-   * 条目，参与会让撞名族加载被无关条目静默拒绝。非专属族维持 allowlist 判定。
-   * 门控前确保目录已拉取：文档打开直加载可能先于 picker 枚举，不等待会让自定义族
-   * 落入 registry/catalog/unifont 错源并被 loadedData 缓存粘住。
-   */
-  private async isCustomOrAllowed(family: string): Promise<boolean> {
-    if (this.customServiceConfig?.enabled && this.customServiceCatalog.size === 0) {
-      await this.customServiceFamilyOptions()
-    }
-    if (this.isCustomServiceFamily(family)) return !this.isCustomFamilyDisabled(family)
-    return this.allowlist.isEnabled(family)
-  }
-
   async fetchBundledFont(url: string): Promise<ArrayBuffer | null> {
     if (IS_BROWSER) {
       const response = await fetch(url)
@@ -781,7 +672,7 @@ export class FontManager {
   }
 
   async loadLocalFont(family: string, style = 'Regular'): Promise<ArrayBuffer | null> {
-    if (!(await this.isCustomOrAllowed(family))) return null
+    if (!(await this.customService.isCustomOrAllowed(family))) return null
     const cacheKey = `${family}|${style}`
     const loaded = this.loadedFamilies.get(cacheKey)
     if (loaded) {
@@ -842,7 +733,7 @@ export class FontManager {
   ): Promise<ArrayBuffer | null> {
     signal?.throwIfAborted()
     if (typeof fetch === 'undefined') return null
-    if (!(await this.isCustomOrAllowed(family))) return null
+    if (!(await this.customService.isCustomOrAllowed(family))) return null
     const coverage = this.remoteCoverage.get(`${family}|${style}`)
     if (
       characters &&
@@ -909,7 +800,7 @@ export class FontManager {
     signal?: AbortSignal
   ): Promise<ArrayBuffer | null> {
     signal?.throwIfAborted()
-    if (!(await this.isCustomOrAllowed(family))) return null
+    if (!(await this.customService.isCustomOrAllowed(family))) return null
     const loaded = this.loadedData(family, style)
     if (loaded) {
       this.registerFontInCanvasKit(family, loaded)
@@ -1155,15 +1046,16 @@ export class FontManager {
    * typeface（互斥 unicode-range 下只有一片出字形），alias 经 renderFamilyAliases →
    * 段落 fontFamilies 回退链合流。增量请求会重选已注册片，按 url 去重。
    */
-  /** CDN 描述符解析：自定义服务族最优先（原始名 + normalizeFontFamily 名双查，撞名自定义胜）→ registry 精选层 → catalog 全量目录兜底（T42 S2） */
+  /** CDN 描述符解析：自定义服务族最优先（原始名 + normalizeFontFamily 名双查，撞名自定义胜）→ registry 精选层 → catalog 全量目录兜底 */
   private cnFontDescriptor(family: string): CnFontCdnDescriptor | undefined {
     const normalized = normalizeFontFamily(family)
+    const customCatalog = this.customService.getCatalog()
     const custom =
-      this.customServiceCatalog.get(family) ??
-      (normalized !== family ? this.customServiceCatalog.get(normalized) : undefined)
+      customCatalog.get(family) ??
+      (normalized !== family ? customCatalog.get(normalized) : undefined)
     if (custom) {
       // 防御：目录在而 config 已清（不应发生）时不回退 jsdelivr CDN——静默错源比空返回更糟
-      const baseURL = this.customServiceConfig?.baseURL
+      const baseURL = this.customService.getConfig()?.baseURL
       if (!baseURL) return undefined
       return { package: custom.package, version: custom.latestVersion, baseURL }
     }
@@ -1193,7 +1085,8 @@ export class FontManager {
       (normalized !== family ? this.cnFontDescriptor(normalized) : undefined)
     // 专属目录族豁免 cnFontsEnabled：专属服务有独立总开关（服务即整体 opt-in），
     // 中文 CDN 开关只管内置目录——复用同一分片管线不该让两个来源开关互相株连
-    if (!descriptor || (!this.cnFontsEnabled && !this.isCustomServiceFamily(family))) return null
+    if (!descriptor || (!this.cnFontsEnabled && !this.customService.isCustomServiceFamily(family)))
+      return null
 
     const result = await cnFontSubsetResolver.fetch(family, descriptor, style, requestedCharacters)
     if (!result || result.pieces.length === 0) return null

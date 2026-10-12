@@ -138,6 +138,7 @@
     "tests/engine/core/memoize-async.test.ts",
     "src/components/document/OpenDocsConflictDialog.vue",
     "packages/core/src/text/font/custom-service.ts",
+    "packages/core/src/text/font/custom-service-manager.ts",
     "tests/engine/text/fonts/custom-service.test.ts",
     "tests/engine/layout/yoga-lifecycle.test.ts",
     "src/components/comments/CommentAvatar.vue",
