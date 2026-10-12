@@ -140,7 +140,13 @@
     "packages/core/src/text/font/custom-service.ts",
     "tests/engine/text/fonts/custom-service.test.ts",
     "tests/engine/layout/yoga-lifecycle.test.ts",
-    "src/components/comments/CommentAvatar.vue"
+    "src/components/comments/CommentAvatar.vue",
+    "packages/core/src/text/font/installed/manifest.ts",
+    "packages/core/src/text/font/installed/validate.ts",
+    "packages/core/src/text/font/installed/layout.ts",
+    "tests/engine/text/fonts/installed/manifest.test.ts",
+    "tests/engine/text/fonts/installed/validate.test.ts",
+    "tests/engine/text/fonts/installed/layout.test.ts"
   ],
   "stubs": [],
   "pendingReclass": [],

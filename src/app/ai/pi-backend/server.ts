@@ -54,6 +54,8 @@ import { SkillBuiltinProtectedError, SkillNotFoundError } from './capabilities'
 import { PI_BACKEND_DEFAULT_PORT } from './config'
 import { handleDecisionAnswerRequest } from './decision-answer-route'
 import { handleDesignAssignmentRequest } from './design-assignment-route'
+import { handleFontsRequest } from './fonts/routes'
+import { createFontsStore, type FontsStore } from './fonts/store'
 import {
   PayloadTooLargeError,
   optionalString,
@@ -609,6 +611,8 @@ export function createPiBackendServer({
   // MCP 接入阶段 1：连接凭据 store（routes 写 + service 读 + 装配期 sync）——
   // 落 agentDir/mcp-connections.json，凭据五件化（详 path-decision.ts）
   const mcpConnections = createMCPConnectionsStore({ agentDir })
+  // 应用字体库存储——<rootDir>/fonts/v1/ 下 manifest.json + 字节
+  const fontsStore: FontsStore = createFontsStore({ rootDir })
   const service = createPiChatService({
     rootDir,
     admin,
@@ -706,6 +710,16 @@ export function createPiBackendServer({
     // 图片本地留存目录打开端点（exact match；同 open-studio-folder 形态但目录不同）
     if (url.pathname === '/api/pi/open-image-gen-folder') {
       void handleOpenImageGenFolderRequest(rootDir, req, res, sendJSON, openFolder)
+      return
+    }
+    // fonts/list/install/read/delete 端点组（须在 /api/pi/ 管理面兜底 404 之前匹配）
+    if (
+      url.pathname === '/api/pi/fonts/list' ||
+      url.pathname === '/api/pi/fonts/install' ||
+      url.pathname === '/api/pi/fonts/read' ||
+      url.pathname === '/api/pi/fonts/delete'
+    ) {
+      void handleFontsRequest({ store: fontsStore }, req, res, url.pathname)
       return
     }
     if (url.pathname.startsWith('/api/pi/')) {
