@@ -45,16 +45,17 @@ function workspaceRoot(): string {
 const MD_PATH = join(workspaceRoot(), 'src/app/ai/pi-backend/studio/references/render-jsx.md')
 
 /**
- * EXCLUDE 豁免两类：
+ * EXCLUDE 豁免四档：
  * ① md 第 19 行政策句明列「渲染器存在但刻意不教」项——
  *    元素：Component / ComponentSet / Instance
  *    helper：designVar / defineVars
  *    属性：of / component / componentId / properties / propertyRefs / bind
  *    （注释引自 render-jsx.md 第 19 行原文，编辑政策句时同步更新。）
  * ② key——schema 接受但渲染器不消费（JSX 习惯容忍位），教义不教。
- * ③ 上游 schema 扩张带入、教学面未评估项（暂不教，评估见仓外 backlog）：
- *    属性：constraints / dashPattern / italic / locked / mask / strokeCap /
- *    strokeJoin / strokes / strokeWeights / visible
+ * ③ 上游 schema 扩张带入项的已评估不教结论（2026-10-12 渲染器消费链实证）：
+ *    dashPattern——节点级落点（node.dashPattern）在 canvas 零消费（scene.ts 只读
+ *    stroke.dashPattern），教了 = 教死属性；虚线走 strokeDash / strokes[].dash；
+ *    mask——上游教学亦无正文，低频，维持不教。
  * ④ 2026-10-11 合并窗 #893 behaviours/reka-ui 扩张（behaviours 面放行归 VC MVP
  *    统一裁决，窗内不教）：元素 Tabs.Root/Tabs.Trigger/Textarea.Input/Textarea.Root/
  *    TextField.Input/TextField.Root/Toggle.Root/ToggleGroup.Item/ToggleGroup.Root；
@@ -75,16 +76,8 @@ export const EXCLUDE: ReadonlySet<string> = new Set([
   'propertyRefs',
   'bind',
   'key',
-  'constraints',
   'dashPattern',
-  'italic',
-  'locked',
   'mask',
-  'strokeCap',
-  'strokeJoin',
-  'strokes',
-  'strokeWeights',
-  'visible',
   'Tabs.Root',
   'Tabs.Trigger',
   'Textarea.Input',
