@@ -139,7 +139,6 @@
     "packages/core/src/text/font/custom-service.ts",
     "tests/engine/text/fonts/custom-service.test.ts",
     "tests/engine/layout/yoga-lifecycle.test.ts",
-    "packages/core/src/random.ts",
     "src/components/comments/CommentAvatar.vue"
   ],
   "stubs": [],

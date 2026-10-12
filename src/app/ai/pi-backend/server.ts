@@ -175,17 +175,8 @@ async function handlePiChatCancelRequest(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<void> {
-  if (req.method !== 'POST') {
-    res.writeHead(405).end('Method Not Allowed')
-    return
-  }
-  let body: { sessionId?: unknown }
-  try {
-    body = JSON.parse(await readBody(req))
-  } catch {
-    res.writeHead(400).end('Bad Request: invalid JSON')
-    return
-  }
+  const body = await parsePostBody<{ sessionId?: unknown }>(req, res)
+  if (body === null) return
   if (typeof body.sessionId !== 'string' || !body.sessionId) {
     res.writeHead(400).end('Bad Request: sessionId required')
     return

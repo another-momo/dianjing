@@ -90,6 +90,8 @@ describe('setup_design core：建框契约', () => {
     const root = expectDefined(graph.getNode(result.rootId))
     expect(root.primaryAxisSizing).toBe('HUG')
     expect(root.height).toBe(400)
+    // 新布局引擎 HUG 空帧塌 0——minHeight 地板是本契约的承重件，钉扎防引擎语义再漂移
+    expect(root.minHeight).toBe(400)
     expect(result.size).toEqual({ width: 750, height: null })
   })
 
