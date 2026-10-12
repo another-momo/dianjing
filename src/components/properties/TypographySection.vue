@@ -131,7 +131,7 @@ function picked<T>(value: MixedValue<T>): T | '' {
           <AppSelect
             :label="panels.fontWeight"
             :model-value="picked(ctx.merged('fontWeight'))"
-            :options="ctx.weights"
+            :options="ctx.weights.value"
             :placeholder="panels.mixed"
             @update:model-value="ctx.actions.setWeight(+$event)"
           />

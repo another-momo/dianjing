@@ -45,8 +45,11 @@ const confirmColor = computed(() => {
     <div class="border-b border-border px-4 py-3">
       <AlertDialogTitle class="text-sm font-semibold text-surface">{{ heading }}</AlertDialogTitle>
     </div>
-    <AppDialogBody v-if="description">
-      <AlertDialogDescription class="text-xs text-muted">{{ description }}</AlertDialogDescription>
+    <AppDialogBody v-if="description || $slots.default">
+      <AlertDialogDescription v-if="description" class="text-xs text-muted">{{
+        description
+      }}</AlertDialogDescription>
+      <slot />
     </AppDialogBody>
     <AppDialogFooter>
       <AlertDialogCancel as-child>

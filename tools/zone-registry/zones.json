@@ -2873,6 +2873,20 @@
       "reason": "字体域改造：custom-service 状态机抽离 CustomServiceManager（委托注入 webFontFetch/timeout/allowlist 兜底）+ UserFontProvider 'user' 源（listFamilyOptions 枚举段 + loadLocalFont 读取段 + matchUserStyleKey 派生）+ cnFontDescriptor 改走 customService.getCatalog",
       "disposition": "permanent",
       "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P446",
+      "file": "src/components/ui/dialog/AppConfirmationDialog.vue",
+      "reason": "字体域改造：确认对话框补渲染默认插槽（调用方在确认前附加勾选项等额外内容时不再被静默丢弃）",
+      "disposition": "upstreamable",
+      "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P447",
+      "file": "src/components/properties/TypographySection.vue",
+      "reason": "字体域改造：字重下拉 options 改接 ctx.weights.value（weights 由静态数组改为按可变字体字重轴过滤的 computed，沿用本组件 ctx.node.value 显式解包惯例）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-12"
     }
   ],
   "deletedPaths": [

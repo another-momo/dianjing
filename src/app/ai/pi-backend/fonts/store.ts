@@ -14,7 +14,7 @@
  */
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import {
   type ContentHash,
@@ -126,7 +126,7 @@ export function createFontsStore({ rootDir }: { rootDir: string }): FontsStore {
     const relPath = fullFontRelativePath(hash, args.ext)
     const absPath = join(fontsRoot, ...relPath.split('/'))
     ensureRoot()
-    mkdirSync(dirnameOf(absPath), { recursive: true })
+    mkdirSync(dirname(absPath), { recursive: true })
     const tmpPath = `${absPath}.tmp`
     writeFileSync(tmpPath, args.bytes)
     renameSync(tmpPath, absPath)
@@ -237,12 +237,6 @@ export function createFontsStore({ rootDir }: { rootDir: string }): FontsStore {
 }
 
 // ── 内部 helper ──────────────────────────────────────────────────────
-
-/** posix 风格 dirname（不依赖 node:path 行为） */
-function dirnameOf(posixPath: string): string {
-  const idx = posixPath.lastIndexOf('/')
-  return idx === -1 ? '.' : posixPath.slice(0, idx)
-}
 
 /** style 条目 → 库存扩展名（manifest 记录真实 ext，缺省 ttf） */
 function extFromStyleEntry(style: StyleEntry): FontExtension {
