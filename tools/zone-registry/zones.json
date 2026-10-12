@@ -36,6 +36,7 @@
     "src/components/settings/agent/AgentSkillList.vue",
     "src/app/ai/pi-backend/skill-diagnostics.ts",
     "tests/engine/rebuild/pi-backend/skill-diagnostics.test.ts",
+    "tests/engine/render/jsx/authoring-examples.test.ts",
     "src/app/settings/credentials/media-credentials.ts",
     "src/components/settings/layout/SettingsSectionHeader.vue",
     "src/components/ui/AppTextButton.vue",

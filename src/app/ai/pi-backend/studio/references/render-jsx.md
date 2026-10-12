@@ -28,7 +28,7 @@ Canonical names below — always write these. (The renderer additionally accepts
 
 **Position:** x={N}, y={N} — only without auto-layout parent. Inside flex, x/y (or `position="absolute"`) makes the child absolutely positioned — reserve for intentional overlays and artwork. Outside auto-layout, `constraints={{ horizontal, vertical }}` controls how a layer follows its parent's resizing: "min" | "center" | "max" | "stretch" | "scale".
 
-**Sizing:** w={N}, h={N} (px), w="hug"/h="hug" (shrink-to-fit, default), w="fill"/h="fill" (stretch, requires flex parent), grow={N} (flex-grow, requires parent with concrete size), minW={N}, maxW={N}, minH={N}, maxH={N}.
+**Sizing:** w={N}, h={N} (px), w="hug"/h="hug" (shrink-to-fit, default), w="fill"/h="fill" (stretch — requires flex parent; in a grid cell, fills the cell), grow={N} (flex-grow, requires parent with concrete size), minW={N}, maxW={N}, minH={N}, maxH={N}.
 
 **Layout:** flex="row"|"col" enables auto-layout. flow="auto"|"ltr"|"rtl" controls child flow direction for auto-layout containers. gap={N}, wrap, rowGap={N}. justify="start"|"end"|"center"|"between" ⚠ NO "evenly" — not supported. items="start"|"end"|"center"|"stretch". Padding: p={N}, px={N}, py={N}, pt={N}, pr={N}, pb={N}, pl={N} (longhands override shorthands). Grid: `grid`, columns="1fr 1fr", rows="1fr", columnGap={N}, rowGap={N}, colStart={N}, rowStart={N}, colSpan={N}, rowSpan={N}. ⚠ With `wrap`, always set `rowGap={N}`. Grid `gap` overrides axis-specific columnGap/rowGap.
 
@@ -75,3 +75,46 @@ No className, no arbitrary CSS, no `style={{...}}` authoring (a restricted style
 - Reuse IDs returned by creation tools rather than repeatedly searching for the same nodes.
 - Surgical edits: before reporting, run `diff_changes` — a patch of what this run changed versus its starting state — and confirm only the intended layers moved. `diff_visual` gives changed-pixel stats (changedPixels / changedPercent / changedBounds), `diff_jsx` a structural line diff. Reach for these on risky edits, not after every call.
 - Leave the user's view and selection alone: do not move the viewport or change the selection unless the user asked to be shown something.
+
+## Canonical examples
+
+Reference compositions that embody the rules above — the test suite renders each of them, so they always work as written.
+
+Card (hug height, flex column, explicit colors):
+
+```jsx
+<Frame name="Note card" w={300} h="hug" flex="col" gap={8} p={16} rounded={12} bg="#FFFFFF">
+  <Text text="Review note" size={14} weight="semibold" color="#1A1A1A" />
+  <Text text="Rendered output matches the brief." size={12} color="#666666" w="fill" />
+</Frame>
+```
+
+Settings row (single-edge divider via per-side stroke widths):
+
+```jsx
+<Frame
+  name="List row"
+  w={360}
+  h="hug"
+  flex="row"
+  justify="between"
+  items="center"
+  p={12}
+  bg="#FFFFFF"
+  stroke="#E5E5E5"
+  strokeWeights={{ bottom: 1 }}
+>
+  <Text text="Setting" size={13} color="#1A1A1A" />
+  <Text text="On" size={13} color="#666666" />
+</Frame>
+```
+
+Gallery grid (children fill their cells):
+
+```jsx
+<Frame name="Gallery" w={640} h="hug" grid columns="1fr 1fr 1fr" gap={12} p={16} bg="#F7F7F7">
+  <Rectangle w="fill" h={120} rounded={8} bg="#D9E4FF" />
+  <Rectangle w="fill" h={120} rounded={8} bg="#FFE3D9" />
+  <Rectangle w="fill" h={120} rounded={8} bg="#DCF5E3" />
+</Frame>
+```
