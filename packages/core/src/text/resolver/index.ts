@@ -33,6 +33,7 @@ export function fontFaceDemand(
     characters,
     candidates: [
       faceCandidate(family, style, 'registered'),
+      faceCandidate(family, style, 'local'),
       faceCandidate(family, style, 'cache'),
       faceCandidate(family, style, 'fallback')
     ]
@@ -79,10 +80,19 @@ const productionFontLoader: FontResolutionLoader = async (candidate, demand) => 
   switch (candidate.source) {
     case 'registered':
       return fontManager.isStyleLoaded(candidate.family, candidate.style)
+    case 'local':
+      return (
+        (await fontManager.loadLocalFont(candidate.family, candidate.style, demand.characters)) !==
+        null
+      )
     case 'cache':
       return false
     case 'remote':
-      return false
+      // 退役后唯一带 remoteCoverage 账的族 = 用户安装 subset-collection——增量补片
+      // 走 loadFont 已载分支（内部按缺口重跑用户分片链）。
+      return (
+        (await fontManager.loadFont(candidate.family, candidate.style, demand.characters)) !== null
+      )
     case 'fallback': {
       const script = candidate.family as FontFallbackScript
       const families = await fontManager.ensureFallbackPack([script], demand.characters)

@@ -71,10 +71,18 @@ const REGISTRY: Record<string, RegistryEntry> = {
     writes: 'bridge.json',
     reason: '桥发现文件（明文桥鉴权 token）——2026-09-29 现状稿缺口 2.1 漏网实证，已补登读侧名单'
   },
+  'app/ai/pi-backend/fonts/services-store.ts': {
+    writes: 'services.json',
+    reason: '字体商店自定义服务登记（fonts/services.json，gf-api 自定义服务可含 apiKey 明文）'
+  },
   // ── 豁免（writes null——非凭据，0o600 为落盘卫生对齐）──
   'app/ai/pi-backend/capabilities.ts': {
     writes: null,
     reason: 'capabilities.json 无敏感字段（builtinTools/skills 档位），0o600 齐平同目录卫生'
+  },
+  'app/ai/pi-backend/fonts/store.ts': {
+    writes: null,
+    reason: '字体 artifact 字节 + manifest.json（族/style/片哈希清单），无凭据字段'
   },
   'app/ai/pi-backend/design-assignment.ts': {
     writes: null,

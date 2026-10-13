@@ -46,13 +46,14 @@ function decide(input: string, facet: 'read' | 'write' = 'read') {
 }
 
 describe('名单源导出（A线尾单自 key-guard 收编的单一真源）', () => {
-  test('protectedCredentialFiles = 凭据六件 + 平台默认 bridge.json 形（env fixture 注入）', () => {
+  test('protectedCredentialFiles = 凭据七件 + 平台默认 bridge.json 形（env fixture 注入）', () => {
     expect(protectedCredentialFiles(ROOT, ENV_FIXTURE)).toEqual([
       resolve(ROOT, 'key-env'),
       resolve(ROOT, 'pi-backend-token'),
       resolve(ROOT, 'pi-agent', 'auth.json'),
       resolve(ROOT, 'pi-agent', 'image-gen.json'),
       resolve(ROOT, 'pi-agent', 'mcp-connections.json'),
+      resolve(ROOT, 'fonts', 'services.json'),
       resolve(ROOT, 'bridge.json'),
       resolve(ROOT, 'mcp.json'),
       PLATFORM_BRIDGE_JSON,

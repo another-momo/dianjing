@@ -32,6 +32,9 @@ fontManager.setUserFontProvider({
     try {
       return await readFontBytes(family, styleKey)
     } catch (e) {
+      // subset-collection 族的 read 端点按设计返 501——探测即分流（紧接走
+      // readSubsetPieces），非故障，不刷 warn；其余失败保留 warn。
+      if (e instanceof Error && e.message.includes('subset-collection')) return null
       console.warn(`Installed font read failed for "${family}" (${styleKey}):`, e)
       return null
     }

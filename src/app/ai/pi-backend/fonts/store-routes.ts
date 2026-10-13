@@ -336,13 +336,16 @@ async function handleInstall(
   // 分片集合形态（cn-fonts）：单 style 是一条 (weight, italic) 集合，整体装
   // 由 installSubsetFamily 串行管；任务 total = 全部 style 合计片数
   if (selectedStyles.every((s) => s.piecesRef !== undefined)) {
-    // 测试 / 自定义场景可由 piecesBaseURL 覆盖（避免空 baseURL 拼出 // 非法 URL）
-    const stylesWithBase = piecesBaseURL
-      ? selectedStyles.map((s) => ({
-          ...s,
-          piecesRef: s.piecesRef ? { ...s.piecesRef, baseURL: piecesBaseURL } : s.piecesRef
-        }))
-      : selectedStyles
+    // piecesRef.baseURL 三级来源：请求 piecesBaseURL 覆盖（测试/自定义镜像）
+    // → descriptor 自带（registry/catalog 数据面目前零携带）→ service 内置 base
+    // （cn-fonts 预设 = jsdelivr；catalog 注释「缺省 = jsdelivr」即此兜底）。
+    // 缺了第三级，descriptor 无 base 时会拼出 /pkg@ver 相对 URL 直接炸 fetch。
+    const stylesWithBase = selectedStyles.map((s) => {
+      if (!s.piecesRef) return s
+      const baseURL = piecesBaseURL ?? s.piecesRef.baseURL ?? service.baseURL
+      if (baseURL === s.piecesRef.baseURL) return s
+      return { ...s, piecesRef: { ...s.piecesRef, baseURL } }
+    })
     return scheduleSubsetInstall(deps, res, service, catalogFamily, stylesWithBase)
   }
   if (selectedStyles.some((s) => s.piecesRef !== undefined)) {

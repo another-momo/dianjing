@@ -173,7 +173,7 @@ async function installOneStylePieces(
         if (idx >= selected.length) return
         const piece = selected[idx]
         try {
-          const fetched = await fetchAndDecodePiece(piece.url, signal)
+          const fetched = await fetchAndDecodePieceWithRetry(piece.url, signal)
           collected.push({ bytes: fetched, ranges: piece.ranges })
         } catch (error) {
           errors.push(
@@ -234,6 +234,45 @@ async function fetchAndDecodePiece(url: string, signal: AbortSignal): Promise<Ui
     throw new Error(mapRejectionToText(validation.reason, validation.detail))
   }
   return bytes
+}
+
+/**
+ * 瞬时网络错误判定（片级重试白名单）：断连/超时类可重试；HTTP 状态码
+ * （'HTTP 4xx'）与字体校验拒绝（本地化文案）属确定性失败，不重试。
+ * 实证：jsdelivr 边缘偶发单片挂死（同 hash curl 1s 可达、后端 30s 超时），
+ * 无重试时任一片瞬时失败即整 style 报废（真实网络下必现）。
+ */
+function isTransientPieceError(message: string): boolean {
+  return (
+    message.includes('style fetch timeout') ||
+    message.includes('terminated') ||
+    message.includes('fetch failed') ||
+    message.includes('UND_ERR') ||
+    message.includes('ECONNRESET') ||
+    message.includes('ECONNREFUSED') ||
+    message.includes('ETIMEDOUT') ||
+    message.includes('socket')
+  )
+}
+
+/** 单片拉取 + 转码 + 校验，瞬时错误重试（任务 signal 全程生效，取消即刻停） */
+async function fetchAndDecodePieceWithRetry(
+  url: string,
+  signal: AbortSignal,
+  attempts = 3
+): Promise<Uint8Array> {
+  let lastError: Error | null = null
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (signal.aborted) throw new Error('cancelled')
+    try {
+      return await fetchAndDecodePiece(url, signal)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!isTransientPieceError(message)) throw error
+      lastError = error instanceof Error ? error : new Error(message)
+    }
+  }
+  throw lastError ?? new Error('piece fetch failed')
 }
 
 async function fetchText(

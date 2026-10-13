@@ -354,7 +354,19 @@ export class FontManager {
   ): Promise<ArrayBuffer | null> {
     signal?.throwIfAborted()
     const loaded = this.loadedData(family, style)
-    if (loaded) return loaded
+    if (loaded) {
+      this.registerFontInCanvasKit(family, loaded)
+      // 增量补片：用户安装 subset 族的 remoteCoverage 账缺请求字符时，重跑用户
+      // 分片链（registerCnFontPieces 按 url 去重，仅未拉过的片真正入网）。
+      const coverage = this.remoteCoverage.get(`${family}|${style}`)
+      const missingCoverage = Boolean(
+        characters &&
+        coverage &&
+        Array.from(characters).some((character) => !coverage.has(character))
+      )
+      if (!missingCoverage) return loaded
+      return (await this.tryLoadFromUserFontProvider(family, style, characters)) ?? loaded
+    }
 
     return this.loadLocalFont(family, style, characters)
   }

@@ -136,6 +136,8 @@ export function protectedCredentialFiles(rootDir: string, env?: EnvSource): stri
     joinWithSep(agentDir, 'auth.json'),
     joinWithSep(agentDir, IMAGE_GEN_CREDENTIAL_FILENAME),
     joinWithSep(agentDir, MCP_CONNECTIONS_FILENAME),
+    // 字体商店自定义服务登记（gf-api 凭据 apiKey 明文）
+    joinWithSep(joinWithSep(rootDir, 'fonts'), 'services.json'),
     ...bridgeDiscoveryCredentialPaths(rootDir, env)
   ]
 }

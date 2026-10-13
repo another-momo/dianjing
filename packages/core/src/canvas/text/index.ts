@@ -186,6 +186,11 @@ export function nodeFontReadiness(r: FontReadinessRenderer, node: SceneNode): No
   const faces = requiredFacesReadiness(r, node)
   if (faces === 'pending' || faces === 'exhausted') return faces
   if (!node.text || !canObserveGlyphCoverage(r)) return faces
+  // 已载 subset 族的增量补片：node 文本超出 remoteCoverage 账即发 remote-coverage
+  // demand。fire-and-forget——不翻转 readiness（既有文本保持可见），settle 后
+  // settleFontDemand invalidate 换入新片字形。bundled 全字形回退会兜住缺字观察，
+  // 没有这条主动 demand，已载族的新字符永远等不到补片。
+  demandRemoteCoverage(r, node, [...new Set(node.text)])
   const glyphs = observedGlyphReadiness(r, node)
   // Substituted text still needs script fallbacks (for example CJK) for glyphs the substitute
   // lacks, but stays visible when none can be found.

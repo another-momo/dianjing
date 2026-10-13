@@ -68,13 +68,14 @@ function makeHandler() {
 }
 
 describe('protectedCredentialFiles', () => {
-  test('六件绝对路径单源——与 paths.ts resolver 同根（+ 平台默认 bridge.json 形）', () => {
+  test('七件绝对路径单源——与 paths.ts resolver 同根（+ 平台默认 bridge.json 形）', () => {
     expect(protectedCredentialFiles(ROOT, ENV_FIXTURE)).toEqual([
       KEY_ENV,
       PI_BACKEND_TOKEN,
       AUTH_JSON,
       IMAGE_GEN_JSON,
       MCP_CONNECTIONS_JSON,
+      resolve(ROOT, 'fonts', 'services.json'),
       BRIDGE_JSON,
       LEGACY_MCP_JSON,
       PLATFORM_BRIDGE_JSON,

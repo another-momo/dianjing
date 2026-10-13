@@ -12,11 +12,11 @@ import { matchFontFamilyOrDisplayName } from '@/components/font-picker/font-opti
 import { usePopoverUI } from '@/components/ui/overlay/popover'
 import { useSelectUI } from '@/components/ui/select/select'
 
-const { panel } = useI18n()
+const { panels } = useI18n()
 const forkMsgs = useForkFonts()
 /** The placeholder shows while no family is set, such as Mixed for texts in different fonts. */
 const { label: labelProp, placeholder } = defineProps<{ label?: string; placeholder?: string }>()
-const label = computed(() => labelProp ?? panel.value.fontFamily)
+const label = computed(() => labelProp ?? panels.value.fontFamily)
 const modelValue = defineModel<string>({ required: true })
 const emit = defineEmits<{ select: [family: string] }>()
 
@@ -108,7 +108,7 @@ function openFontLibrarySection() {
       >
         <icon-lucide-check v-if="selected" class="size-3 shrink-0 text-primary" />
         <span v-else class="size-3 shrink-0" />
-        <span class="truncate" :style="{ fontFamily: `'${family}', sans-serif` }}">{{
+        <span class="truncate" :style="{ fontFamily: `'${family}', sans-serif` }">{{
           rowLabel(family, source)
         }}</span>
         <span
