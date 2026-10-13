@@ -20,6 +20,8 @@ import type { StyleEntry } from '@open-pencil/core/text/font/installed/manifest'
 
 import { createFontsStore } from '@/app/ai/pi-backend/fonts/store'
 
+import { must } from '#tests/helpers/json'
+
 function makeStyle(key: string, hash: string, size: number): StyleEntry {
   return {
     key,
@@ -56,7 +58,7 @@ describe('createFontsStore 真实落盘', () => {
 
     const back = store.readBytes(hash, 'otf')
     expect(back).not.toBeNull()
-    expect(Array.from(back!)).toEqual(Array.from(bytes))
+    expect(Array.from(must(back))).toEqual(Array.from(bytes))
 
     const manifest = store.readManifest()
     const family = manifest.families.find((f) => f.family === 'Test Family')

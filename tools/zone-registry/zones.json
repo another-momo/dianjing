@@ -172,10 +172,12 @@
     "src/app/ai/pi-backend/fonts/stream-helpers.ts",
     "src/app/ai/pi-backend/fonts/store-tasks.ts",
     "src/components/settings/fonts/FontStorePanel.vue",
-    "tests/engine/rebuild/pi-backend/fonts-store-routes.test.ts",
-    "tests/engine/rebuild/pi-backend/fonts-store-cn-install.test.ts",
+    "tests/engine/rebuild/pi-backend/fonts/store-routes.test.ts",
+    "tests/engine/rebuild/pi-backend/fonts/store-cn-install.test.ts",
     "tests/engine/text/fonts/installed/cn-piece-loader.test.ts",
-    "tests/engine/text/fonts/store/adapters.test.ts"
+    "tests/engine/text/fonts/store/adapters.test.ts",
+    "tests/engine/rebuild/pi-backend/fonts/helpers.ts",
+    "tests/helpers/json.ts"
   ],
   "stubs": [],
   "pendingReclass": [],
@@ -2958,13 +2960,6 @@
       "lastReviewed": "2026-10-12"
     },
     {
-      "id": "P466",
-      "file": "tests/engine/rebuild/pi-backend/fake-font-server.ts",
-      "reason": "字体域批 4b：扩 cn-install/cn-install-cancel/cn-install-broken-piece 三模式（registry 内真实非 VF 族 LXGW WenKai + npm 包路径 /<pkg>@<ver>/dist/... + /npm 前缀兼容 + pieceDelayMs 慢服）——分片集合安装管线 fake 服",
-      "disposition": "permanent",
-      "lastReviewed": "2026-10-12"
-    },
-    {
       "id": "P467",
       "file": "packages/core/src/index.ts",
       "reason": "字体域退役批：导出清单删 DownloadedFontCache/FontInfo/LocalFontAccessState（随在线来源与系统字体枚举面退役）",
@@ -3017,6 +3012,13 @@
       "id": "P474",
       "file": "tests/engine/text/fonts/status.test.ts",
       "reason": "字体域退役批：status 断言同步去除 reason 字段",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-13"
+    },
+    {
+      "id": "P475",
+      "file": "packages/vue/tsconfig.json",
+      "reason": "字体域修红批：include 增 core 侧 wawoff2.d.ts——wawoff2 无官方类型包，ambient 声明须进 program 否则 vue-tsc 报 TS7016（仿 ../core/src/global.d.ts 先例）",
       "disposition": "permanent",
       "lastReviewed": "2026-10-13"
     }

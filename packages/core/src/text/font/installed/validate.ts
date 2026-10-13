@@ -169,14 +169,45 @@ function isTtcCollection(bytes: Uint8Array): boolean {
 
 // ── sfnt 容器 parse（opentype.js） ────────────────────────────────────
 
+/** opentype.js parse 产物的最小消费面（包无官方 .d.ts，按消费面建模） */
+interface OpentypeParsedFont {
+  names?: unknown
+  tables: { fvar?: unknown; head?: unknown }
+}
+
+/** opentype.js 同步 parse 入口的消费面模型 */
+interface OpentypeParseEntry {
+  parse(buffer: ArrayBuffer): OpentypeParsedFont
+}
+
+/** opentype.js v2 的 name 表平台分组形态（未校验中间形态） */
+interface OpentypeNamePlatformGroups {
+  unicode?: unknown
+  macintosh?: unknown
+  windows?: unknown
+}
+
+/** 平台组内字段形态（值为本地化字典 { lang: string }——fontFamily 存在性校验后收窄） */
+interface OpentypeNameFields {
+  fontFamily?: unknown
+  fontSubfamily?: unknown
+  preferredFamily?: unknown
+  preferredSubfamily?: unknown
+}
+
+/** 收窄后的 name 表（跨平台组合并产物） */
+interface OpentypeNameTables {
+  fontFamily?: Record<string, string>
+  fontSubfamily?: Record<string, string>
+  preferredFamily?: Record<string, string>
+  preferredSubfamily?: Record<string, string>
+}
+
 function parseWithOpentype(bytes: Uint8Array, container: ContainerFormat): ValidationResult {
   const slice = toArrayBuffer(bytes)
-  let font: {
-    names?: unknown
-    tables: { fvar?: unknown; head?: unknown }
-  }
+  let font: OpentypeParsedFont
   try {
-    font = (OpenTypeSync as unknown as { parse(buffer: ArrayBuffer): typeof font }).parse(slice)
+    font = (OpenTypeSync as OpentypeParseEntry).parse(slice)
   } catch (error) {
     return {
       ok: false,
@@ -239,20 +270,15 @@ function parseWithOpentype(bytes: Uint8Array, container: ContainerFormat): Valid
  * 每组内键为字段名（fontFamily 等）、值为 { lang: string } 本地化字典。
  * 多数真实字体只有 windows 组——本函数跨平台组合并取首个含 fontFamily 的组。
  */
-function extractNames(names: unknown): {
-  fontFamily?: Record<string, string>
-  fontSubfamily?: Record<string, string>
-  preferredFamily?: Record<string, string>
-  preferredSubfamily?: Record<string, string>
-} | null {
+function extractNames(names: unknown): OpentypeNameTables | null {
   if (names === null || typeof names !== 'object') return null
-  const groups = names as Record<string, unknown>
-  for (const key of ['unicode', 'macintosh', 'windows']) {
+  const groups = names as OpentypeNamePlatformGroups
+  for (const key of ['unicode', 'macintosh', 'windows'] as const) {
     const group = groups[key]
     if (group === null || typeof group !== 'object') continue
-    const g = group as Record<string, unknown>
+    const g = group as OpentypeNameFields
     if (g.fontFamily !== null && typeof g.fontFamily === 'object') {
-      return g as ReturnType<typeof extractNames>
+      return g as OpentypeNameTables
     }
   }
   return null

@@ -19,8 +19,6 @@
  * 取消信号贯穿 fetch/transcode/validate；已落盘片无 manifest 登记即不可见。
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { Readable } from 'node:stream'
-import type { ReadableStream as NodeWebReadableStream } from 'node:stream/web'
 
 import type { StyleEntry } from '@open-pencil/core/text/font/installed/manifest'
 import { validateFontBytes } from '@open-pencil/core/text/font/installed/validate'
@@ -38,7 +36,7 @@ import type {
 } from '@open-pencil/core/text/font/store/types'
 
 import { scheduleSubsetInstall } from './cn-install'
-import { mapRejectionToText, readJSONBody, sendJSON } from './http-helpers'
+import { mapRejectionToText, requireJSONBody, sendJSON, startInstallTask } from './http-helpers'
 import {
   createCustomServicesStore,
   normalizeRegisterInput,
@@ -47,7 +45,7 @@ import {
 } from './services-store'
 import { type FontsStore } from './store'
 import type { StoreTaskRegistry } from './store-tasks'
-import { composeSignals, fetchStyleBytes, isAborted } from './stream-helpers'
+import { composeSignals, fetchStyleBytes, isAborted, readBoundedBody } from './stream-helpers'
 
 const SERVICES_LIST_PATH = '/api/pi/fonts/store/services'
 const SERVICES_REGISTER_PATH = '/api/pi/fonts/store/services'
@@ -155,11 +153,8 @@ async function handleRegisterService(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<boolean> {
-  const parsed = await readJSONBody(req)
-  if (!parsed.ok) {
-    sendJSON(res, 400, { error: parsed.error })
-    return true
-  }
+  const parsed = await requireJSONBody(req, res)
+  if (!parsed.ok) return true
   const input = normalizeRegisterInput(parsed.body)
   if (!input) {
     sendJSON(res, 400, {
@@ -191,11 +186,8 @@ async function handleDeleteService(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<boolean> {
-  const parsed = await readJSONBody(req)
-  if (!parsed.ok) {
-    sendJSON(res, 400, { error: parsed.error })
-    return true
-  }
+  const parsed = await requireJSONBody(req, res)
+  if (!parsed.ok) return true
   const r = parsed.body as { id?: unknown }
   if (typeof r.id !== 'string' || r.id.length === 0) {
     sendJSON(res, 400, { error: 'id required', code: 'missing-id' })
@@ -261,11 +253,8 @@ async function handleInstall(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<boolean> {
-  const parsed = await readJSONBody(req)
-  if (!parsed.ok) {
-    sendJSON(res, 400, { error: parsed.error })
-    return true
-  }
+  const parsed = await requireJSONBody(req, res)
+  if (!parsed.ok) return true
   const r = parsed.body as {
     service?: unknown
     family?: unknown
@@ -357,13 +346,7 @@ async function handleInstall(
     return true
   }
 
-  const tasks = deps.tasks
-  // 并发上限：同刻最多 8 个安装任务（单任务占内存随族样式数线性，防滥用塞爆）
-  if (tasks.countRunning() >= 8) {
-    sendJSON(res, 429, { error: 'too many running install tasks', code: 'busy' })
-    return true
-  }
-  const { task, shortCircuited } = tasks.start({
+  const started = startInstallTask(deps.tasks, res, {
     serviceId: service.id,
     family: catalogFamily.family,
     total: selectedStyles.length,
@@ -391,6 +374,8 @@ async function handleInstall(
       }
     }
   })
+  if (!started) return true
+  const { task, shortCircuited } = started
   sendJSON(res, 200, { ok: true, taskId: task.id, shortCircuited })
   return true
 }
@@ -467,11 +452,8 @@ async function handleCancelTask(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<boolean> {
-  const parsed = await readJSONBody(req)
-  if (!parsed.ok) {
-    sendJSON(res, 400, { error: parsed.error })
-    return true
-  }
+  const parsed = await requireJSONBody(req, res)
+  if (!parsed.ok) return true
   const r = parsed.body as { taskId?: unknown }
   if (typeof r.taskId !== 'string' || r.taskId.length === 0) {
     sendJSON(res, 400, { error: 'taskId required', code: 'missing-task-id' })
@@ -501,14 +483,6 @@ function extractPiecesBaseURL(r: { piecesBaseURL?: unknown }): string | null {
   } catch {
     return null
   }
-}
-
-/**
- * fetch Response.body → node:stream/web ReadableStream。两侧类型声明不同源
- * （undici/fetch 全局 vs node:stream/web），运行时是同一对象，单 cast 桥接。
- */
-function toNodeWebStream(body: unknown): NodeWebReadableStream {
-  return body as NodeWebReadableStream
 }
 
 /**
@@ -546,20 +520,8 @@ function wrapBoundedResponse(
       return JSON.parse(text)
     },
     async text() {
-      if (!response.body) return ''
-      const chunks: Buffer[] = []
-      let total = 0
-      const nodeStream = Readable.fromWeb(toNodeWebStream(response.body))
-      for await (const chunk of nodeStream) {
-        const buf = chunk as Buffer
-        total += buf.length
-        if (total > maxBytes) {
-          nodeStream.destroy()
-          throw new Error(`body exceeds ${maxBytes} bytes`)
-        }
-        chunks.push(buf)
-      }
-      return Buffer.concat(chunks).toString('utf8')
+      const body = await readBoundedBody(response, maxBytes)
+      return body.toString('utf8')
     }
   }
 }

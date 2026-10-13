@@ -32,6 +32,12 @@ export interface RunningTask {
   controller: AbortController
 }
 
+/** 安装任务 worker 签名（signal = 任务级取消；task = 可变进度句柄） */
+export type InstallWorker = (signal: AbortSignal, task: StoreInstallTask) => Promise<void>
+
+/** 同刻 running 安装任务上限——单任务占内存随族样式数线性，防滥用塞爆 */
+export const MAX_RUNNING_INSTALL_TASKS = 8
+
 export class StoreTaskRegistry {
   private readonly tasks = new Map<string, RunningTask>()
   /** 新→旧（unshift 头插；尾部 = 最老） */

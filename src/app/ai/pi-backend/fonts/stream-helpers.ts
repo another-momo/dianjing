@@ -30,6 +30,27 @@ export function isAborted(signal: AbortSignal): boolean {
 }
 
 /**
+ * 读 fetch Response.body 为 Buffer：maxBytes 超限即毁流 throw（流式截断不读尾）。
+ * 无 body 返空 Buffer。store-routes 的响应包装与本模块 fetchStyleBytes 共享。
+ */
+export async function readBoundedBody(response: Response, maxBytes: number): Promise<Buffer> {
+  if (!response.body) return Buffer.alloc(0)
+  const chunks: Buffer[] = []
+  let total = 0
+  const nodeStream = Readable.fromWeb(toNodeWebStream(response.body))
+  for await (const chunk of nodeStream) {
+    const buf = chunk as Buffer
+    total += buf.length
+    if (total > maxBytes) {
+      nodeStream.destroy()
+      throw new Error(`body exceeds ${maxBytes} bytes`)
+    }
+    chunks.push(buf)
+  }
+  return Buffer.concat(chunks)
+}
+
+/**
  * 流式 fetch：上限 + 超时 + 取消；返回字节或错误（不抛）。
  * `maxBytes` 触发即拒（不读尾部）；`timeoutMs` 触发 controller.abort。
  */
@@ -47,19 +68,8 @@ export async function fetchStyleBytes(
     const response = await fetch(url, { signal: composed })
     if (!response.ok) return { ok: false, error: `HTTP ${response.status}` }
     if (!response.body) return { ok: false, error: 'no body' }
-    const chunks: Buffer[] = []
-    let total = 0
-    const nodeStream = Readable.fromWeb(toNodeWebStream(response.body))
-    for await (const chunk of nodeStream) {
-      const buf = chunk as Buffer
-      total += buf.length
-      if (total > maxBytes) {
-        controller.abort(new Error('too large'))
-        return { ok: false, error: `body exceeds ${maxBytes} bytes` }
-      }
-      chunks.push(buf)
-    }
-    return { ok: true, bytes: new Uint8Array(Buffer.concat(chunks)) }
+    const bytes = await readBoundedBody(response, maxBytes)
+    return { ok: true, bytes: new Uint8Array(bytes) }
   } catch (error) {
     if (isAborted(signal)) return { ok: false, error: 'cancelled' }
     return { ok: false, error: error instanceof Error ? error.message : String(error) }

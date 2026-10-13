@@ -53,6 +53,34 @@ const FONT_MIME: Record<'ttf' | 'otf', string> = {
   otf: 'font/otf'
 }
 
+/** GET 闸 + query 解析：非 GET 回 405 返 null（handler 早返 true） */
+function requireGetQuery(req: IncomingMessage, res: ServerResponse): URL | null {
+  if (req.method !== 'GET') {
+    sendJSON(res, 405, { error: 'method not allowed' })
+    return null
+  }
+  return new URL(req.url ?? '/', 'http://127.0.0.1')
+}
+
+/** 族存在且为 subset-collection 闸：否则回 404/400 返 null */
+function requireSubsetFamily(deps: FontsRouteDeps, res: ServerResponse, family: string): boolean {
+  const manifest = deps.store.readManifest()
+  const familyEntry = manifest.families.find((f) => f.family === family)
+  if (!familyEntry) {
+    sendJSON(res, 404, { error: `family not found: ${family}`, code: 'not-found' })
+    return false
+  }
+  const isSubset = familyEntry.styles.some((s) => s.artifact === 'subset-collection')
+  if (!isSubset) {
+    sendJSON(res, 400, {
+      error: 'family is not a subset collection; use /read endpoint instead',
+      code: 'not-subset'
+    })
+    return false
+  }
+  return true
+}
+
 // ── 公开端点调度 ─────────────────────────────────────────────────────
 
 export interface FontsRouteDeps {
@@ -212,11 +240,8 @@ async function handleRead(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<boolean> {
-  if (req.method !== 'GET') {
-    sendJSON(res, 405, { error: 'method not allowed' })
-    return true
-  }
-  const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+  const url = requireGetQuery(req, res)
+  if (!url) return true
   const family = url.searchParams.get('family')
   const style = url.searchParams.get('style')
   if (!family || !style) {
@@ -311,30 +336,14 @@ async function handlePieces(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<boolean> {
-  if (req.method !== 'GET') {
-    sendJSON(res, 405, { error: 'method not allowed' })
-    return true
-  }
-  const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+  const url = requireGetQuery(req, res)
+  if (!url) return true
   const family = url.searchParams.get('family')
   if (!family) {
     sendJSON(res, 400, { error: 'family query param required', code: 'missing-family' })
     return true
   }
-  const manifest = deps.store.readManifest()
-  const familyEntry = manifest.families.find((f) => f.family === family)
-  if (!familyEntry) {
-    sendJSON(res, 404, { error: `family not found: ${family}`, code: 'not-found' })
-    return true
-  }
-  const isSubset = familyEntry.styles.some((s) => s.artifact === 'subset-collection')
-  if (!isSubset) {
-    sendJSON(res, 400, {
-      error: 'family is not a subset collection; use /read endpoint instead',
-      code: 'not-subset'
-    })
-    return true
-  }
+  if (!requireSubsetFamily(deps, res, family)) return true
   const index = deps.store.readSubsetIndex(family)
   if (!index) {
     sendJSON(res, 404, {
@@ -358,11 +367,8 @@ async function handlePiece(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<boolean> {
-  if (req.method !== 'GET') {
-    sendJSON(res, 405, { error: 'method not allowed' })
-    return true
-  }
-  const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+  const url = requireGetQuery(req, res)
+  if (!url) return true
   const family = url.searchParams.get('family')
   const hash = url.searchParams.get('hash')
   if (!family || !hash) {
@@ -373,20 +379,7 @@ async function handlePiece(
     sendJSON(res, 400, { error: 'hash must be 32 hex characters', code: 'bad-hash' })
     return true
   }
-  const manifest = deps.store.readManifest()
-  const familyEntry = manifest.families.find((f) => f.family === family)
-  if (!familyEntry) {
-    sendJSON(res, 404, { error: `family not found: ${family}`, code: 'not-found' })
-    return true
-  }
-  const isSubset = familyEntry.styles.some((s) => s.artifact === 'subset-collection')
-  if (!isSubset) {
-    sendJSON(res, 400, {
-      error: 'family is not a subset collection; use /read endpoint instead',
-      code: 'not-subset'
-    })
-    return true
-  }
+  if (!requireSubsetFamily(deps, res, family)) return true
   const bytes = deps.store.readSubsetPiece(family, hash.toLowerCase())
   if (bytes === null) {
     sendJSON(res, 404, { error: `piece not found: ${family} / ${hash}`, code: 'piece-missing' })

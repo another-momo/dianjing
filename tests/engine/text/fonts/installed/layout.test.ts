@@ -5,7 +5,6 @@
  *  - resolveFontsRoot 拼接 rootDir + fonts/v1
  *  - fullFontRelativePath 路径 = <prefix>/<hash>.<ext>
  *  - subsetPieceRelativePath 路径 = <slug>/<pieceHash>.ttf
- *  - subsetFamilyRelativeDir slug 推导
  *  - layoutFor 全量 / 分片双形态（family 必填检查）
  *  - slugifyFamilyName 大小写归一 / 非 ASCII 字符替换 / 折叠连字符 / 兜底
  *  - hashBytesToHex 截前缀 32 字符
@@ -19,7 +18,6 @@ import {
   hashBytesToHex,
   layoutFor,
   resolveFontsRoot,
-  subsetFamilyRelativeDir,
   subsetPieceRelativePath,
   slugifyFamilyName
 } from '#core/text/font/installed/layout'
@@ -76,17 +74,6 @@ describe('subsetPieceRelativePath', () => {
     expect(a.startsWith('family/')).toBe(false)
     // 编码形态：~xNN 序列，仅含目录安全字符
     expect(a).toMatch(/^[a-z0-9\-_~]+\//)
-  })
-})
-
-describe('subsetFamilyRelativeDir', () => {
-  test('族目录 = 族名 slug', () => {
-    expect(subsetFamilyRelativeDir('Roboto')).toBe('roboto')
-    expect(subsetFamilyRelativeDir('Noto Sans SC')).toBe('noto-sans-sc')
-  })
-
-  test('空族名兜底 family', () => {
-    expect(subsetFamilyRelativeDir('')).toBe('family')
   })
 })
 

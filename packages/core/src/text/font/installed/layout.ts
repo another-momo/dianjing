@@ -74,7 +74,7 @@ export function layoutFor(artifact: ArtifactKind, hash: ContentHash, family?: st
   const familySlug = slugifyFamilyName(family)
   return {
     full: null,
-    subsetFamilyDir: `${familySlug}`
+    subsetFamilyDir: familySlug
   }
 }
 
@@ -90,11 +90,6 @@ export function fullFontRelativePath(hash: ContentHash, ext: FontExtension): str
 export function subsetPieceRelativePath(family: string, pieceHash: ContentHash): string {
   const familySlug = slugifyFamilyName(family)
   return `${familySlug}/${pieceHash}.ttf`
-}
-
-/** 给定族名，导出族目录的相对 posix 路径（卸载时 rmSync 用） */
-export function subsetFamilyRelativeDir(family: string): string {
-  return slugifyFamilyName(family)
 }
 
 // ── 哈希辅助 ─────────────────────────────────────────────────────────

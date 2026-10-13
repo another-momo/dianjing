@@ -8,27 +8,28 @@
  *
  * 仓内无现成 woff2 fixture——用 wawoff2.compress 压出 woff2 样本做
  * round-trip。wawoff2 是 packages/core 的依赖（workspace 布局下装在
- * 包内 node_modules），从包目录锚点 createRequire 解析。
+ * 包内 node_modules），按包内绝对路径动态 import 解析。
  */
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { join } from 'node:path'
 
 import { detectContainer, validateFontBytes } from '#core/text/font/installed/validate'
 import { transcodeWoff2ToSfnt } from '#core/text/font/installed/woff2'
 
-const FIXTURE_PATH = join(import.meta.dir, '../../../../fixtures/fonts/NotoSansCJK-Test.otf')
+import { repoPath } from '#tests/helpers/paths'
+
+const FIXTURE_PATH = repoPath('tests/fixtures/fonts/NotoSansCJK-Test.otf')
 const fixtureBytes = new Uint8Array(readFileSync(FIXTURE_PATH))
 
-/** wawoff2 是 packages/core 的依赖；workspace 布局下装在包内 node_modules，
- * 从包目录锚点解析（根工作区无 hoist 副本）。 */
-const wawoff2 = createRequire(join(import.meta.dir, '../../../../../packages/core/package.json'))(
-  'wawoff2'
-) as unknown as {
+interface Wawoff2API {
   decompress: (input: Uint8Array) => Promise<Uint8Array>
   compress: (input: Uint8Array) => Promise<Uint8Array>
 }
+
+/** wawoff2 是纯 CJS 包；按绝对路径 import（bun 对 exports.x = ... 形态识别具名导出）。 */
+const wawoff2 = (await import(
+  repoPath('packages/core/node_modules/wawoff2/index.js')
+)) as Wawoff2API
 
 describe('wawoff2 真实 wasm round-trip', () => {
   test('compress ttf → woff2 容器（wOF2 魔数）', async () => {

@@ -21,7 +21,7 @@ import type {
 } from '@open-pencil/core/text/font/store/types'
 import { pickCnFontSubfamily, parseCnFontResultCSS } from '@open-pencil/core/text/web-font/cn-fonts'
 
-import { mapRejectionToText, sendJSON } from './http-helpers'
+import { mapRejectionToText, sendJSON, startInstallTask } from './http-helpers'
 import type { StoreRouteDeps } from './store-routes'
 import { fetchStyleBytes, isAborted } from './stream-helpers'
 
@@ -48,12 +48,7 @@ export function scheduleSubsetInstall(
   catalogFamily: StoreCatalogFamily,
   selectedStyles: StoreCatalogStyle[]
 ): boolean {
-  const tasks = deps.tasks
-  if (tasks.countRunning() >= 8) {
-    sendJSON(res, 429, { error: 'too many running install tasks', code: 'busy' })
-    return true
-  }
-  const { task, shortCircuited } = tasks.start({
+  const started = startInstallTask(deps.tasks, res, {
     serviceId: service.id,
     family: catalogFamily.family,
     total: selectedStyles.length,
@@ -143,6 +138,8 @@ export function scheduleSubsetInstall(
       deps.store.writeManifest(manifest)
     }
   })
+  if (!started) return true
+  const { task, shortCircuited } = started
   sendJSON(res, 200, { ok: true, taskId: task.id, shortCircuited })
   return true
 }
@@ -286,7 +283,9 @@ async function withPieceWatchdog<T>(work: Promise<T>): Promise<T> {
     return await Promise.race([work, timeout])
   } finally {
     if (timer !== undefined) clearTimeout(timer)
-    void work.catch(() => {})
+    // race 落败方的 rejection 必须吞掉（看门狗超时后 work 晚到的 reject 会变成
+    // unhandled rejection）；结果已被 race 裁决，这里只防噪音
+    void work.catch(() => undefined)
   }
 }
 

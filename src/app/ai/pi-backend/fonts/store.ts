@@ -30,7 +30,6 @@ import {
   hashBytesToHex,
   resolveFontsRoot,
   slugifyFamilyName,
-  subsetFamilyRelativeDir,
   subsetPieceRelativePath
 } from '@open-pencil/core/text/font/installed/layout'
 import {
@@ -287,7 +286,7 @@ export function createFontsStore({ rootDir }: { rootDir: string }): FontsStore {
   }
 
   function subsetDirFor(family: string): string {
-    return join(fontsRoot, subsetFamilyRelativeDir(family))
+    return join(fontsRoot, slugifyFamilyName(family))
   }
 
   function installSubsetPieces(args: {

@@ -4,11 +4,7 @@
     "typeRoots": ["./node_modules/@types"],
     "target": "ES2022",
     "useDefineForClassFields": true,
-    "lib": [
-      "ES2023",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
@@ -24,85 +20,37 @@
     "noFallthroughCasesInSwitch": true,
     "paths": {
       "#vite-config/*": ["./vite/*"],
-      "@/*": [
-        "./src/*"
-      ],
-      "#vue/*": [
-        "./packages/vue/src/*",
-        "./packages/vue/src/*.vue"
-      ],
-      "#core/*": [
-        "./packages/core/src/*"
-      ],
-      "#fig/*": [
-        "./packages/fig/src/*"
-      ],
-      "#dom-css/*": [
-        "./packages/dom-css/src/*"
-      ],
-      "#tests/*": [
-        "./tests/*"
-      ],
-      "tinykeys": [
-        "./node_modules/tinykeys/dist/tinykeys.d.ts"
-      ],
-      "@open-pencil/vue": [
-        "./packages/vue/src/index.ts"
-      ],
-      "@open-pencil/core": [
-        "./packages/core/src/index.ts"
-      ],
-      "@open-pencil/core/*": [
-        "./packages/core/src/*"
-      ],
-      "@open-pencil/dom-css": [
-        "./packages/dom-css/src/index.ts"
-      ],
-      "@open-pencil/dom-css/scene-graph": [
-        "./packages/dom-css/src/import/scene-graph.ts"
-      ],
-      "@open-pencil/dom-css/export": [
-        "./packages/dom-css/src/export/index.ts"
-      ],
-      "@open-pencil/dom-css/*": [
-        "./packages/dom-css/src/*"
-      ],
-      "#scene-graph/*": [
-        "./packages/scene-graph/src/*"
-      ],
-      "@open-pencil/scene-graph": [
-        "./packages/scene-graph/src/index.ts"
-      ],
-      "@open-pencil/scene-graph/*": [
-        "./packages/scene-graph/src/*"
-      ],
-      "#emit/*": [
-        "./packages/emit/src/*"
-      ],
-      "@open-pencil/emit": [
-        "./packages/emit/src/index.ts"
-      ],
-      "#design-jsx/*": [
-        "./packages/design-jsx/src/*"
-      ],
-      "@open-pencil/design-jsx": [
-        "./packages/design-jsx/src/index.ts"
-      ],
-      "#pen/*": [
-        "./packages/pen/src/*"
-      ],
-      "@open-pencil/pen": [
-        "./packages/pen/src/index.ts"
-      ],
-      "@open-pencil/pen/*": [
-        "./packages/pen/src/*"
-      ]
+      "@/*": ["./src/*"],
+      "#vue/*": ["./packages/vue/src/*", "./packages/vue/src/*.vue"],
+      "#core/*": ["./packages/core/src/*"],
+      "#fig/*": ["./packages/fig/src/*"],
+      "#dom-css/*": ["./packages/dom-css/src/*"],
+      "#tests/*": ["./tests/*"],
+      "tinykeys": ["./node_modules/tinykeys/dist/tinykeys.d.ts"],
+      "@open-pencil/vue": ["./packages/vue/src/index.ts"],
+      "@open-pencil/core": ["./packages/core/src/index.ts"],
+      "@open-pencil/core/*": ["./packages/core/src/*"],
+      "@open-pencil/dom-css": ["./packages/dom-css/src/index.ts"],
+      "@open-pencil/dom-css/scene-graph": ["./packages/dom-css/src/import/scene-graph.ts"],
+      "@open-pencil/dom-css/export": ["./packages/dom-css/src/export/index.ts"],
+      "@open-pencil/dom-css/*": ["./packages/dom-css/src/*"],
+      "#scene-graph/*": ["./packages/scene-graph/src/*"],
+      "@open-pencil/scene-graph": ["./packages/scene-graph/src/index.ts"],
+      "@open-pencil/scene-graph/*": ["./packages/scene-graph/src/*"],
+      "#emit/*": ["./packages/emit/src/*"],
+      "@open-pencil/emit": ["./packages/emit/src/index.ts"],
+      "#design-jsx/*": ["./packages/design-jsx/src/*"],
+      "@open-pencil/design-jsx": ["./packages/design-jsx/src/index.ts"],
+      "#pen/*": ["./packages/pen/src/*"],
+      "@open-pencil/pen": ["./packages/pen/src/index.ts"],
+      "@open-pencil/pen/*": ["./packages/pen/src/*"]
     }
   },
   "include": [
     "src/**/*.ts",
     "src/**/*.vue",
     "packages/core/src/global.d.ts",
+    "packages/core/src/text/font/installed/wawoff2.d.ts",
     "packages/vue/src/global.d.ts",
     "packages/dom-css/src/cssom.d.ts",
     "packages/dom-css/src/postcss-value-parser.d.ts",

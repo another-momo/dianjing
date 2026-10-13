@@ -17,8 +17,15 @@ import { createGoogleFontsAdapter } from '#core/text/font/store/adapters/gf-api'
 import { createStandardAdapter } from '#core/text/font/store/adapters/standard'
 import type { FetchLike } from '#core/text/font/store/types'
 
+import { must } from '#tests/helpers/json'
+
+/** 桩 fetch 实现 → FetchLike 的单点断言出口（桩响应与 Response 无结构重叠，集中转型） */
+function asFetchLike(impl: unknown): FetchLike {
+  return impl as FetchLike
+}
+
 function fakeFetch(payload: unknown): FetchLike {
-  return (async () => ({
+  return asFetchLike(async () => ({
     ok: true,
     status: 200,
     async json() {
@@ -27,7 +34,7 @@ function fakeFetch(payload: unknown): FetchLike {
     async text() {
       return JSON.stringify(payload)
     }
-  })) as unknown as FetchLike
+  }))
 }
 
 describe('Fontsource adapter', () => {
@@ -60,20 +67,20 @@ describe('Fontsource adapter', () => {
     // defSubset='latin-ext' 在 subsets 中 → 用 latin-ext；非 latin
     const normal = family.styles.find((s) => s.italic === false)
     expect(normal).toBeDefined()
-    expect(normal!.fileURL).toBe(
+    expect(must(normal).fileURL).toBe(
       'https://cdn.jsdelivr.net/fontsource/fonts/inter:vf@latest/latin-ext-wght-normal.woff2'
     )
-    expect(normal!.format).toBe('woff2')
-    expect(normal!.variable).toBe(true)
-    expect(normal!.wghtRange).toEqual({ min: 400, max: 700 })
-    expect(normal!.style).toBe('Variable')
+    expect(must(normal).format).toBe('woff2')
+    expect(must(normal).variable).toBe(true)
+    expect(must(normal).wghtRange).toEqual({ min: 400, max: 700 })
+    expect(must(normal).style).toBe('Variable')
 
     const italic = family.styles.find((s) => s.italic === true)
     expect(italic).toBeDefined()
-    expect(italic!.fileURL).toBe(
+    expect(must(italic).fileURL).toBe(
       'https://cdn.jsdelivr.net/fontsource/fonts/inter:vf@latest/latin-ext-wght-italic.woff2'
     )
-    expect(italic!.style).toBe('Variable Italic')
+    expect(must(italic).style).toBe('Variable Italic')
   })
 
   test('静态族：weights×styles 笛卡尔积 + per-weight 静态路径（不带 variable 标记）', async () => {
@@ -97,8 +104,8 @@ describe('Fontsource adapter', () => {
     }
     const boldItalic = styles.find((s) => s.weight === 700 && s.italic === true)
     expect(boldItalic).toBeDefined()
-    expect(boldItalic!.style).toBe('Bold Italic')
-    expect(boldItalic!.fileURL).toBe(
+    expect(must(boldItalic).style).toBe('Bold Italic')
+    expect(must(boldItalic).fileURL).toBe(
       'https://cdn.jsdelivr.net/fontsource/fonts/roboto@latest/latin-700-italic.woff2'
     )
   })
@@ -188,7 +195,7 @@ describe('Fontsource adapter', () => {
   })
 
   test('HTTP 非 2xx 抛错', async () => {
-    const fetchImpl: FetchLike = (async () => ({
+    const fetchImpl: FetchLike = asFetchLike(async () => ({
       ok: false,
       status: 503,
       async json() {
@@ -197,7 +204,7 @@ describe('Fontsource adapter', () => {
       async text() {
         return ''
       }
-    })) as unknown as FetchLike
+    }))
     await expect(fontsourceAdapter.fetchCatalog(fetchImpl)).rejects.toThrow(/503/)
   })
 })
@@ -248,7 +255,7 @@ describe('Standard adapter', () => {
     expect(family.styles).toHaveLength(3)
     const variable = family.styles.find((s) => s.variable)
     expect(variable).toBeDefined()
-    expect(variable!.wghtRange).toEqual({ min: 200, max: 900 })
+    expect(must(variable).wghtRange).toEqual({ min: 200, max: 900 })
   })
 
   test('坏条目跳过：缺 fileURL/format/weight/style 任一即跳过', async () => {
@@ -351,17 +358,17 @@ describe('gf-api adapter', () => {
 
     const regular = family.styles.find((s) => s.weight === 400 && !s.italic)
     expect(regular).toBeDefined()
-    expect(regular!.fileURL).toBe('https://fonts.gstatic.com/s/roboto/v1/regular.ttf')
-    expect(regular!.format).toBe('ttf')
-    expect(regular!.style).toBe('Regular')
+    expect(must(regular).fileURL).toBe('https://fonts.gstatic.com/s/roboto/v1/regular.ttf')
+    expect(must(regular).format).toBe('ttf')
+    expect(must(regular).style).toBe('Regular')
 
     const bold = family.styles.find((s) => s.weight === 700 && !s.italic)
     expect(bold).toBeDefined()
-    expect(bold!.style).toBe('Bold')
+    expect(must(bold).style).toBe('Bold')
 
     const boldItalic = family.styles.find((s) => s.weight === 700 && s.italic)
     expect(boldItalic).toBeDefined()
-    expect(boldItalic!.style).toBe('Bold Italic')
+    expect(must(boldItalic).style).toBe('Bold Italic')
   })
 
   test('variant 解析失败（如 "unknown"）跳过该 style', async () => {
@@ -414,63 +421,69 @@ describe('gf-api adapter', () => {
 describe('cn-fonts 适配器目录合成', () => {
   // cn-fonts 适配器零网络——直接调 fetchCatalog
   test('registry 内多 weight 族（LXGW WenKai）每条 style 都走 piecesRef 形态', async () => {
-    const families = await cnFontsAdapter.fetchCatalog((async () => ({
-      ok: true,
-      status: 200,
-      async json() {
-        return {}
-      },
-      async text() {
-        return '{}'
-      }
-    })) as unknown as FetchLike)
+    const families = await cnFontsAdapter.fetchCatalog(
+      asFetchLike(async () => ({
+        ok: true,
+        status: 200,
+        async json() {
+          return {}
+        },
+        async text() {
+          return '{}'
+        }
+      }))
+    )
     const lxgw = families.find((f) => f.family === 'LXGW WenKai')
     expect(lxgw).toBeDefined()
-    expect(lxgw!.styles.length).toBeGreaterThan(0)
-    for (const style of lxgw!.styles) {
+    expect(must(lxgw).styles.length).toBeGreaterThan(0)
+    for (const style of must(lxgw).styles) {
       // piecesRef 形态：fileURL 必空、format=woff2、piecesRef 定义
       expect(style.fileURL).toBe('')
       expect(style.format).toBe('woff2')
       expect(style.piecesRef).toBeDefined()
-      expect(style.piecesRef!.package.length).toBeGreaterThan(0)
+      expect(must(style.piecesRef).package.length).toBeGreaterThan(0)
     }
   })
 
   test('VF 族（Source Han Serif CN VF）单 variable 条目 + wghtRange 由 weights 派生', async () => {
-    const families = await cnFontsAdapter.fetchCatalog((async () => ({
-      ok: true,
-      status: 200,
-      async json() {
-        return {}
-      },
-      async text() {
-        return '{}'
-      }
-    })) as unknown as FetchLike)
+    const families = await cnFontsAdapter.fetchCatalog(
+      asFetchLike(async () => ({
+        ok: true,
+        status: 200,
+        async json() {
+          return {}
+        },
+        async text() {
+          return '{}'
+        }
+      }))
+    )
     const vf = families.find((f) => f.family === 'Source Han Serif CN VF')
     expect(vf).toBeDefined()
-    expect(vf!.styles.length).toBe(1)
-    expect(vf!.styles[0].variable).toBe(true)
-    const wght = vf!.styles[0].wghtRange
+    expect(must(vf).styles.length).toBe(1)
+    expect(must(vf).styles[0].variable).toBe(true)
+    const wght = must(vf).styles[0].wghtRange
     expect(wght).toBeDefined()
     // weights 为空时回退单值 [400]（min === max）；非空时也按真值区间派生
-    const { min, max } = wght!
+    const { min, max } = must(wght)
     expect(min).toBeGreaterThanOrEqual(1)
     expect(max).toBeLessThanOrEqual(1000)
     expect(min).toBeLessThanOrEqual(max)
   })
 
   test('registry 撞名优先（catalog 同族名不入两次）', async () => {
-    const families = await cnFontsAdapter.fetchCatalog((async () => ({
-      ok: true,
-      status: 200,
-      async json() {
-        return {}
-      },
-      async text() {
-        return '{}'
-      }
-    })) as unknown as FetchLike)
+    const families = await cnFontsAdapter.fetchCatalog(
+      asFetchLike(async () => ({
+        ok: true,
+        status: 200,
+        async json() {
+          return {}
+        },
+        async text() {
+          return '{}'
+        }
+      }))
+    )
     const dupes = new Map<string, number>()
     for (const f of families) {
       dupes.set(f.family, (dupes.get(f.family) ?? 0) + 1)

@@ -11,6 +11,25 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import type { RejectionReason } from '@open-pencil/core/text/font/installed/validate'
 
+import type { InstallWorker, StoreInstallTask, StoreTaskRegistry } from './store-tasks'
+import { MAX_RUNNING_INSTALL_TASKS } from './store-tasks'
+
+/**
+ * 安装任务并发上限闸 + 启动。饱和（≥8 running）即回 429 返 null；
+ * 否则委托 registry.start 并返其句柄。两条安装通路（full / subset-collection）共享。
+ */
+export function startInstallTask(
+  tasks: StoreTaskRegistry,
+  res: ServerResponse,
+  args: { serviceId: string; family: string; total: number; worker: InstallWorker }
+): { task: StoreInstallTask; shortCircuited: boolean } | null {
+  if (tasks.countRunning() >= MAX_RUNNING_INSTALL_TASKS) {
+    sendJSON(res, 429, { error: 'too many running install tasks', code: 'busy' })
+    return null
+  }
+  return tasks.start(args)
+}
+
 export function sendJSON(res: ServerResponse, status: number, payload: unknown): void {
   res.writeHead(status, { 'content-type': 'application/json' })
   res.end(JSON.stringify(payload))
@@ -32,9 +51,28 @@ export async function readJSONBody(req: IncomingMessage): Promise<JSONReadResult
   }
 }
 
-type StringBodyResult = { ok: true; body: string } | { ok: false; error: string }
+/**
+ * 读 JSON body；失败即回 400 并返 ok=false（handler 早返 true）。
+ * 消除路由层「读体 + 400」重复块。
+ */
+export async function requireJSONBody(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<{ ok: true; body: unknown } | { ok: false }> {
+  const parsed = await readJSONBody(req)
+  if (!parsed.ok) {
+    sendJSON(res, 400, { error: parsed.error })
+    return { ok: false }
+  }
+  return { ok: true, body: parsed.body }
+}
 
-export function readStringBody(req: IncomingMessage, limit: number): Promise<StringBodyResult> {
+type CollectChunksResult =
+  | { ok: true; chunks: Buffer[] }
+  | { ok: false; error: string; code?: 'too-large' }
+
+/** req body 收集核：chunks 累积 + 超限截断毁流 + error 兜——string/bytes 两形态共享 */
+function collectChunks(req: IncomingMessage, limit: number): Promise<CollectChunksResult> {
   return new Promise((resolve) => {
     const chunks: Buffer[] = []
     let total = 0
@@ -44,18 +82,34 @@ export function readStringBody(req: IncomingMessage, limit: number): Promise<Str
       total += chunk.length
       if (total > limit) {
         aborted = true
-        resolve({ ok: false, error: `body exceeds ${limit} bytes` })
+        resolve({ ok: false, error: `body exceeds ${limit} bytes`, code: 'too-large' })
         req.destroy()
         return
       }
       chunks.push(chunk)
     })
-    req.on('end', () => resolve({ ok: true, body: Buffer.concat(chunks).toString('utf8') }))
+    req.on('end', () => {
+      if (aborted) return
+      resolve({ ok: true, chunks })
+    })
     req.on('error', (error) => {
       if (aborted) return
       resolve({ ok: false, error: error instanceof Error ? error.message : String(error) })
     })
   })
+}
+
+type StringBodyResult =
+  | { ok: true; body: string }
+  | { ok: false; error: string; code?: 'too-large' }
+
+export async function readStringBody(
+  req: IncomingMessage,
+  limit: number
+): Promise<StringBodyResult> {
+  const collected = await collectChunks(req, limit)
+  if (!collected.ok) return collected
+  return { ok: true, body: Buffer.concat(collected.chunks).toString('utf8') }
 }
 
 export type RawBytesResult =
@@ -66,34 +120,9 @@ export async function readRawBytesWithLimit(
   req: IncomingMessage,
   limit: number
 ): Promise<RawBytesResult> {
-  return new Promise((resolve) => {
-    const chunks: Buffer[] = []
-    let total = 0
-    let aborted = false
-    req.on('data', (chunk: Buffer) => {
-      if (aborted) return
-      total += chunk.length
-      if (total > limit) {
-        aborted = true
-        resolve({
-          ok: false,
-          error: `body exceeds ${limit} bytes`,
-          code: 'too-large'
-        })
-        req.destroy()
-        return
-      }
-      chunks.push(chunk)
-    })
-    req.on('end', () => {
-      if (aborted) return
-      resolve({ ok: true, bytes: new Uint8Array(Buffer.concat(chunks)) })
-    })
-    req.on('error', (error) => {
-      if (aborted) return
-      resolve({ ok: false, error: error instanceof Error ? error.message : String(error) })
-    })
-  })
+  const collected = await collectChunks(req, limit)
+  if (!collected.ok) return collected
+  return { ok: true, bytes: new Uint8Array(Buffer.concat(collected.chunks)) }
 }
 
 export function mapRejectionToText(reason: RejectionReason, detail: string): string {

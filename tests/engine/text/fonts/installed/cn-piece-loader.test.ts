@@ -18,6 +18,8 @@ import {
   type SubsetIndexPayload
 } from '@open-pencil/core/text/font/installed/cn-piece-loader'
 
+import { must } from '#tests/helpers/json'
+
 function makeIndex(
   entries: Array<{
     key: string
@@ -69,7 +71,7 @@ describe('cn-piece-loader 选片路由', () => {
     // "中" = U+4E2D 落在 0x4E00-0x4FFF
     const result = await loadInstalledSubsetPieces('TestFamily', 'Regular', '中', fetch)
     expect(result).not.toBeNull()
-    expect(result!.primary.buffer.byteLength).toBe(4)
+    expect(must(result).primary.buffer.byteLength).toBe(4)
     expect(hits.length).toBe(1)
     expect(hits[0]).toEqual({ family: 'TestFamily', hash: 'aaaa' })
   })
@@ -102,7 +104,7 @@ describe('cn-piece-loader 选片路由', () => {
     const result = await loadInstalledSubsetPieces('TestFamily', 'Regular', '中', fetch)
     expect(result).not.toBeNull()
     expect(hits.map((h) => h.hash)).toEqual(['p1'])
-    expect(result!.primary.buffer.byteLength).toBe(1)
+    expect(must(result).primary.buffer.byteLength).toBe(1)
   })
 
   test('多片不连续 ranges → 取所有命中片（合并）', async () => {
@@ -123,8 +125,8 @@ describe('cn-piece-loader 选片路由', () => {
     expect(hits.length).toBe(2)
     // primary + supplemental 合并 2 字节
     const totalBytes =
-      result!.primary.buffer.byteLength +
-      result!.supplemental.reduce((sum, p) => sum + p.buffer.byteLength, 0)
+      must(result).primary.buffer.byteLength +
+      must(result).supplemental.reduce((sum, p) => sum + p.buffer.byteLength, 0)
     expect(totalBytes).toBe(2)
   })
 
@@ -145,7 +147,7 @@ describe('cn-piece-loader 选片路由', () => {
     const result = await loadInstalledSubsetPieces('TestFamily', 'Bold', '中', fetch)
     expect(result).not.toBeNull()
     expect(hits.map((h) => h.hash)).toEqual(['b'])
-    expect(result!.primary.buffer.byteLength).toBe(1)
+    expect(must(result).primary.buffer.byteLength).toBe(1)
   })
 
   test('VF 族：index 单 variable 条目 weight 恒 400，styleKey=Variable 精确命中', async () => {
@@ -168,8 +170,8 @@ describe('cn-piece-loader 选片路由', () => {
     expect(result).not.toBeNull()
     expect(hits.length).toBe(2)
     const totalBytes =
-      result!.primary.buffer.byteLength +
-      result!.supplemental.reduce((sum, p) => sum + p.buffer.byteLength, 0)
+      must(result).primary.buffer.byteLength +
+      must(result).supplemental.reduce((sum, p) => sum + p.buffer.byteLength, 0)
     expect(totalBytes).toBe(2)
   })
 
@@ -222,6 +224,6 @@ describe('cn-piece-loader 选片路由', () => {
     const { fetch } = makeFetch(index, new Map([['p1', new Uint8Array([1])]]))
     const result = await loadInstalledSubsetPieces('TestFamily', 'Regular', '中', fetch)
     expect(result).not.toBeNull()
-    expect(result!.coveredCharacters).toContain('中')
+    expect(must(result).coveredCharacters).toContain('中')
   })
 })

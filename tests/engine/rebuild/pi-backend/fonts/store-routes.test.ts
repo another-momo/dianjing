@@ -29,13 +29,19 @@ import { createFontsStore } from '@/app/ai/pi-backend/fonts/store'
 import { handleFontsStoreRequest } from '@/app/ai/pi-backend/fonts/store-routes'
 import { StoreTaskRegistry } from '@/app/ai/pi-backend/fonts/store-tasks'
 
-import { startFakeFontServer, type FakeFontServer } from './fake-font-server'
-import { makeFakeReq, makeFakeRes } from './fake-http'
+import { isJSONObject, must } from '#tests/helpers/json'
 
-interface FakeRes extends Awaited<ReturnType<typeof makeFakeRes>> {
-  statusCode: number | undefined
-  body: string
-}
+import {
+  bodyServiceId,
+  bodyServices,
+  bodyTaskId,
+  makeFakeReq,
+  makeFakeRes,
+  parseFakeBody,
+  postJSON,
+  startFakeFontServer,
+  type FakeFontServer
+} from './helpers'
 
 let server: FakeFontServer | null = null
 let rootDir = ''
@@ -76,25 +82,16 @@ async function waitForTask(
     const list = tasks.list()
     const task = list.find((t) => t.id === taskId)
     if (task && predicate(task)) return task
-    await new Promise((r) => setTimeout(r, 25))
+    await new Promise((r) => {
+      setTimeout(r, 25)
+    })
   }
   throw new Error(`task did not satisfy predicate within ${timeoutMs}ms`)
 }
 
-function postJson(path: string, body: unknown) {
-  const req = makeFakeReq({
-    method: 'POST',
-    url: path,
-    headers: { 'content-type': 'application/json' },
-    chunks: [Buffer.from(JSON.stringify(body))]
-  })
-  const res = makeFakeRes()
-  return { req, res }
-}
-
 describe('字体商店路由端到端', () => {
   test('注册自定义服务 → list 含内置 + 自定义 + 持久化', async () => {
-    const { req, res } = postJson('/api/pi/fonts/store/services', {
+    const { req, res } = postJSON('/api/pi/fonts/store/services', {
       name: 'Local Test Service',
       baseURL: 'http://127.0.0.1:0',
       kind: 'standard'
@@ -106,34 +103,32 @@ describe('字体商店路由端到端', () => {
       '/api/pi/fonts/store/services'
     )
     expect(handled).toBe(true)
-    const reg = JSON.parse(res.body) as {
-      ok: boolean
-      service: { id: string; name: string; builtin: boolean }
-    }
+    const reg = parseFakeBody(res)
+    const serviceId = bodyServiceId(reg)
+    if (!isJSONObject(reg) || !isJSONObject(reg.service)) throw new Error('bad register body')
     expect(reg.ok).toBe(true)
     expect(reg.service.builtin).toBe(false)
-    expect(reg.service.id.startsWith('custom:')).toBe(true)
+    expect(serviceId.startsWith('custom:')).toBe(true)
     expect(reg.service.name).toBe('Local Test Service')
 
     // 持久化文件存在
-    const persisted = JSON.parse(readFileSync(customServices.path, 'utf8')) as {
-      services: Array<{ id: string }>
+    const persisted: unknown = JSON.parse(readFileSync(customServices.path, 'utf8'))
+    if (!isJSONObject(persisted) || !Array.isArray(persisted.services)) {
+      throw new Error('bad persisted services.json')
     }
-    expect(persisted.services.some((s) => s.id === reg.service.id)).toBe(true)
+    expect(persisted.services.some((s) => isJSONObject(s) && s.id === serviceId)).toBe(true)
 
     // list 含内置 + 自定义
     const listReq = makeFakeReq({ method: 'GET', url: '/api/pi/fonts/store/services' })
     const listRes = makeFakeRes()
     await handleFontsStoreRequest(makeDeps(), listReq, listRes, '/api/pi/fonts/store/services')
-    const list = JSON.parse(listRes.body) as {
-      services: Array<{ id: string; builtin: boolean }>
-    }
-    expect(list.services.some((s) => s.id === 'preset:fontsource' && s.builtin === true)).toBe(true)
-    expect(list.services.some((s) => s.id === reg.service.id)).toBe(true)
+    const services = bodyServices(parseFakeBody(listRes))
+    expect(services.some((s) => s.id === 'preset:fontsource' && s.builtin === true)).toBe(true)
+    expect(services.some((s) => s.id === serviceId)).toBe(true)
   })
 
   test('注册入参校验：kind 不在白名单 / baseURL 非 http(s) → 400', async () => {
-    const { req, res } = postJson('/api/pi/fonts/store/services', {
+    const { req, res } = postJSON('/api/pi/fonts/store/services', {
       name: 'Bad',
       baseURL: 'file:///etc/passwd',
       kind: 'fontsource'
@@ -143,7 +138,7 @@ describe('字体商店路由端到端', () => {
   })
 
   test('删内置服务 → 400 builtin', async () => {
-    const { req, res } = postJson('/api/pi/fonts/store/services/delete', {
+    const { req, res } = postJSON('/api/pi/fonts/store/services/delete', {
       id: 'preset:fontsource'
     })
     await handleFontsStoreRequest(makeDeps(), req, res, '/api/pi/fonts/store/services/delete')
@@ -166,11 +161,10 @@ describe('字体商店路由端到端', () => {
     })
     const res = makeFakeRes()
     await handleFontsStoreRequest(makeDeps(), req, res, '/api/pi/fonts/store/catalog')
-    const body = JSON.parse(res.body) as {
-      families: Array<{ family: string; styles: Array<{ style: string }> }>
-    }
+    const body = parseFakeBody(res)
+    if (!isJSONObject(body) || !Array.isArray(body.families)) throw new Error('bad catalog body')
     expect(body.families.length).toBeGreaterThan(0)
-    const familyNames = body.families.map((f) => f.family)
+    const familyNames = body.families.map((f) => (isJSONObject(f) ? f.family : null))
     expect(familyNames).toContain('Noto Sans CJK Test')
   })
 
@@ -184,16 +178,18 @@ describe('字体商店路由端到端', () => {
       baseURL: server.baseURL,
       builtin: false
     })
-    const { req, res } = postJson('/api/pi/fonts/store/install', {
+    const { req, res } = postJSON('/api/pi/fonts/store/install', {
       service: serviceId,
       family: 'Noto Sans CJK Test'
     })
     await handleFontsStoreRequest(makeDeps(), req, res, '/api/pi/fonts/store/install')
-    const start = JSON.parse(res.body) as { ok: boolean; taskId: string; shortCircuited: boolean }
+    const start = parseFakeBody(res)
+    if (!isJSONObject(start)) throw new Error('bad install body')
     expect(start.ok).toBe(true)
     expect(start.shortCircuited).toBe(false)
+    const taskId = bodyTaskId(start)
 
-    const final = await waitForTask(start.taskId, (t) => t.status !== 'running')
+    const final = await waitForTask(taskId, (t) => t.status !== 'running')
     expect(final.status).toBe('done')
     expect(final.failures.length).toBe(0)
 
@@ -201,12 +197,12 @@ describe('字体商店路由端到端', () => {
     const manifest = store.readManifest()
     const family = manifest.families.find((f) => f.family === 'Noto Sans CJK SC')
     expect(family).toBeDefined()
-    expect(family!.styles.length).toBeGreaterThan(0)
-    const firstStyle = family!.styles[0]
+    expect(must(family).styles.length).toBeGreaterThan(0)
+    const firstStyle = must(must(family).styles[0])
     expect(firstStyle.source).toBe('store')
     const bytes = store.readBytes(firstStyle.hash, firstStyle.ext ?? 'ttf')
     expect(bytes).not.toBeNull()
-    expect(bytes!.byteLength).toBeGreaterThan(0)
+    expect(must(bytes).byteLength).toBeGreaterThan(0)
   })
 
   test('install：重复 install 同 family 短路（同 taskId + shortCircuited=true）', async () => {
@@ -220,26 +216,30 @@ describe('字体商店路由端到端', () => {
       builtin: false
     })
 
-    const first = postJson('/api/pi/fonts/store/install', {
+    const first = postJSON('/api/pi/fonts/store/install', {
       service: serviceId,
       family: 'Noto Sans CJK Test'
     })
     await handleFontsStoreRequest(makeDeps(), first.req, first.res, '/api/pi/fonts/store/install')
-    const firstBody = JSON.parse(first.res.body) as { taskId: string; shortCircuited: boolean }
+    const firstBody = parseFakeBody(first.res)
+    if (!isJSONObject(firstBody)) throw new Error('bad install body')
+    const firstTaskId = bodyTaskId(firstBody)
     expect(firstBody.shortCircuited).toBe(false)
 
     // 第二个请求在任务 running 期间触发
-    const second = postJson('/api/pi/fonts/store/install', {
+    const second = postJSON('/api/pi/fonts/store/install', {
       service: serviceId,
       family: 'Noto Sans CJK Test'
     })
     await handleFontsStoreRequest(makeDeps(), second.req, second.res, '/api/pi/fonts/store/install')
-    const secondBody = JSON.parse(second.res.body) as { taskId: string; shortCircuited: boolean }
+    const secondBody = parseFakeBody(second.res)
+    if (!isJSONObject(secondBody)) throw new Error('bad install body')
+    const secondTaskId = bodyTaskId(secondBody)
     expect(secondBody.shortCircuited).toBe(true)
-    expect(secondBody.taskId).toBe(firstBody.taskId)
+    expect(secondTaskId).toBe(firstTaskId)
 
     // 等任务跑完清理
-    await waitForTask(firstBody.taskId, (t) => t.status !== 'running')
+    await waitForTask(firstTaskId, (t) => t.status !== 'running')
   })
 
   test('install：坏字节族 → 任务 failed + failures 带原因', async () => {
@@ -252,16 +252,16 @@ describe('字体商店路由端到端', () => {
       baseURL: server.baseURL,
       builtin: false
     })
-    const { req, res } = postJson('/api/pi/fonts/store/install', {
+    const { req, res } = postJSON('/api/pi/fonts/store/install', {
       service: serviceId,
       family: 'Garbage Font'
     })
     await handleFontsStoreRequest(makeDeps(), req, res, '/api/pi/fonts/store/install')
-    const start = JSON.parse(res.body) as { taskId: string }
-    const final = await waitForTask(start.taskId, (t) => t.status !== 'running', 5000)
+    const taskId = bodyTaskId(parseFakeBody(res))
+    const final = await waitForTask(taskId, (t) => t.status !== 'running', 5000)
     expect(final.status).toBe('failed')
     expect(final.failures.length).toBeGreaterThan(0)
-    expect(final.failures[0].reason.length).toBeGreaterThan(0)
+    expect(must(final.failures[0]).reason.length).toBeGreaterThan(0)
   })
 
   test('cancel：取消路径 → 任务 cancelled', async () => {
@@ -274,20 +274,22 @@ describe('字体商店路由端到端', () => {
       baseURL: server.baseURL,
       builtin: false
     })
-    const { req, res } = postJson('/api/pi/fonts/store/install', {
+    const { req, res } = postJSON('/api/pi/fonts/store/install', {
       service: serviceId,
       family: 'Noto Sans CJK Test'
     })
     await handleFontsStoreRequest(makeDeps(), req, res, '/api/pi/fonts/store/install')
-    const start = JSON.parse(res.body) as { taskId: string }
+    const taskId = bodyTaskId(parseFakeBody(res))
 
     // 任务在跑后立刻 cancel
-    await new Promise((r) => setTimeout(r, 50))
+    await new Promise((r) => {
+      setTimeout(r, 50)
+    })
     const cancelReq = makeFakeReq({
       method: 'POST',
       url: '/api/pi/fonts/store/tasks/cancel',
       headers: { 'content-type': 'application/json' },
-      chunks: [Buffer.from(JSON.stringify({ taskId: start.taskId }))]
+      chunks: [Buffer.from(JSON.stringify({ taskId }))]
     })
     const cancelRes = makeFakeRes()
     await handleFontsStoreRequest(
@@ -296,9 +298,9 @@ describe('字体商店路由端到端', () => {
       cancelRes,
       '/api/pi/fonts/store/tasks/cancel'
     )
-    expect(JSON.parse(cancelRes.body)).toEqual({ ok: true, taskId: start.taskId })
+    expect(JSON.parse(cancelRes.body)).toEqual({ ok: true, taskId })
 
-    const final = await waitForTask(start.taskId, (t) => t.status !== 'running', 3000)
+    const final = await waitForTask(taskId, (t) => t.status !== 'running', 3000)
     expect(final.status).toBe('cancelled')
   })
 
@@ -358,15 +360,15 @@ describe('handleFontsRequest 商店委托（闸位回归）', () => {
 
 describe('负面路径与边界', () => {
   test('同名服务注册两次 → 第二次 id 加 -2 后缀', async () => {
-    const first = postJson('/api/pi/fonts/store/services', {
+    const first = postJSON('/api/pi/fonts/store/services', {
       name: 'Dup Service',
       baseURL: 'http://127.0.0.1:0',
       kind: 'standard'
     })
     await handleFontsStoreRequest(makeDeps(), first.req, first.res, '/api/pi/fonts/store/services')
-    const firstId = (JSON.parse(first.res.body) as { service: { id: string } }).service.id
+    const firstId = bodyServiceId(parseFakeBody(first.res))
 
-    const second = postJson('/api/pi/fonts/store/services', {
+    const second = postJSON('/api/pi/fonts/store/services', {
       name: 'Dup Service',
       baseURL: 'http://127.0.0.1:0',
       kind: 'standard'
@@ -377,20 +379,20 @@ describe('负面路径与边界', () => {
       second.res,
       '/api/pi/fonts/store/services'
     )
-    const secondId = (JSON.parse(second.res.body) as { service: { id: string } }).service.id
+    const secondId = bodyServiceId(parseFakeBody(second.res))
     expect(secondId).toBe(`${firstId}-2`)
   })
 
   test('删除自定义服务 → 200 + list 不再含；删不存在 → 404', async () => {
-    const reg = postJson('/api/pi/fonts/store/services', {
+    const reg = postJSON('/api/pi/fonts/store/services', {
       name: 'Deletable',
       baseURL: 'http://127.0.0.1:0',
       kind: 'standard'
     })
     await handleFontsStoreRequest(makeDeps(), reg.req, reg.res, '/api/pi/fonts/store/services')
-    const serviceId = (JSON.parse(reg.res.body) as { service: { id: string } }).service.id
+    const serviceId = bodyServiceId(parseFakeBody(reg.res))
 
-    const del = postJson('/api/pi/fonts/store/services/delete', { id: serviceId })
+    const del = postJSON('/api/pi/fonts/store/services/delete', { id: serviceId })
     await handleFontsStoreRequest(
       makeDeps(),
       del.req,
@@ -402,10 +404,10 @@ describe('负面路径与边界', () => {
     const listReq = makeFakeReq({ method: 'GET', url: '/api/pi/fonts/store/services' })
     const listRes = makeFakeRes()
     await handleFontsStoreRequest(makeDeps(), listReq, listRes, '/api/pi/fonts/store/services')
-    const list = JSON.parse(listRes.body) as { services: Array<{ id: string }> }
-    expect(list.services.some((x) => x.id === serviceId)).toBe(false)
+    const services = bodyServices(parseFakeBody(listRes))
+    expect(services.some((x) => x.id === serviceId)).toBe(false)
 
-    const delAgain = postJson('/api/pi/fonts/store/services/delete', { id: serviceId })
+    const delAgain = postJSON('/api/pi/fonts/store/services/delete', { id: serviceId })
     await handleFontsStoreRequest(
       makeDeps(),
       delAgain.req,
@@ -425,14 +427,14 @@ describe('负面路径与边界', () => {
       baseURL: server.baseURL,
       builtin: false
     })
-    const { req, res } = postJson('/api/pi/fonts/store/install', {
+    const { req, res } = postJSON('/api/pi/fonts/store/install', {
       service: serviceId,
       family: 'Noto Sans CJK Test',
       styles: ['No Such Style']
     })
     await handleFontsStoreRequest(makeDeps(), req, res, '/api/pi/fonts/store/install')
     expect(res.statusCode).toBe(400)
-    expect((JSON.parse(res.body) as { code: string }).code).toBe('no-styles')
+    expect(parseFakeBody(res)).toMatchObject({ code: 'no-styles' })
   })
 
   test('catalog 上游 500 → 502 catalog-fetch-failed', async () => {
@@ -452,7 +454,7 @@ describe('负面路径与边界', () => {
     const res = makeFakeRes()
     await handleFontsStoreRequest(makeDeps(), req, res, '/api/pi/fonts/store/catalog')
     expect(res.statusCode).toBe(502)
-    expect((JSON.parse(res.body) as { code: string }).code).toBe('catalog-fetch-failed')
+    expect(parseFakeBody(res)).toMatchObject({ code: 'catalog-fetch-failed' })
   })
 
   test('catalog 响应超 8MB 上限 → 502（流式截断兜底接线回归）', async () => {
@@ -472,13 +474,14 @@ describe('负面路径与边界', () => {
     const res = makeFakeRes()
     await handleFontsStoreRequest(makeDeps(), req, res, '/api/pi/fonts/store/catalog')
     expect(res.statusCode).toBe(502)
-    const body = JSON.parse(res.body) as { code: string; error: string }
+    const body = parseFakeBody(res)
+    if (!isJSONObject(body) || typeof body.error !== 'string') throw new Error('bad 502 body')
     expect(body.code).toBe('catalog-fetch-failed')
     expect(body.error).toContain('exceeds')
   }, 15_000)
 
   test('cancel 不存在 / 已完成 taskId → 404', async () => {
-    const missing = postJson('/api/pi/fonts/store/tasks/cancel', { taskId: 'no-such-task' })
+    const missing = postJSON('/api/pi/fonts/store/tasks/cancel', { taskId: 'no-such-task' })
     await handleFontsStoreRequest(
       makeDeps(),
       missing.req,
@@ -496,7 +499,7 @@ describe('负面路径与边界', () => {
       baseURL: server.baseURL,
       builtin: false
     })
-    const install = postJson('/api/pi/fonts/store/install', {
+    const install = postJSON('/api/pi/fonts/store/install', {
       service: serviceId,
       family: 'Noto Sans CJK Test'
     })
@@ -506,9 +509,9 @@ describe('负面路径与边界', () => {
       install.res,
       '/api/pi/fonts/store/install'
     )
-    const { taskId } = JSON.parse(install.res.body) as { taskId: string }
+    const taskId = bodyTaskId(parseFakeBody(install.res))
     await waitForTask(taskId, (t) => t.status === 'done')
-    const done = postJson('/api/pi/fonts/store/tasks/cancel', { taskId })
+    const done = postJSON('/api/pi/fonts/store/tasks/cancel', { taskId })
     await handleFontsStoreRequest(
       makeDeps(),
       done.req,
@@ -528,7 +531,7 @@ describe('负面路径与边界', () => {
       baseURL: server.baseURL,
       builtin: false
     })
-    const install = postJson('/api/pi/fonts/store/install', {
+    const install = postJSON('/api/pi/fonts/store/install', {
       service: serviceId,
       family: 'Noto Sans CJK Test'
     })
@@ -538,9 +541,9 @@ describe('负面路径与边界', () => {
       install.res,
       '/api/pi/fonts/store/install'
     )
-    const { taskId } = JSON.parse(install.res.body) as { taskId: string }
+    const taskId = bodyTaskId(parseFakeBody(install.res))
 
-    const del = postJson('/api/pi/fonts/store/services/delete', { id: serviceId })
+    const del = postJSON('/api/pi/fonts/store/services/delete', { id: serviceId })
     await handleFontsStoreRequest(
       makeDeps(),
       del.req,
@@ -564,7 +567,7 @@ describe('负面路径与边界', () => {
         baseURL: server.baseURL,
         builtin: false
       })
-      const { req, res } = postJson('/api/pi/fonts/store/install', {
+      const { req, res } = postJSON('/api/pi/fonts/store/install', {
         service: id,
         family: 'Noto Sans CJK Test'
       })
@@ -581,13 +584,13 @@ describe('负面路径与边界', () => {
       baseURL: server.baseURL,
       builtin: false
     })
-    const ninth = postJson('/api/pi/fonts/store/install', {
+    const ninth = postJSON('/api/pi/fonts/store/install', {
       service: ninthId,
       family: 'Noto Sans CJK Test'
     })
     await handleFontsStoreRequest(makeDeps(), ninth.req, ninth.res, '/api/pi/fonts/store/install')
     expect(ninth.res.statusCode).toBe(429)
-    expect((JSON.parse(ninth.res.body) as { code: string }).code).toBe('busy')
+    expect(parseFakeBody(ninth.res)).toMatchObject({ code: 'busy' })
   }, 15_000)
 
   test('services.json 损坏 → list 兜空（内置仍在，不阻断）', async () => {
@@ -604,12 +607,9 @@ describe('负面路径与边界', () => {
       '/api/pi/fonts/store/services'
     )
     expect(listRes.statusCode).toBe(200)
-    const list = JSON.parse(listRes.body) as { services: Array<{ id: string; builtin: boolean }> }
+    const services = bodyServices(parseFakeBody(listRes))
     // 内置预设：fontsource + cn-fonts（批 4b 新增）
-    expect(list.services.length).toBeGreaterThanOrEqual(1)
-    expect(list.services.some((s) => s.id === 'preset:fontsource')).toBe(true)
+    expect(services.length).toBeGreaterThanOrEqual(1)
+    expect(services.some((s) => s.id === 'preset:fontsource')).toBe(true)
   })
 })
-
-// Re-export fake-http helper path for runtime resolution
-export {}

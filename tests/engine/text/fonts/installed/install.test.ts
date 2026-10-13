@@ -13,12 +13,13 @@
  */
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 
 import { installLocalFont, type InstallDeps } from '#core/text/font/installed/install'
 import { detectContainer } from '#core/text/font/installed/validate'
 
-const FIXTURE_PATH = join(import.meta.dir, '../../../../fixtures/fonts/NotoSansCJK-Test.otf')
+import { repoPath } from '#tests/helpers/paths'
+
+const FIXTURE_PATH = repoPath('tests/fixtures/fonts/NotoSansCJK-Test.otf')
 const fixtureBytes = new Uint8Array(readFileSync(FIXTURE_PATH))
 
 /** 合成的 woff2 容器（仅 'wOF2' 魔数 + 填充字节）——预校验走 sniff VF 路径 */
@@ -26,15 +27,6 @@ function fakeWoff2Bytes(): Uint8Array {
   const buf = new Uint8Array(64)
   const v = new DataView(buf.buffer)
   v.setUint32(0, 0x774f4632) // 'wOF2'
-  return buf
-}
-
-/** 合成 ttf 容器（仅 0x00010000 头 + numTables=0）——validate 走 parse 路径但 head 缺 */
-function fakeTtfBytes(): Uint8Array {
-  const buf = new Uint8Array(16)
-  const v = new DataView(buf.buffer)
-  v.setUint32(0, 0x00010000)
-  v.setUint16(4, 0)
   return buf
 }
 

@@ -45,6 +45,7 @@ import AppButton from '@/components/ui/button/AppButton.vue'
 import AppConfirmationDialog from '@/components/ui/dialog/AppConfirmationDialog.vue'
 import AppPlaceholder from '@/components/ui/feedback/AppPlaceholder.vue'
 import AppProgress from '@/components/ui/feedback/AppProgress.vue'
+import Tip from '@/components/ui/overlay/Tip.vue'
 
 const forkMsgs = useForkFonts()
 
@@ -96,8 +97,9 @@ async function loadInstalledFamilies(): Promise<void> {
   try {
     const views = await fetchInstalledFonts()
     installedFamilies.value = new Set(views.map((v) => v.family))
-  } catch {
+  } catch (error) {
     // 拉取失败保持旧集合——徽标缺席不阻断商店浏览
+    console.warn('[fonts] failed to load installed families for badges:', error)
   }
 }
 
@@ -423,9 +425,11 @@ function kindLabel(kind: StoreServiceKind): string {
         >
           {{ forkMsgs.fontsStoreCatalogBack }}
         </AppButton>
-        <span class="truncate text-[10px] text-muted" :title="activeService.baseURL">
-          {{ activeService.name }} · {{ truncateURL(activeService.baseURL) }}
-        </span>
+        <Tip :label="activeService.baseURL">
+          <span class="truncate text-[10px] text-muted">
+            {{ activeService.name }} · {{ truncateURL(activeService.baseURL) }}
+          </span>
+        </Tip>
       </div>
 
       <!-- 任务条：仅存在 running 任务时显示 -->
@@ -652,9 +656,9 @@ function kindLabel(kind: StoreServiceKind): string {
               @click="openService(service)"
             >
               <p class="truncate text-xs font-medium text-surface">{{ service.name }}</p>
-              <p class="truncate text-[9px] text-muted" :title="service.baseURL">
-                {{ truncateURL(service.baseURL) }}
-              </p>
+              <Tip :label="service.baseURL">
+                <p class="truncate text-[9px] text-muted">{{ truncateURL(service.baseURL) }}</p>
+              </Tip>
             </button>
             <span
               v-if="service.builtin"

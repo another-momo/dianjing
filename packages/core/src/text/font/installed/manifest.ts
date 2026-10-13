@@ -128,6 +128,59 @@ export function parseManifest(json: string): ParseResult {
   return validateManifest(raw)
 }
 
+/** 未校验的中间形态：字段全 unknown，逐字段收窄后才进 ManifestFile */
+interface RawManifestShape {
+  version?: unknown
+  updatedAt?: unknown
+  families?: unknown
+}
+
+interface RawFamilyShape {
+  family?: unknown
+  displayName?: unknown
+  styles?: unknown
+}
+
+interface RawStyleShape {
+  key?: unknown
+  weight?: unknown
+  italic?: unknown
+  variable?: unknown
+  wghtRange?: unknown
+  hash?: unknown
+  ext?: unknown
+  size?: unknown
+  artifact?: unknown
+  source?: unknown
+  installedAt?: unknown
+}
+
+interface RawWghtRangeShape {
+  min?: unknown
+  default?: unknown
+  max?: unknown
+}
+
+/** 全部字段校验通过后的已收窄形态（assembly 单点断言用） */
+interface ValidatedStyleShape {
+  key: string
+  weight: number
+  italic: boolean
+  variable: boolean
+  hash: string
+  size: number
+  artifact: ArtifactKind
+  source: 'local-file' | 'store'
+  installedAt: number
+  ext?: 'ttf' | 'otf'
+}
+
+type EntryFailure = { ok: false; reason: 'bad-entry'; detail: string }
+
+function entryFailure(detail: string): EntryFailure {
+  return { ok: false, reason: 'bad-entry', detail }
+}
+
 /**
  * 校验未知对象为 ManifestFile 形状。返回 ok 包裹的 manifest 或 ok=false。
  * 校验深度：
@@ -142,7 +195,7 @@ export function validateManifest(raw: unknown): ParseResult {
   if (raw === null || typeof raw !== 'object') {
     return { ok: false, reason: 'bad-shape', detail: 'manifest must be an object' }
   }
-  const r = raw as Record<string, unknown>
+  const r = raw as RawManifestShape
   if (r.version !== MANIFEST_VERSION) {
     return {
       ok: false,
@@ -168,37 +221,21 @@ export function validateManifest(raw: unknown): ParseResult {
 function validateFamilyMember(
   raw: unknown,
   index: number
-): { ok: true; family: FamilyEntry } | { ok: false; reason: 'bad-entry'; detail: string } {
+): { ok: true; family: FamilyEntry } | EntryFailure {
   if (raw === null || typeof raw !== 'object') {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${index}] must be an object`
-    }
+    return entryFailure(`families[${index}] must be an object`)
   }
-  const r = raw as Record<string, unknown>
+  const r = raw as RawFamilyShape
   if (typeof r.family !== 'string' || r.family.length === 0) {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${index}].family must be a non-empty string`
-    }
+    return entryFailure(`families[${index}].family must be a non-empty string`)
   }
   if (!Array.isArray(r.styles)) {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${index}].styles must be an array`
-    }
+    return entryFailure(`families[${index}].styles must be an array`)
   }
   let displayName: string | undefined
   if (r.displayName !== undefined) {
     if (typeof r.displayName !== 'string') {
-      return {
-        ok: false,
-        reason: 'bad-entry',
-        detail: `families[${index}].displayName must be a string when present`
-      }
+      return entryFailure(`families[${index}].displayName must be a string when present`)
     }
     displayName = r.displayName
   }
@@ -216,128 +253,111 @@ function validateFamilyMember(
   return { ok: true, family }
 }
 
+/** key 非空字符串 + weight 有限且 ∈ [1,1000] */
+function checkStyleKeyWeight(r: RawStyleShape, path: string): EntryFailure | null {
+  if (typeof r.key !== 'string' || r.key.length === 0) {
+    return entryFailure(`${path}.key must be a non-empty string`)
+  }
+  if (typeof r.weight !== 'number' || !Number.isFinite(r.weight)) {
+    return entryFailure(`${path}.weight must be a finite number`)
+  }
+  if (r.weight < 1 || r.weight > 1000) {
+    return entryFailure(`${path}.weight out of range [1,1000]: ${r.weight}`)
+  }
+  return null
+}
+
+/** italic / variable 必须是 boolean */
+function checkStyleFlags(r: RawStyleShape, path: string): EntryFailure | null {
+  if (typeof r.italic !== 'boolean') {
+    return entryFailure(`${path}.italic must be a boolean`)
+  }
+  if (typeof r.variable !== 'boolean') {
+    return entryFailure(`${path}.variable must be a boolean`)
+  }
+  return null
+}
+
+/**
+ * variable ⇔ wghtRange 联动校验（须在 checkStyleFlags 之后调用）。
+ * 通过时携出已校验区间；静态字体无区间（range 缺省）。
+ */
+function resolveStyleWghtRange(
+  r: RawStyleShape,
+  path: string,
+  familyIndex: number,
+  styleIndex: number
+): EntryFailure | { ok: true; range?: WghtRange } {
+  if (r.variable === true) {
+    if (r.wghtRange === undefined) {
+      return entryFailure(`${path}.wghtRange required for variable font`)
+    }
+    const wght = validateWghtRange(r.wghtRange, familyIndex, styleIndex)
+    if (!wght.ok) return wght
+    return { ok: true, range: wght.range }
+  }
+  if (r.wghtRange !== undefined) {
+    return entryFailure(`${path}.wghtRange forbidden for static font`)
+  }
+  return { ok: true }
+}
+
+/** hash / size / artifact / source / ext / installedAt 载荷字段校验 */
+function checkStylePayload(r: RawStyleShape, path: string): EntryFailure | null {
+  if (typeof r.hash !== 'string' || r.hash.length === 0) {
+    return entryFailure(`${path}.hash must be a non-empty string`)
+  }
+  if (typeof r.size !== 'number' || !Number.isFinite(r.size) || r.size < 0) {
+    return entryFailure(`${path}.size must be a non-negative finite number`)
+  }
+  if (r.artifact !== 'full' && r.artifact !== 'subset-collection') {
+    return entryFailure(`${path}.artifact must be 'full' or 'subset-collection'`)
+  }
+  if (r.source !== 'local-file' && r.source !== 'store') {
+    return entryFailure(`${path}.source must be 'local-file' or 'store'`)
+  }
+  if (r.ext !== undefined && r.ext !== 'ttf' && r.ext !== 'otf') {
+    return entryFailure(`${path}.ext must be 'ttf' or 'otf' when present`)
+  }
+  if (typeof r.installedAt !== 'number' || !Number.isFinite(r.installedAt)) {
+    return entryFailure(`${path}.installedAt must be a finite number`)
+  }
+  return null
+}
+
 function validateStyleMember(
   raw: unknown,
   familyIndex: number,
   styleIndex: number
-): { ok: true; style: StyleEntry } | { ok: false; reason: 'bad-entry'; detail: string } {
+): { ok: true; style: StyleEntry } | EntryFailure {
+  const path = `families[${familyIndex}].styles[${styleIndex}]`
   if (raw === null || typeof raw !== 'object') {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${familyIndex}].styles[${styleIndex}] must be an object`
-    }
+    return entryFailure(`${path} must be an object`)
   }
-  const r = raw as Record<string, unknown>
-  if (typeof r.key !== 'string' || r.key.length === 0) {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${familyIndex}].styles[${styleIndex}].key must be a non-empty string`
-    }
-  }
-  if (typeof r.weight !== 'number' || !Number.isFinite(r.weight)) {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${familyIndex}].styles[${styleIndex}].weight must be a finite number`
-    }
-  }
-  if (r.weight < 1 || r.weight > 1000) {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${familyIndex}].styles[${styleIndex}].weight out of range [1,1000]: ${r.weight}`
-    }
-  }
-  if (typeof r.italic !== 'boolean') {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${familyIndex}].styles[${styleIndex}].italic must be a boolean`
-    }
-  }
-  if (typeof r.variable !== 'boolean') {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${familyIndex}].styles[${styleIndex}].variable must be a boolean`
-    }
-  }
-  if (r.variable) {
-    if (r.wghtRange === undefined) {
-      return {
-        ok: false,
-        reason: 'bad-entry',
-        detail: `families[${familyIndex}].styles[${styleIndex}].wghtRange required for variable font`
-      }
-    }
-    const wght = validateWghtRange(r.wghtRange, familyIndex, styleIndex)
-    if (!wght.ok) return wght
-  } else if (r.wghtRange !== undefined) {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${familyIndex}].styles[${styleIndex}].wghtRange forbidden for static font`
-    }
-  }
-  if (typeof r.hash !== 'string' || r.hash.length === 0) {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${familyIndex}].styles[${styleIndex}].hash must be a non-empty string`
-    }
-  }
-  if (typeof r.size !== 'number' || !Number.isFinite(r.size) || r.size < 0) {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${familyIndex}].styles[${styleIndex}].size must be a non-negative finite number`
-    }
-  }
-  if (r.artifact !== 'full' && r.artifact !== 'subset-collection') {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${familyIndex}].styles[${styleIndex}].artifact must be 'full' or 'subset-collection'`
-    }
-  }
-  if (r.source !== 'local-file' && r.source !== 'store') {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${familyIndex}].styles[${styleIndex}].source must be 'local-file' or 'store'`
-    }
-  }
-  if (r.ext !== undefined && r.ext !== 'ttf' && r.ext !== 'otf') {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${familyIndex}].styles[${styleIndex}].ext must be 'ttf' or 'otf' when present`
-    }
-  }
-  if (typeof r.installedAt !== 'number' || !Number.isFinite(r.installedAt)) {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${familyIndex}].styles[${styleIndex}].installedAt must be a finite number`
-    }
-  }
+  const r = raw as RawStyleShape
+  const keyWeight = checkStyleKeyWeight(r, path)
+  if (keyWeight) return keyWeight
+  const flags = checkStyleFlags(r, path)
+  if (flags) return flags
+  const wght = resolveStyleWghtRange(r, path, familyIndex, styleIndex)
+  if (!wght.ok) return wght
+  const payload = checkStylePayload(r, path)
+  if (payload) return payload
+  // 上方四道校验已逐字段收窄——单点断言进已校验形态
+  const valid = r as ValidatedStyleShape
   const style: StyleEntry = {
-    key: r.key,
-    weight: r.weight,
-    italic: r.italic,
-    variable: r.variable,
-    hash: r.hash,
-    size: r.size,
-    artifact: r.artifact,
-    source: r.source,
-    installedAt: r.installedAt
+    key: valid.key,
+    weight: valid.weight,
+    italic: valid.italic,
+    variable: valid.variable,
+    hash: valid.hash,
+    size: valid.size,
+    artifact: valid.artifact,
+    source: valid.source,
+    installedAt: valid.installedAt
   }
-  if (r.ext !== undefined) style.ext = r.ext
-  if (r.variable && r.wghtRange !== undefined) {
-    style.wghtRange = r.wghtRange as WghtRange
-  }
+  if (valid.ext !== undefined) style.ext = valid.ext
+  if (wght.range !== undefined) style.wghtRange = wght.range
   return { ok: true, style }
 }
 
@@ -345,33 +365,27 @@ function validateWghtRange(
   raw: unknown,
   familyIndex: number,
   styleIndex: number
-): { ok: true; range: WghtRange } | { ok: false; reason: 'bad-entry'; detail: string } {
+): { ok: true; range: WghtRange } | EntryFailure {
   if (raw === null || typeof raw !== 'object') {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${familyIndex}].styles[${styleIndex}].wghtRange must be an object`
-    }
+    return entryFailure(
+      `families[${familyIndex}].styles[${styleIndex}].wghtRange must be an object`
+    )
   }
-  const r = raw as Record<string, unknown>
+  const r = raw as RawWghtRangeShape
   for (const key of ['min', 'default', 'max'] as const) {
     if (typeof r[key] !== 'number' || !Number.isFinite(r[key])) {
-      return {
-        ok: false,
-        reason: 'bad-entry',
-        detail: `families[${familyIndex}].styles[${styleIndex}].wghtRange.${key} must be a finite number`
-      }
+      return entryFailure(
+        `families[${familyIndex}].styles[${styleIndex}].wghtRange.${key} must be a finite number`
+      )
     }
   }
   const min = r.min as number
   const def = r.default as number
   const max = r.max as number
   if (!(min <= def && def <= max)) {
-    return {
-      ok: false,
-      reason: 'bad-entry',
-      detail: `families[${familyIndex}].styles[${styleIndex}].wghtRange violates min<=default<=max`
-    }
+    return entryFailure(
+      `families[${familyIndex}].styles[${styleIndex}].wghtRange violates min<=default<=max`
+    )
   }
   return { ok: true, range: { min, default: def, max } }
 }

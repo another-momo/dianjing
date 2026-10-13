@@ -12,9 +12,8 @@
 import { useLocalStorage } from '@vueuse/core'
 import { computed, onMounted, ref, watch } from 'vue'
 
-import { fontManager } from '@open-pencil/core/text'
+import { fontFamilyDisplayName, fontManager } from '@open-pencil/core/text'
 import type { FontFamilyOption } from '@open-pencil/core/text'
-import { fontFamilyDisplayName } from '@open-pencil/core/text'
 import { installLocalFont } from '@open-pencil/core/text/font/installed/install'
 
 /**
