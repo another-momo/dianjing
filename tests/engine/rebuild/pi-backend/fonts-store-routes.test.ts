@@ -605,8 +605,9 @@ describe('负面路径与边界', () => {
     )
     expect(listRes.statusCode).toBe(200)
     const list = JSON.parse(listRes.body) as { services: Array<{ id: string; builtin: boolean }> }
-    expect(list.services).toHaveLength(1)
-    expect(list.services[0].id).toBe('preset:fontsource')
+    // 内置预设：fontsource + cn-fonts（批 4b 新增）
+    expect(list.services.length).toBeGreaterThanOrEqual(1)
+    expect(list.services.some((s) => s.id === 'preset:fontsource')).toBe(true)
   })
 })
 

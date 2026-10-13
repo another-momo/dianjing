@@ -591,7 +591,7 @@ function handleReadonlyPiRequest(
 }
 
 /**
- * 字体域端点判定：四个存量 exact path + 商店前缀。抽成模块级 helper —
+ * 字体域端点判定：六个 exact path + 商店前缀。抽成模块级 helper —
  * 主请求分发函数的圈复杂度本就贴着上限，端点组判定外置以留余量。
  */
 function isFontsEndpointPath(pathname: string): boolean {
@@ -600,6 +600,8 @@ function isFontsEndpointPath(pathname: string): boolean {
     pathname === '/api/pi/fonts/install' ||
     pathname === '/api/pi/fonts/read' ||
     pathname === '/api/pi/fonts/delete' ||
+    pathname === '/api/pi/fonts/pieces' ||
+    pathname === '/api/pi/fonts/piece' ||
     pathname.startsWith('/api/pi/fonts/store/')
   )
 }

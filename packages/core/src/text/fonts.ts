@@ -140,7 +140,9 @@ export class FontManager {
   private fontEvictions = 0
   private browserFontFaces = new Map<string, FontFace[]>()
   private fontEvictListener: ((family: string, style: string) => void) | null = null
-  /** CDN 键的分片 alias 注册表：键 = 'Family|Style'，条目按注册顺序（alias 序即回退链序） */
+  /** 分片 alias 注册表：键 = 'Family|Style'（与 FontManager 注册键一致），条目按
+   * 注册顺序（alias 序即回退链序）。CDN 路径（loadCnFontSubset）与用户安装
+   * subset-collection 路径（readSubsetPieces）共用同一张表——user 键同样登记 alias。 */
   private renderAliasFamilies = new Map<string, RenderAliasEntry[]>()
   /** T41：VF 入账跟踪——键级 fvar 嗅探（woff2 压缩流读不出区间时记 null，用全区间兜底） */
   private variableFontKeys = new Set<string>()
@@ -567,18 +569,7 @@ export class FontManager {
     // 应用字体库（用户安装）族枚举：注入存在时拉取；同名族不覆盖既有键
     // ——web provider 同构（`if (!byFamily.has(family))`），与本地族段同优先级
     // （安装在后的来源胜，但 web/local 都先于 user 写键，user 仅补漏）
-    if (this.userFontProvider) {
-      try {
-        const userViews = await this.userFontProvider.list()
-        for (const view of userViews) {
-          if (!includeDisabled && !this.allowlist.isEnabled(view.family)) continue
-          if (!byFamily.has(view.family))
-            byFamily.set(view.family, { family: view.family, source: 'user' })
-        }
-      } catch (e) {
-        console.warn('User font provider list failed:', e)
-      }
-    }
+    await this.collectUserFontProviderOptions(byFamily, includeDisabled)
     return [...byFamily.values()].sort((a, b) => a.family.localeCompare(b.family))
   }
 
@@ -671,7 +662,11 @@ export class FontManager {
     return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
   }
 
-  async loadLocalFont(family: string, style = 'Regular'): Promise<ArrayBuffer | null> {
+  async loadLocalFont(
+    family: string,
+    style = 'Regular',
+    characters = ''
+  ): Promise<ArrayBuffer | null> {
     if (!(await this.customService.isCustomOrAllowed(family))) return null
     const cacheKey = `${family}|${style}`
     const loaded = this.loadedFamilies.get(cacheKey)
@@ -692,21 +687,11 @@ export class FontManager {
     }
 
     // 应用字体库（用户安装）段：注入存在时按 style 键匹配取字节。失败静默——不阻断
-    // bundled 兜底链路（与 local 段同构 catch-all）。
+    // bundled 兜底链路（与 local 段同构 catch-all）。subset-collection 族走专属
+    // 通路（read 端点返 501；本段优先试 readSubsetPieces 端点侧 pieces/piece 通路）。
     if (this.userFontProvider) {
-      try {
-        const views = await this.userFontProvider.list()
-        const view = views.find((v) => v.family === family)
-        if (view) {
-          const key = matchUserStyleKey(view, style)
-          if (key) {
-            const buffer = await this.userFontProvider.read(family, key)
-            if (buffer) return this.registerAndCache(family, style, buffer, 'user')
-          }
-        }
-      } catch (e) {
-        console.warn(`User font provider load failed for "${family}" (${style}):`, e)
-      }
+      const userBuffer = await this.tryLoadFromUserFontProvider(family, style, characters)
+      if (userBuffer) return userBuffer
     }
 
     const bundledURL = BUNDLED_FONTS[cacheKey]
@@ -816,7 +801,7 @@ export class FontManager {
     }
 
     return (
-      (await this.loadLocalFont(family, style)) ??
+      (await this.loadLocalFont(family, style, characters)) ??
       (await this.loadCachedFont(family, style, characters)) ??
       (await this.loadRemoteFont(family, style, characters, signal))
     )
@@ -1046,6 +1031,61 @@ export class FontManager {
    * typeface（互斥 unicode-range 下只有一片出字形），alias 经 renderFamilyAliases →
    * 段落 fontFamilies 回退链合流。增量请求会重选已注册片，按 url 去重。
    */
+  /**
+   * 从 userFontProvider 拉取本地安装族字节。subset-collection 族走 pieces/piece
+   * 通路（list 端点不返 artifact 字段，需经 read 501 后回退到 readSubsetPieces）。
+   * 失败静默——不阻断 bundled 兜底链。返回 null = 需继续往下试。
+   *
+   * style 是请求侧（FontManager 注册键 = family|style 缓存键），与 key（list
+   * 端点 styles[].key = 安装清单真值）分离：read 全量路径用 key，subset 路径
+   * 传 (key, style) 让 loader 按 key 精确选片、按 style 入注册键。
+   */
+  private async tryLoadFromUserFontProvider(
+    family: string,
+    style: string,
+    characters: string
+  ): Promise<ArrayBuffer | null> {
+    const provider = this.userFontProvider
+    if (!provider) return null
+    try {
+      const views = await provider.list()
+      const view = views.find((v) => v.family === family)
+      if (!view) return null
+      const key = matchUserStyleKey(view, style)
+      if (!key) return null
+      const buffer = await provider.read(family, key)
+      if (buffer) return this.registerAndCache(family, style, buffer, 'user')
+      if (provider.readSubsetPieces) {
+        const subsetBuffer = await this.loadInstalledCnFontPieces(family, key, style, characters)
+        if (subsetBuffer) return subsetBuffer
+      }
+    } catch (e) {
+      console.warn(`User font provider load failed for "${family}" (${style}):`, e)
+    }
+    return null
+  }
+
+  /**
+   * 应用字体库族枚举写入 byFamily。注入存在时拉取 list；失败静默。同名族
+   * 不覆盖既有键——web provider 同构。
+   */
+  private async collectUserFontProviderOptions(
+    byFamily: Map<string, FontFamilyOption>,
+    includeDisabled: boolean
+  ): Promise<void> {
+    if (!this.userFontProvider) return
+    try {
+      const userViews = await this.userFontProvider.list()
+      for (const view of userViews) {
+        if (!includeDisabled && !this.allowlist.isEnabled(view.family)) continue
+        if (!byFamily.has(view.family))
+          byFamily.set(view.family, { family: view.family, source: 'user' })
+      }
+    } catch (e) {
+      console.warn('User font provider list failed:', e)
+    }
+  }
+
   /** CDN 描述符解析：自定义服务族最优先（原始名 + normalizeFontFamily 名双查，撞名自定义胜）→ registry 精选层 → catalog 全量目录兜底 */
   private cnFontDescriptor(family: string): CnFontCdnDescriptor | undefined {
     const normalized = normalizeFontFamily(family)
@@ -1091,12 +1131,35 @@ export class FontManager {
     const result = await cnFontSubsetResolver.fetch(family, descriptor, style, requestedCharacters)
     if (!result || result.pieces.length === 0) return null
 
+    return this.registerCnFontPieces(
+      family,
+      style,
+      result.pieces.map((piece) => ({
+        url: piece.url,
+        buffer: piece.buffer,
+        ranges: piece.ranges
+      })),
+      result.coveredCharacters
+    )
+  }
+
+  /**
+   * 注册分片集合到 FontManager（共享 helper）：首片 registerAndCache real-name
+   * primary、后续 trackSupplementalData、每片 CanvasKit alias 防同名塌缩。
+   * 渲染期 CDN 路径（loadCnFontSubset）与用户安装 subset-collection 路径共用。
+   */
+  private registerCnFontPieces(
+    family: string,
+    style: string,
+    pieces: Array<{ url: string; buffer: ArrayBuffer; ranges: Array<[number, number]> }>,
+    coveredCharacters: readonly string[]
+  ): ArrayBuffer | null {
     const key = `${family}|${style}`
     const aliases = this.renderAliasFamilies.get(key) ?? []
     const seenURLs = new Set(aliases.map((entry) => entry.url))
     let primary = this.loadedFamilies.get(key) ?? null
 
-    for (const piece of result.pieces) {
+    for (const piece of pieces) {
       if (seenURLs.has(piece.url)) continue
       const unicodeRange = formatUnicodeRanges(piece.ranges)
       if (primary) {
@@ -1113,9 +1176,47 @@ export class FontManager {
     this.renderAliasFamilies.set(key, aliases)
 
     const loadedCoverage = this.remoteCoverage.get(key) ?? new Set<string>()
-    for (const character of result.coveredCharacters) loadedCoverage.add(character)
+    for (const character of coveredCharacters) loadedCoverage.add(character)
     this.remoteCoverage.set(key, loadedCoverage)
     return primary
+  }
+
+  /**
+   * 渲染期用户安装 subset-collection 族加载：注入 userFontProvider.readSubsetPieces
+   * 失败返 null（与 loadCnFontSubset 同语义——回退 bundled/web 兜底链）。
+   * shared alias helper 保证两源同名分片策略一致（首片 real-name + 后续 alias）。
+   *
+   * 参数对（styleKey, style）：
+   *  - styleKey = list 端点 styles[].key（安装清单真值，cn-piece-loader 按它精确选片）
+   *  - style = 请求侧（FontManager 注册键；与 family|style 缓存键一致）
+   */
+  private async loadInstalledCnFontPieces(
+    family: string,
+    styleKey: string,
+    style: string,
+    characters: string
+  ): Promise<ArrayBuffer | null> {
+    if (!this.userFontProvider?.readSubsetPieces) return null
+    const result = await this.userFontProvider.readSubsetPieces({
+      family,
+      styleKey,
+      style,
+      characters
+    })
+    if (!result) return null
+    return this.registerCnFontPieces(
+      family,
+      style,
+      [
+        { url: result.primary.hash, buffer: result.primary.buffer, ranges: result.primary.ranges },
+        ...result.supplemental.map((s) => ({
+          url: s.hash,
+          buffer: s.buffer,
+          ranges: s.ranges
+        }))
+      ],
+      result.coveredCharacters
+    )
   }
 
   /** CDN 键的分片 alias 名（排版 fontFamilies 回退链用；非 CDN 键恒为空数组） */

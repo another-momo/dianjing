@@ -7,6 +7,8 @@
  *  - POST   /api/pi/fonts/install (bytes 形态)   body = raw bytes（per-route 上限 60MB）
  *  - GET    /api/pi/fonts/read?family=&style=    → bytes（按 content-type 推 mime）
  *  - POST   /api/pi/fonts/delete                body { family, style? } → 删字节 + manifest
+ *  - GET    /api/pi/fonts/pieces?family=        → subset index.json 内容
+ *  - GET    /api/pi/fonts/piece?family=&hash=   → 单片字节（mime font/ttf）
  *
  * 入参形态：raw bytes body（Content-Type application/octet-stream）。Electron
  * 形态也走 bytes——renderer 侧经文件对话框通道读字节后上传，服务端不直读
@@ -18,7 +20,7 @@
  * 错误响应（统一 JSON 信封）：
  *  - 4xx → { error, code? }（code 是稳定错误码）
  *  - 5xx → { error }（不外泄细节）
- *  - 字节流响应不走 JSON 信封（read 端点直接 file bytes）
+ *  - 字节流响应不走 JSON 信封（read / piece 端点直接 file bytes）
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
@@ -36,6 +38,11 @@ const LIST_PATHNAME = '/api/pi/fonts/list'
 const INSTALL_PATHNAME = '/api/pi/fonts/install'
 const READ_PATHNAME = '/api/pi/fonts/read'
 const DELETE_PATHNAME = '/api/pi/fonts/delete'
+const PIECES_PATHNAME = '/api/pi/fonts/pieces'
+const PIECE_PATHNAME = '/api/pi/fonts/piece'
+
+/** piece 端点 hash 校验：32 字符 hex（与 layout.ts ContentHash 形态一致） */
+const HEX_32_PATTERN = /^[0-9a-f]{32}$/i
 
 /** per-route 字节上限——install 收字节形态时单独计数（http-utils.ts 全局 32MB 单值不动） */
 const INSTALL_BODY_LIMIT = DEFAULT_MAX_BYTES
@@ -64,7 +71,9 @@ export async function handleFontsRequest(
     pathname !== LIST_PATHNAME &&
     pathname !== INSTALL_PATHNAME &&
     pathname !== READ_PATHNAME &&
-    pathname !== DELETE_PATHNAME
+    pathname !== DELETE_PATHNAME &&
+    pathname !== PIECES_PATHNAME &&
+    pathname !== PIECE_PATHNAME
   ) {
     if (deps.storeRouter) {
       const handled = await deps.storeRouter(req, res, pathname)
@@ -80,6 +89,8 @@ export async function handleFontsRequest(
   try {
     if (pathname === LIST_PATHNAME) return await handleList(deps, req, res)
     if (pathname === INSTALL_PATHNAME) return await handleInstall(deps, req, res)
+    if (pathname === PIECES_PATHNAME) return await handlePieces(deps, req, res)
+    if (pathname === PIECE_PATHNAME) return await handlePiece(deps, req, res)
     if (pathname === READ_PATHNAME) return await handleRead(deps, req, res)
     return await handleDelete(deps, req, res)
   } catch (error) {
@@ -221,7 +232,7 @@ async function handleRead(
   }
   if (styleEntry.artifact !== 'full') {
     sendJSON(res, 501, {
-      error: 'subset-collection artifacts require the per-piece endpoint (not yet implemented)',
+      error: 'subset-collection artifacts require /api/pi/fonts/pieces and /api/pi/fonts/piece',
       code: 'subset-not-supported'
     })
     return true
@@ -286,6 +297,106 @@ async function handleDelete(
     return true
   }
   sendJSON(res, 200, { ok: true, family, deletedFiles: result.removedFiles, deleted: true })
+  return true
+}
+
+// ── GET /api/pi/fonts/pieces?family= ─────────────────────────────────
+
+/**
+ * 读分片集合索引：renderer 侧 cn-piece-loader 拉一次后按字符选片再逐片取。
+ * 族不存在或非 subset-collection → 404；index 坏文件按 404 兜（不抛）。
+ */
+async function handlePieces(
+  deps: FontsRouteDeps,
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<boolean> {
+  if (req.method !== 'GET') {
+    sendJSON(res, 405, { error: 'method not allowed' })
+    return true
+  }
+  const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+  const family = url.searchParams.get('family')
+  if (!family) {
+    sendJSON(res, 400, { error: 'family query param required', code: 'missing-family' })
+    return true
+  }
+  const manifest = deps.store.readManifest()
+  const familyEntry = manifest.families.find((f) => f.family === family)
+  if (!familyEntry) {
+    sendJSON(res, 404, { error: `family not found: ${family}`, code: 'not-found' })
+    return true
+  }
+  const isSubset = familyEntry.styles.some((s) => s.artifact === 'subset-collection')
+  if (!isSubset) {
+    sendJSON(res, 400, {
+      error: 'family is not a subset collection; use /read endpoint instead',
+      code: 'not-subset'
+    })
+    return true
+  }
+  const index = deps.store.readSubsetIndex(family)
+  if (!index) {
+    sendJSON(res, 404, {
+      error: `subset index missing or corrupt: ${family}`,
+      code: 'index-missing'
+    })
+    return true
+  }
+  sendJSON(res, 200, index)
+  return true
+}
+
+// ── GET /api/pi/fonts/piece?family=&hash= ────────────────────────────
+
+/**
+ * 读单片字节。hash 必须是 32 字符 hex（防路径穿）；族或片不存在 → 404。
+ * 不做内容 hash 二次校验（端点已限定 hex 形态；落盘由 install 阶段保证）。
+ */
+async function handlePiece(
+  deps: FontsRouteDeps,
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<boolean> {
+  if (req.method !== 'GET') {
+    sendJSON(res, 405, { error: 'method not allowed' })
+    return true
+  }
+  const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+  const family = url.searchParams.get('family')
+  const hash = url.searchParams.get('hash')
+  if (!family || !hash) {
+    sendJSON(res, 400, { error: 'family and hash query params required', code: 'missing-params' })
+    return true
+  }
+  if (!HEX_32_PATTERN.test(hash)) {
+    sendJSON(res, 400, { error: 'hash must be 32 hex characters', code: 'bad-hash' })
+    return true
+  }
+  const manifest = deps.store.readManifest()
+  const familyEntry = manifest.families.find((f) => f.family === family)
+  if (!familyEntry) {
+    sendJSON(res, 404, { error: `family not found: ${family}`, code: 'not-found' })
+    return true
+  }
+  const isSubset = familyEntry.styles.some((s) => s.artifact === 'subset-collection')
+  if (!isSubset) {
+    sendJSON(res, 400, {
+      error: 'family is not a subset collection; use /read endpoint instead',
+      code: 'not-subset'
+    })
+    return true
+  }
+  const bytes = deps.store.readSubsetPiece(family, hash.toLowerCase())
+  if (bytes === null) {
+    sendJSON(res, 404, { error: `piece not found: ${family} / ${hash}`, code: 'piece-missing' })
+    return true
+  }
+  res.writeHead(200, {
+    'content-type': 'font/ttf',
+    'content-length': String(bytes.byteLength)
+  })
+  res.end(bytes)
   return true
 }
 

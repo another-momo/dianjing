@@ -12,6 +12,11 @@
  *
  * 出网政策（owner 已拍板）：不强制 https、不封内网段；安全兜底 = 大小上限 +
  * 超时 + 完整校验链（魔数 + 大小 + opentype parse + VF 嗅探 + name 表）。
+ *
+ * 分片集合形态（cn-fonts）：单 style 内多片并发 4；任务 total = style 数；
+ * 任一 style 任一片失败 → 该 style 整条进 failures；manifest 写入仅在全部
+ * style 收口后。
+ * 取消信号贯穿 fetch/transcode/validate；已落盘片无 manifest 登记即不可见。
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
@@ -32,6 +37,7 @@ import type {
   StoreServiceDescriptor
 } from '@open-pencil/core/text/font/store/types'
 
+import { scheduleSubsetInstall } from './cn-install'
 import { mapRejectionToText, readJSONBody, sendJSON } from './http-helpers'
 import {
   createCustomServicesStore,
@@ -41,6 +47,7 @@ import {
 } from './services-store'
 import { type FontsStore } from './store'
 import type { StoreTaskRegistry } from './store-tasks'
+import { composeSignals, fetchStyleBytes, isAborted } from './stream-helpers'
 
 const SERVICES_LIST_PATH = '/api/pi/fonts/store/services'
 const SERVICES_REGISTER_PATH = '/api/pi/fonts/store/services'
@@ -133,22 +140,7 @@ function findService(deps: StoreRouteDeps, serviceId: string): StoreServiceDescr
   return all.find((s) => s.id === serviceId) ?? null
 }
 
-/**
- * 组合两条 abort 信号（任务级 cancel + 端点级 timeout）——任一触发即中止。
- * 生命周期：listener once 自清理；composed 随 fetch 完成被 GC，调用方只需持有
- * caller signal 自身。
- */
-function composeSignals(a: AbortSignal, b?: AbortSignal): AbortSignal {
-  if (!b) return a
-  const composed = new AbortController()
-  const onA = () => composed.abort(a.reason)
-  const onB = () => composed.abort(b.reason)
-  if (a.aborted) onA()
-  else a.addEventListener('abort', onA, { once: true })
-  if (b.aborted) onB()
-  else b.addEventListener('abort', onB, { once: true })
-  return composed.signal
-}
+/** composeSignals/isAborted/fetchStyleBytes 来自 ./stream-helpers（owner：单文件 ≤ 600 行） */
 
 // ── 端点实现 ─────────────────────────────────────────────────────────
 
@@ -274,7 +266,12 @@ async function handleInstall(
     sendJSON(res, 400, { error: parsed.error })
     return true
   }
-  const r = parsed.body as { service?: unknown; family?: unknown; styles?: unknown }
+  const r = parsed.body as {
+    service?: unknown
+    family?: unknown
+    styles?: unknown
+    piecesBaseURL?: unknown
+  }
   if (typeof r.service !== 'string' || r.service.length === 0) {
     sendJSON(res, 400, { error: 'service required', code: 'missing-service' })
     return true
@@ -287,6 +284,19 @@ async function handleInstall(
   if (!service) {
     sendJSON(res, 404, { error: `service not found: ${r.service}`, code: 'not-found' })
     return true
+  }
+  // 测试用 baseURL 覆盖（piecesRef descriptor 缺 baseURL 时拼出 //pkg@ver 非法 URL；
+  // 真实端点用 service 内置的 baseURL 派生，测试 / 自定义场景可由本字段覆盖）
+  let piecesBaseURL: string | null | undefined
+  if (r.piecesBaseURL !== undefined) {
+    piecesBaseURL = extractPiecesBaseURL(r)
+    if (piecesBaseURL === null) {
+      sendJSON(res, 400, {
+        error: 'piecesBaseURL is not a valid http(s) URL',
+        code: 'bad-base-url'
+      })
+      return true
+    }
   }
   const stylesFilter = Array.isArray(r.styles)
     ? r.styles.filter((s): s is string => typeof s === 'string' && s.length > 0)
@@ -323,6 +333,27 @@ async function handleInstall(
     return true
   }
 
+  // 分片集合形态（cn-fonts）：单 style 是一条 (weight, italic) 集合，整体装
+  // 由 installSubsetFamily 串行管；任务 total = 全部 style 合计片数
+  if (selectedStyles.every((s) => s.piecesRef !== undefined)) {
+    // 测试 / 自定义场景可由 piecesBaseURL 覆盖（避免空 baseURL 拼出 // 非法 URL）
+    const stylesWithBase = piecesBaseURL
+      ? selectedStyles.map((s) => ({
+          ...s,
+          piecesRef: s.piecesRef ? { ...s.piecesRef, baseURL: piecesBaseURL } : s.piecesRef
+        }))
+      : selectedStyles
+    return scheduleSubsetInstall(deps, res, service, catalogFamily, stylesWithBase)
+  }
+  if (selectedStyles.some((s) => s.piecesRef !== undefined)) {
+    // 混态不该出现——适配器层保证 kind 决定整族形态；硬拒
+    sendJSON(res, 400, {
+      error: 'mixed piece/file styles in the same family are not supported',
+      code: 'mixed-artifact'
+    })
+    return true
+  }
+
   const tasks = deps.tasks
   // 并发上限：同刻最多 8 个安装任务（单任务占内存随族样式数线性，防滥用塞爆）
   if (tasks.countRunning() >= 8) {
@@ -334,6 +365,14 @@ async function handleInstall(
     family: catalogFamily.family,
     total: selectedStyles.length,
     worker: async (signal, taskRef) => {
+      // 跨请求混态守卫：上轮若以分片集合形态装过同族（manifest 该族含
+      // subset-collection 项），本轮 full 写入会与旧片/旧 index.json 混杂。
+      // 在首个 style 落盘前 deleteFamily 清旧族——一次请求只清一次。
+      const priorManifest = deps.store.readManifest()
+      const priorFamily = priorManifest.families.find((f) => f.family === catalogFamily.family)
+      if (priorFamily?.styles.some((s) => s.artifact === 'subset-collection')) {
+        deps.store.deleteFamily(catalogFamily.family)
+      }
       for (const style of selectedStyles) {
         if (signal.aborted) return
         try {
@@ -352,6 +391,10 @@ async function handleInstall(
   sendJSON(res, 200, { ok: true, taskId: task.id, shortCircuited })
   return true
 }
+
+/**
+ * scheduleSubsetInstall 来自 ./cn-install（owner 指令：单文件 ≤ 600 行）
+ */
 
 async function installOneStyle(
   deps: StoreRouteDeps,
@@ -443,6 +486,20 @@ async function handleCancelTask(
 // ── 流式 fetch helper（按上限读；abort 即拒） ────────────────────────
 
 /**
+ * 从请求体提取 piecesBaseURL：缺省 / 非字符串 / 非 http(s) URL → null（调用方 400）。
+ * 抽出独立函数只为压 handleInstall 的 complexity。
+ */
+function extractPiecesBaseURL(r: { piecesBaseURL?: unknown }): string | null {
+  if (typeof r.piecesBaseURL !== 'string' || r.piecesBaseURL.length === 0) return null
+  try {
+    const parsed = new URL(r.piecesBaseURL)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? r.piecesBaseURL : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * fetch Response.body → node:stream/web ReadableStream。两侧类型声明不同源
  * （undici/fetch 全局 vs node:stream/web），运行时是同一对象，单 cast 桥接。
  */
@@ -453,47 +510,8 @@ function toNodeWebStream(body: unknown): NodeWebReadableStream {
 /**
  * 读 AbortSignal.aborted 的活值。跨 await 后 TS 会把循环开头 if 检查过的
  * signal.aborted 窄化成 false——abort 恰恰发生在 await 期间，函数边界打断窄化。
+ * （isAborted 来自 ./stream-helpers）
  */
-function isAborted(signal: AbortSignal): boolean {
-  return signal.aborted
-}
-
-type FetchStyleResult = { ok: true; bytes: Uint8Array } | { ok: false; error: string }
-
-async function fetchStyleBytes(
-  url: string,
-  signal: AbortSignal,
-  maxBytes: number,
-  timeoutMs: number
-): Promise<FetchStyleResult> {
-  if (signal.aborted) return { ok: false, error: 'cancelled' }
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(new Error('style fetch timeout')), timeoutMs)
-  const composed = composeSignals(signal, controller.signal)
-  try {
-    const response = await fetch(url, { signal: composed })
-    if (!response.ok) return { ok: false, error: `HTTP ${response.status}` }
-    if (!response.body) return { ok: false, error: 'no body' }
-    const chunks: Buffer[] = []
-    let total = 0
-    const nodeStream = Readable.fromWeb(toNodeWebStream(response.body))
-    for await (const chunk of nodeStream) {
-      const buf = chunk as Buffer
-      total += buf.length
-      if (total > maxBytes) {
-        controller.abort(new Error('too large'))
-        return { ok: false, error: `body exceeds ${maxBytes} bytes` }
-      }
-      chunks.push(buf)
-    }
-    return { ok: true, bytes: new Uint8Array(Buffer.concat(chunks)) }
-  } catch (error) {
-    if (isAborted(signal)) return { ok: false, error: 'cancelled' }
-    return { ok: false, error: error instanceof Error ? error.message : String(error) }
-  } finally {
-    clearTimeout(timer)
-  }
-}
 
 /**
  * 受限 fetch（适配器用）：text()/json() 流式读按 maxBytes 截断——目录响应

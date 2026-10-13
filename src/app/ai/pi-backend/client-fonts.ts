@@ -6,6 +6,8 @@
  *   POST   /api/pi/fonts/install               body=raw bytes（Content-Type application/octet-stream）
  *   GET    /api/pi/fonts/read?family=&style=   → bytes（按 content-type 推 mime）
  *   DELETE /api/pi/fonts/delete                body { family, style? } → 删字节 + manifest
+ *   GET    /api/pi/fonts/pieces?family=        → subset index.json 内容
+ *   GET    /api/pi/fonts/piece?family=&hash=   → 单片字节（mime font/ttf）
  *
  * 字节传输：list 走 JSON 序列化；install / read 走 raw bytes（FontFace / File
  * 等二进制友好），headers 显式声明 content-type / accept。
@@ -21,6 +23,7 @@ import type {
 } from '@open-pencil/core/text/font/store/types'
 
 export type { FamilyView } from '@open-pencil/core/text/font/installed/manifest'
+import { loadInstalledSubsetPieces } from '@open-pencil/core/text/font/installed/cn-piece-loader'
 export type {
   StoreCatalogFamily,
   StoreCatalogStyle,
@@ -76,6 +79,81 @@ export async function readFontBytes(family: string, styleKey: string): Promise<A
   const params = new URLSearchParams({ family, style: styleKey })
   const response = await fetch(`${API_PREFIX}/fonts/read?${params.toString()}`, { method: 'GET' })
   if (!response.ok) throw new Error(await readErrorBody(response))
+  return response.arrayBuffer()
+}
+
+/**
+ * subset-collection 族的渲染期加载：拉 index + 选片 + 拉片字节，端到端包装。
+ * renderer 侧经 FontManager 注入；core 域不直接调用（UserFontProvider 适配层
+ * 把 client-fonts 适配为该接口后注入 fontManager.setUserFontProvider）。
+ *
+ * 选片策略：本地实现——按 (weight, italic) 过滤 + 字符命中 ranges；与 core
+ * 域 cn-piece-loader 同语义。client-fonts 是浏览器侧单实例，可独立保
+ * 持选片逻辑——renderer 注入 fetch 时不依赖 core 域选片（core 依赖注入
+ * PieceFetchLike 接口而非本函数）。
+ */
+export interface ReadSubsetPiecesResult {
+  primary: { hash: string; buffer: ArrayBuffer; ranges: Array<[number, number]> }
+  supplemental: Array<{ hash: string; buffer: ArrayBuffer; ranges: Array<[number, number]> }>
+  coveredCharacters: string[]
+}
+
+export async function readInstalledSubsetPieces(
+  family: string,
+  styleKey: string,
+  characters: string
+): Promise<ReadSubsetPiecesResult | null> {
+  // 委派 core 域 cn-piece-loader 选片 + 取片逻辑——loader 按 styleKey 精确
+  // 匹配 index 条目（适配器层 VF 族 index weight 恒 400，按 weight/italic 推断
+  // 会过滤为零）；HTTP 仅作为端点接入点。
+  const result = await loadInstalledSubsetPieces(family, styleKey, characters, {
+    fetchIndex: fetchInstalledSubsetIndex,
+    fetchPiece: fetchInstalledSubsetPiece
+  })
+  if (!result) return null
+  return {
+    primary: {
+      hash: result.primary.url,
+      buffer: result.primary.buffer,
+      ranges: result.primary.ranges
+    },
+    supplemental: result.supplemental.map((p) => ({
+      hash: p.url,
+      buffer: p.buffer,
+      ranges: p.ranges
+    })),
+    coveredCharacters: result.coveredCharacters
+  }
+}
+
+interface SubsetIndexPayload {
+  family: string
+  styles: Array<{
+    styleKey: string
+    weight: number
+    italic: boolean
+    hash: string
+    size: number
+    ranges: Array<[number, number]>
+  }>
+}
+
+async function fetchInstalledSubsetIndex(family: string): Promise<SubsetIndexPayload | null> {
+  const params = new URLSearchParams({ family })
+  const response = await fetch(`${API_PREFIX}/fonts/pieces?${params.toString()}`, { method: 'GET' })
+  if (!response.ok) return null
+  const body = (await response.json()) as unknown
+  if (!body || typeof body !== 'object') return null
+  return body as SubsetIndexPayload
+}
+
+async function fetchInstalledSubsetPiece(
+  family: string,
+  hash: string
+): Promise<ArrayBuffer | null> {
+  const params = new URLSearchParams({ family, hash })
+  const response = await fetch(`${API_PREFIX}/fonts/piece?${params.toString()}`, { method: 'GET' })
+  if (!response.ok) return null
   return response.arrayBuffer()
 }
 

@@ -81,7 +81,10 @@ const productionFontLoader: FontResolutionLoader = async (candidate, demand) => 
     case 'registered':
       return fontManager.isStyleLoaded(candidate.family, candidate.style)
     case 'local':
-      return (await fontManager.loadLocalFont(candidate.family, candidate.style)) !== null
+      return (
+        (await fontManager.loadLocalFont(candidate.family, candidate.style, demand.characters)) !==
+        null
+      )
     case 'cache':
       return (await fontManager.loadCachedFont(candidate.family, candidate.style)) !== null
     case 'remote':

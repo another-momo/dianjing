@@ -5,13 +5,18 @@
  * 商店面板的「服务清单 → 目录浏览 → 安装任务」全链数据均自此出口。
  */
 
+import type { CnFontCdnDescriptor } from '#core/text/font/registry'
+
 /** 单 style = 一个 (weight, style) 字形文件 */
 export interface StoreCatalogStyle {
   /** 渲染期 style 字符串，如 'Regular' / 'Bold Italic' */
   style: string
   weight: number
   italic: boolean
-  /** 字节直链（适配器层拼装的最终可拉取 URL） */
+  /**
+   * 字节直链（适配器层拼装的最终可拉取 URL）。
+   * piecesRef 存在时此字段置空串——分片集合形态不走单文件 URL。
+   */
   fileURL: string
   /** 容器格式——端点侧据此决定是否走 woff2 转码 */
   format: 'ttf' | 'otf' | 'woff2'
@@ -19,6 +24,12 @@ export interface StoreCatalogStyle {
   variable?: boolean
   /** VF wght 区间（min/max）。Fontsource 上游不显式提供，由 weights 数组派生 */
   wghtRange?: { min: number; max: number }
+  /**
+   * 分片集合引用（中网族形态）：存在则 style 不走单文件安装，而走分片
+   * 集合管线（result.css + 逐片 woff2）。形状与 registry 的 CnFontCdnDescriptor
+   * 对齐（package/version?/indexPath?/cssPath?/baseURL?）。
+   */
+  piecesRef?: CnFontCdnDescriptor
 }
 
 /** 一族 = 一个字体家族的目录条目 */
@@ -37,7 +48,7 @@ export interface StoreCatalogFamily {
 }
 
 /** 服务 kind 白名单——注册表单的 kind 选项据此枚举 */
-export type StoreServiceKind = 'fontsource' | 'standard' | 'gf-api'
+export type StoreServiceKind = 'fontsource' | 'standard' | 'gf-api' | 'cn-fonts'
 
 /** 服务描述子 = 服务清单视图的最小单元 */
 export interface StoreServiceDescriptor {

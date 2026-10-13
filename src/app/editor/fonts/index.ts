@@ -20,7 +20,11 @@ import {
 } from '@open-pencil/core/text'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
-import { fetchInstalledFonts, readFontBytes } from '@/app/ai/pi-backend/client-fonts'
+import {
+  fetchInstalledFonts,
+  readFontBytes,
+  readInstalledSubsetPieces
+} from '@/app/ai/pi-backend/client-fonts'
 import { browserWebFontFetch } from '@/app/editor/fonts/browser-fetch'
 import {
   clearDownloadedFontCache as clearTauriDownloadedFontCache,
@@ -218,6 +222,7 @@ fontManager.setCnFontPieceCache(createCnFontPieceCache())
 /**
  * 应用字体库（用户安装）注入：把 client-fonts 适配成 UserFontProvider 接口。
  * core 域不直接访问 HTTP——本适配在 app 层完成。安装/卸载/加载均经此。
+ * subset-collection 族由 readSubsetPieces 通路承载（read 端点 501）。
  */
 fontManager.setUserFontProvider({
   list: fetchInstalledFonts,
@@ -226,6 +231,14 @@ fontManager.setUserFontProvider({
       return await readFontBytes(family, styleKey)
     } catch (e) {
       console.warn(`Installed font read failed for "${family}" (${styleKey}):`, e)
+      return null
+    }
+  },
+  readSubsetPieces: async ({ family, styleKey, style, characters }) => {
+    try {
+      return await readInstalledSubsetPieces(family, styleKey, characters)
+    } catch (e) {
+      console.warn(`Installed subset pieces read failed for "${family}" (${style}):`, e)
       return null
     }
   }

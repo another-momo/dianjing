@@ -11,6 +11,7 @@
 
 import { describe, expect, test } from 'bun:test'
 
+import { cnFontsAdapter } from '#core/text/font/store/adapters/cn-fonts'
 import { fontsourceAdapter } from '#core/text/font/store/adapters/fontsource'
 import { createGoogleFontsAdapter } from '#core/text/font/store/adapters/gf-api'
 import { createStandardAdapter } from '#core/text/font/store/adapters/standard'
@@ -407,5 +408,77 @@ describe('gf-api adapter', () => {
     const adapter = createGoogleFontsAdapter('https://example.com', 'K')
     const families = await adapter.fetchCatalog(fetchImpl)
     expect(families).toEqual([])
+  })
+})
+
+describe('cn-fonts 适配器目录合成', () => {
+  // cn-fonts 适配器零网络——直接调 fetchCatalog
+  test('registry 内多 weight 族（LXGW WenKai）每条 style 都走 piecesRef 形态', async () => {
+    const families = await cnFontsAdapter.fetchCatalog((async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        return {}
+      },
+      async text() {
+        return '{}'
+      }
+    })) as unknown as FetchLike)
+    const lxgw = families.find((f) => f.family === 'LXGW WenKai')
+    expect(lxgw).toBeDefined()
+    expect(lxgw!.styles.length).toBeGreaterThan(0)
+    for (const style of lxgw!.styles) {
+      // piecesRef 形态：fileURL 必空、format=woff2、piecesRef 定义
+      expect(style.fileURL).toBe('')
+      expect(style.format).toBe('woff2')
+      expect(style.piecesRef).toBeDefined()
+      expect(style.piecesRef!.package.length).toBeGreaterThan(0)
+    }
+  })
+
+  test('VF 族（Source Han Serif CN VF）单 variable 条目 + wghtRange 由 weights 派生', async () => {
+    const families = await cnFontsAdapter.fetchCatalog((async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        return {}
+      },
+      async text() {
+        return '{}'
+      }
+    })) as unknown as FetchLike)
+    const vf = families.find((f) => f.family === 'Source Han Serif CN VF')
+    expect(vf).toBeDefined()
+    expect(vf!.styles.length).toBe(1)
+    expect(vf!.styles[0].variable).toBe(true)
+    const wght = vf!.styles[0].wghtRange
+    expect(wght).toBeDefined()
+    // weights 为空时回退单值 [400]（min === max）；非空时也按真值区间派生
+    const { min, max } = wght!
+    expect(min).toBeGreaterThanOrEqual(1)
+    expect(max).toBeLessThanOrEqual(1000)
+    expect(min).toBeLessThanOrEqual(max)
+  })
+
+  test('registry 撞名优先（catalog 同族名不入两次）', async () => {
+    const families = await cnFontsAdapter.fetchCatalog((async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        return {}
+      },
+      async text() {
+        return '{}'
+      }
+    })) as unknown as FetchLike)
+    const dupes = new Map<string, number>()
+    for (const f of families) {
+      dupes.set(f.family, (dupes.get(f.family) ?? 0) + 1)
+    }
+    for (const [name, count] of dupes) {
+      expect(count).toBe(1)
+      // 简易记录：非重复性硬保证
+      expect(name.length).toBeGreaterThan(0)
+    }
   })
 })

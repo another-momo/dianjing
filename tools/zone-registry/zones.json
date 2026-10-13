@@ -151,6 +151,7 @@
     "packages/core/src/text/font/installed/woff2.ts",
     "packages/core/src/text/font/installed/wawoff2.d.ts",
     "packages/core/src/text/font/installed/install.ts",
+    "packages/core/src/text/font/installed/cn-piece-loader.ts",
     "src/app/ai/pi-backend/client-fonts.ts",
     "tests/engine/text/fonts/installed/manifest.test.ts",
     "tests/engine/text/fonts/installed/validate.test.ts",
@@ -160,14 +161,19 @@
     "packages/core/src/text/font/store/adapters/fontsource.ts",
     "packages/core/src/text/font/store/adapters/gf-api.ts",
     "packages/core/src/text/font/store/adapters/standard.ts",
+    "packages/core/src/text/font/store/adapters/cn-fonts.ts",
     "packages/core/src/text/font/store/registry.ts",
     "packages/core/src/text/font/store/types.ts",
     "src/app/ai/pi-backend/fonts/http-helpers.ts",
     "src/app/ai/pi-backend/fonts/services-store.ts",
     "src/app/ai/pi-backend/fonts/store-routes.ts",
+    "src/app/ai/pi-backend/fonts/cn-install.ts",
+    "src/app/ai/pi-backend/fonts/stream-helpers.ts",
     "src/app/ai/pi-backend/fonts/store-tasks.ts",
     "src/components/settings/fonts/FontStorePanel.vue",
     "tests/engine/rebuild/pi-backend/fonts-store-routes.test.ts",
+    "tests/engine/rebuild/pi-backend/fonts-store-cn-install.test.ts",
+    "tests/engine/text/fonts/installed/cn-piece-loader.test.ts",
     "tests/engine/text/fonts/store/adapters.test.ts"
   ],
   "stubs": [],
@@ -2927,6 +2933,62 @@
       "id": "P453",
       "file": "src/app/i18n/fork/locales/zh-cn.ts",
       "reason": "字体商店：fonts 命名空间追加同款 zh-CN 文案",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P456",
+      "file": "packages/core/src/text/font/sources.ts",
+      "reason": "字体域批 4b：UserFontProvider 加可选 readSubsetPieces 方法——subset-collection 族渲染期按字符选片 + 拉片字节；未实现时 subset 族走 read 端点 501",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P457",
+      "file": "packages/core/src/text/fonts.ts",
+      "reason": "字体域批 4b：loadCnFontSubset 抽出 registerCnFontPieces helper（首片 real-name primary + 后续 trackSupplementalData + 每片 CanvasKit alias 防同名塌缩），user 源 subset-collection 走 loadInstalledCnFontPieces 复用同 helper；loadLocalFont 加 characters 参数透传 + user 通路 read → readSubsetPieces 回退；loadFont/resolver 同步透传 characters",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P458",
+      "file": "src/app/ai/pi-backend/server.ts",
+      "reason": "字体域批 4b：isFontsEndpointPath 闸位 += /api/pi/fonts/pieces 与 /api/pi/fonts/piece 两个 exact path（pieces/piece 端点前置鉴权后由 routes.ts 派发）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P459",
+      "file": "src/app/ai/pi-backend/fonts/routes.ts",
+      "reason": "字体域批 4b：加 GET /api/pi/fonts/pieces?family=（返 SubsetIndex 索引 JSON）和 GET /api/pi/fonts/piece?family=&hash=（返单片 ttf 字节，32 字符 hex 校验防路径穿）；read 端点 subset-collection 501 错误文案指向新端点",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P461",
+      "file": "src/app/ai/pi-backend/fonts/store.ts",
+      "reason": "字体域批 4b：FontsStore 加 installSubsetPieces（落片 + index.json，hash 去重 + 原子写）、readSubsetIndex（返 SubsetIndex|null）、readSubsetPiece（按 hash 读片字节）；SubsetIndex/SubsetIndexEntry 类型导出供端点复用",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P463",
+      "file": "src/app/editor/fonts/index.ts",
+      "reason": "字体域批 4b：setUserFontProvider 注入补 readSubsetPieces 字段（委托 readInstalledSubsetPieces）——subset-collection 族走 pieces/piece 端点通路，read 端点 501 时自动回退",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P464",
+      "file": "packages/core/src/text/resolver/index.ts",
+      "reason": "字体域批 4b：fontResolver loader 的 'local' 分支透传 demand.characters 给 loadLocalFont——subset-collection 族按字符增量选片的需求流贯穿到 FontManager",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P466",
+      "file": "tests/engine/rebuild/pi-backend/fake-font-server.ts",
+      "reason": "字体域批 4b：扩 cn-install/cn-install-cancel/cn-install-broken-piece 三模式（registry 内真实非 VF 族 LXGW WenKai + npm 包路径 /<pkg>@<ver>/dist/... + /npm 前缀兼容 + pieceDelayMs 慢服）——分片集合安装管线 fake 服",
       "disposition": "permanent",
       "lastReviewed": "2026-10-12"
     }
