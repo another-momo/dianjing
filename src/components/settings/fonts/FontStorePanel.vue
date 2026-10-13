@@ -19,6 +19,7 @@ const notifiedTaskIds = new Set<string>()
 </script>
 
 <script setup lang="ts">
+import { useLocalStorage } from '@vueuse/core'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
 import type {
@@ -63,6 +64,9 @@ const services = ref<StoreServiceDescriptor[]>([])
 const servicesLoading = ref(false)
 const servicesError = ref<string | null>(null)
 const deleteTarget = ref<StoreServiceDescriptor | null>(null)
+// 对话框先于 confirm 关闭（reka DialogClose 同步语义）——open 与 target 必须分开持，
+// 否则 close 回环先清掉 target，confirm 读到 null 直接早返。
+const deleteDialogOpen = ref(false)
 
 const registerForm = reactive<RegisterFormState>({
   name: '',
@@ -205,10 +209,12 @@ async function submitRegister(): Promise<void> {
 function confirmDeleteService(service: StoreServiceDescriptor): void {
   if (service.builtin) return
   deleteTarget.value = service
+  deleteDialogOpen.value = true
 }
 
 async function onConfirmDelete(): Promise<void> {
   const target = deleteTarget.value
+  deleteDialogOpen.value = false
   deleteTarget.value = null
   if (!target || target.builtin) return
   try {
@@ -225,7 +231,7 @@ async function onConfirmDelete(): Promise<void> {
 }
 
 function onCancelDelete(): void {
-  deleteTarget.value = null
+  deleteDialogOpen.value = false
 }
 
 async function openService(service: StoreServiceDescriptor): Promise<void> {
@@ -256,15 +262,14 @@ function backToServices(): void {
   catalogSearch.value = ''
 }
 
+const installConfirmed = useLocalStorage(INSTALL_CONFIRM_KEY, false)
+
 function isConfirmCleared(): boolean {
-  if (typeof window === 'undefined') return true
-  return window.localStorage.getItem(INSTALL_CONFIRM_KEY) === '1'
+  return installConfirmed.value
 }
 
 function markConfirmed(): void {
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(INSTALL_CONFIRM_KEY, '1')
-  }
+  installConfirmed.value = true
 }
 
 function startInstall(family: StoreCatalogFamily): void {
@@ -329,7 +334,7 @@ async function cancelTask(taskId: string): Promise<void> {
   await loadTasks()
 }
 
-function truncateUrl(url: string): string {
+function truncateURL(url: string): string {
   if (url.length <= 48) return url
   return `${url.slice(0, 24)}…${url.slice(-20)}`
 }
@@ -375,7 +380,7 @@ function kindLabel(kind: StoreServiceKind): string {
           {{ forkMsgs.fontsStoreCatalogBack }}
         </AppButton>
         <span class="truncate text-[10px] text-muted" :title="activeService.baseURL">
-          {{ activeService.name }} · {{ truncateUrl(activeService.baseURL) }}
+          {{ activeService.name }} · {{ truncateURL(activeService.baseURL) }}
         </span>
       </div>
 
@@ -588,7 +593,7 @@ function kindLabel(kind: StoreServiceKind): string {
             >
               <p class="truncate text-xs font-medium text-surface">{{ service.name }}</p>
               <p class="truncate text-[9px] text-muted" :title="service.baseURL">
-                {{ truncateUrl(service.baseURL) }}
+                {{ truncateURL(service.baseURL) }}
               </p>
             </button>
             <span
@@ -620,6 +625,7 @@ function kindLabel(kind: StoreServiceKind): string {
     <AppConfirmationDialog
       v-model:open="installConfirmOpen"
       :heading="forkMsgs.fontsStoreInstallConfirmTitle"
+      :description="forkMsgs.fontsInstallConfirmDesc"
       :cancel-label="forkMsgs.fontsCancel"
       :confirm-label="forkMsgs.fontsInstallLocal"
       :confirm-disabled="!installConfirmChecked"
@@ -639,7 +645,7 @@ function kindLabel(kind: StoreServiceKind): string {
 
     <!-- 服务删除确认 -->
     <AppConfirmationDialog
-      :open="deleteTarget !== null"
+      v-model:open="deleteDialogOpen"
       tone="danger"
       :heading="forkMsgs.fontsStoreServiceDelete"
       :description="
@@ -647,7 +653,6 @@ function kindLabel(kind: StoreServiceKind): string {
       "
       :cancel-label="forkMsgs.fontsCancel"
       :confirm-label="forkMsgs.fontsStoreServiceDelete"
-      @update:open="onCancelDelete"
       @cancel="onCancelDelete"
       @confirm="onConfirmDelete"
     />

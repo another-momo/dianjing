@@ -12,7 +12,7 @@
  * 包成 `{ ok: false, reason }`——结构化结果与既有的 FontFamilyOption / ValidationResult 同款
  * 离散形态。
  */
-import { detectContainer, validateFontBytes } from './validate'
+import { validateFontBytes } from './validate'
 
 /** 安装管线依赖注入（transcode / post 均可单测替换） */
 export interface InstallDeps {

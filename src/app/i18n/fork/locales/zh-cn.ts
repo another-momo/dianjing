@@ -290,6 +290,7 @@ const zhCN = {
     fontsStoreTab: '字体商店',
     fontsInstallLocal: '安装本地字体',
     fontsInstallConfirm: '我确认仅导入拥有使用授权的字体',
+    fontsInstallConfirmDesc: '所选字体文件将安装到本机字体库，仅当前设备可用。',
     fontsCancel: '取消',
     fontsInstallResult: '已安装 {ok} 个，失败 {fail} 个',
     fontsInstallResultOk: '已安装 {ok} 个字体',

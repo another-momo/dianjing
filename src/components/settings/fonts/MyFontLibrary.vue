@@ -9,6 +9,7 @@
     校验 + 可选 woff2 转码，再提交到 pi-backend install 端点。
 -->
 <script setup lang="ts">
+import { useLocalStorage } from '@vueuse/core'
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { fontManager } from '@open-pencil/core/text'
@@ -131,15 +132,14 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+const installConfirmed = useLocalStorage(INSTALL_CONFIRM_KEY, false)
+
 function isConfirmCleared(): boolean {
-  if (typeof window === 'undefined') return true
-  return window.localStorage.getItem(INSTALL_CONFIRM_KEY) === '1'
+  return installConfirmed.value
 }
 
 function markConfirmed(): void {
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(INSTALL_CONFIRM_KEY, '1')
-  }
+  installConfirmed.value = true
 }
 
 async function pickFiles(): Promise<File[]> {
@@ -162,24 +162,23 @@ async function pickFiles(): Promise<File[]> {
 
 const FONT_ACCEPT_EXTENSIONS = ['ttf', 'otf', 'woff', 'woff2']
 
+const webFileInput = ref<HTMLInputElement | null>(null)
+let webPickerResolve: ((files: File[]) => void) | null = null
+
 function openWebPicker(): Promise<File[]> {
   return new Promise((resolve) => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.multiple = true
-    input.accept = FONT_ACCEPT_EXTENSIONS.map((extension) => `.${extension}`).join(',')
-    input.style.display = 'none'
-    const cleanup = () => {
-      input.remove()
-    }
-    input.addEventListener('change', () => {
-      const files = input.files ? Array.from(input.files) : []
-      cleanup()
-      resolve(files)
-    })
-    document.body.appendChild(input)
-    input.click()
+    webPickerResolve = resolve
+    webFileInput.value?.click()
   })
+}
+
+function onWebFilesPicked(event: Event): void {
+  const target = event.target
+  if (!(target instanceof HTMLInputElement)) return
+  const files = target.files ? Array.from(target.files) : []
+  target.value = ''
+  webPickerResolve?.(files)
+  webPickerResolve = null
 }
 
 async function handleInstallClick() {
@@ -435,6 +434,7 @@ onMounted(() => {
     <AppConfirmationDialog
       v-model:open="installConfirmOpen"
       :heading="forkMsgs.fontsInstallLocal"
+      :description="forkMsgs.fontsInstallConfirmDesc"
       :cancel-label="forkMsgs.fontsCancel"
       :confirm-label="forkMsgs.fontsInstallLocal"
       :confirm-disabled="!installConfirmChecked"
@@ -470,6 +470,17 @@ onMounted(() => {
       :confirm-label="forkMsgs.fontsUninstallFamily"
       @cancel="onCancelUninstall"
       @confirm="onConfirmUninstall"
+    />
+
+    <!-- 浏览器形态文件选择：隐藏 input 由 openWebPicker 触发 -->
+    <input
+      ref="webFileInput"
+      type="file"
+      multiple
+      :accept="FONT_ACCEPT_EXTENSIONS.map((extension) => `.${extension}`).join(',')"
+      class="hidden"
+      data-test-id="fonts-library-web-file-input"
+      @change="onWebFilesPicked"
     />
   </section>
 </template>

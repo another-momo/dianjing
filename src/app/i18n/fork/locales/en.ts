@@ -435,6 +435,8 @@ export const fontsMessageDefaults = {
   fontsStoreTab: 'Font Store',
   fontsInstallLocal: 'Install local fonts',
   fontsInstallConfirm: 'I confirm I only import fonts I am licensed to use',
+  fontsInstallConfirmDesc:
+    'Selected font files will be installed into the font library on this device.',
   fontsCancel: 'Cancel',
   fontsInstallResult: params('{ok} installed, {fail} failed'),
   fontsInstallResultOk: params('{ok} fonts installed'),
