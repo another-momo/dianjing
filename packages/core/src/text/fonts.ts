@@ -532,8 +532,13 @@ export class FontManager {
       if (!view) return null
       const key = matchUserStyleKey(view, style)
       if (!key) return null
-      const buffer = await provider.read(family, key)
-      if (buffer) return this.registerAndCache(family, style, buffer, 'user')
+      // subset-collection 族按 list 视图 artifact 直走分片通路——read 端点对其
+      // 按设计返 501，先探测只会白刷一条浏览器级 resource error
+      const styleArtifact = view.styles.find((s) => s.key === key)?.artifact
+      if (styleArtifact !== 'subset-collection') {
+        const buffer = await provider.read(family, key)
+        if (buffer) return this.registerAndCache(family, style, buffer, 'user')
+      }
       if (provider.readSubsetPieces) {
         const subsetBuffer = await this.loadInstalledCnFontPieces(family, key, style, characters)
         if (subsetBuffer) return subsetBuffer

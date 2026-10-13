@@ -451,7 +451,8 @@ async function installOneStyle(
     ext,
     style: styleEntry,
     family: finalFamily,
-    artifact: 'full'
+    artifact: 'full',
+    displayName: family.displayName
   })
 }
 

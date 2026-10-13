@@ -14,6 +14,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 
 import { fontManager } from '@open-pencil/core/text'
 import type { FontFamilyOption } from '@open-pencil/core/text'
+import { fontFamilyDisplayName } from '@open-pencil/core/text'
 import { installLocalFont } from '@open-pencil/core/text/font/installed/install'
 
 /**
@@ -82,7 +83,7 @@ async function loadLibrary(): Promise<void> {
   try {
     const [installed, list] = await Promise.all([
       fetchInstalledFonts(),
-      fontManager.listFamilyOptions({ includeDisabled: true })
+      fontManager.listFamilyOptions()
     ])
     const installedNames = new Set(installed.map((view) => view.family))
     const userRows = installed.map<DisplayFamily>((view) => ({
@@ -99,7 +100,7 @@ async function loadLibrary(): Promise<void> {
       )
       .map<DisplayFamily>((option) => ({
         family: option.family,
-        displayName: option.displayName,
+        displayName: fontFamilyDisplayName(option.family),
         styles: [],
         totalSize: 0,
         installedAt: 0,
@@ -110,6 +111,11 @@ async function loadLibrary(): Promise<void> {
       ...userRows.sort((a, b) => a.family.localeCompare(b.family)),
       ...bundledRows.sort((a, b) => a.family.localeCompare(b.family))
     ]
+    // 预览按样本文本取字：subset 族无字符参数时选片为空（预览回退默认字体、
+    // 全族同质化）；FontFace 注册进 document.fonts 后浏览器自动换入真字形
+    for (const family of families.value) {
+      void fontManager.loadFont(family.family, 'Regular', SAMPLE_TEXT)
+    }
   } finally {
     loading.value = false
   }
@@ -404,7 +410,7 @@ onMounted(() => {
               data-test-id="fonts-library-style-remove"
               @click="openUninstall(family, style.key)"
             >
-              {{ forkMsgs.fontsUninstallFamily }}
+              {{ forkMsgs.fontsUninstallStyle }}
             </AppButton>
           </div>
         </div>
@@ -455,7 +461,7 @@ onMounted(() => {
     <AppConfirmationDialog
       v-model:open="uninstallOpen"
       tone="danger"
-      :heading="forkMsgs.fontsUninstallFamily"
+      :heading="uninstallStyleKey ? forkMsgs.fontsUninstallStyle : forkMsgs.fontsUninstallFamily"
       :description="
         uninstallTarget && uninstallStyleKey
           ? `${uninstallTarget.displayName ?? uninstallTarget.family} · ${uninstallStyleKey}`
@@ -467,7 +473,9 @@ onMounted(() => {
             : ''
       "
       :cancel-label="forkMsgs.fontsCancel"
-      :confirm-label="forkMsgs.fontsUninstallFamily"
+      :confirm-label="
+        uninstallStyleKey ? forkMsgs.fontsUninstallStyle : forkMsgs.fontsUninstallFamily
+      "
       @cancel="onCancelUninstall"
       @confirm="onConfirmUninstall"
     />

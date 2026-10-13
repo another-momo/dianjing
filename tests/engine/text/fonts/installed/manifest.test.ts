@@ -307,6 +307,27 @@ describe('manifest.upsertStyle / removeStyle / removeFamily', () => {
     expect(manifest.families[0].styles).toHaveLength(1)
   })
 
+  test('upsert：displayName 新建写入 + 既有族更新 + 缺省不碰旧值', () => {
+    const manifest = emptyManifest(0)
+    upsertStyle(manifest, 'LXGW Marker Gothic', makeStyle({ key: 'Regular' }), '霞鹜漫黑')
+    expect(manifest.families[0].displayName).toBe('霞鹜漫黑')
+    // 同族续装 displayName 更新（目录改名跟随）
+    upsertStyle(
+      manifest,
+      'LXGW Marker Gothic',
+      makeStyle({ key: 'Bold', weight: 700 }),
+      '霞鹜漫黑 2'
+    )
+    expect(manifest.families[0].displayName).toBe('霞鹜漫黑 2')
+    // 缺省调用（本地安装通路）不清空已落账的显示名
+    upsertStyle(manifest, 'LXGW Marker Gothic', makeStyle({ key: 'Light', weight: 300 }))
+    expect(manifest.families[0].displayName).toBe('霞鹜漫黑 2')
+    // toFamilyViews 聚合视图带 artifact——subset 族客户端按它跳过 read 探测
+    const views = toFamilyViews(manifest)
+    expect(views[0].displayName).toBe('霞鹜漫黑 2')
+    expect(views[0].styles[0].artifact).toBe('full')
+  })
+
   test('upsert：同 family 新 style 追加', () => {
     const manifest = makeManifest([{ family: 'Roboto', styles: [makeStyle({ key: 'Regular' })] }])
     upsertStyle(manifest, 'Roboto', makeStyle({ key: 'Bold', weight: 700 }))

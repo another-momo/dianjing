@@ -83,6 +83,8 @@ export interface FontsStore {
     style: StyleEntry
     family: string
     artifact: 'full' | 'subset-collection'
+    /** 商店目录中文显示名（有则写入 manifest，库卡双名展示） */
+    displayName?: string
   }): { hash: ContentHash; manifestPath: string }
   /** 按 hash + ext 读全量单文件字节（端点 read 端点用） */
   readBytes(hash: ContentHash, ext: FontExtension): Uint8Array | null
@@ -173,6 +175,7 @@ export function createFontsStore({ rootDir }: { rootDir: string }): FontsStore {
   }
 
   function installBytes(args: {
+    displayName?: string
     bytes: Uint8Array
     ext: FontExtension
     style: StyleEntry
@@ -195,7 +198,7 @@ export function createFontsStore({ rootDir }: { rootDir: string }): FontsStore {
     const staleHash =
       previous && previous.hash !== hash && previous.artifact === 'full' ? previous.hash : null
     const staleExt = previous?.ext ?? 'ttf'
-    upsertStyle(manifest, args.family, args.style)
+    upsertStyle(manifest, args.family, args.style, args.displayName)
     manifest.updatedAt = Date.now()
     writeManifest(manifest)
     if (staleHash) {

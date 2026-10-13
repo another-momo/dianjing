@@ -85,6 +85,8 @@ export interface FamilyView {
     italic: boolean
     variable: boolean
     wghtRange?: WghtRange
+    /** subset-collection 族免探测直读——read 端点对 subset 返 501，调用方按本字段分流 */
+    artifact: ArtifactKind
   }[]
   totalSize: number
   installedAt: number
@@ -386,7 +388,8 @@ export function toFamilyViews(manifest: ManifestFile): FamilyView[] {
         key: s.key,
         weight: s.weight,
         italic: s.italic,
-        variable: s.variable
+        variable: s.variable,
+        artifact: s.artifact
       }
       if (s.wghtRange) out.wghtRange = s.wghtRange
       return out
@@ -429,13 +432,21 @@ export function findStyleIndex(family: FamilyEntry, styleKey: string): number {
  * 应用一次安装：upsert 条目（同 family + 同 key 抹旧、新版覆盖；新增则追加）。
  * 不动 updatedAt——调用方在收口时统一刷（合并批安装时一次性刷）。
  */
-export function upsertStyle(manifest: ManifestFile, family: string, style: StyleEntry): void {
+export function upsertStyle(
+  manifest: ManifestFile,
+  family: string,
+  style: StyleEntry,
+  displayName?: string
+): void {
   const familyIndex = findFamilyIndex(manifest, family)
   if (familyIndex === -1) {
-    manifest.families.push({ family, styles: [style] })
+    const entry: FamilyEntry = { family, styles: [style] }
+    if (displayName !== undefined) entry.displayName = displayName
+    manifest.families.push(entry)
     return
   }
   const existing = manifest.families[familyIndex]
+  if (displayName !== undefined) existing.displayName = displayName
   const styleIndex = findStyleIndex(existing, style.key)
   if (styleIndex === -1) {
     existing.styles.push(style)

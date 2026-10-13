@@ -49,7 +49,8 @@ function loadPreviewFont(family: string, source: string) {
   }
   if (previewFontLoads.has(family)) return
   previewFontLoads.add(family)
-  void loadFont(family)
+  // 预览按可见标签文本取字：subset-collection 族无字符参数时选片为空，预览回退默认字体
+  void loadFont(family, 'Regular', rowLabel(family, source))
 }
 
 function rowLabel(family: string, source: string): string {

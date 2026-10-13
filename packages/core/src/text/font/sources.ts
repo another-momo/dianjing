@@ -26,7 +26,14 @@ export interface UserFontProvider {
   list(): Promise<
     {
       family: string
-      styles: { key: string; weight: number; italic: boolean; variable: boolean }[]
+      styles: {
+        key: string
+        weight: number
+        italic: boolean
+        variable: boolean
+        /** subset-collection 时调用方跳过 read 直走 readSubsetPieces（read 端点对其 501） */
+        artifact?: 'full' | 'subset-collection'
+      }[]
     }[]
   >
   read(family: string, styleKey: string): Promise<ArrayBuffer | null>

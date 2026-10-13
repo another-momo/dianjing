@@ -66,6 +66,58 @@ describe('font lifecycle', () => {
     expect(manager.isNodeBlocked('second')).toBe(true)
   })
 
+  test('subset-collection 族按 list artifact 跳过 read 探测直走分片；full 族仍先 read', async () => {
+    const readCalls: string[] = []
+    const subsetPieceCalls: string[] = []
+    const manager = new FontManager()
+    manager.setUserFontProvider({
+      async list() {
+        return [
+          {
+            family: 'Subset Fam',
+            styles: [
+              {
+                key: 'Regular',
+                weight: 400,
+                italic: false,
+                variable: false,
+                artifact: 'subset-collection' as const
+              }
+            ]
+          },
+          {
+            family: 'Full Fam',
+            styles: [
+              {
+                key: 'Regular',
+                weight: 400,
+                italic: false,
+                variable: false,
+                artifact: 'full' as const
+              }
+            ]
+          }
+        ]
+      },
+      async read(family) {
+        readCalls.push(family)
+        return new ArrayBuffer(8)
+      },
+      async readSubsetPieces(args) {
+        subsetPieceCalls.push(args.family)
+        return null
+      }
+    })
+
+    await manager.loadFont('Subset Fam', 'Regular', '你')
+    expect(readCalls).not.toContain('Subset Fam')
+    expect(subsetPieceCalls).toEqual(['Subset Fam'])
+
+    await manager.loadFont('Full Fam', 'Regular', '你')
+    expect(readCalls).toEqual(['Full Fam'])
+    expect(subsetPieceCalls).toEqual(['Subset Fam'])
+  })
+
   test('rejects a text picture observed before the font generation changed', () => {
     const graph = new SceneGraph()
     const node = graph.createNode('TEXT', pageId(graph), {

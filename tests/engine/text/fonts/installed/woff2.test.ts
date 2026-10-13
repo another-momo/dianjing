@@ -87,4 +87,17 @@ describe('transcodeWoff2ToSfnt 封装', () => {
   test('空入参 → throw（短字节）', () => {
     expect(() => transcodeWoff2ToSfnt(new Uint8Array(2))).toThrow(/woff2/)
   })
+
+  test('产物是私有拷贝而非 WASM 堆视图（堆视图持有期会被复写——回归钉扎）', async () => {
+    const compressed = await wawoff2.compress(fixtureBytes)
+    const sfnt = await transcodeWoff2ToSfnt(compressed)
+    // 堆视图特征：buffer 是整块 16MB 堆，远大于视图自身；私有拷贝 buffer 恰好等于内容长度
+    expect(sfnt.buffer.byteLength).toBe(sfnt.byteLength)
+    // 后续 decompress 不得影响已返回的产物
+    const before = Buffer.from(sfnt.slice(0, 8)).toString('hex')
+    await wawoff2.decompress(compressed)
+    await wawoff2.decompress(compressed)
+    const after = Buffer.from(sfnt.slice(0, 8)).toString('hex')
+    expect(after).toBe(before)
+  })
 })

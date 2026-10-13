@@ -26,7 +26,7 @@ const segments = computed<{ key: FontsSegment; label: string }[]>(() => [
     <div class="flex gap-1 border-b border-border pb-2" data-test-id="fonts-panel-tabs">
       <button
         v-for="segment in segments"
-        :key="segment"
+        :key="segment.key"
         type="button"
         class="rounded px-2 py-1 text-[11px]"
         :class="

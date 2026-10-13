@@ -28,9 +28,14 @@ export async function transcodeWoff2ToSfnt(bytes: Uint8Array): Promise<Uint8Arra
     throw new Error('transcodeWoff2ToSfnt requires a woff2 input')
   }
   const output = await wawoff2.decompress(bytes)
-  const magic = new DataView(output.buffer, output.byteOffset, 4).getUint32(0)
+  // wawoff2 返回的是 WASM 堆上的视图（实测 output.buffer 恒为整块 16MB 堆）——
+  // 必须立即拷出：持有的视图在后续 decompress/GC 活动后会被堆复用覆写成垃圾
+  // （实证：69 片装完 68 片魔数全毁、仅存最后一片；校验通过 ≠ 写盘时仍合法）。
+  const copied = new Uint8Array(output.byteLength)
+  copied.set(output)
+  const magic = new DataView(copied.buffer, copied.byteOffset, 4).getUint32(0)
   if (magic !== 0x00010000 && magic !== 0x4f54544f) {
     throw new Error(`transcoded bytes have unexpected sfnt magic: 0x${magic.toString(16)}`)
   }
-  return output
+  return copied
 }

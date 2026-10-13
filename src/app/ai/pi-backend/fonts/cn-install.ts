@@ -87,6 +87,19 @@ export function scheduleSubsetInstall(
       const someOk = styleResults.some((r) => r.ok)
       if (!someOk) return
       const okResults = styleResults.filter((r) => r.ok)
+      // 写盘前魔数复检：拉片时的校验通过 ≠ 写盘时字节仍合法（堆视图覆写实证——
+      // 69 片校验全过、落盘 68 片垃圾且 hash 自洽地坏）。此处复检把静默落盘垃圾
+      // 升级为任务失败，不留脏库。
+      for (const r of okResults) {
+        for (const p of r.pieces) {
+          const container = detectContainer(p.bytes)
+          if (container !== 'ttf' && container !== 'otf') {
+            throw new Error(
+              `refusing to persist piece with bad sfnt magic: ${container ?? 'unknown'}`
+            )
+          }
+        }
+      }
       // 同族重装前先清旧族目录（避免新旧片混杂）
       deps.store.deleteFamily(catalogFamily.family)
       const writeArgs = {
@@ -124,7 +137,7 @@ export function scheduleSubsetInstall(
             max: r.style.wghtRange.max
           }
         }
-        upsertStyle(manifest, catalogFamily.family, styleEntry)
+        upsertStyle(manifest, catalogFamily.family, styleEntry, catalogFamily.displayName)
       }
       manifest.updatedAt = installedAt
       deps.store.writeManifest(manifest)
@@ -245,6 +258,7 @@ async function fetchAndDecodePiece(url: string, signal: AbortSignal): Promise<Ui
 function isTransientPieceError(message: string): boolean {
   return (
     message.includes('style fetch timeout') ||
+    message.includes('piece watchdog timeout') ||
     message.includes('terminated') ||
     message.includes('fetch failed') ||
     message.includes('UND_ERR') ||
@@ -253,6 +267,27 @@ function isTransientPieceError(message: string): boolean {
     message.includes('ETIMEDOUT') ||
     message.includes('socket')
   )
+}
+
+/** 单 attempt 看门狗宽限——比读体超时宽一档，双保险防「abort 无响应」楔死 */
+const PIECE_WATCHDOG_MS = PIECE_FETCH_TIMEOUT_MS + 15_000
+
+/**
+ * 看门狗兜底：实证出现过拉片对 abort 无响应的进程级楔死（任务永 running、
+ * 零 socket 零 CPU、cancel 无效）——race 一个独立定时器保证单 attempt 有界。
+ * 输家 promise 挂空 catch 防未处理拒绝。
+ */
+async function withPieceWatchdog<T>(work: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('piece watchdog timeout')), PIECE_WATCHDOG_MS)
+  })
+  try {
+    return await Promise.race([work, timeout])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+    void work.catch(() => {})
+  }
 }
 
 /** 单片拉取 + 转码 + 校验，瞬时错误重试（任务 signal 全程生效，取消即刻停） */
@@ -265,7 +300,7 @@ async function fetchAndDecodePieceWithRetry(
   for (let attempt = 0; attempt < attempts; attempt++) {
     if (signal.aborted) throw new Error('cancelled')
     try {
-      return await fetchAndDecodePiece(url, signal)
+      return await withPieceWatchdog(fetchAndDecodePiece(url, signal))
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       if (!isTransientPieceError(message)) throw error

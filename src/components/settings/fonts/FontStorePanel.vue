@@ -31,6 +31,7 @@ import type {
 import {
   cancelStoreTask,
   deleteStoreService,
+  fetchInstalledFonts,
   fetchStoreCatalog,
   fetchStoreServices,
   fetchStoreTasks,
@@ -88,6 +89,17 @@ const installConfirmOpen = ref(false)
 const installConfirmChecked = ref(false)
 const installConfirmFamily = ref<string | null>(null)
 const pollTimer = ref<number | null>(null)
+/** 已安装族名集——商店族卡「已安装」态判定；安装任务落终态后刷新 */
+const installedFamilies = ref<Set<string>>(new Set())
+
+async function loadInstalledFamilies(): Promise<void> {
+  try {
+    const views = await fetchInstalledFonts()
+    installedFamilies.value = new Set(views.map((v) => v.family))
+  } catch {
+    // 拉取失败保持旧集合——徽标缺席不阻断商店浏览
+  }
+}
 
 const filteredCatalog = computed(() => {
   const query = catalogSearch.value.trim().toLowerCase()
@@ -101,6 +113,16 @@ const filteredCatalog = computed(() => {
 })
 
 const runningTasks = computed(() => tasks.value.filter((t) => t.status === 'running'))
+/** 最近一条终态任务——toast 一闪而过后任务条留一行可查证（新任务起跑即让位） */
+const latestTerminalTask = computed(() => {
+  if (runningTasks.value.length > 0) return null
+  let latest: StoreInstallTaskView | null = null
+  for (const task of tasks.value) {
+    if (task.status === 'running') continue
+    if (!latest || (task.finishedAt ?? 0) > (latest.finishedAt ?? 0)) latest = task
+  }
+  return latest
+})
 
 type StoreKindLabelKey = 'fontsStoreServiceKindStandard' | 'fontsStoreServiceKindGfApi'
 
@@ -136,6 +158,8 @@ async function loadTasks(): Promise<void> {
       if (task.status !== 'running' && !notifiedTaskIds.has(task.id)) {
         notifiedTaskIds.add(task.id)
         emitTaskToast(task)
+        // 任务落终态（done/failed/cancelled 均可能已装部分样式）→ 刷已安装徽标
+        void loadInstalledFamilies()
       }
     }
   } catch (error) {
@@ -149,31 +173,48 @@ async function loadTasks(): Promise<void> {
   }
 }
 
-function emitTaskToast(task: StoreInstallTaskView): void {
+/** 任务终态一句话描述（toast 与任务条留存行共用同一文案口径） */
+function describeTask(task: StoreInstallTaskView): string {
   const familyLabel = task.family
   const failedCount = task.failures.length
   if (task.status === 'cancelled') {
+    return forkMsgs.value.fontsStoreTaskCancelled({
+      family: familyLabel,
+      done: task.done,
+      total: task.total
+    })
+  }
+  if (failedCount === 0) {
+    return forkMsgs.value.fontsStoreTaskDoneOk({ family: familyLabel, done: task.done })
+  }
+  const firstReason = task.failures[0]?.reason ?? ''
+  if (failedCount >= task.total) {
+    // 全败也带首条失败原因——只报名字不说为什么无从排查
+    return (
+      forkMsgs.value.fontsStoreTaskFailedAll({ family: familyLabel }) +
+      (firstReason ? ` · ${firstReason}` : '')
+    )
+  }
+  return (
+    forkMsgs.value.fontsStoreTaskDonePartial({
+      family: familyLabel,
+      done: task.done - failedCount,
+      fail: failedCount
+    }) + (firstReason ? ` · ${firstReason}` : '')
+  )
+}
+
+function emitTaskToast(task: StoreInstallTaskView): void {
+  const text = describeTask(task)
+  if (task.status === 'cancelled') {
     // 取消是用户主动动作：info 提示 + 仍刷用户库（取消前可能已装部分样式）
-    toast.info(
-      forkMsgs.value.fontsStoreTaskCancelled({
-        family: familyLabel,
-        done: task.done,
-        total: task.total
-      })
-    )
-  } else if (failedCount === 0) {
-    toast.info(forkMsgs.value.fontsStoreTaskDoneOk({ family: familyLabel, done: task.done }))
-  } else if (failedCount >= task.total) {
-    toast.error(forkMsgs.value.fontsStoreTaskFailedAll({ family: familyLabel }))
+    toast.info(text)
+  } else if (task.failures.length === 0) {
+    toast.info(text)
+  } else if (task.failures.length >= task.total) {
+    toast.error(text)
   } else {
-    const firstReason = task.failures[0]?.reason ?? ''
-    toast.warning(
-      forkMsgs.value.fontsStoreTaskDonePartial({
-        family: familyLabel,
-        done: task.done - failedCount,
-        fail: failedCount
-      }) + (firstReason ? ` · ${firstReason}` : '')
-    )
+    toast.warning(text)
   }
   userLibraryRevision.value++
 }
@@ -342,6 +383,7 @@ function truncateURL(url: string): string {
 onMounted(() => {
   void loadServices()
   void loadTasks()
+  void loadInstalledFamilies()
 })
 
 onBeforeUnmount(() => {
@@ -353,6 +395,8 @@ onBeforeUnmount(() => {
 
 const TYPE_KEY: Record<StoreServiceKind, StoreKindLabelKey | ''> = {
   fontsource: '',
+  // cn-fonts 是内置 preset 专属 kind，自定义服务表单不可选——无类型徽标文案
+  'cn-fonts': '',
   standard: 'fontsStoreServiceKindStandard',
   'gf-api': 'fontsStoreServiceKindGfApi'
 }
@@ -419,11 +463,20 @@ function kindLabel(kind: StoreServiceKind): string {
         </div>
       </div>
 
+      <!-- 最近终态任务留存行：toast 一闪而过后的可查证落点 -->
+      <div
+        v-if="latestTerminalTask"
+        class="rounded border border-border px-2 py-1 text-[10px] text-muted"
+        data-test-id="fonts-store-last-task"
+      >
+        {{ describeTask(latestTerminalTask) }}
+      </div>
+
       <input
         v-model="catalogSearch"
         type="text"
         :placeholder="forkMsgs.fontsStoreCatalogSearch"
-        class="w-full rounded border border-input bg-surface px-2 py-1 text-xs text-surface outline-none focus:border-accent"
+        class="w-full rounded border border-input bg-panel-field px-2 py-1 text-xs text-surface outline-none focus:border-accent"
         data-test-id="fonts-store-catalog-search"
       />
 
@@ -487,6 +540,13 @@ function kindLabel(kind: StoreServiceKind): string {
                 {{ forkMsgs.fontsVariableBadge }}
               </span>
             </span>
+            <span
+              v-if="installedFamilies.has(family.family)"
+              class="rounded bg-input px-1.5 py-0.5 text-[9px] uppercase text-muted"
+              :data-test-id="`fonts-store-family-installed-${family.family}`"
+            >
+              {{ forkMsgs.fontsStoreFamilyInstalled }}
+            </span>
             <AppButton
               type="button"
               color="primary"
@@ -520,20 +580,20 @@ function kindLabel(kind: StoreServiceKind): string {
           v-model="registerForm.name"
           type="text"
           :placeholder="forkMsgs.fontsStoreServiceNameLabel"
-          class="w-full rounded border border-input bg-surface px-2 py-1 text-xs text-surface outline-none focus:border-accent"
+          class="w-full rounded border border-input bg-panel-field px-2 py-1 text-xs text-surface outline-none focus:border-accent"
           data-test-id="fonts-store-register-name"
         />
         <input
           v-model="registerForm.baseURL"
           type="url"
           :placeholder="forkMsgs.fontsStoreServiceBaseUrlLabel"
-          class="w-full rounded border border-input bg-surface px-2 py-1 text-xs text-surface outline-none focus:border-accent"
+          class="w-full rounded border border-input bg-panel-field px-2 py-1 text-xs text-surface outline-none focus:border-accent"
           data-test-id="fonts-store-register-base-url"
         />
         <div class="flex items-center gap-2 text-[10px] text-muted">
           <select
             v-model="registerForm.kind"
-            class="rounded border border-input bg-surface px-2 py-1 text-xs text-surface outline-none focus:border-accent"
+            class="rounded border border-input bg-panel-field px-2 py-1 text-xs text-surface outline-none focus:border-accent"
             data-test-id="fonts-store-register-kind"
           >
             <option v-for="opt in kindOptions" :key="opt.value" :value="opt.value">
@@ -545,7 +605,7 @@ function kindLabel(kind: StoreServiceKind): string {
             v-model="registerForm.apiKey"
             type="password"
             :placeholder="forkMsgs.fontsStoreServiceApiKeyLabel"
-            class="flex-1 rounded border border-input bg-surface px-2 py-1 text-xs text-surface outline-none focus:border-accent"
+            class="flex-1 rounded border border-input bg-panel-field px-2 py-1 text-xs text-surface outline-none focus:border-accent"
             data-test-id="fonts-store-register-api-key"
           />
         </div>

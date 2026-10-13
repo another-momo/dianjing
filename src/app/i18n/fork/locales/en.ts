@@ -368,6 +368,7 @@ export const fontsMessageDefaults = {
   fontsInstallResult: params('{ok} installed, {fail} failed'),
   fontsInstallResultOk: params('{ok} fonts installed'),
   fontsUninstallFamily: 'Remove',
+  fontsUninstallStyle: 'Remove style',
   fontsUninstallConfirm: params('This will remove {family} ({count} styles)'),
   fontsBadFamilyBanner: params('{count} fonts have corrupt data'),
   fontsStorageHint:
@@ -395,6 +396,7 @@ export const fontsMessageDefaults = {
   fontsStoreFamilyStylesCount: params('{count} styles'),
   fontsStoreFamilyInstall: 'Install',
   fontsStoreFamilyInstalling: 'Installing…',
+  fontsStoreFamilyInstalled: 'Installed',
   fontsStoreTaskProgress: params('{done}/{total}'),
   fontsStoreTaskCancel: 'Cancel',
   fontsStoreTaskStarted: params('Installing {family}…'),

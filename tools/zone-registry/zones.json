@@ -158,6 +158,7 @@
     "tests/engine/text/fonts/installed/layout.test.ts",
     "tests/engine/text/fonts/installed/install.test.ts",
     "tests/engine/text/fonts/installed/woff2.test.ts",
+    "tests/engine/text/fonts/lifecycle.test.ts",
     "packages/core/src/text/font/store/adapters/fontsource.ts",
     "packages/core/src/text/font/store/adapters/gf-api.ts",
     "packages/core/src/text/font/store/adapters/standard.ts",
