@@ -1,31 +1,14 @@
 /**
- * 中文网字计划 CDN 子集解析器（T40 S3，13 册 §4.3）。
+ * 中文网字计划 result.css 解析纯函数（cn-piece-loader 等共享）。
  *
- * 数据面（2026-08-30 jsdelivr 实测，以 @chinese-fonts/lxgwwenkai@3.0.0 为例）：
- * - `dist/index.json`：子族目录名数组，如 ["LXGWWenKai-Light","LXGWWenKai-Regular",...]；
- * - `dist/{子族}/result.css`：cn-font-split 生成的压缩 @font-face 块序列，每块带
- *   `font-weight` / `font-style` / `unicode-range`（单值、区间、通配 U+4?? 三种形态）
- *   与相对路径 `./{hash}.woff2` 分片（每片 2-100KB）；
- * - 按需加载 = 用 demand 字符的码位命中 unicode-range 区间选片，只下载覆盖片。
- *
- * 防御边界（13 册 §4.3 / T40 D-g）：全程不 throw——任何一步失败返回 null，由
- * FontManager 回退 unifont provider 链；选片数超阈值（包结构变异信号）告警并放弃，
- * 避免异常包拉爆内存。
+ * cn-fonts.ts 拆分自 T40 时期的 CDN 远程半面。cn-piece-loader（font/installed/cn-piece-loader.ts）
+ * 走本地分片（用户安装的 subset-collection artifact），与 CDN 解耦；它复用这里的
+ * selectCnFontPieces / parseCnFontResultCSS / parseUnicodeRanges，pin 共享 helper。
  */
 
 import { parse, walk } from 'css-tree'
 
-import type { CnFontCdnDescriptor } from '#core/text/font/registry'
-import { styleToWeight } from '#core/text/font/style'
-import type { WebFontFetch } from '#core/text/web-fonts'
-
 export type { CnFontCdnDescriptor } from '#core/text/font/registry'
-
-/** piece 级磁盘缓存接缝（D-c：URL 内容寻址，浏览器侧 IndexedDB 实现见 S5） */
-export interface CnFontPieceCache {
-  read(url: string): Promise<ArrayBuffer | null>
-  write(url: string, data: ArrayBuffer): Promise<void>
-}
 
 export interface CnFontFacePiece {
   url: string
@@ -43,12 +26,6 @@ export interface CnFontFetchedPiece {
   ranges: Array<[number, number]>
 }
 
-export interface CnFontSubsetResult {
-  pieces: CnFontFetchedPiece[]
-  /** 实际取到且被所选片覆盖的请求字符（供 remoteCoverage 精确记账） */
-  coveredCharacters: string[]
-}
-
 /** 把解析后的 ranges 还原为 CSS unicode-range 描述符串（FontFace 注册用） */
 export function formatUnicodeRanges(ranges: ReadonlyArray<readonly [number, number]>): string {
   const hex = (value: number) => value.toString(16).toUpperCase()
@@ -56,10 +33,6 @@ export function formatUnicodeRanges(ranges: ReadonlyArray<readonly [number, numb
     .map(([low, high]) => (low === high ? `U+${hex(low)}` : `U+${hex(low)}-${hex(high)}`))
     .join(', ')
 }
-
-const CDN_BASE = 'https://cdn.jsdelivr.net/npm'
-/** 单次请求选片上限：正常按需只有个位数片，超此阈值视为包结构变异（T40 D-g） */
-export const CN_FONT_MAX_PIECES_PER_REQUEST = 200
 
 /** 字重目录后缀词表：长词在前，避免 'ExtraLight' 被 'light' 抢先命中 */
 const WEIGHT_TOKENS: ReadonlyArray<readonly [number, string]> = [
@@ -223,183 +196,3 @@ export function pickCnFontSubfamily(
     .sort((a, b) => Math.abs(a[1] - weight) - Math.abs(b[1] - weight))
   return nearest.at(0)?.[0] ?? candidates[0]
 }
-
-export class CnFontSubsetResolver {
-  private fetcher: WebFontFetch
-  private cache: CnFontPieceCache | null
-  private readonly baseURL: string
-  /** 子族索引与 result.css 会话级缓存：键 = 绝对 URL */
-  private readonly indexPromises = new Map<string, Promise<string[] | null>>()
-  private readonly pieceListPromises = new Map<string, Promise<CnFontFacePiece[] | null>>()
-  private readonly piecePromises = new Map<string, Promise<ArrayBuffer | null>>()
-
-  constructor(
-    options: {
-      fetcher?: WebFontFetch
-      cache?: CnFontPieceCache | null
-      baseURL?: string
-    } = {}
-  ) {
-    this.fetcher = options.fetcher ?? ((url, init) => fetch(url, init))
-    this.cache = options.cache ?? null
-    this.baseURL = options.baseURL ?? CDN_BASE
-  }
-
-  setCache(cache: CnFontPieceCache | null): void {
-    this.cache = cache
-  }
-
-  setFetcher(fetcher: WebFontFetch): void {
-    this.fetcher = fetcher
-    this.indexPromises.clear()
-    this.pieceListPromises.clear()
-    this.piecePromises.clear()
-  }
-
-  /**
-   * 按需取片。返回 null = 本 provider 无力承担（包不存在/无覆盖/结构异常），
-   * 调用方回退 unifont 链；返回空 pieces 同理。部分片失败不致命——
-   * coveredCharacters 只记成功片，未覆盖字符下一轮重试。
-   */
-  async fetch(
-    family: string,
-    descriptor: CnFontCdnDescriptor,
-    style: string,
-    characters: string
-  ): Promise<CnFontSubsetResult | null> {
-    try {
-      const weight = styleToWeight(style)
-      const italic = style.toLowerCase().includes('italic')
-      const cssURL = await this.resolveCSSURL(descriptor, weight, family)
-      if (!cssURL) return null
-
-      const pieces = await this.pieceList(cssURL)
-      if (!pieces || pieces.length === 0) return null
-
-      const selected = selectCnFontPieces(pieces, characters, weight, italic)
-      if (selected.length === 0) return null
-      if (selected.length > CN_FONT_MAX_PIECES_PER_REQUEST) {
-        console.warn(
-          `cn-font "${family}" requested ${selected.length} pieces in one pass ` +
-            `(threshold ${CN_FONT_MAX_PIECES_PER_REQUEST}) — treating as package anomaly`
-        )
-        return null
-      }
-
-      const buffers = await Promise.all(selected.map((piece) => this.fetchPiece(piece.url)))
-      const fetched: CnFontFetchedPiece[] = []
-      for (const [index, piece] of selected.entries()) {
-        const buffer = buffers[index]
-        if (buffer) fetched.push({ url: piece.url, buffer, ranges: piece.ranges })
-      }
-      const covered: string[] = []
-      for (const character of new Set(characters)) {
-        const codePoint = character.codePointAt(0)
-        if (codePoint === undefined) continue
-        const hit = fetched.some((piece) => rangeCovers(piece.ranges, codePoint))
-        if (hit) covered.push(character)
-      }
-      return { pieces: fetched, coveredCharacters: covered }
-    } catch (error) {
-      console.warn(`cn-font fetch failed for "${family}" ${style}:`, error)
-      return null
-    }
-  }
-
-  private packageBase(descriptor: CnFontCdnDescriptor): string {
-    // T42：缺省 jsdelivr。base=unpkg 回退曾覆盖非 ASCII 子族目录名的包
-    // （2026-08-30 实测 jsdelivr 全边缘 404）；2026-09-06 复测 jsdelivr 已支持
-    // 非 ASCII 路径（37/37 族全绿），catalog 回退已全量移除。descriptor.baseURL
-    // 透传机制保留（registry 精选层/未来回退仍可用）。
-    const base = descriptor.baseURL ?? this.baseURL
-    return `${base}/${descriptor.package}@${descriptor.version ?? 'latest'}`
-  }
-
-  private async resolveCSSURL(
-    descriptor: CnFontCdnDescriptor,
-    weight: number,
-    family: string
-  ): Promise<string | null> {
-    const base = this.packageBase(descriptor)
-    if (descriptor.cssPath) return `${base}/${descriptor.cssPath}`
-    const dirs = await this.subfamilyIndex(`${base}/${descriptor.indexPath ?? 'dist/index.json'}`)
-    if (!dirs || dirs.length === 0) return null
-    const dir = pickCnFontSubfamily(dirs, weight, family)
-    return dir ? `${base}/dist/${dir}/result.css` : null
-  }
-
-  private async fetchText(url: string): Promise<string | null> {
-    try {
-      const response = await this.fetcher(url)
-      return response.ok ? await response.text() : null
-    } catch {
-      return null
-    }
-  }
-
-  private async subfamilyIndex(url: string): Promise<string[] | null> {
-    const existing = this.indexPromises.get(url)
-    if (existing) return existing
-    const promise = (async () => {
-      const text = await this.fetchText(url)
-      if (!text) return null
-      try {
-        const parsed: unknown = JSON.parse(text)
-        return Array.isArray(parsed)
-          ? parsed.filter((dir): dir is string => typeof dir === 'string')
-          : null
-      } catch {
-        return null
-      }
-    })()
-    this.indexPromises.set(url, promise)
-    // 失败（null）不记忆，index/css/piece 三层同款：null 条目留在图里会让
-    // 「下一轮重试」零网络命中缓存的 null 永不自愈——瞬态限流/抖动须可重试
-    const dirs = await promise
-    if (dirs === null) this.indexPromises.delete(url)
-    return dirs
-  }
-
-  private async pieceList(cssURL: string): Promise<CnFontFacePiece[] | null> {
-    const existing = this.pieceListPromises.get(cssURL)
-    if (existing) return existing
-    const promise = (async () => {
-      const text = await this.fetchText(cssURL)
-      if (!text) return null
-      try {
-        return parseCnFontResultCSS(text, cssURL)
-      } catch (error) {
-        console.warn(`cn-font result.css parse failed (${cssURL}):`, error)
-        return null
-      }
-    })()
-    this.pieceListPromises.set(cssURL, promise)
-    const pieces = await promise
-    if (pieces === null) this.pieceListPromises.delete(cssURL)
-    return pieces
-  }
-
-  private async fetchPiece(url: string): Promise<ArrayBuffer | null> {
-    const existing = this.piecePromises.get(url)
-    if (existing) return existing
-    const promise = (async () => {
-      const cached = await this.cache?.read(url).catch(() => null)
-      if (cached) return cached
-      try {
-        const response = await this.fetcher(url)
-        if (!response.ok) return null
-        const buffer = await response.arrayBuffer()
-        await this.cache?.write(url, buffer).catch(() => undefined)
-        return buffer
-      } catch {
-        return null
-      }
-    })()
-    this.piecePromises.set(url, promise)
-    const buffer = await promise
-    if (buffer === null) this.piecePromises.delete(url)
-    return buffer
-  }
-}
-
-export const cnFontSubsetResolver = new CnFontSubsetResolver()

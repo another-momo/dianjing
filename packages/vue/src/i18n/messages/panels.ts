@@ -552,8 +552,8 @@ export const panelMessageDefaults = {
   iconResultCount: count({ one: '{count} result', many: '{count} results' }),
   /** More icons match than a search returns. */
   iconResultCountCapped: params('{count}+ results'),
-  noLocalFontsAvailable: 'No local fonts available.',
-  localFontsAccessHint: 'Use the desktop app or Chrome/Edge to access system fonts.',
+  noLocalFontsAvailable: 'No fonts available.',
+  localFontsAccessHint: 'Install a font from the library to populate the picker.',
   editColor: 'Edit color',
   red: 'Red',
   green: 'Green',

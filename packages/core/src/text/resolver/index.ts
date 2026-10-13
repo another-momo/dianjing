@@ -33,9 +33,8 @@ export function fontFaceDemand(
     characters,
     candidates: [
       faceCandidate(family, style, 'registered'),
-      faceCandidate(family, style, 'local'),
       faceCandidate(family, style, 'cache'),
-      faceCandidate(family, style, 'remote')
+      faceCandidate(family, style, 'fallback')
     ]
   }
 }
@@ -80,18 +79,10 @@ const productionFontLoader: FontResolutionLoader = async (candidate, demand) => 
   switch (candidate.source) {
     case 'registered':
       return fontManager.isStyleLoaded(candidate.family, candidate.style)
-    case 'local':
-      return (
-        (await fontManager.loadLocalFont(candidate.family, candidate.style, demand.characters)) !==
-        null
-      )
     case 'cache':
-      return (await fontManager.loadCachedFont(candidate.family, candidate.style)) !== null
+      return false
     case 'remote':
-      return (
-        (await fontManager.loadRemoteFont(candidate.family, candidate.style, demand.characters)) !==
-        null
-      )
+      return false
     case 'fallback': {
       const script = candidate.family as FontFallbackScript
       const families = await fontManager.ensureFallbackPack([script], demand.characters)
@@ -104,7 +95,7 @@ const productionFontLoader: FontResolutionLoader = async (candidate, demand) => 
 export const fontResolver = new FontResolver(productionFontLoader)
 
 // T40 S1 逐出联动：FontManager 内存逐出某 family|style 时，必须同步复位 resolver
-// 条目——否则残留 'loaded' 快照使 demand 直接返回旧 promise，字体永不重载。
+// 条目——否则残留 'loaded' 快照使 demand 直接返回旧 demand，字体永不重载。
 fontManager.onFontEvicted((family, style) => {
   fontResolver.reset(fontFaceDemandKey(family, style))
 })

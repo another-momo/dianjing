@@ -12,6 +12,6 @@ export function matchFontFamilyOrDisplayName(
 ): boolean {
   const needle = searchTerm.toLowerCase()
   if (option.family.toLowerCase().includes(needle)) return true
-  const displayName = option.displayName ?? fontFamilyDisplayName(option.family)
+  const displayName = fontFamilyDisplayName(option.family)
   return displayName ? displayName.toLowerCase().includes(needle) : false
 }

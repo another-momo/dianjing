@@ -1,11 +1,11 @@
 import { computed, ref } from 'vue'
 
 import { computeAllLayouts } from '@open-pencil/core/layout'
-import { documentFontStatus, fontManager, fontResolver } from '@open-pencil/core/text'
+import { documentFontStatus, fontResolver } from '@open-pencil/core/text'
 import { useEditorEvent } from '@open-pencil/vue'
 
 import { useEditorStore } from '@/app/editor/active-store'
-import { loadFont, requestLocalFontAccess } from '@/app/editor/fonts'
+import { loadFont } from '@/app/editor/fonts'
 
 export function useDocumentFontStatus() {
   const editor = useEditorStore()
@@ -34,13 +34,9 @@ export function useDocumentFontStatus() {
     const preparation = editor.preparationController.begin({ kind: 'font-retry' })
     let succeeded = false
     try {
-      if (fontManager.localAccessState() === 'prompt') {
-        await requestLocalFontAccess().catch(() => [])
-      }
       const issues = status.value.issues
       await Promise.all(
         issues.map(async ({ family, style }) => {
-          fontManager.resetWebFontFailures(family, style)
           fontResolver.reset(
             `face:${family.trim().toLocaleLowerCase()}:${style.toLocaleLowerCase()}`
           )

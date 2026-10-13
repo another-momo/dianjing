@@ -6,13 +6,7 @@ import type { FontFamilyOption } from '@open-pencil/core/text'
 
 import { useRetainedActivity } from '#vue/lifecycle/retention/context'
 
-export type FontAccessState = 'unsupported' | 'prompt' | 'granted' | 'denied'
 export type { FontFamilyOption, FontFamilySource } from '@open-pencil/core/text'
-
-export interface FontAccessController {
-  state: () => FontAccessState
-  load: () => Promise<string[] | FontFamilyOption[]>
-}
 
 /**
  * Options for {@link useFontPicker}.
@@ -22,8 +16,6 @@ export interface UseFontPickerOptions {
   modelValue: { value: string }
   /** Async source for available font families. */
   listFamilies: () => Promise<string[] | FontFamilyOption[]>
-  /** Host-provided local-font permission controller. */
-  localFontAccess?: FontAccessController
   /** Custom search matcher (e.g. also matching catalog display names). Defaults to case-insensitive family substring. */
   filterOption?: (option: FontFamilyOption, searchTerm: string) => boolean
   /** Optional callback fired after a family is selected. */
@@ -31,7 +23,9 @@ export interface UseFontPickerOptions {
 }
 
 function normalizeOptions(items: string[] | FontFamilyOption[]): FontFamilyOption[] {
-  return items.map((item) => (typeof item === 'string' ? { family: item, source: 'local' } : item))
+  return items.map((item) =>
+    typeof item === 'string' ? { family: item, source: 'bundled' } : item
+  )
 }
 
 /**
@@ -42,7 +36,6 @@ export function useFontPicker(options: UseFontPickerOptions) {
   const searchTerm = ref('')
   const open = ref(false)
   const loading = ref(false)
-  const accessState = ref<FontAccessState>(options.localFontAccess?.state() ?? 'granted')
   const active = useRetainedActivity()
   let requestVersion = 0
 
@@ -78,7 +71,6 @@ export function useFontPicker(options: UseFontPickerOptions) {
       const items = await options.listFamilies()
       if (version !== requestVersion) return
       families.value = normalizeOptions(items)
-      accessState.value = options.localFontAccess?.state() ?? accessState.value
     } finally {
       if (version === requestVersion) loading.value = false
     }
@@ -87,27 +79,8 @@ export function useFontPicker(options: UseFontPickerOptions) {
   watch(open, async (isOpen) => {
     if (!isOpen) return
     searchTerm.value = ''
-    accessState.value = options.localFontAccess?.state() ?? accessState.value
-    // bundled/web families need no permission — load them first. The local-font
-    // prompt stays pending forever when nobody answers it (automation, ignored
-    // dialog), and awaiting it here would keep the whole list empty.
     await loadFamilies()
-    if (accessState.value === 'prompt') void requestAccess()
   })
-
-  async function requestAccess() {
-    if (!options.localFontAccess || loading.value) return
-    loading.value = true
-    const version = ++requestVersion
-    try {
-      const items = await options.localFontAccess.load()
-      if (version !== requestVersion) return
-      families.value = normalizeOptions(items)
-      accessState.value = options.localFontAccess.state()
-    } finally {
-      if (version === requestVersion) loading.value = false
-    }
-  }
 
   function select(family: string) {
     options.modelValue.value = family
@@ -121,8 +94,6 @@ export function useFontPicker(options: UseFontPickerOptions) {
     open,
     filtered,
     loading,
-    accessState,
-    requestAccess,
     select
   }
 }

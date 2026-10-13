@@ -165,19 +165,12 @@ describe('eviction ↔ resolver integration (T40 S1)', () => {
     expect(fontManager.isStyleLoaded(family, 'Regular')).toBe(false)
     expect(fontResolver.state(demand).state).toBe('idle')
 
-    // 重新 demand 能再次走通 registered 候选之外的重载链。关停在线 provider，
-    // 避免 remote 候选对测试环境发起真实网络请求（此处无源 → exhausted）。
-    fontManager.setOnlineFontProviders({
-      google: false,
-      fontsource: false,
-      bunny: false,
-      fontshare: false
-    })
+    // 重新 demand 能再次走通 registered 候选之外的重载链。
+    // 字体域「退役批」后只走 registered/cache/fallback 三候选，无网络源 → exhausted。
     try {
       const reloaded = await fontResolver.demand(demand)
       expect(reloaded.state).toBe('exhausted')
     } finally {
-      fontManager.setOnlineFontProviders({ google: true, fontsource: true })
       fontResolver.reset(demand)
     }
   })

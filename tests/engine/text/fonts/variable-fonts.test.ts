@@ -1,7 +1,9 @@
 /**
  * T41 可变字体链路单测（D-b 收口）。
  * 覆盖：三容器 fvar 嗅探（font/variable.ts）/ FontManager VF 入账跟踪 /
- * findLocalFont VF 放宽（静态严格契约不变）/ 排版期 wght 轴自动注入。
+ * 排版期 wght 轴自动注入。
+ *
+ * 「退役批」后 findLocalFont VF 放宽用例不再适用（系统字体整面退役）。
  */
 import { afterEach, describe, expect, test } from 'bun:test'
 
@@ -116,82 +118,6 @@ describe('FontManager VF 入账跟踪', () => {
     manager.evictFont('VF Evict Fam', 'Regular')
     expect(manager.isVariableFamily('VF Evict Fam')).toBe(false)
     expect(manager.variableWeightRange('VF Evict Fam')).toBeNull()
-  })
-})
-
-interface FakeFontData {
-  family: string
-  fullName: string
-  style: string
-  postscriptName: string
-  blob: () => Promise<Blob>
-}
-
-function fakeFont(family: string, style: string, buffer: ArrayBuffer): FakeFontData {
-  return {
-    family,
-    fullName: `${family} ${style}`,
-    style,
-    postscriptName: `${family}-${style}`,
-    blob: async () => new Blob([buffer])
-  }
-}
-
-function mockLocalFonts(fonts: FakeFontData[]): void {
-  ;(globalThis as typeof globalThis & { window?: unknown }).window = {
-    queryLocalFonts: async () => fonts
-  }
-}
-
-afterEach(() => {
-  delete (globalThis as typeof globalThis & { window?: unknown }).window
-})
-
-describe('findLocalFont VF 放宽（T41 D-b 收口）', () => {
-  test('显式 style 静态未命中时，VF 候选任意字重可服务', async () => {
-    mockLocalFonts([fakeFont('VF Local Fam', 'Regular', vfBuffer())])
-    const manager = new FontManager()
-    await manager.requestLocalFontAccess()
-
-    const buffer = await manager.loadLocalFont('VF Local Fam', 'Bold')
-    expect(buffer).not.toBeNull()
-    expect(manager.isVariableFamily('VF Local Fam')).toBe(true)
-  })
-
-  test('静态字体严格契约不变：显式 style 未命中返回 null（不就近降级）', async () => {
-    mockLocalFonts([fakeFont('Static Local Fam', 'Regular', staticBuffer())])
-    const manager = new FontManager()
-    await manager.requestLocalFontAccess()
-
-    expect(await manager.loadLocalFont('Static Local Fam', 'Bold')).toBeNull()
-  })
-
-  test('VF 放宽受斜体一致约束：slant 不合的 VF 不服务 italic 请求', async () => {
-    mockLocalFonts([fakeFont('VF Upright Fam', 'Regular', vfBuffer())])
-    const manager = new FontManager()
-    await manager.requestLocalFontAccess()
-
-    expect(await manager.loadLocalFont('VF Upright Fam', 'Bold Italic')).toBeNull()
-  })
-
-  test('精确匹配优先于 VF 嗅探（不多余下载）', async () => {
-    const bold = fakeFont('Mixed Fam', 'Bold', staticBuffer())
-    let vfBlobbed = false
-    const regularVf: FakeFontData = {
-      ...fakeFont('Mixed Fam', 'Regular', vfBuffer()),
-      blob: async () => {
-        vfBlobbed = true
-        return new Blob([vfBuffer()])
-      }
-    }
-    mockLocalFonts([bold, regularVf])
-    const manager = new FontManager()
-    await manager.requestLocalFontAccess()
-
-    const buffer = await manager.loadLocalFont('Mixed Fam', 'Bold')
-    expect(buffer).not.toBeNull()
-    expect(vfBlobbed).toBe(false)
-    expect(manager.isVariableFamily('Mixed Fam')).toBe(false)
   })
 })
 

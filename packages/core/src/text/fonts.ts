@@ -4,27 +4,16 @@ import type { CanvasKit, TypefaceFontProvider } from 'canvaskit-wasm'
 
 import type { FontVariation, SceneGraph } from '@open-pencil/scene-graph'
 
-import { hasWindowGlobal, IS_BROWSER } from '#core/constants'
+import { IS_BROWSER } from '#core/constants'
 import { parseFontStyle } from '#core/text/face'
-import { FontFamilyAllowlist } from '#core/text/font/allowlist'
-import { CN_FONT_CATALOG, cnCatalogEntry } from '#core/text/font/cn-catalog'
-import type { CustomFontServiceConfig } from '#core/text/font/custom-service'
-import { CustomServiceManager } from '#core/text/font/custom-service-manager'
 import { FontMemoryLedger } from '#core/text/font/memory'
 import type { FontMemoryStats } from '#core/text/font/memory'
-import { cdnFontEntry, FONT_REGISTRY, isBundledFamilyAllowed } from '#core/text/font/registry'
-import type { CnFontCdnDescriptor } from '#core/text/font/registry'
-import {
-  chooseLocalFontMatch,
-  normalizeFontFamily,
-  styleToWeight,
-  weightToStyle
-} from '#core/text/font/style'
+import { FONT_REGISTRY, isBundledFamilyAllowed } from '#core/text/font/registry'
+import { styleToWeight, weightToStyle } from '#core/text/font/style'
 import { FULL_WEIGHT_RANGE, sniffVariableFont } from '#core/text/font/variable'
 import { namedInstanceVariations } from '#core/text/font/variation'
+import { formatUnicodeRanges } from '#core/text/web-font/cn-fonts'
 
-export * from '#core/text/font/allowlist'
-export * from '#core/text/font/custom-service'
 export * from '#core/text/font/cn-catalog'
 export * from '#core/text/font/sources'
 export * from '#core/text/font/style'
@@ -32,24 +21,9 @@ export * from '#core/text/font/memory'
 export * from '#core/text/font/variable'
 export { fontFamilyDisplayName, fontRegistryEntry } from '#core/text/font/registry'
 export * from '#core/text/font/variation'
-import { fontFallbackEntry } from '#core/text/fallbacks'
 import type { FontFallbackScript } from '#core/text/fallbacks'
-import { UnsupportedFontFormatError } from '#core/text/font/sources'
-import type {
-  DownloadedFontCache,
-  FontFamilyOption,
-  FontInfo,
-  FontLoadedSource,
-  FontUnavailableReason,
-  HostFontLoader,
-  LocalFontAccessState,
-  UserFontProvider
-} from '#core/text/font/sources'
+import type { FontFamilyOption, FontLoadedSource, UserFontProvider } from '#core/text/font/sources'
 import { collectGraphFontKeys } from '#core/text/requirements'
-import { cnFontSubsetResolver, formatUnicodeRanges } from '#core/text/web-font/cn-fonts'
-import type { CnFontPieceCache } from '#core/text/web-font/cn-fonts'
-import { normalizedCoverageText, WebFontResolver } from '#core/text/web-fonts'
-import type { WebFontFetch, WebFontProviderId } from '#core/text/web-fonts'
 
 type WeightRange = { min: number; max: number }
 
@@ -63,7 +37,7 @@ const BUNDLED_FONTS: Record<string, string> = {
   'Noto Naskh Arabic|Regular': '/NotoNaskhArabic-Regular.ttf'
 }
 
-// Alibaba PuHuiTi 9 字重（T39，CJK 骨干）：从注册表派生避免双源漂移。
+// Alibaba PuHuiTi 9 字重（T39，CJK 312）：从注册表派生避免双源漂移。
 for (const weight of FONT_REGISTRY.find((e) => e.family === 'Alibaba PuHuiTi')?.weights ?? []) {
   BUNDLED_FONTS[`Alibaba PuHuiTi|${weight}`] = `/AlibabaPuHuiTi-${weight}.ttf`
 }
@@ -96,11 +70,11 @@ function matchUserStyleKey(
 export const DEFAULT_FONT_MEMORY_BUDGET = 512 * 1024 * 1024
 
 /**
- * CDN 子集分片的渲染 alias 分隔符（T40 修复）：CanvasKit TypefaceFontProvider 对同一
+ * 分片 alias 分隔符（T40 修复）：CanvasKit TypefaceFontProvider 对同一
  * family 名只保留单个 style 匹配 typeface，互斥覆盖的分片挂同名会塌缩成「只有一片有字形」。
  * 每片各持别名注册，排版时经 fontFamilies 回退链合流（probe 实证：18/18 glyph、0 notdef）。
  */
-const CN_FONT_ALIAS_SEPARATOR = '\u001F'
+const FONT_ALIAS_SEPARATOR = '\u001F'
 
 interface RenderAliasEntry {
   url: string
@@ -111,7 +85,6 @@ interface RenderAliasEntry {
 export class FontManager {
   private loadedFamilies = new Map<string, ArrayBuffer>()
   private loadedFamilySources = new Map<string, FontLoadedSource>()
-  private unavailableFaces = new Map<string, FontUnavailableReason>()
   private supplementalFamilyData = new Map<string, ArrayBuffer[]>()
   private remoteCoverage = new Map<string, Set<string>>()
   private instanceVariations = new WeakMap<ArrayBuffer, Map<string, FontVariation[] | null>>()
@@ -125,12 +98,6 @@ export class FontManager {
   private fontDataHashes = new WeakMap<ArrayBuffer, string>()
   /** 按 provider × 家族的内容哈希注册表——逐出→重载同字节的复用判据（见 registerFontInProvider） */
   private providerRegistrationHashes = new WeakMap<TypefaceFontProvider, Map<string, Set<string>>>()
-  private localFonts: FontInfo[] | null = null
-  private localFontAccessState: LocalFontAccessState = IS_BROWSER ? 'prompt' : 'unsupported'
-  private downloadedFontCache: DownloadedFontCache | null = null
-  private fallbackUserAgent: string | undefined
-  private hostFontLoader: HostFontLoader | null = null
-  private webFonts = new WebFontResolver()
   private cjkFallbackFamilies: string[] = []
   private cjkFallbackPromise: Promise<string[]> | null = null
   private arabicFallbackFamilies: string[] = []
@@ -141,33 +108,12 @@ export class FontManager {
   private browserFontFaces = new Map<string, FontFace[]>()
   private fontEvictListener: ((family: string, style: string) => void) | null = null
   /** 分片 alias 注册表：键 = 'Family|Style'（与 FontManager 注册键一致），条目按
-   * 注册顺序（alias 序即回退链序）。CDN 路径（loadCnFontSubset）与用户安装
-   * subset-collection 路径（readSubsetPieces）共用同一张表——user 键同样登记 alias。 */
+   * 注册顺序（alias 序即回退链序）。用户安装 subset-collection 路径
+   * （readSubsetPieces）共用同一张表——user 键同样登记 alias。 */
   private renderAliasFamilies = new Map<string, RenderAliasEntry[]>()
   /** T41：VF 入账跟踪——键级 fvar 嗅探（woff2 压缩流读不出区间时记 null，用全区间兜底） */
   private variableFontKeys = new Set<string>()
   private variableWeightRanges = new Map<string, WeightRange | null>()
-  /** T41 S4：白名单运行时管控（全来源；bundled 锁定恒开） */
-  private readonly allowlist = new FontFamilyAllowlist()
-  /**
-   * 本地字体（系统字体）应用级开关：默认开。
-   * 关停 = picker 不枚举本地族 + 回退链不拼装本地段——与单族关停「视为未安装」对齐。
-   * 持久化键 `op-local-fonts-enabled` 由 src/app/editor/fonts/index.ts 接线。
-   */
-  private localFontsEnabled = true
-  /**
-   * 专属字体服务（外部分发服务）状态机：委托 CustomServiceManager。
-   * 持有 config + 目录索引 + in-flight promise + epoch + 专属族关停集合；
-   * 依赖以 getter 回调注入（webFontFetch / webFontListTimeoutMs 透传 +
-   * allowlist 兜底），core 域不反向引用 FontManager。
-   */
-  private readonly customService = new CustomServiceManager({
-    getWebFontFetch: () => this.webFontFetch,
-    getWebFontListTimeoutMs: () => this.webFontListTimeoutMs,
-    isEnabledByAllowlist: (family) => this.allowlist.isEnabled(family)
-  })
-  /** 最近一次注入的 web 字体 fetcher（目录懒加载沿用；缺省回退全局 fetch） */
-  private webFontFetch: WebFontFetch | null = null
   /**
    * 应用字体库（用户安装）提供者：list/read 注入；core 域不直接访问 HTTP，
    * 由 app 层把 client-fonts 适配为该接口。注入时机晚于构造（首调 list/read
@@ -187,7 +133,7 @@ export class FontManager {
       this.registerFontInProvider(provider, family, data)
       const aliases = this.renderAliasFamilies.get(cacheKey)
       if (aliases) {
-        // CDN 键：补充片（互斥覆盖的分片）挂同名会塌缩，只回放 alias 注册
+        // 分片键：补充片（互斥覆盖的分片）挂同名会塌缩，只回放 alias 注册
         for (const entry of aliases) this.registerFontInProvider(provider, entry.alias, entry.data)
         continue
       }
@@ -265,14 +211,6 @@ export class FontManager {
     return this.blockedNodeIds.has(nodeId)
   }
 
-  localAccessState(): LocalFontAccessState {
-    return this.localFontAccessState
-  }
-
-  setDownloadedFontCache(cache: DownloadedFontCache | null): void {
-    this.downloadedFontCache = cache
-  }
-
   setFontMemoryBudget(bytes: number): void {
     this.fontMemoryBudget = Math.max(0, Math.floor(bytes))
     this.enforceFontMemoryBudget()
@@ -301,133 +239,12 @@ export class FontManager {
     return true
   }
 
-  setFallbackUserAgent(userAgent: string | undefined): void {
-    this.fallbackUserAgent = userAgent
-  }
-
-  setHostFontLoader(loader: HostFontLoader | null): void {
-    this.hostFontLoader = loader
-  }
-
-  setOnlineFontProviders(settings: Partial<Record<WebFontProviderId, boolean>>): void {
-    this.webFonts.setEnabled(settings)
-  }
-
-  /**
-   * CDN 中文网字计划独立开关（T42 D-a，owner /goal）：与四家在线 provider
-   * 开关零耦合——T40 时 CDN 枚举/加载跟随 provider 全关而关，现独立门禁。
-   * 默认开；关停后 CDN 家族不枚举、loadCnFontSubset 零触网。
-   */
-  private cnFontsEnabled = true
-
-  setCnFontsEnabled(enabled: boolean): void {
-    this.cnFontsEnabled = enabled
-  }
-
-  isCnFontsEnabled(): boolean {
-    return this.cnFontsEnabled
-  }
-
-  setWebFontFetch(fetcher: WebFontFetch | null): void {
-    this.webFontFetch = fetcher
-    this.webFonts.setRemoteFetch(fetcher)
-    if (fetcher) cnFontSubsetResolver.setFetcher(fetcher)
-  }
-
   /**
    * 注入应用字体库（用户安装）提供者；null = 关停该来源。
    * 与其他 set* 注入惯例一致——构造期不接 IO，app 层启动时按需绑定。
    */
   setUserFontProvider(provider: UserFontProvider | null): void {
     this.userFontProvider = provider
-  }
-
-  /** 注入 cn-font piece 级磁盘缓存（T40 S5，浏览器侧 IndexedDB 实现）。 */
-  setCnFontPieceCache(cache: CnFontPieceCache | null): void {
-    cnFontSubsetResolver.setCache(cache)
-  }
-
-  // —— T41 S4 白名单运行时管控（委托 FontFamilyAllowlist，语义见 allowlist.ts）——
-
-  setDisabledFontFamilies(families: Iterable<string>): void {
-    this.allowlist.replaceDisabled(families)
-  }
-
-  /** catalog 族启用集合持久化恢复（T42 D-c opt-in）；非 catalog 族自动滤除 */
-  setEnabledCatalogFamilies(families: Iterable<string>): void {
-    this.allowlist.replaceEnabledCatalog(families)
-  }
-
-  /**
-   * 返回 false = bundled 锁定族，操作未生效。专属族写专属关停集合（原始名）而非
-   * 共享 disabled 集合——共享集合混有 web 目录默认关停的同名条目，写入会让撞名
-   * 语境互相污染；同态重放不 bump revision（allowlist commit 同守卫）。
-   */
-  setFontFamilyEnabled(family: string, enabled: boolean): boolean {
-    const handled = this.customService.setFamilyEnabled(family, enabled)
-    if (handled !== null) return handled
-    return this.allowlist.setEnabled(family, enabled)
-  }
-
-  isFontFamilyEnabled(family: string): boolean {
-    // 专属族查专属关停集合（默认开）；其余来源维持共享 allowlist 判定。
-    // 撞名族的面板开关由此自动按源路由，共享集合的污染条目不再让专属行显示态说谎。
-    if (this.customService.isCustomServiceFamily(family)) {
-      return !this.customService.isCustomFamilyDisabled(family)
-    }
-    return this.allowlist.isEnabled(family)
-  }
-
-  isFontFamilyLocked(family: string): boolean {
-    return this.allowlist.isLocked(family)
-  }
-
-  disabledFontFamilies(): string[] {
-    return this.allowlist.listDisabled()
-  }
-
-  /** 专属族关停集合清单（面板回写持久化用，与 disabledFontFamilies 同型） */
-  customDisabledFontFamilies(): string[] {
-    return this.customService.listDisabledFamilies()
-  }
-
-  /**
-   * 专属族关停集合批量同步（app 层 localStorage watch 推入，setDisabledFontFamilies
-   * 同模式）：全量替换 + 同态不空转；变化经 epoch 并入 revision。
-   */
-  setCustomDisabledFontFamilies(families: string[]): void {
-    this.customService.setDisabledFamilies(families)
-  }
-
-  /** catalog 族已启用清单（面板回写持久化用） */
-  enabledCatalogFamilies(): string[] {
-    return this.allowlist.listEnabledCatalog()
-  }
-
-  /** picker 失效信号：白名单变更计数 + 专属字体服务 config 变更 epoch */
-  fontAllowlistRevision(): number {
-    return this.allowlist.getRevision() + this.customService.getEpoch()
-  }
-
-  // —— 专属字体服务（外部分发服务，运行时可配置 provider）——
-
-  /**
-   * 配置专属字体服务：存归一化配置、清目录缓存与 in-flight、递增 epoch
-   * （picker 依赖 fontAllowlistRevision 重挂载）。null = 关停/未配置。
-   */
-  setCustomFontService(config: CustomFontServiceConfig | null): void {
-    this.customService.setConfig(config)
-  }
-
-  // —— 本地字体应用级开关（统一批 B）——
-
-  /** 关停时本地族不进 picker 也不进回退链；默认开。 */
-  setLocalFontsEnabled(enabled: boolean): void {
-    this.localFontsEnabled = enabled
-  }
-
-  isLocalFontsEnabled(): boolean {
-    return this.localFontsEnabled
   }
 
   // —— T41 可变字体（D-b 收口）——
@@ -455,195 +272,26 @@ export class FontManager {
     return { min: FULL_WEIGHT_RANGE.min, max: FULL_WEIGHT_RANGE.max }
   }
 
-  enabledOnlineFontProviders(): WebFontProviderId[] {
-    return this.webFonts.enabledProviders()
-  }
-
-  /**
-   * 上游 PR：重置在线 provider 的失败记录（family/style 维度）。用于用户在 UI
-   * 上「重试加载某字体」按钮或重新启用被自动熔断的 provider。
-   * 全清：family+style 都省略；按家族清：仅传 family；按键清：family+style 都传。
-   */
-  resetWebFontFailures(family?: string, style?: string): void {
-    this.webFonts.resetFailures(family, style)
-  }
-
-  /**
-   * 清在线 provider 枚举失败记录（字体设置面板「重试」按钮用）：下次枚举立即
-   * 重发请求，不等失败 TTL（60s）。
-   */
-  resetWebFontEnumerationFailures(): void {
-    this.webFonts.resetEnumerationFailures()
-  }
-
-  async loadCachedFont(
-    family: string,
-    style = 'Regular',
-    characters = ''
-  ): Promise<ArrayBuffer | null> {
-    if (!(await this.customService.isCustomOrAllowed(family))) return null
-    const cached = await this.readDownloadedFont(family, style, characters)
-    if (!cached) return null
-    // 上游 PR：缓存命中后补登 coverage——保证后续增量按需按字符查表命中，
-    // 与 loadRemoteFont 终态一致（避免"已经下到磁盘但 remoteCoverage 缺失"裂痕）。
-    const key = `${family}|${style}`
-    const loadedCoverage = this.remoteCoverage.get(key) ?? new Set<string>()
-    for (const character of normalizedCoverageText(characters)) loadedCoverage.add(character)
-    this.remoteCoverage.set(key, loadedCoverage)
-    return this.registerAndCache(family, style, cached, 'cache')
-  }
-
-  async requestLocalFontAccess(): Promise<FontInfo[]> {
-    if (!hasWindowGlobal() || !window.queryLocalFonts) {
-      this.localFontAccessState = 'unsupported'
-      this.localFonts = []
-      return []
-    }
-    try {
-      const fonts = await window.queryLocalFonts()
-      const seen = new Set<string>()
-      const result: FontInfo[] = []
-      for (const f of fonts) {
-        const key = `${f.family}|${f.style}`
-        if (seen.has(key)) continue
-        seen.add(key)
-        result.push({
-          family: f.family,
-          fullName: f.fullName,
-          style: f.style,
-          postscriptName: f.postscriptName
-        })
-      }
-      this.localFonts = result
-      this.localFontAccessState = 'granted'
-      return result
-    } catch {
-      this.localFonts = []
-      this.localFontAccessState = 'denied'
-      return []
-    }
-  }
-
   async listFamilies(): Promise<string[]> {
     const options = await this.listFamilyOptions()
     return options.map((option) => option.family)
   }
 
-  async listFamilyOptions(options?: { includeDisabled?: boolean }): Promise<FontFamilyOption[]> {
-    const includeDisabled = options?.includeDisabled ?? false
-    // 不隐式触发本地字体权限请求：'prompt' 状态下 queryLocalFonts 会一直挂起
-    // （自动化/无头环境无人响应权限弹窗），bundled/web 家族列表会被一并卡住。
-    // 本地字体由字体选择器的"允许访问"按钮显式调 requestLocalFontAccess 载入。
-    // 应用级开关关停时本地族视为未安装（统一批 B），与单族关停语义对齐。
-    const fonts = this.localFontsEnabled ? (this.localFonts ?? []) : []
-    const webFontFamilies = await Promise.all(
-      this.enabledOnlineFontProviders().map(async (provider) => ({
-        provider,
-        families: await this.listProviderFamiliesWithTimeout(provider)
-      }))
-    )
+  async listFamilyOptions(): Promise<FontFamilyOption[]> {
     const byFamily = new Map<string, FontFamilyOption>()
-    this.collectRegistryAndCatalogOptions(byFamily, includeDisabled)
-    for (const { provider, families } of webFontFamilies) {
-      for (const family of families) {
-        if (!includeDisabled && !this.allowlist.isEnabled(family)) continue
-        if (!byFamily.has(family)) byFamily.set(family, { family, source: provider })
-      }
-    }
-    for (const font of fonts) {
-      if (!includeDisabled && !this.allowlist.isEnabled(font.family)) continue
-      byFamily.set(font.family, { family: font.family, source: 'local' })
-    }
-    // 专属字体服务族枚举：启用且有目录时追加（撞名自定义胜的枚举侧体现——
-    // 同名族覆盖内置条目）。逐族过滤查专属关停集合（默认开），不查共享 disabled
-    // 集合——它混有 web 目录默认关停的同名条目，逐族查共享集合会让撞名自定义族
-    // 静默消失；includeDisabled（管理面板）不过滤，与各源同构
-    for (const entry of await this.customService.familyOptions()) {
-      if (!includeDisabled && !this.isFontFamilyEnabled(entry.family)) continue
-      byFamily.set(entry.family, {
-        family: entry.family,
-        source: 'custom',
-        ...(entry.displayName ? { displayName: entry.displayName } : {})
-      })
-    }
-    // 应用字体库（用户安装）族枚举：注入存在时拉取；同名族不覆盖既有键
-    // ——web provider 同构（`if (!byFamily.has(family))`），与本地族段同优先级
-    // （安装在后的来源胜，但 web/local 都先于 user 写键，user 仅补漏）
-    await this.collectUserFontProviderOptions(byFamily, includeDisabled)
+    this.collectRegistryOptions(byFamily)
+    await this.collectUserFontProviderOptions(byFamily)
     return [...byFamily.values()].sort((a, b) => a.family.localeCompare(b.family))
   }
 
   /**
-   * 字体注册表（白名单）枚举 bundled 家族 + CDN 两组（registry 精选 / catalog 全量目录）。
-   * CDN 家族枚举改判独立开关 cnFontsEnabled，与在线 provider 解耦
-   * （早期跟随 provider 全关而隐藏）。catalog 族（cn-catalog.ts 生成物）
-   * 同属 CDN：默认停用（opt-in），allowlist 过滤后仅启用族进 picker；
-   * includeDisabled（管理面板）不过滤——面板要列出关停行才能重开。
+   * bundled 家族枚举：FONT_REGISTRY 中 source='bundled' 的族。CDN 段随中文网字计划
+   * 整面退役一并消失（4b 后中网族经商店落地为 user 源，fonts.ts 不再枚举 cdn）。
    */
-  private collectRegistryAndCatalogOptions(
-    byFamily: Map<string, FontFamilyOption>,
-    includeDisabled: boolean
-  ): void {
+  private collectRegistryOptions(byFamily: Map<string, FontFamilyOption>): void {
     for (const entry of FONT_REGISTRY) {
-      if (!includeDisabled && !this.allowlist.isEnabled(entry.family)) continue
-      if (entry.source === 'cdn') {
-        if (this.cnFontsEnabled) byFamily.set(entry.family, { family: entry.family, source: 'cdn' })
-        continue
-      }
+      if (entry.source !== 'bundled') continue
       byFamily.set(entry.family, { family: entry.family, source: 'bundled' })
-    }
-    if (!this.cnFontsEnabled) return
-    this.collectCnCatalogOptions(byFamily, includeDisabled)
-  }
-
-  /**
-   * 中文网字计划全量目录枚举：与 registry 精选层互不重复，撞名让 registry 胜；
-   * 默认停用（opt-in），allowlist 过滤后仅启用族进 picker；管理面板
-   * includeDisabled 路径不过滤。
-   */
-  private collectCnCatalogOptions(
-    byFamily: Map<string, FontFamilyOption>,
-    includeDisabled: boolean
-  ): void {
-    for (const entry of CN_FONT_CATALOG) {
-      if (byFamily.has(entry.family)) continue
-      if (!includeDisabled && !this.allowlist.isEnabled(entry.family)) continue
-      byFamily.set(entry.family, { family: entry.family, source: 'cdn', catalog: true })
-    }
-  }
-
-  preloadWebFontFamilies(): void {
-    this.webFonts.preloadFamilies()
-  }
-
-  /**
-   * provider 家族枚举带超时（T40 S2 门禁解除的配套）：浏览器直连后，不可达的
-   * provider（如本网络下 fonts.google.com）不再被门禁短路，其初始化重试会
-   * 拖住整个 picker 列表。超时只放弃本次枚举，后台 promise 继续跑完并入缓存，
-   * 下次打开即命中。
-   */
-  private webFontListTimeoutMs = 6000
-
-  setWebFontListTimeout(ms: number): void {
-    this.webFontListTimeoutMs = Math.max(0, Math.floor(ms))
-  }
-
-  private async listProviderFamiliesWithTimeout(provider: WebFontProviderId): Promise<string[]> {
-    let timer: ReturnType<typeof setTimeout> | undefined
-    try {
-      return await Promise.race([
-        this.webFonts.listFamilies(provider),
-        new Promise<string[]>((_, reject) => {
-          timer = setTimeout(
-            () => reject(new Error(`web font family list timeout: ${provider}`)),
-            this.webFontListTimeoutMs
-          )
-        })
-      ])
-    } catch {
-      return []
-    } finally {
-      clearTimeout(timer)
     }
   }
 
@@ -667,28 +315,16 @@ export class FontManager {
     style = 'Regular',
     characters = ''
   ): Promise<ArrayBuffer | null> {
-    if (!(await this.customService.isCustomOrAllowed(family))) return null
     const cacheKey = `${family}|${style}`
     const loaded = this.loadedFamilies.get(cacheKey)
     if (loaded) {
-      // 本地总开关：已入账的 local 源视为未安装拒用；bundled 等其他源不受影响
-      if (!this.localFontsEnabled && this.loadedFontSource(family, style) === 'local') return null
       this.registerFontInCanvasKit(family, loaded)
       return loaded
     }
 
-    // 本地总开关只闸宿主/系统字体通路——bundled 兜底（本函数尾部）恒可加载：
-    // 它是标尺/节点标签等内置文字的渲染主干字形来源，闸死会全灭（2026-09-29 实证）
-    if (this.localFontsEnabled) {
-      const hostBuffer = await this.loadHostFont(family, style)
-      if (hostBuffer) return this.registerAndCache(family, style, hostBuffer, 'local')
-      const localBuffer = await this.findLocalFont(family, style)
-      if (localBuffer) return this.registerAndCache(family, style, localBuffer, 'local')
-    }
-
     // 应用字体库（用户安装）段：注入存在时按 style 键匹配取字节。失败静默——不阻断
-    // bundled 兜底链路（与 local 段同构 catch-all）。subset-collection 族走专属
-    // 通路（read 端点返 501；本段优先试 readSubsetPieces 端点侧 pieces/piece 通路）。
+    // bundled 兜底链路。subset-collection 族走专属通路（read 端点返 501；本段优先试
+    // readSubsetPieces 端点侧 pieces/piece 通路）。
     if (this.userFontProvider) {
       const userBuffer = await this.tryLoadFromUserFontProvider(family, style, characters)
       if (userBuffer) return userBuffer
@@ -710,74 +346,6 @@ export class FontManager {
     }
   }
 
-  async loadRemoteFont(
-    family: string,
-    style = 'Regular',
-    characters = '',
-    signal?: AbortSignal
-  ): Promise<ArrayBuffer | null> {
-    signal?.throwIfAborted()
-    if (typeof fetch === 'undefined') return null
-    if (!(await this.customService.isCustomOrAllowed(family))) return null
-    const coverage = this.remoteCoverage.get(`${family}|${style}`)
-    if (
-      characters &&
-      coverage &&
-      Array.from(characters).every((character) => coverage.has(character))
-    ) {
-      return this.loadedData(family, style)
-    }
-    try {
-      signal?.throwIfAborted()
-      const requestedCharacters = normalizedCoverageText(
-        `${coverage ? Array.from(coverage).join('') : ''}${characters}`
-      )
-      const normalized = normalizeFontFamily(family)
-      // T40 S4：注册表 CDN 家族走中文网字计划子集分片（D-g：失败回退 unifont 链）。
-      const cdnLoaded = await this.loadCnFontSubset(
-        family,
-        normalized,
-        style,
-        requestedCharacters,
-        signal
-      )
-      if (cdnLoaded) return cdnLoaded
-      return await this.fetchAndRegisterRemoteFont(
-        family,
-        normalized,
-        style,
-        requestedCharacters,
-        signal
-      )
-    } catch (e) {
-      if (signal?.aborted) throw e
-      console.warn(`Web font fetch failed for "${family}" ${style}:`, e)
-      return null
-    }
-  }
-
-  private async fetchAndRegisterRemoteFont(
-    family: string,
-    normalized: string,
-    style: string,
-    requestedCharacters: string,
-    signal: AbortSignal | undefined
-  ): Promise<ArrayBuffer | null> {
-    const families = normalized === family ? [family] : [family, normalized]
-    const resolved = await this.webFonts.fetchFont(families, style, requestedCharacters, signal)
-    if (!resolved || resolved.buffers.length === 0) return null
-    const primary = resolved.buffers[0]
-    await this.writeDownloadedFont(family, style, primary, requestedCharacters)
-    const registered = this.registerAndCache(family, style, primary, resolved.provider)
-    const loadedCoverage = this.remoteCoverage.get(`${family}|${style}`) ?? new Set<string>()
-    for (const character of requestedCharacters) loadedCoverage.add(character)
-    this.remoteCoverage.set(`${family}|${style}`, loadedCoverage)
-    for (const supplemental of resolved.buffers.slice(1)) {
-      this.registerSupplemental(family, style, supplemental)
-    }
-    return registered
-  }
-
   async loadFont(
     family: string,
     style = 'Regular',
@@ -785,26 +353,10 @@ export class FontManager {
     signal?: AbortSignal
   ): Promise<ArrayBuffer | null> {
     signal?.throwIfAborted()
-    if (!(await this.customService.isCustomOrAllowed(family))) return null
     const loaded = this.loadedData(family, style)
-    if (loaded) {
-      this.registerFontInCanvasKit(family, loaded)
-      const remoteCoverage = this.remoteCoverage.get(`${family}|${style}`)
-      const missingRemoteCoverage = Boolean(
-        characters &&
-        remoteCoverage &&
-        Array.from(characters).some((character) => !remoteCoverage.has(character))
-      )
-      return missingRemoteCoverage
-        ? ((await this.loadRemoteFont(family, style, characters, signal)) ?? loaded)
-        : loaded
-    }
+    if (loaded) return loaded
 
-    return (
-      (await this.loadLocalFont(family, style, characters)) ??
-      (await this.loadCachedFont(family, style, characters)) ??
-      (await this.loadRemoteFont(family, style, characters, signal))
-    )
+    return this.loadLocalFont(family, style, characters)
   }
 
   async ensureNodeFont(family: string, weight: number): Promise<void> {
@@ -822,11 +374,6 @@ export class FontManager {
 
   loadedFontSource(family: string, style: string): FontLoadedSource | null {
     return this.loadedFamilySources.get(`${family}|${style}`) ?? null
-  }
-
-  /** Why the host could not load an installed face, when it reported a reason. */
-  unavailableReason(family: string, style: string): FontUnavailableReason | null {
-    return this.unavailableFaces.get(`${family}|${style}`) ?? null
   }
 
   isLoaded(family: string): boolean {
@@ -867,9 +414,8 @@ export class FontManager {
 
   renderFamily(family: string, _style: string): string {
     // CanvasKit can shape metrics but paint no glyphs for some CJK/Arabic faces registered under a
-    // synthetic alias. Keep every shard under the font's source family; character-aware remote
-    // requests already fetch cumulative coverage before replacing the primary buffer.
-    // 例外：CDN 互斥分片不挂本名（同名塌缩），每片各持 alias，由 renderFamilyAliases
+    // synthetic alias. Keep every shard under the font's source family.
+    // 例外：互斥分片不挂本名（同名塌缩），每片各持 alias，由 renderFamilyAliases
     // 经段落 fontFamilies 回退链合流——本名 primary 仍在回退链首位提供度量。
     return family
   }
@@ -885,7 +431,7 @@ export class FontManager {
     this.cjkFallbackPromise = (async () => {
       // T84：bundled PuHuiTi 前插 CJK 回退链，离线/无系统字体权限时仍能命中中文字形
       await this.prependBundledCJK(this.cjkFallbackFamilies)
-      return this.ensureFallbackFamilies('cjk', this.cjkFallbackFamilies)
+      return this.cjkFallbackFamilies
     })()
     return this.cjkFallbackPromise
   }
@@ -904,13 +450,13 @@ export class FontManager {
     if (this.arabicFallbackFamilies.length > 0) return this.arabicFallbackFamilies
     if (this.arabicFallbackPromise) return this.arabicFallbackPromise
 
-    this.arabicFallbackPromise = this.ensureFallbackFamilies('arabic', this.arabicFallbackFamilies)
+    this.arabicFallbackPromise = Promise.resolve([...this.arabicFallbackFamilies])
     return this.arabicFallbackPromise
   }
 
   async ensureFallbackPack(
     scripts: FontFallbackScript[] = ['cjk', 'arabic'],
-    characters = '',
+    _characters = '',
     signal?: AbortSignal
   ): Promise<Partial<Record<FontFallbackScript, string[]>>> {
     signal?.throwIfAborted()
@@ -918,23 +464,10 @@ export class FontManager {
     await Promise.all(
       scripts.map(async (script) => {
         signal?.throwIfAborted()
-        const target = script === 'arabic' ? this.arabicFallbackFamilies : this.cjkFallbackFamilies
-        if (signal) {
-          // 上游 PR：有 signal 时跳过专用 cjk/arabic 快路径缓存——直走通用路径
-          // 让 signal 全程穿透（专用路径内部仍会调 ensureFallbackFamilies，
-          // 但无 signal 注入会丢取消语义）
-          // cjk 同走 bundled 前插（与下方直调路径口径一致）——signal 路径若先
-          // 填充共享链而绕过前插，bundled 在回退链的优先级失守
-          if (script === 'cjk') await this.prependBundledCJK(target)
-          result[script] = await this.ensureFallbackFamilies(script, target, characters, signal)
-        } else if (script === 'arabic' && !characters) {
-          result[script] = await this.ensureArabicFallback()
-        } else if (script === 'cjk' && !characters) {
-          result[script] = await this.ensureCJKFallback()
-        } else {
-          // T84：cjk 带 characters 直调路径同走 bundled 前插（复用 prependBundledCJK）
-          if (script === 'cjk') await this.prependBundledCJK(target)
-          result[script] = await this.ensureFallbackFamilies(script, target, characters)
+        if (script === 'cjk') {
+          result.cjk = await this.ensureCJKFallback()
+        } else if (script === 'arabic') {
+          result.arabic = await this.ensureArabicFallback()
         }
       })
     )
@@ -958,7 +491,6 @@ export class FontManager {
    */
   private async prependBundledCJK(targetFamilies: string[]): Promise<void> {
     const family = 'Alibaba PuHuiTi'
-    if (!this.allowlist.isEnabled(family)) return
     if (targetFamilies.includes(family)) return
     const buffer = await this.loadFont(family, 'Regular')
     if (buffer && !targetFamilies.includes(family)) {
@@ -966,71 +498,6 @@ export class FontManager {
     }
   }
 
-  private async ensureFallbackFamilies(
-    script: FontFallbackScript,
-    targetFamilies: string[],
-    characters = '',
-    signal?: AbortSignal
-  ): Promise<string[]> {
-    signal?.throwIfAborted()
-    const manifest = fontFallbackEntry(script, this.fallbackUserAgent)
-
-    // 应用级开关关停时本地族不进回退链（统一批 B）——manifest.localFamilies
-    // 即 queryLocalFonts 枚举到的平台清单，与 listFamilyOptions 的本地段同一真源
-    if (this.localFontsEnabled) {
-      for (const family of manifest.localFamilies) {
-        signal?.throwIfAborted()
-        // T41 S4：白名单关停的家族连回退链也不可用（语义 = 视为未安装）
-        if (!this.allowlist.isEnabled(family)) continue
-        const buffer =
-          (await this.loadHostFont(family, 'Regular')) ??
-          (await this.findLocalFont(family, undefined))
-        if (
-          buffer &&
-          this.registerAndCache(family, 'Regular', buffer, 'fallback') &&
-          !targetFamilies.includes(family)
-        ) {
-          targetFamilies.push(family)
-        }
-      }
-    }
-
-    if (targetFamilies.length === 0 || characters) {
-      const remoteFamilies = manifest.remoteFamilies.filter((family) =>
-        this.allowlist.isEnabled(family)
-      )
-      const results = await Promise.allSettled(
-        remoteFamilies.map(async (family) => {
-          signal?.throwIfAborted()
-          const data = await this.loadRemoteFont(family, 'Regular', characters, signal)
-          signal?.throwIfAborted()
-          return data ? family : null
-        })
-      )
-      for (const result of results) {
-        if (
-          result.status === 'fulfilled' &&
-          result.value &&
-          !targetFamilies.includes(result.value)
-        ) {
-          targetFamilies.push(result.value)
-        }
-      }
-    }
-
-    return targetFamilies
-  }
-
-  /**
-   * 注册表 CDN 家族的中文网字计划子集加载（T40 S4）。
-   * CDN 同属在线能力：用户关停全部在线 provider 时不触网；
-   * 未命中注册表 / 取片失败 → 返回 null，调用方回退 unifont 链（D-g）。
-   *
-   * 分片注册策略：首片兼作 real-name primary（保持 isStyleLoaded/测量等既有语义），
-   * 每片另持 alias 注册进 CanvasKit——同名多片会被 TypefaceFontProvider 塌缩成单
-   * typeface（互斥 unicode-range 下只有一片出字形），alias 经 renderFamilyAliases →
-   * 段落 fontFamilies 回退链合流。增量请求会重选已注册片，按 url 去重。
-   */
   /**
    * 从 userFontProvider 拉取本地安装族字节。subset-collection 族走 pieces/piece
    * 通路（list 端点不返 artifact 字段，需经 read 501 后回退到 readSubsetPieces）。
@@ -1067,17 +534,15 @@ export class FontManager {
 
   /**
    * 应用字体库族枚举写入 byFamily。注入存在时拉取 list；失败静默。同名族
-   * 不覆盖既有键——web provider 同构。
+   * 不覆盖既有键——bundled 段先写键，user 仅补漏。
    */
   private async collectUserFontProviderOptions(
-    byFamily: Map<string, FontFamilyOption>,
-    includeDisabled: boolean
+    byFamily: Map<string, FontFamilyOption>
   ): Promise<void> {
     if (!this.userFontProvider) return
     try {
       const userViews = await this.userFontProvider.list()
       for (const view of userViews) {
-        if (!includeDisabled && !this.allowlist.isEnabled(view.family)) continue
         if (!byFamily.has(view.family))
           byFamily.set(view.family, { family: view.family, source: 'user' })
       }
@@ -1086,67 +551,10 @@ export class FontManager {
     }
   }
 
-  /** CDN 描述符解析：自定义服务族最优先（原始名 + normalizeFontFamily 名双查，撞名自定义胜）→ registry 精选层 → catalog 全量目录兜底 */
-  private cnFontDescriptor(family: string): CnFontCdnDescriptor | undefined {
-    const normalized = normalizeFontFamily(family)
-    const customCatalog = this.customService.getCatalog()
-    const custom =
-      customCatalog.get(family) ??
-      (normalized !== family ? customCatalog.get(normalized) : undefined)
-    if (custom) {
-      // 防御：目录在而 config 已清（不应发生）时不回退 jsdelivr CDN——静默错源比空返回更糟
-      const baseURL = this.customService.getConfig()?.baseURL
-      if (!baseURL) return undefined
-      return { package: custom.package, version: custom.latestVersion, baseURL }
-    }
-    const registryDescriptor = cdnFontEntry(family)?.cdn
-    if (registryDescriptor) return registryDescriptor
-    const catalog = cnCatalogEntry(family)
-    if (!catalog) return undefined
-    return {
-      package: catalog.package,
-      version: catalog.version,
-      ...(catalog.base ? { baseURL: catalog.base } : {})
-    }
-  }
-
-  private async loadCnFontSubset(
-    family: string,
-    normalized: string,
-    style: string,
-    requestedCharacters: string,
-    signal?: AbortSignal
-  ): Promise<ArrayBuffer | null> {
-    signal?.throwIfAborted()
-    // T42：描述符解析 registry 优先（精选层），catalog 全量目录兜底；
-    // 门禁改判独立开关 cnFontsEnabled（D-a，与在线 provider 解耦）。
-    const descriptor =
-      this.cnFontDescriptor(family) ??
-      (normalized !== family ? this.cnFontDescriptor(normalized) : undefined)
-    // 专属目录族豁免 cnFontsEnabled：专属服务有独立总开关（服务即整体 opt-in），
-    // 中文 CDN 开关只管内置目录——复用同一分片管线不该让两个来源开关互相株连
-    if (!descriptor || (!this.cnFontsEnabled && !this.customService.isCustomServiceFamily(family)))
-      return null
-
-    const result = await cnFontSubsetResolver.fetch(family, descriptor, style, requestedCharacters)
-    if (!result || result.pieces.length === 0) return null
-
-    return this.registerCnFontPieces(
-      family,
-      style,
-      result.pieces.map((piece) => ({
-        url: piece.url,
-        buffer: piece.buffer,
-        ranges: piece.ranges
-      })),
-      result.coveredCharacters
-    )
-  }
-
   /**
    * 注册分片集合到 FontManager（共享 helper）：首片 registerAndCache real-name
    * primary、后续 trackSupplementalData、每片 CanvasKit alias 防同名塌缩。
-   * 渲染期 CDN 路径（loadCnFontSubset）与用户安装 subset-collection 路径共用。
+   * 渲染期用户安装 subset-collection 路径（loadInstalledCnFontPieces）使用。
    */
   private registerCnFontPieces(
     family: string,
@@ -1166,9 +574,9 @@ export class FontManager {
         this.trackSupplementalData(family, style, piece.buffer)
         this.registerFontInBrowser(family, style, piece.buffer, unicodeRange)
       } else {
-        primary = this.registerAndCache(family, style, piece.buffer, 'cdn', unicodeRange)
+        primary = this.registerAndCache(family, style, piece.buffer, 'user', unicodeRange)
       }
-      const alias = `${family}${CN_FONT_ALIAS_SEPARATOR}${aliases.length}`
+      const alias = `${family}${FONT_ALIAS_SEPARATOR}${aliases.length}`
       aliases.push({ url: piece.url, alias, data: piece.buffer })
       seenURLs.add(piece.url)
       this.registerFontInCanvasKit(alias, piece.buffer)
@@ -1182,8 +590,8 @@ export class FontManager {
   }
 
   /**
-   * 渲染期用户安装 subset-collection 族加载：注入 userFontProvider.readSubsetPieces
-   * 失败返 null（与 loadCnFontSubset 同语义——回退 bundled/web 兜底链）。
+   * 渲染期用户安装 subset-collection 族加载：注入 userFontProvider.readPieces
+   * 失败返 null（与 loadCnFontSubset 同语义——回退 bundled 兜底链）。
    * shared alias helper 保证两源同名分片策略一致（首片 real-name + 后续 alias）。
    *
    * 参数对（styleKey, style）：
@@ -1219,91 +627,9 @@ export class FontManager {
     )
   }
 
-  /** CDN 键的分片 alias 名（排版 fontFamilies 回退链用；非 CDN 键恒为空数组） */
+  /** 分片键的 alias 名（排版 fontFamilies 回退链用；非分片键恒为空数组） */
   renderFamilyAliases(family: string, style: string): string[] {
     return (this.renderAliasFamilies.get(`${family}|${style}`) ?? []).map((entry) => entry.alias)
-  }
-
-  private async loadHostFont(family: string, style: string): Promise<ArrayBuffer | null> {
-    if (!this.hostFontLoader) return null
-    const key = `${family}|${style}`
-    try {
-      const data = await this.hostFontLoader(family, style)
-      if (data) this.unavailableFaces.delete(key)
-      return data
-    } catch (e) {
-      if (e instanceof UnsupportedFontFormatError) {
-        this.unavailableFaces.set(key, e.reason)
-        return null
-      }
-      console.warn(`Host fallback font load failed for "${family}" ${style}:`, e)
-      return null
-    }
-  }
-
-  private async readDownloadedFont(
-    family: string,
-    style: string,
-    characters = ''
-  ): Promise<ArrayBuffer | null> {
-    if (!this.downloadedFontCache) return null
-    try {
-      return await this.downloadedFontCache.read(family, style, characters)
-    } catch (e) {
-      console.warn(`Downloaded font cache read failed for "${family}" ${style}:`, e)
-      return null
-    }
-  }
-
-  private async writeDownloadedFont(
-    family: string,
-    style: string,
-    data: ArrayBuffer,
-    characters = ''
-  ): Promise<void> {
-    if (!this.downloadedFontCache) return
-    try {
-      await this.downloadedFontCache.write(family, style, data, characters)
-    } catch (e) {
-      console.warn(`Downloaded font cache write failed for "${family}" ${style}:`, e)
-    }
-  }
-
-  private async findLocalFont(family: string, style?: string): Promise<ArrayBuffer | null> {
-    if (!hasWindowGlobal() || !window.queryLocalFonts) return null
-    if (this.localFontAccessState !== 'granted') return null
-    try {
-      const fonts = await window.queryLocalFonts()
-      const match = chooseLocalFontMatch(fonts, family, style)
-      if (match) {
-        const blob: Blob = await match.blob()
-        return await blob.arrayBuffer()
-      }
-      if (!style) return null
-      // T41 D-b 收口：显式 style 静态匹配未命中时放宽给可变字体——同族斜体一致候选
-      // 按字重距离升序逐个下载嗅探 fvar，VF 一族覆盖全字重；静态字体严格契约不变
-      const requested = parseFontStyle(style)
-      const normalized = normalizeFontFamily(family)
-      const families = normalized === family ? [family] : [family, normalized]
-      const candidates = fonts
-        .filter(
-          (font) =>
-            families.includes(font.family) && parseFontStyle(font.style).italic === requested.italic
-        )
-        .sort(
-          (a, b) =>
-            Math.abs(parseFontStyle(a.style).weight - requested.weight) -
-            Math.abs(parseFontStyle(b.style).weight - requested.weight)
-        )
-      for (const candidate of candidates) {
-        const buffer = await (await candidate.blob()).arrayBuffer()
-        if (sniffVariableFont(buffer).variable) return buffer
-      }
-      return null
-    } catch (e) {
-      console.warn(`Local font access failed for "${family}" ${style ?? ''}:`, e)
-      return null
-    }
   }
 
   /** 补充片记账（不含注册）：返回 false 表示该 buffer 已在账上（调用方应跳过重注册） */
@@ -1461,7 +787,7 @@ export class FontManager {
     }
   }
 
-  /** 同一 ArrayBuffer 的内容哈希缓存——鲸键全量 FNV 每个 buffer 只算一次 */
+  /** 同一 ArrayBuffer 的内容哈希缓存——龟键全量 FNV 每个 buffer 只算一次 */
   private fontContentHash(data: ArrayBuffer): string {
     const cached = this.fontDataHashes.get(data)
     if (cached) return cached

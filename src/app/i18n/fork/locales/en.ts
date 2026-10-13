@@ -353,84 +353,11 @@ export const fontsMessageDefaults = {
   fontsPanelTitle: 'Font allowlist',
   fontsPanelDescription:
     'Manage the fonts available on the canvas. A disabled font is treated as not installed: it disappears from the font picker and documents fall back to the next available font. Built-in fonts stay always on as the rendering fallback.',
-  fontsSearchPlaceholder: 'Search fonts…',
   fontsLoading: 'Loading fonts…',
   fontsEmpty: 'No fonts match your search.',
-  fontsEnabledSummary: params('{enabled} of {total} families enabled'),
   fontsSourceBundled: 'Built-in',
-  fontsSourceCdn: 'Chinese Fonts CDN featured',
-  fontsSourceCatalog: 'Chinese Fonts CDN more fonts',
-  fontsSourceLocal: 'System',
-  fontsSourceOnline: 'Online',
   fontsSourceUser: 'Installed',
-  fontsLockedHint: 'Built-in fonts stay always on — they are the rendering fallback.',
-  fontsLocalAccessPrompt: 'Allow access to system fonts to manage them here.',
-  fontsLocalAllow: 'Allow system fonts',
   fontsVariableBadge: 'Variable',
-  fontsFilterAll: 'All',
-  fontsFilterEnabled: 'Enabled',
-  fontsFilterDisabled: 'Disabled',
-  fontsEnableAll: 'Enable all',
-  fontsDisableAll: 'Disable all',
-  fontsShowMore: params('Show more ({count} remaining)'),
-  fontsOnlineMaster: 'Online font libraries',
-  fontsOnlineMasterHint:
-    'Master switch for four online libraries: Google Fonts, Fontsource, Bunny Fonts, Fontshare.',
-  fontsOnlineOffHint:
-    'Off — families from the four online libraries are hidden from the list and picker.',
-  fontsCnMaster: 'Chinese Fonts CDN (中文网字计划)',
-  fontsCnMasterHint: 'Independent switch — not affected by the online font libraries toggle.',
-  fontsCnOffHint: 'Off — Chinese Fonts CDN families are hidden from the list and picker.',
-  fontsUnauditedLicense: params('License: unaudited (package declares {license})'),
-  fontsSourceCustom: 'Custom',
-  fontsCatalogHint:
-    'Full Chinese Fonts CDN catalog. Off by default — enabled families appear in the picker and load subset pieces on demand.',
-  // 统一批 A：面板扩管提供商单独开关（自 popover 迁入）
-  fontsProvidersTitle: 'Online providers',
-  fontsProvidersHint:
-    'Each provider is opt-in. Turn one on to list its families and load on demand.',
-  fontsProvidersOptInHint: 'Turning a provider on lists thousands of online font families.',
-  // 统一批 A：回退包预下载（自 popover 迁入）
-  fontsFallbackTitle: 'Fallback packs',
-  fontsFallbackHint:
-    'Pre-download CJK and Arabic fallbacks so files using them render without network.',
-  fontsFallbackDownload: 'Download fallbacks',
-  fontsFallbackDownloading: 'Downloading…',
-  fontsFallbackDownloaded: 'Fallback fonts downloaded.',
-  fontsFallbackDownloadFailed: 'Could not download fallback fonts.',
-  // 统一批 A：缓存管理（自 popover 迁入）
-  fontsCacheTitle: 'Downloaded cache',
-  fontsCacheSummary: params('{count} fonts · {size}'),
-  fontsCacheClear: 'Clear cache',
-  fontsCacheCleared: 'Downloaded font cache cleared.',
-  fontsCacheClearFailed: 'Could not clear the downloaded font cache.',
-  // 统一批 B：本地源应用级开关
-  fontsLocalMaster: 'System fonts',
-  fontsLocalMasterHint:
-    'Allow the app to enumerate and load fonts installed on this device. Turn this off to treat system fonts as not installed.',
-  fontsLocalOffHint:
-    'Off — system fonts are hidden from the list and picker; CJK fallback chain will skip them.',
-  // font-custom-service：专属字体服务区块（运行时可配置 provider，独立于在线字体库总开关）
-  fontsCustomTitle: 'Custom Font Service',
-  fontsCustomDescription: 'Connect your own cloud font library, loaded on demand.',
-  fontsCustomBaseUrl: 'Service URL',
-  fontsCustomToken: 'Access token',
-  fontsCustomTest: 'Test connection',
-  fontsCustomConnected: params('Connected, {count} families available'),
-  fontsCustomFailed: params('Custom font service connection failed: {reason}'),
-  fontsCustomTestEmptyUrl: 'Enter a service URL first.',
-  fontsCustomTestUnauthorized: 'Access denied — check your access token.',
-  fontsCustomTestBadResponse: 'Unexpected service response — check the service URL.',
-  fontsCustomTestBadCatalog: 'The service returned an unexpected catalog format.',
-  fontsCustomTestNetwork: 'Network error — could not reach the custom font service.',
-  // fonts-panel-layering：面板分层（来源/维护 section）与在线组空态（提供商全关 / 枚举失败）
-  fontsSourcesSection: 'Sources',
-  fontsMaintenanceSection: 'Maintenance',
-  fontsOnlineEmptyProvidersOff:
-    'Online font libraries are on, but every provider is off — enable at least one provider above.',
-  fontsOnlineEmptyEnum: 'Enumeration failed or returned no families.',
-  fontsRetryEnumeration: 'Retry',
-  // fonts-my-library: user-installed font library segment
   fontsMyLibrary: 'My Library',
   fontsStoreTab: 'Font Store',
   fontsInstallLocal: 'Install local fonts',
@@ -449,7 +376,6 @@ export const fontsMessageDefaults = {
   // fonts-store：字体商店面板（FontStorePanel）
   fontsStoreServicesTitle: 'Font services',
   fontsStoreServiceBuiltin: 'Built-in',
-  fontsStoreServiceAdd: 'Add service',
   fontsStoreServiceKindStandard: 'Standard catalog',
   fontsStoreServiceKindGfApi: 'Google Fonts compatible',
   fontsStoreServiceNameLabel: 'Service name',

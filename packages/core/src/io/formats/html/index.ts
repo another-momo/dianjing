@@ -6,7 +6,6 @@ import {
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
 import type { ExportAsset, HTMLExportOptions } from '#core/io/types'
-import { exportWebFontFaceAssets } from '#core/text/web-font/assets'
 
 import { vectorElement } from './vectors'
 
@@ -39,11 +38,7 @@ export async function renderNodesToHTML(
     html: options.html,
     style: options.style,
     assets: options.assets,
-    fonts:
-      options.fonts === 'assets'
-        ? async (fonts, basePath) =>
-            (await exportWebFontFaceAssets({ fonts, assetBasePath: basePath })).assets
-        : 'none',
+    fonts: 'none',
     assetBasePath: assetBasePath(fileName)
   })
   const page = bundle.files.find((file) => file.path === bundle.entrypoint)

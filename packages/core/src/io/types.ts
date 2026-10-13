@@ -101,8 +101,6 @@ export interface HTMLExportOptions {
   html?: 'fragment' | 'standalone'
   style?: 'inline' | 'tailwind'
   assets?: 'inline' | 'external'
-  /** `assets` ships web fonts with external assets. */
-  fonts?: 'assets' | 'none'
 }
 
 export interface IOFormatSupport {

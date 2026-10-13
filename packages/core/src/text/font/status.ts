@@ -1,7 +1,7 @@
 import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 
 import { DEFAULT_FONT_FAMILY } from '#core/constants'
-import type { FontLoadedSource, FontUnavailableReason } from '#core/text/font/sources'
+import type { FontLoadedSource } from '#core/text/font/sources'
 import { fontManager, type FontManager } from '#core/text/fonts'
 import { collectNodeFontFaces } from '#core/text/requirements'
 
@@ -13,8 +13,6 @@ export interface DocumentFontFaceStatus {
   status: FontFaceStatus
   source: FontLoadedSource | null
   substituteFamily: string | null
-  /** Why the requested face could not be loaded, when the host reported a reason. */
-  reason: FontUnavailableReason | null
   nodeIds: string[]
   nodeNames: string[]
 }
@@ -70,7 +68,6 @@ function faceStatus(use: MutableFontFaceUse, manager: FontManager): DocumentFont
       status: 'available',
       source: exactSource,
       substituteFamily: null,
-      reason: null,
       nodeIds: [...use.nodeIds],
       nodeNames: [...use.nodeNames]
     }
@@ -83,7 +80,6 @@ function faceStatus(use: MutableFontFaceUse, manager: FontManager): DocumentFont
       status: 'substituted',
       source: null,
       substituteFamily: use.family,
-      reason: manager.unavailableReason(use.family, use.style),
       nodeIds: [...use.nodeIds],
       nodeNames: [...use.nodeNames]
     }
@@ -96,7 +92,6 @@ function faceStatus(use: MutableFontFaceUse, manager: FontManager): DocumentFont
     status: defaultSource ? 'substituted' : 'unresolved',
     source: null,
     substituteFamily: defaultSource ? DEFAULT_FONT_FAMILY : null,
-    reason: manager.unavailableReason(use.family, use.style),
     nodeIds: [...use.nodeIds],
     nodeNames: [...use.nodeNames]
   }

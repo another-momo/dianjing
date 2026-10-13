@@ -23,21 +23,10 @@ function recordingProvider(): {
   return { provider, registrations }
 }
 
-/** unifont provider 元数据请求快速回空（避免真实网络/退避重试拖慢单测） */
-function fastEmptyFetch(): (url: string) => Promise<Response> {
-  return async (url: string) => {
-    if (url.endsWith('.woff2')) return new Response('nope', { status: 404 })
-    return new Response('[]', { status: 200 })
-  }
-}
-
 function makeManager(): FontManager {
   const manager = new FontManager()
   const { provider } = recordingProvider()
   manager.attachProvider({} as CanvasKit, provider)
-  manager.setWebFontFetch(fastEmptyFetch())
-  manager.setCnFontPieceCache(null)
-  manager.setWebFontListTimeout(50)
   return manager
 }
 

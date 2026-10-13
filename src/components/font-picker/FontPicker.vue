@@ -5,25 +5,18 @@ import { PREVIEWABLE_FONT_SOURCES, fontFamilyDisplayName } from '@open-pencil/co
 import { FontPickerRoot, useI18n } from '@open-pencil/vue'
 import type { FontPickerUI } from '@open-pencil/vue'
 
-import {
-  fontListRevision,
-  listFamilies,
-  loadFont,
-  localFontAccessState,
-  requestLocalFontAccess,
-  userLibraryRevision
-} from '@/app/editor/fonts'
+import { listFamilies, loadFont, userLibraryRevision } from '@/app/editor/fonts'
 import { useForkFonts } from '@/app/i18n/fork'
 import { openSettingsDialog } from '@/app/settings/dialog'
 import { matchFontFamilyOrDisplayName } from '@/components/font-picker/font-option-filter'
 import { usePopoverUI } from '@/components/ui/overlay/popover'
 import { useSelectUI } from '@/components/ui/select/select'
 
-const { panels } = useI18n()
+const { panel } = useI18n()
 const forkMsgs = useForkFonts()
 /** The placeholder shows while no family is set, such as Mixed for texts in different fonts. */
 const { label: labelProp, placeholder } = defineProps<{ label?: string; placeholder?: string }>()
-const label = computed(() => labelProp ?? panels.value.fontFamily)
+const label = computed(() => labelProp ?? panel.value.fontFamily)
 const modelValue = defineModel<string>({ required: true })
 const emit = defineEmits<{ select: [family: string] }>()
 
@@ -50,11 +43,6 @@ const ui = computed<FontPickerUI>(() => ({
 
 const previewFontLoads = new Set<string>()
 
-const localFontAccess = {
-  state: localFontAccessState,
-  load: requestLocalFontAccess
-}
-
 function loadPreviewFont(family: string, source: string) {
   if (!PREVIEWABLE_FONT_SOURCES.includes(source as (typeof PREVIEWABLE_FONT_SOURCES)[number])) {
     return
@@ -65,7 +53,7 @@ function loadPreviewFont(family: string, source: string) {
 }
 
 function rowLabel(family: string, source: string): string {
-  if (source === 'cdn' || source === 'catalog') {
+  if (source === 'bundled' || source === 'user') {
     const dn = fontFamilyDisplayName(family)
     if (dn) return dn
   }
@@ -73,10 +61,11 @@ function rowLabel(family: string, source: string): string {
 }
 
 /**
- * Composite revision key — picker remounts on either allowlist toggles
- * (T41 D-h) or user-installed font library mutations (install / uninstall).
+ * Picker remounts on user-installed font library mutations (install / uninstall).
+ * fontListRevision is wired by the app shell to any allowlist toggles; we
+ * only need user-driven changes here.
  */
-const pickerRevision = computed(() => fontListRevision.value + userLibraryRevision.value)
+const pickerRevision = computed(() => userLibraryRevision.value)
 
 function openFontLibrarySection() {
   openSettingsDialog('fonts')
@@ -89,7 +78,6 @@ function openFontLibrarySection() {
     v-model="modelValue"
     data-test-id="font-picker-root"
     :list-families="listFamilies"
-    :local-font-access="localFontAccess"
     :filter-option="matchFontFamilyOrDisplayName"
     :ui="ui"
     :search-placeholder="panels.searchFonts"
@@ -120,20 +108,18 @@ function openFontLibrarySection() {
       >
         <icon-lucide-check v-if="selected" class="size-3 shrink-0 text-primary" />
         <span v-else class="size-3 shrink-0" />
-        <span class="truncate" :style="{ fontFamily: `'${family}', sans-serif` }">{{
+        <span class="truncate" :style="{ fontFamily: `'${family}', sans-serif` }}">{{
           rowLabel(family, source)
         }}</span>
         <span
           class="font-sans ml-auto shrink-0 rounded bg-input px-1.5 py-0.5 text-[9px] uppercase text-muted"
         >
           {{
-            source === 'custom'
-              ? forkMsgs.fontsSourceCustom
+            source === 'bundled'
+              ? forkMsgs.fontsSourceBundled
               : source === 'user'
                 ? forkMsgs.fontsSourceUser
-                : source === 'bundled'
-                  ? forkMsgs.fontsSourceBundled
-                  : source
+                : source
           }}
         </span>
       </div>

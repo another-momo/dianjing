@@ -2,7 +2,7 @@ import { FigmaAPI } from '@open-pencil/core/figma-api'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
 import type { EditorStore } from '@/app/editor/active-store'
-import { listFamilies, listFonts } from '@/app/editor/fonts'
+import { listFamilies } from '@/app/editor/fonts'
 
 /** 节点是否在指定页内——经 parent 链向上走直至 pageId 命中或抵达根。
  *  选中种进 facade 前过滤：用户在 Y 页选中、agent 在 X 页施工时，Y 页选区
@@ -67,15 +67,10 @@ export function makeFigmaFromStore(
       }
     )
   api.listAvailableFontsAsync = async () => {
-    const [systemFonts, familyOptions] = await Promise.all([listFonts(), listFamilies()])
-    const fonts = systemFonts.flatMap(({ family, styles }) =>
-      styles.map((style) => ({ fontName: { family, style } }))
-    )
-    const seenFamilies = new Set(systemFonts.map(({ family }) => family))
-    for (const { family } of familyOptions) {
-      if (!seenFamilies.has(family)) fonts.push({ fontName: { family, style: 'Regular' } })
-    }
-    return fonts
+    const familyOptions = await listFamilies()
+    return familyOptions.map(({ family }) => ({
+      fontName: { family, style: 'Regular' }
+    }))
   }
   return api
 }

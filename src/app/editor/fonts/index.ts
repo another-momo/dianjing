@@ -1,22 +1,10 @@
-import { useLocalStorage } from '@vueuse/core'
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 
-import { hasWindowGlobal } from '@open-pencil/core/constants'
 import {
-  DEFAULT_WEB_FONT_PROVIDER_SETTINGS,
-  WEB_FONT_PROVIDER_IDS,
   collectGraphFontRequirements,
-  customServiceCatalogURL,
   fontManager,
   missingGraphFontScripts,
-  normalizeCustomServiceBase,
-  parseCustomServiceCatalog,
-  scopeBearerFetch,
-  type FontFamilyOption,
-  type LocalFontAccessState,
-  type WebFontFetch,
-  type WebFontProviderId,
-  UnsupportedFontFormatError
+  type FontFamilyOption
 } from '@open-pencil/core/text'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
@@ -25,199 +13,13 @@ import {
   readFontBytes,
   readInstalledSubsetPieces
 } from '@/app/ai/pi-backend/client-fonts'
-import { browserWebFontFetch } from '@/app/editor/fonts/browser-fetch'
-import {
-  clearDownloadedFontCache as clearTauriDownloadedFontCache,
-  createTauriDownloadedFontCache,
-  downloadedFontCacheSummary as tauriDownloadedFontCacheSummary
-} from '@/app/editor/fonts/cache'
-import { createCnFontPieceCache } from '@/app/editor/fonts/idb-cache'
-import { sanitizeLegacyCatalogFamilies } from '@/app/editor/fonts/sanitize-legacy-catalog-families'
-import { isTauri } from '@/app/tauri/env'
-import { tauriFetch } from '@/app/tauri/http'
-import { IS_TAURI } from '@/constants'
-
-if (typeof navigator !== 'undefined') {
-  fontManager.setFallbackUserAgent(navigator.userAgent)
-}
-
-export type FontProviderSettings = Record<WebFontProviderId, boolean>
-
-export const onlineFontsEnabled = useLocalStorage('op-online-fonts-enabled', true)
-export const fontProviderSettings = useLocalStorage<FontProviderSettings>(
-  'op-font-providers',
-  DEFAULT_WEB_FONT_PROVIDER_SETTINGS
-)
-/**
- * 本地（系统）字体应用级开关（统一批 B）：默认开。
- * 语义 = 开关管「要不要」、权限管「能不能」——关停时 picker 不枚举本地族、
- * 回退链不拼装本地段（与单族关停「视为未安装」对齐）。
- */
-export const localFontsEnabled = useLocalStorage('op-local-fonts-enabled', true)
 
 /**
- * T41 S4/S5：字体白名单运行时开关——存「被关停」清单（默认全启用，D-c），
- * 覆盖 bundled/cdn/provider/local 全来源；bundled 兜底族由 core 锁定恒开（D-d）。
- * fontListRevision 是 picker 一次性缓存的失效信号（D-h：FontPicker.vue 以 :key 重挂载）。
- * T42：catalog 族（中文网字计划全量目录）默认停用（opt-in）——存「已启用」清单；
- * cnFontsEnabled 是 CDN 独立总开关（D-a，与四家在线 provider 解耦）。
- *
- * 字重聚合：持久化清单若含字重拆族旧名（如 `LXGW Bright Light`），启动时一次性
- * 映射到合并后的 base（`LXGW Bright`）并去重，避免旧名经 picker 关停分支反向漏合并。
- */
-export const disabledFontFamilies = useLocalStorage<string[]>('op-font-disabled-families:v1', [])
-export const enabledCatalogFamilies = useLocalStorage<string[]>('op-font-enabled-catalog:v1', [])
-export const cnFontsEnabled = useLocalStorage('op-cn-fonts-enabled', true)
-export const fontListRevision = ref(0)
-/**
- * Bumped by user-installed font library mutations (install / uninstall). Independent
- * of `fontListRevision` (which is allowlist-driven); FontPicker :keys on the sum of
- * both so newly installed families show on the next open without an allowlist change.
+ * 应用字体库（用户安装）变更信号（install / uninstall）。
+ * picker 以本 ref 与 fontListRevision 共同作为 :key 重挂载触发器。
  */
 export const userLibraryRevision = ref(0)
-
-/**
- * 专属字体服务（外部分发服务）配置：服务地址 + 访问令牌 + 启用开关，
- * 独立于「在线字体服务」总开关。读出即过 normalizeCustomServiceBase——
- * 把 catalog 全地址（…/catalog.json）粘进地址栏的历史值启动时一次性归一。
- */
-export const customFontService = useLocalStorage('op-custom-service:v1', {
-  baseURL: '',
-  token: '',
-  enabled: false
-})
-customFontService.value = {
-  baseURL: normalizeCustomServiceBase(customFontService.value.baseURL),
-  token: customFontService.value.token,
-  // 持久化 JSON 运行时不保证 boolean（手可改），读出即收编
-  enabled: Boolean(customFontService.value.enabled)
-}
-
-/**
- * 专属字体服务逐族关停清单（默认空 = 专属族全开）。与共享 disabled 清单
- * （op-font-disabled-families:v1）隔离——撞名族（专属 Lato vs Google Lato）
- * 的开关互不污染；core 侧按源路由写入专属关停集合。
- */
-export const customDisabledFontFamilies = useLocalStorage<string[]>(
-  'op-custom-font-disabled:v1',
-  []
-)
-
-function legacyCatalogMigration(): void {
-  const current = enabledCatalogFamilies.value
-  const sanitized = sanitizeLegacyCatalogFamilies(current)
-  const changed =
-    sanitized.length !== current.length ||
-    sanitized.some((family, index) => family !== current[index])
-  if (changed) enabledCatalogFamilies.value = sanitized
-}
-
-legacyCatalogMigration()
-
-// CDN 主开关不经 allowlist revision（枚举门禁在 fonts.ts 而不在白名单），
-// picker 失效信号需叠加本地 epoch 手动 bump
-let cnSwitchEpoch = 0
-
-watch(
-  [disabledFontFamilies, enabledCatalogFamilies, customDisabledFontFamilies, cnFontsEnabled],
-  ([disabled, enabledCatalog, customDisabled, cnEnabled]) => {
-    fontManager.setDisabledFontFamilies(disabled)
-    fontManager.setEnabledCatalogFamilies(enabledCatalog)
-    fontManager.setCustomDisabledFontFamilies(customDisabled)
-    if (cnEnabled !== fontManager.isCnFontsEnabled()) cnSwitchEpoch++
-    fontManager.setCnFontsEnabled(cnEnabled)
-    fontListRevision.value = fontManager.fontAllowlistRevision() + cnSwitchEpoch
-  },
-  { deep: true, immediate: true }
-)
-
-watch(
-  [onlineFontsEnabled, fontProviderSettings],
-  () => {
-    // Google Fonts 全形态放行（2026-09-26 起）：上游 PR #593 的桌面限定（isTauri
-    // 守卫）在 Tauri 已拆后失去意义——Google Fonts 的 css/woff2 静态资源自带
-    // CORS 头，浏览器形态同样可取字节；默认仍关（opt-in），不可达网络靠既有
-    // 6s 枚举超时兜底，不卡 picker。
-    fontManager.setOnlineFontProviders(
-      onlineFontsEnabled.value
-        ? Object.fromEntries(
-            WEB_FONT_PROVIDER_IDS.map((provider) => [
-              provider,
-              fontProviderSettings.value[provider]
-            ])
-          )
-        : {}
-    )
-  },
-  { deep: true, immediate: true }
-)
-
-watch(
-  localFontsEnabled,
-  (enabled) => {
-    fontManager.setLocalFontsEnabled(enabled)
-  },
-  { immediate: true }
-)
-
-let tauriFontCacheConfigured = false
-
-function configureTauriFontCache() {
-  if (tauriFontCacheConfigured || !isTauri()) return
-  tauriFontCacheConfigured = true
-  fontManager.setDownloadedFontCache(createTauriDownloadedFontCache())
-  fontManager.setWebFontFetch(tauriFetch)
-  fontManager.setHostFontLoader(loadSystemFont)
-}
-
-configureTauriFontCache()
-/**
- * 启动基线 fetcher 原值（浏览器 = browserWebFontFetch / Tauri = tauriFetch）：
- * 专属字体服务 watch 在其上组合 scopeBearerFetch，退栈恢复本值——
- * 本引用不得被后续 setWebFontFetch 覆盖。
- */
-const baseFontFetch: WebFontFetch = isTauri() ? tauriFetch : browserWebFontFetch
-if (!isTauri()) fontManager.setWebFontFetch(baseFontFetch)
-
-// 专属字体服务的直连通路：https 校验 / 8MB 响应上限 / Bearer 注入都在
-// scopeBearerFetch 内实现（browser-fetch.ts 冻结不改动），浏览器形态走全局 fetch。
-// fetch 引用必须在模块加载时急绑定：web 字体解析器有 fetch 代理窗口期（临时替换
-// globalThis.fetch，窗口内一切 http(s) 请求改路 remoteFetch），晚绑定裸 fetch 在
-// 窗口期内会被代理层重新路由回 scoped fetcher 的 direct 分支，同步无限递归爆栈
-// （RangeError）。急绑定先例同 browser-fetch.ts 的 browserWebFontFetch。
-const browserDirectFetch = globalThis.fetch.bind(globalThis)
-const customDirectFetch: WebFontFetch = IS_TAURI
-  ? tauriFetch
-  : (url, init) => browserDirectFetch(url, init)
-
-let appliedCustomServiceKey: string | null = null
-
-watch(
-  customFontService,
-  (settings) => {
-    const baseURL = normalizeCustomServiceBase(settings.baseURL)
-    const token = settings.token
-    const enabled = Boolean(settings.enabled)
-    // deep watch 每次键入都触发：归一化 (baseURL, token, enabled) 实际变化才动作
-    const key = `${enabled}\u0000${baseURL}\u0000${token}`
-    if (key === appliedCustomServiceKey) return
-    appliedCustomServiceKey = key
-    if (enabled && baseURL && token) {
-      fontManager.setWebFontFetch(
-        scopeBearerFetch(baseURL, token, customDirectFetch, baseFontFetch)
-      )
-      fontManager.setCustomFontService({ baseURL, token, enabled: true })
-    } else {
-      fontManager.setWebFontFetch(baseFontFetch)
-      fontManager.setCustomFontService(null)
-    }
-  },
-  { deep: true, immediate: true }
-)
-
-// T40 S5：cn-font piece 级磁盘缓存（IndexedDB，200MB LRU；idb 缺失自动降级内存）。
-// 与 Tauri 请求级缓存并存——前者服务 CDN 子集片（URL 键），后者服务 unifont 请求。
-fontManager.setCnFontPieceCache(createCnFontPieceCache())
+export const fontListRevision = ref(0)
 
 /**
  * 应用字体库（用户安装）注入：把 client-fonts 适配成 UserFontProvider 接口。
@@ -244,165 +46,6 @@ fontManager.setUserFontProvider({
   }
 })
 
-// The browser's local-fonts permission persists across sessions, but
-// fontManager's access state is in-memory ('prompt' on every load). Sync it
-// on startup so previously granted local fonts actually resolve — without
-// this, granted users still get no local fonts (and no CJK fallback).
-if (!isTauri() && hasWindowGlobal() && window.queryLocalFonts) {
-  void (async () => {
-    try {
-      const status = await navigator.permissions.query({
-        name: 'local-fonts' as PermissionName
-      })
-      if (status.state === 'granted') await fontManager.requestLocalFontAccess()
-      status.addEventListener('change', () => {
-        if (status.state === 'granted') void fontManager.requestLocalFontAccess()
-      })
-    } catch (error) {
-      console.warn('Local font access sync skipped:', error)
-    }
-  })()
-}
-
-interface TauriFontFamily {
-  family: string
-  styles: string[]
-}
-
-let tauriFontsCache: TauriFontFamily[] | null = null
-let tauriFontsPromise: Promise<TauriFontFamily[]> | null = null
-
-async function getTauriFonts(): Promise<TauriFontFamily[]> {
-  if (tauriFontsCache) return tauriFontsCache
-  if (!tauriFontsPromise) {
-    tauriFontsPromise = import('@tauri-apps/api/core')
-      .then(({ invoke }) => invoke<TauriFontFamily[]>('list_system_fonts'))
-      .then((fonts) => {
-        tauriFontsCache = fonts
-        return fonts
-      })
-      .catch(() => [])
-  }
-  return tauriFontsPromise
-}
-
-export function preloadFonts(): void {
-  configureTauriFontCache()
-  if (isTauri()) {
-    void getTauriFonts().then(registerFontFaces)
-    return
-  }
-  if (onlineFontsEnabled.value) fontManager.preloadWebFontFamilies()
-}
-
-export function localFontAccessState(): LocalFontAccessState {
-  // 应用级开关关停时与权限无关，呈现为「未启用」——面板据此隐藏授权按钮（统一批 B）
-  if (!localFontsEnabled.value) return 'unsupported'
-  return isTauri() ? 'granted' : fontManager.localAccessState()
-}
-
-export async function requestLocalFontAccess(): Promise<FontFamilyOption[]> {
-  if (isTauri()) return listFamilies()
-  await fontManager.requestLocalFontAccess()
-  return listFamilies()
-}
-
-export async function downloadedFontCacheSummary() {
-  configureTauriFontCache()
-  if (!isTauri()) return { count: 0, byteLength: 0, updatedAt: null }
-  return tauriDownloadedFontCacheSummary()
-}
-
-export async function clearDownloadedFontCache(): Promise<void> {
-  configureTauriFontCache()
-  if (!isTauri()) return
-  await clearTauriDownloadedFontCache()
-}
-
-/** 「测试连接」失败原因码（文案映射在消费端 i18n seam，禁堆栈/URL 细节） */
-export type CustomFontServiceTestReason =
-  | 'emptyUrl'
-  | 'unauthorized'
-  | 'badResponse'
-  | 'badCatalog'
-  | 'network'
-
-/**
- * 「测试连接」探测：取 catalog.json（走 scoped fetch 通路，https/8MB/Bearer
- * 守卫与运行时同款），成功返回目录条目数，失败返回结构化原因码。
- */
-export async function testCustomFontService(config: {
-  baseURL: string
-  token: string
-}): Promise<{ ok: true; count: number } | { ok: false; reason: CustomFontServiceTestReason }> {
-  const baseURL = normalizeCustomServiceBase(config.baseURL)
-  if (!baseURL) return { ok: false, reason: 'emptyUrl' }
-  try {
-    const fetcher = scopeBearerFetch(baseURL, config.token, customDirectFetch, baseFontFetch)
-    const url = customServiceCatalogURL({ baseURL, token: config.token, enabled: true })
-    const response = await fetcher(url)
-    if (response.status === 401 || response.status === 403) {
-      return { ok: false, reason: 'unauthorized' }
-    }
-    if (!response.ok) return { ok: false, reason: 'badResponse' }
-    const parsed: unknown = await response.json()
-    if (!Array.isArray(parsed)) return { ok: false, reason: 'badCatalog' }
-    return { ok: true, count: parseCustomServiceCatalog(parsed).length }
-  } catch {
-    return { ok: false, reason: 'network' }
-  }
-}
-
-export async function predownloadFallbackFonts() {
-  return fontManager.ensureFallbackPack()
-}
-
-function registerFontFaces(fonts: TauriFontFamily[]): void {
-  if (typeof document === 'undefined') return
-  for (const { family } of fonts) {
-    const face = new FontFace(family, `local("${family}")`)
-    document.fonts.add(face)
-  }
-}
-
-async function listTauriMergedFamilies(
-  listWebFonts: () => Promise<FontFamilyOption[]>
-): Promise<FontFamilyOption[]> {
-  const [systemFonts, webFonts] = await Promise.all([getTauriFonts(), listWebFonts()])
-  const byFamily = new Map(webFonts.map((font) => [font.family, font]))
-  for (const font of systemFonts)
-    byFamily.set(font.family, { family: font.family, source: 'local' })
-  return [...byFamily.values()].sort((a, b) => a.family.localeCompare(b.family))
-}
-
-export async function listFamilies(): Promise<FontFamilyOption[]> {
-  configureTauriFontCache()
-  if (isTauri()) {
-    return listTauriMergedFamilies(() => fontManager.listFamilyOptions())
-  }
-  return fontManager.listFamilyOptions()
-}
-
-/**
- * T41 S5：白名单管理面板专用枚举——不过滤 disabled 家族，面板要列出
- * 关停行（含其开关状态）才能重开；picker 仍走 listFamilies（过滤版）。
- */
-export async function listAllFamilies(): Promise<FontFamilyOption[]> {
-  configureTauriFontCache()
-  if (isTauri()) {
-    return listTauriMergedFamilies(() => fontManager.listFamilyOptions({ includeDisabled: true }))
-  }
-  return fontManager.listFamilyOptions({ includeDisabled: true })
-}
-
-export async function listFonts(): Promise<TauriFontFamily[]> {
-  configureTauriFontCache()
-  if (isTauri()) {
-    return getTauriFonts()
-  }
-  return []
-}
-
 interface FontRenderInvalidator {
   invalidateAllPictures(): void
 }
@@ -419,9 +62,7 @@ export async function ensureGraphFonts(
     const requirements = collectGraphFontRequirements(graph, nodeIds)
     const { characters } = requirements
     await Promise.all(fontKeys.map(([family, style]) => loadFont(family, style, characters)))
-    const fallbackScripts = missingGraphFontScripts(requirements, {
-      treatUnknownCoverageAsMissing: IS_TAURI
-    })
+    const fallbackScripts = missingGraphFontScripts(requirements)
     if (fallbackScripts.length > 0) {
       const fallbacks = await fontManager.ensureFallbackPack(fallbackScripts, characters)
       if (Object.values(fallbacks).some((families) => families.length > 0)) {
@@ -447,36 +88,8 @@ function clearTextPictures(graph: SceneGraph, nodeIds: string[]): void {
   for (const id of nodeIds) clear(id)
 }
 
-// Session cache for system font bytes. The CJK fallback loop in fontManager
-// calls the host loader directly (bypassing its own loadedFamilies cache), so
-// without this every text/font operation re-fetches up to 7 full CJK system
-// fonts (~100MB) over IPC and re-registers them in CanvasKit — leaking WASM
-// memory each time until the webview OOMs. Returning the same ArrayBuffer
-// reference lets registerAndCache dedupe and skips re-registration.
-const systemFontDataCache = new Map<string, ArrayBuffer | null>()
-
-type NativeFontLoadError = { code?: 'not-found' | 'unsupported-format' | 'failed' }
-
-async function loadSystemFont(family: string, style = 'Regular'): Promise<ArrayBuffer | null> {
-  if (!isTauri()) return null
-  const key = `${family}|${style}`
-  const cached = systemFontDataCache.get(key)
-  if (cached !== undefined) return cached
-  try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const data = await invoke<ArrayBuffer>('load_system_font', { family, style })
-    const buffer = data.byteLength === 0 ? null : data
-    systemFontDataCache.set(key, buffer)
-    return buffer
-  } catch (error) {
-    // 不支持的字形容器不缓存——抛出由 fontManager 记录不可用原因（字体状态条展示），
-    // 重试仍可经 demand 链再触发；其余失败（含 not-found）缓存 null 防 IPC 重拉。
-    if ((error as NativeFontLoadError | null)?.code === 'unsupported-format') {
-      throw new UnsupportedFontFormatError(family, style)
-    }
-    systemFontDataCache.set(key, null)
-    return null
-  }
+export async function predownloadFallbackFonts() {
+  return fontManager.ensureFallbackPack()
 }
 
 export async function loadFont(
@@ -485,6 +98,13 @@ export async function loadFont(
   characters = '',
   signal?: AbortSignal
 ): Promise<ArrayBuffer | null> {
-  configureTauriFontCache()
   return fontManager.loadFont(family, style, characters, signal)
+}
+
+export async function listFamilies(): Promise<FontFamilyOption[]> {
+  return fontManager.listFamilyOptions()
+}
+
+export async function listAllFamilies(): Promise<FontFamilyOption[]> {
+  return fontManager.listFamilyOptions()
 }

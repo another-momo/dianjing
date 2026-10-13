@@ -664,13 +664,6 @@
       "lastReviewed": "2026-08-30"
     },
     {
-      "id": "P114",
-      "file": "packages/core/src/text/web-fonts.ts",
-      "reason": "T40 S2（13 册 Phase 0）：删除 preloadFamilies/fetchFont/loadFamilies 三处 IS_BROWSER && !remoteFetch 门禁——浏览器裸 fetch 即可（CDN 自带 CORS），原门禁致无代理浏览器 web 字体整体禁用；barrel 导出 web-font/cn-fonts + web-font/piece-cache",
-      "disposition": "permanent",
-      "lastReviewed": "2026-08-30"
-    },
-    {
       "id": "P115",
       "file": "packages/core/src/text/font/sources.ts",
       "reason": "T40 S4：FontFamilySource 联合型加 'cdn'（中文网字计划家族枚举/加载来源标识）；T42：FontFamilyOption 加 catalog?: boolean（cn-catalog 全量目录族标识，面板分组/授权提示用）；font-custom-service (2026-09-28): FontFamilySource adds 'custom' (custom font service family source) and FontFamilyOption adds displayName? (custom-service catalog display name for picker/filter display); 字体域改造批 2：新增 PREVIEWABLE_FONT_SOURCES（=WEB_FONT_PROVIDER_IDS ∪ {'user','bundled'}）—picker 行级 loadFont 预览门控白名单，避免对 CDN/catalog/custom/local 等已走自有管线的来源双拉或触权限墙",
@@ -2331,13 +2324,6 @@
       "retiredReason": "fonts-panel-layering（2026-09-29）：被钉扎的 useFontSettings composable 随 popover 摘除而删除，钉扎测试失去对象，文件删除入 deletedPaths"
     },
     {
-      "id": "P366",
-      "file": "packages/core/src/text/web-fonts.ts",
-      "reason": "字体扩 scope 批 D（2026-09-25）：DEFAULT_WEB_FONT_PROVIDER_SETTINGS 四 provider 默认全关（google/fontsource 由 true 翻 false；存量 localStorage 不动）；font-enum-retry（2026-09-29）：枚举失败不再当成功空清单永久缓存——familiesCache 只存成功结果 + familiesFailedAt 失败记录（TTL 60s 内短路返回空清单，过期重发），catch 与 unifont 吞错（throwOnError:false 返回 undefined）双路都记失败，失败时清 familiesPromises/unifontPromises 让重试真正重发（init 失败的 unifont 实例永远返回 undefined）；setEnabled 同值重设也清失败记录（显式重试意图）+ resetEnumerationFailures()（面板重试按钮通路）+ TTL 构造参数（测试注入，生产默认 60s）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-29"
-    },
-    {
       "id": "P367",
       "file": "src/components/font-picker/FontPicker.vue",
       "reason": "字体扩 scope 批 E1（2026-09-25）：#item slot 改用 cnCatalogEntry 行标签（displayName ?? family），catalog 行展示中文名但加载/启用/持久化仍键 css family；font-custom-service (2026-09-28): source 'custom' items render the dedicated badge label instead of the raw source id; 字体域改造批 2：source 'bundled' 显示 fontsSourceBundled 徽标；loadPreviewFont 改用 PREVIEWABLE_FONT_SOURCES 替代裸 WEB_FONT_PROVIDER_IDS（user/bundled 也纳入预览白名单）；:key 复合 fontListRevision + userLibraryRevision 让 install/uninstall 后 picker 重挂载生效；空态 #empty-install-action slot 引导去「我的字体库」",
@@ -2459,14 +2445,6 @@
       "task": "font-panel-ux"
     },
     {
-      "id": "P384",
-      "file": "tests/engine/text/fonts/web-fonts.test.ts",
-      "reason": "font-enum-retry（2026-09-29）：枚举失败缓存钉扎 describe——TTL 过期重试 / TTL 内不重发请求 / setEnabled 同值重设强制重试 / 成功结果永久缓存（注入 remoteFetch + familiesFailureTtlMs 构造参数）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-29",
-      "task": "font-panel-ux"
-    },
-    {
       "id": "P385",
       "file": "tests/e2e/fonts/settings.spec.ts",
       "reason": "font-panel-ux（2026-09-29）：popover 摘除后重写——缺字横幅段保留，popover 段（request-access/provider 开关等 test-id 已于 2026-09-25 统一批 A 死亡）改写为齿轮 IconButton 直开设置对话框字体分区（悬浮 Tip + 管理件只在设置面板的反向断言）；2026-10-01 下载缓存块随 FontsSettingsPanel 按运行时隐藏（实现层 isTauri 门控、非 Tauri 空转），fonts-cache-clear 断言由可见翻为缺席",
@@ -2506,13 +2484,6 @@
       "id": "P390",
       "file": "packages/core/src/text/fonts.ts",
       "reason": "移植 mode-arch 字体内容哈希去重（e0f1f004b+4740ad6ff for-of 折叠）：逐出→重载同字节复用在册注册，断 WASM 泵燃料——fontContentHash 全量 FNV 双种子（fontDataHashes WeakMap 每 buffer 只算一次）+ providerRegistrationHashes 按 provider × 家族复用判据，registerFontInProvider 内容哈希命中即免注册；provider 生命周期对称维护（detach 整体重置/单删同步清哈希表）；移植 providerRegisteredBytes()/collectProviderRegistrationTotals 观测口（lite 无压实栈，注释按 lite 口径）",
-      "disposition": "permanent",
-      "lastReviewed": "2026-09-30"
-    },
-    {
-      "id": "P391",
-      "file": "tests/engine/text/fonts/loading.test.ts",
-      "reason": "随 P390 移植：内容哈希去重钉扎三例——逐出后重载同字节零注册（providerRegisteredBytes 台账不双计）/同族名不同字节照常注册（分片语义不受影响）/去重按 provider 隔离（attach 新 provider 照常回放）",
       "disposition": "permanent",
       "lastReviewed": "2026-09-30"
     },
@@ -2991,6 +2962,62 @@
       "reason": "字体域批 4b：扩 cn-install/cn-install-cancel/cn-install-broken-piece 三模式（registry 内真实非 VF 族 LXGW WenKai + npm 包路径 /<pkg>@<ver>/dist/... + /npm 前缀兼容 + pieceDelayMs 慢服）——分片集合安装管线 fake 服",
       "disposition": "permanent",
       "lastReviewed": "2026-10-12"
+    },
+    {
+      "id": "P467",
+      "file": "packages/core/src/index.ts",
+      "reason": "字体域退役批：导出清单删 DownloadedFontCache/FontInfo/LocalFontAccessState（随在线来源与系统字体枚举面退役）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-13"
+    },
+    {
+      "id": "P468",
+      "file": "packages/core/src/io/formats/html/index.ts",
+      "reason": "字体域退役批：HTML 导出不再携带 web 字体资产（fonts 固定 none，exportWebFontFaceAssets 随 web-font/assets.ts 整文件删除）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-13"
+    },
+    {
+      "id": "P469",
+      "file": "packages/core/src/io/types.ts",
+      "reason": "字体域退役批：HTMLExportOptions.fonts 选项删除",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-13"
+    },
+    {
+      "id": "P470",
+      "file": "packages/core/src/text/font/status.ts",
+      "reason": "字体域退役批：DocumentFontFaceStatus.reason 字段删除（写入侧随系统字体枚举面退役，UI 无消费者）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-13"
+    },
+    {
+      "id": "P471",
+      "file": "packages/core/src/text/index.ts",
+      "reason": "字体域退役批：barrel 改指 web-font/cn-fonts（web-fonts.ts 整文件删除）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-13"
+    },
+    {
+      "id": "P472",
+      "file": "packages/vue/src/i18n/messages/panels.ts",
+      "reason": "字体域退役批：picker 空态文案去本地字体语义（改写为安装引导）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-13"
+    },
+    {
+      "id": "P473",
+      "file": "src/app/editor/fonts/status.ts",
+      "reason": "字体域退役批：字体重试路径摘除 requestLocalFontAccess 与 resetWebFontFailures",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-13"
+    },
+    {
+      "id": "P474",
+      "file": "tests/engine/text/fonts/status.test.ts",
+      "reason": "字体域退役批：status 断言同步去除 reason 字段",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-13"
     }
   ],
   "deletedPaths": [
@@ -3325,7 +3352,19 @@
     "tools/tauri-menu",
     "updater.html",
     "vite/pwa.ts",
-    "wdio.conf.ts"
+    "wdio.conf.ts",
+    "packages/core/src/text/web-font/assets.ts",
+    "packages/core/src/text/web-font/providers.ts",
+    "packages/core/src/text/web-fonts.ts",
+    "src/app/editor/fonts/browser-fetch.ts",
+    "src/app/editor/fonts/cache.ts",
+    "tests/e2e/fonts/browser-provider.spec.ts",
+    "tests/e2e/fonts/picker.spec.ts",
+    "tests/engine/app/editor/fonts/browser-fetch.test.ts",
+    "tests/engine/text/fonts/fallbacks.test.ts",
+    "tests/engine/text/fonts/loading.test.ts",
+    "tests/engine/text/fonts/web-fonts.test.ts",
+    "tests/helpers/fonts/google.ts"
   ],
   "upstreamMergeTarball": []
 }

@@ -8,7 +8,6 @@ import { createRetainedScopePlugin } from '@open-pencil/vue'
 import './app.css'
 import { attachPiBackendTransport } from '@/app/ai/pi-backend/attach'
 import { recordRuntimeError } from '@/app/diagnostics'
-import { preloadFonts } from '@/app/editor/fonts'
 import { observeBootErrors } from '@/app/shell/support/boot'
 import { reportBootFailure } from '@/app/shell/support/gate'
 
@@ -24,7 +23,6 @@ export async function boot(): Promise<void> {
   attachPiBackendTransport()
   // A session of its own, so layers this window creates never share IDs with a collaborator's.
   setIdSession(randomInt() >>> 1)
-  preloadFonts()
   const head = createHead()
   const app = createApp(App)
   const bootErrors = observeBootErrors(app)
