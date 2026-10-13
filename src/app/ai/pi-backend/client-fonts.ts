@@ -24,6 +24,8 @@ import type {
 
 export type { FamilyView } from '@open-pencil/core/text/font/installed/manifest'
 import { loadInstalledSubsetPieces } from '@open-pencil/core/text/font/installed/cn-piece-loader'
+
+import type { StoreInstallTask } from './fonts/store-tasks'
 export type {
   StoreCatalogFamily,
   StoreCatalogStyle,
@@ -248,17 +250,8 @@ export async function installFromStore(input: {
   return { taskId: shaped.taskId, shortCircuited: shaped.shortCircuited === true }
 }
 
-export interface StoreInstallTaskView {
-  id: string
-  serviceId: string
-  family: string
-  total: number
-  done: number
-  failures: { style: string; reason: string }[]
-  status: 'running' | 'done' | 'failed' | 'cancelled'
-  startedAt: number
-  finishedAt?: number
-}
+/** /tasks 响应任务视图 = 服务端 StoreInstallTask 的线形态（字段逐一对应） */
+export type StoreInstallTaskView = StoreInstallTask
 
 export async function fetchStoreTasks(): Promise<StoreInstallTaskView[]> {
   const response = await fetch(`${API_PREFIX}/fonts/store/tasks`, { method: 'GET' })
