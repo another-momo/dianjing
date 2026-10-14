@@ -13,7 +13,11 @@ import { useEditor } from '#vue/editor/context'
  * Options for {@link useTypography}.
  */
 export interface TypographyFontLoader {
-  load: (family: string, style: string) => Promise<unknown>
+  /**
+   * characters 供 subset 形态族按文本选片——空串选片恒空会被误译作「该字重
+   * 不存在」，调用方应传目标节点的实际文本。
+   */
+  load: (family: string, style: string, characters?: string) => Promise<unknown>
 }
 
 export interface UseTypographyOptions {

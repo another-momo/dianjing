@@ -94,9 +94,15 @@ function openFontLibrarySection() {
         :aria-label="label"
         :class="selectCls.trigger"
       >
-        <span class="truncate" :class="{ 'text-muted': !modelValue }">{{
-          modelValue || placeholder
-        }}</span>
+        <!-- 回显与列表项同走显示名层（rowLabel 同源），family 内部身份挪 title 备查 -->
+        <span
+          class="truncate"
+          :class="{ 'text-muted': !modelValue }"
+          :title="modelValue || undefined"
+          >{{
+            (modelValue && fontFamilyDisplayName(modelValue)) || modelValue || placeholder
+          }}</span
+        >
         <icon-lucide-chevron-down class="size-3 shrink-0 text-muted" />
       </button>
     </template>

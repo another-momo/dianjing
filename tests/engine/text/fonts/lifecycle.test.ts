@@ -83,6 +83,42 @@ describe('font lifecycle', () => {
     expect(manager.isNodeBlocked('second')).toBe(true)
   })
 
+  test('installed variable family resolves any requested weight to its variable style entry', async () => {
+    const readKeys: string[] = []
+    const manager = new FontManager()
+    manager.setUserFontProvider({
+      async list() {
+        return [
+          {
+            family: 'Installed VF',
+            styles: [
+              // 安装清单对 VF 只登记一条条目（weight 恒 400）——区间内其余档
+              // 的解析依赖 variable 条目回退匹配
+              {
+                key: 'Variable',
+                weight: 400,
+                italic: false,
+                variable: true,
+                artifact: 'full' as const
+              }
+            ]
+          }
+        ]
+      },
+      async read(_family, key) {
+        readKeys.push(key)
+        return new ArrayBuffer(8)
+      }
+    })
+
+    expect(await manager.loadFont('Installed VF', 'Black')).toBeTruthy()
+    expect(readKeys).toEqual(['Variable'])
+
+    // 斜体不放宽：正立体 VF 不应承接 italic 请求
+    expect(await manager.loadFont('Installed VF', 'Bold Italic')).toBeNull()
+    expect(readKeys).toEqual(['Variable'])
+  })
+
   test('subset-collection 族按 list artifact 跳过 read 探测直走分片；full 族仍先 read', async () => {
     const readCalls: string[] = []
     const subsetPieceCalls: string[] = []

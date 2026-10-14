@@ -70,6 +70,12 @@ function matchUserStyleKey(
   for (const s of view.styles) {
     if (s.weight === requested.weight && s.italic === requested.italic) return s.key
   }
+  // variable 条目覆盖其 fvar 全轴区间——清单里 VF 只登记一条 weight 400 的条目，
+  // 静态 weight 精确匹配对区间内其余档必漏，漏配会被调用方误译作「该字重不存在」
+  // （缺档 toast 误报根因）；区间收窄由渲染层轴注入与字重梯嗅探承担。
+  for (const s of view.styles) {
+    if (s.variable && s.italic === requested.italic) return s.key
+  }
   return null
 }
 

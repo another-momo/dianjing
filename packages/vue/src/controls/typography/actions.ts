@@ -161,15 +161,18 @@ export function createTypographyActions({
     const loader = options.fontLoader
     if (!loader) return
     const style = weightToStyle(weight)
+    // 传节点实际文本：subset 形态族按字符选片，空字符选片恒空会把「该族有此档」
+    // 误译作「没有此档」。
     const results = await Promise.all(
-      targets.map((target) => loader.load(target.fontFamily, style))
+      targets.map((target) => loader.load(target.fontFamily, style, target.text))
     )
     // 加载失败（该族无此字重档）逐族上报。已知静态族由字重梯过滤在前，这里兜
     // 未枚举到 style 集的族（如用户安装族）。node.fontWeight 不回滚——渲染链
-    // 按最近可用档回退，用户看到提示后可自行改回。
+    // 按最近可用档回退，用户看到提示后可自行改回。空文本节点无字符可渲染，
+    // 选片无从命中，不据此误报。
     const failedFamilies = new Set<string>()
     for (const [index, result] of results.entries()) {
-      if (result == null) failedFamilies.add(targets[index].fontFamily)
+      if (result == null && targets[index].text) failedFamilies.add(targets[index].fontFamily)
     }
     for (const family of failedFamilies) options.onMissingWeight?.(family, weight)
   }

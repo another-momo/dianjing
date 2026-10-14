@@ -92,7 +92,10 @@ describe('typography depth actions', () => {
   test('reports a failed weight pick per family via onMissingWeight', async () => {
     const editor = createEditor()
     const pageId = editor.state.currentPageId
-    const text = editor.graph.createNode('TEXT', pageId, { fontFamily: 'Subset Sans' })
+    const text = editor.graph.createNode('TEXT', pageId, {
+      fontFamily: 'Subset Sans',
+      text: 'Hello'
+    })
     const missing: Array<[string, number]> = []
     const actions = createTypographyActions({
       editor,
@@ -110,6 +113,59 @@ describe('typography depth actions', () => {
     await actions.setWeight(900)
 
     expect(missing).toEqual([['Subset Sans', 900]])
+  })
+
+  test('passes the node text to the loader for subset piece selection', async () => {
+    const editor = createEditor()
+    const pageId = editor.state.currentPageId
+    const text = editor.graph.createNode('TEXT', pageId, {
+      fontFamily: 'Subset Sans',
+      text: '你好世界'
+    })
+    const loads: Array<{ family: string; style: string; characters?: string }> = []
+    const actions = createTypographyActions({
+      editor,
+      nodes: computed(() => {
+        const node = editor.graph.getNode(text.id)
+        return node ? [node] : []
+      }),
+      activeFormatting: computed(() => []),
+      options: {
+        fontLoader: {
+          load: async (family: string, style: string, characters?: string) => {
+            loads.push({ family, style, characters })
+            return new ArrayBuffer(8)
+          }
+        }
+      }
+    })
+
+    await actions.setWeight(500)
+
+    expect(loads).toEqual([{ family: 'Subset Sans', style: 'Medium', characters: '你好世界' }])
+  })
+
+  test('does not report a failed weight pick for an empty text node', async () => {
+    const editor = createEditor()
+    const pageId = editor.state.currentPageId
+    const text = editor.graph.createNode('TEXT', pageId, { fontFamily: 'Subset Sans' })
+    const missing: Array<[string, number]> = []
+    const actions = createTypographyActions({
+      editor,
+      nodes: computed(() => {
+        const node = editor.graph.getNode(text.id)
+        return node ? [node] : []
+      }),
+      activeFormatting: computed(() => []),
+      options: {
+        fontLoader: { load: async () => null },
+        onMissingWeight: (family, weight) => missing.push([family, weight])
+      }
+    })
+
+    await actions.setWeight(900)
+
+    expect(missing).toEqual([])
   })
 
   test('does not report when the weight face loads', async () => {
