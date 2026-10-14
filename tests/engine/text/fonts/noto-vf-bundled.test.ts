@@ -28,12 +28,10 @@ describe('Noto Sans SC bundled VF', () => {
     for (const ch of ['中', 'A', '。']) {
       expect(font.charToGlyphIndex(ch)).toBeGreaterThan(0)
     }
-    const fvar = (
-      font as unknown as {
-        tables?: { fvar?: { axes: { tag: string; minValue: number; maxValue: number }[] } }
-      }
-    ).tables?.fvar
-    const wght = fvar?.axes.find((axis) => axis.tag === 'wght')
+    const fvar = font.tables.fvar as
+      | { axes?: { tag: string; minValue: number; maxValue: number }[] }
+      | undefined
+    const wght = fvar?.axes?.find((axis) => axis.tag === 'wght')
     expect(wght?.minValue).toBe(100)
     expect(wght?.maxValue).toBe(900)
   })

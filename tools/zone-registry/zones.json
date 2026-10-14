@@ -3034,6 +3034,13 @@
       "reason": "字重梯治理补做：onMissingWeight prop 透传 useTypography（应用层接 toast 文案，vue 包不持文案）",
       "disposition": "permanent",
       "lastReviewed": "2026-10-14"
+    },
+    {
+      "id": "P480",
+      "file": "packages/core/tests/figma-api/text/autosize.test.ts",
+      "reason": "默认族换 Noto Sans SC 后度量钉扎显式锁 Inter（录像值保持有效；fontName 直写不过 auto-resize，空 characters 赋值触发重测）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-14"
     }
   ],
   "deletedPaths": [

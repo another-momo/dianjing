@@ -1,10 +1,11 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
 
 import { expectDefined } from '#core-tests/helpers/assert'
-import { fontManager } from '#core/text/fonts'
 
 import { FigmaAPI } from '@open-pencil/core/figma-api'
 import { SceneGraph } from '@open-pencil/scene-graph'
+
+import { fontManager } from '#core/text/fonts'
 
 // Recorded with the same script in live Figma on 2026-10-07, Inter Regular. Line metrics round
 // differently by up to a pixel.
@@ -19,7 +20,13 @@ beforeAll(async () => {
 
 function text() {
   const figma = new FigmaAPI(new SceneGraph())
-  return figma.createText() as ReturnType<FigmaAPI['createText']> & TextNode
+  const node = figma.createText() as ReturnType<FigmaAPI['createText']> & TextNode
+  // The sizes below were recorded against Inter Regular; pin it explicitly now that the
+  // default family is Noto Sans SC. fontName writes bypass auto-resize re-measurement, so a
+  // no-op characters assignment re-measures the empty node with the pinned font.
+  node.fontName = { family: 'Inter', style: 'Regular' }
+  node.characters = ''
+  return node
 }
 
 function size(node: { width: number; height: number }) {

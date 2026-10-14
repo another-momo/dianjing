@@ -62,7 +62,7 @@ describe('font lifecycle', () => {
       registerFont() {
         throw new Error('not a font')
       }
-    } as unknown as TypefaceFontProvider
+    } as TypefaceFontProvider
     manager.attachProvider({} as CanvasKit, provider)
 
     // CanvasKit 拒收的字节入账会缓存「已加载」假象——demand 链短路、画布静默 tofu
