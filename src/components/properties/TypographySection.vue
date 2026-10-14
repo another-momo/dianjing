@@ -6,6 +6,7 @@ import { MIXED, TypographyControlsRoot, useI18n, type MixedValue } from '@open-p
 import { loadFont } from '@/app/editor/fonts'
 import { openSettingsDialog } from '@/app/settings/dialog'
 import { appMenuShortcutLabel } from '@/app/shell/menu/shortcut'
+import { toast } from '@/app/shell/ui'
 import FontPicker from '@/components/font-picker/FontPicker.vue'
 import NumberField from '@/components/inputs/NumberField.vue'
 import SharedStyleField from '@/components/properties/shared-style/SharedStyleField.vue'
@@ -25,6 +26,10 @@ import PropertyBoundField from './component-properties/PropertyBoundField.vue'
 
 const { fonts, panels, menu } = useI18n()
 const fontLoader = { load: loadFont }
+
+function onMissingWeight(family: string, weight: number) {
+  toast.error(fonts.value.weightUnavailable({ family, weight: String(weight) }))
+}
 const alignmentOptions = computed(() => [
   { value: 'LEFT', label: panels.value.alignLeft },
   { value: 'CENTER', label: panels.value.alignCenterHorizontally },
@@ -76,7 +81,11 @@ function picked<T>(value: MixedValue<T>): T | '' {
 </script>
 
 <template>
-  <TypographyControlsRoot v-slot="ctx" :font-loader="fontLoader">
+  <TypographyControlsRoot
+    v-slot="ctx"
+    :font-loader="fontLoader"
+    :on-missing-weight="onMissingWeight"
+  >
     <PanelSection v-if="ctx.node.value" :label="panels.typography" data-test-id="typography">
       <template v-if="ctx.nodes.value.length === 1" #actions>
         <PropertyBindButton field="TEXT" />

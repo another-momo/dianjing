@@ -140,7 +140,7 @@ export async function loadFonts(
   // T98：恢复启动期 CJK/Arabic 预加载（T88 随上游回退失去的语义）——上游
   // loadFonts 只装 Inter；label 走 labelParagraphCache → fontProvider 字形
   // 回退，而需求触发链（trackFontDemand）只挂在 text 节点布局上，label 无
-  // 入口。不预装 PuHuiTi/Noto Naskh Arabic 进 provider，CJK 标签首渲染即
+  // 入口。不预装 Noto Sans SC/Noto Naskh Arabic 进 provider，CJK 标签首渲染即
   // tofu 且永不自愈（A2 NOTES §3 闸门 1 前提）。须在 fontsLoaded/syncFontGeneration
   // 终态前完成注册，保证 paragraph-cache 见到的 generation 覆盖本次注册。
   if (!r.isDestroyed()) await fontManager.ensureFallbackPack()

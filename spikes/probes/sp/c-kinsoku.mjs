@@ -8,7 +8,7 @@
  * 若不成立 → 退化为 prompt 软约束（让 AI 写文案规避），价值减半。
  *
  * 方法：
- * 1. 注册本地内置子集字体（packages/core/assets/AlibabaPuHuiTi-Regular.ttf，
+ * 1. 注册本地内置子集字体（packages/core/assets/NotoSansSC-VF.ttf，
  *    已核覆盖全部测试字符，无网络依赖）；
  * 2. 三个夹具 × 宽度扫描（fontSize=100，宽度 250..1050 步进 25 ≈ 2.5em~10.5em）：
  *    A 行首禁则「中中中中。中中中中中中中中」——违规 = 非首行以 。开头；
@@ -22,9 +22,10 @@
  */
 
 import { readFileSync } from 'node:fs'
+
 import CanvasKitInit from 'canvaskit-wasm'
 
-const FONT_PATH = 'packages/core/assets/AlibabaPuHuiTi-Regular.ttf'
+const FONT_PATH = 'packages/core/assets/NotoSansSC-VF.ttf'
 
 /** 行首禁则字符（不得出现在行首） */
 const NO_START = new Set([...'。，、！？；：％」』】）》—…·'])
@@ -126,7 +127,9 @@ async function main() {
 
   console.log(`\n判定: 总违规数 = ${totalViolations}，危险区探测 = ${totalAdjacency} 处`)
   if (totalViolations === 0 && totalAdjacency > 0) {
-    console.log('SP-c 成立：避头尾自动排印（ICU 断行禁则生效，且危险区确被探测），无需 prompt 软约束兜底')
+    console.log(
+      'SP-c 成立：避头尾自动排印（ICU 断行禁则生效，且危险区确被探测），无需 prompt 软约束兜底'
+    )
   } else if (totalViolations === 0) {
     console.log('SP-c 证据不足：0 违规但危险区未被探测（扫描空转），需加宽扫描范围重跑')
     process.exitCode = 1

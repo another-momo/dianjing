@@ -47,24 +47,8 @@
     "tools/font-subset/charset-cjk.txt",
     "tools/font-subset/package.json",
     "tools/test.ts",
-    "packages/core/assets/AlibabaPuHuiTi-Thin.ttf",
-    "public/AlibabaPuHuiTi-Thin.ttf",
-    "packages/core/assets/AlibabaPuHuiTi-Light.ttf",
-    "public/AlibabaPuHuiTi-Light.ttf",
-    "packages/core/assets/AlibabaPuHuiTi-Regular.ttf",
-    "public/AlibabaPuHuiTi-Regular.ttf",
-    "packages/core/assets/AlibabaPuHuiTi-Medium.ttf",
-    "public/AlibabaPuHuiTi-Medium.ttf",
-    "packages/core/assets/AlibabaPuHuiTi-SemiBold.ttf",
-    "public/AlibabaPuHuiTi-SemiBold.ttf",
-    "packages/core/assets/AlibabaPuHuiTi-Bold.ttf",
-    "public/AlibabaPuHuiTi-Bold.ttf",
-    "packages/core/assets/AlibabaPuHuiTi-ExtraBold.ttf",
-    "public/AlibabaPuHuiTi-ExtraBold.ttf",
-    "packages/core/assets/AlibabaPuHuiTi-Heavy.ttf",
-    "public/AlibabaPuHuiTi-Heavy.ttf",
-    "packages/core/assets/AlibabaPuHuiTi-Black.ttf",
-    "public/AlibabaPuHuiTi-Black.ttf",
+    "packages/core/assets/NotoSansSC-VF.ttf",
+    "public/NotoSansSC-VF.ttf",
     "packages/core/src/text/font/registry.ts",
     "packages/core/src/text/font/memory.ts",
     "packages/core/src/text/web-font/cn-fonts.ts",
@@ -79,6 +63,7 @@
     "src/components/settings/fonts/MyFontLibrary.vue",
     "tests/engine/text/fonts/allowlist.test.ts",
     "tests/engine/text/fonts/variable-fonts.test.ts",
+    "tests/engine/text/fonts/noto-vf-bundled.test.ts",
     "packages/core/src/text/font/cn-catalog.ts",
     "tests/engine/text/fonts/cn-catalog.test.ts",
     "tests/engine/text/fonts/catalog-weight-merge.test.ts",
@@ -3021,6 +3006,34 @@
       "reason": "字体域修红批：include 增 core 侧 wawoff2.d.ts——wawoff2 无官方类型包，ambient 声明须进 program 否则 vue-tsc 报 TS7016（仿 ../core/src/global.d.ts 先例）",
       "disposition": "permanent",
       "lastReviewed": "2026-10-13"
+    },
+    {
+      "id": "P476",
+      "file": "tests/engine/vue/controls/typography-depth.test.ts",
+      "reason": "字重梯治理补做：setWeight 缺载回调（onMissingWeight）用例 ×2 + filterWeightsForFamily 静态注册族过滤/可变与未知族全梯用例 ×2——随 packages/vue typography use.ts/actions.ts 同批改动钉扎",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-14"
+    },
+    {
+      "id": "P477",
+      "file": "packages/scene-graph/src/constants.ts",
+      "reason": "换族批：DEFAULT_FONT_FAMILY Inter→Noto Sans SC（单字体覆盖中英文，中文不再静默回退；与 core 侧 constants 同义同步）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-14"
+    },
+    {
+      "id": "P478",
+      "file": "packages/vue/src/controls/typography/actions.ts",
+      "reason": "字重梯治理补做：setWeight 加载失败逐族回调 onMissingWeight（loader 缺载返 null 时上报，兜未枚举 style 集的族；node.fontWeight 不回滚，渲染链按最近可用档回退）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-14"
+    },
+    {
+      "id": "P479",
+      "file": "packages/vue/src/primitives/TypographyControls/TypographyControlsRoot.vue",
+      "reason": "字重梯治理补做：onMissingWeight prop 透传 useTypography（应用层接 toast 文案，vue 包不持文案）",
+      "disposition": "permanent",
+      "lastReviewed": "2026-10-14"
     }
   ],
   "deletedPaths": [

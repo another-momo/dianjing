@@ -38,7 +38,7 @@ describe('documentFontStatus', () => {
   test('reports the active default-family substitution for missing faces', () => {
     const graph = new SceneGraph()
     const manager = new FontManager()
-    manager.markLoaded('Inter', 'Regular', new ArrayBuffer(8), 'bundled')
+    manager.markLoaded('Noto Sans SC', 'Regular', new ArrayBuffer(8), 'bundled')
     const node = graph.createNode('TEXT', pageId(graph), {
       name: 'Unavailable label',
       text: 'Hello',
@@ -55,7 +55,7 @@ describe('documentFontStatus', () => {
         style: 'Regular',
         status: 'substituted',
         source: null,
-        substituteFamily: 'Inter',
+        substituteFamily: 'Noto Sans SC',
         nodeIds: [node.id],
         nodeNames: ['Unavailable label']
       }

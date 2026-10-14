@@ -11,5 +11,6 @@
   "noSubstitute": "没有可用的替代字体",
   "openSettings": "打开字体设置",
   "unsupportedFormatShort": "不支持的格式",
-  "unsupportedFormat": "已安装，但 OpenPencil 暂时无法绘制这种字体格式"
+  "unsupportedFormat": "已安装，但 OpenPencil 暂时无法绘制这种字体格式",
+  "weightUnavailable": "{family} 没有 {weight} 字重——请改选其他字重。"
 }

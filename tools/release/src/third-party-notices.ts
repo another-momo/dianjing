@@ -468,19 +468,9 @@ interface CuratedFontEntry {
 
 const curatedFonts: CuratedFontEntry[] = [
   {
-    name: 'Alibaba PuHuiTi',
-    files: [
-      'public/AlibabaPuHuiTi-Thin.ttf',
-      'public/AlibabaPuHuiTi-Light.ttf',
-      'public/AlibabaPuHuiTi-Regular.ttf',
-      'public/AlibabaPuHuiTi-Medium.ttf',
-      'public/AlibabaPuHuiTi-SemiBold.ttf',
-      'public/AlibabaPuHuiTi-Bold.ttf',
-      'public/AlibabaPuHuiTi-ExtraBold.ttf',
-      'public/AlibabaPuHuiTi-Heavy.ttf',
-      'public/AlibabaPuHuiTi-Black.ttf'
-    ],
-    copyright: 'Copyright (c) Alibaba'
+    name: 'Noto Sans SC (variable, wght 100-900)',
+    files: ['public/NotoSansSC-VF.ttf'],
+    copyright: 'Copyright 2022 The Noto Project Authors (github.com/notofonts/notofonts.github.io)'
   },
   {
     name: 'Inter',
@@ -612,7 +602,7 @@ lines.push('All are released under the SIL Open Font License v1.1; the full text
 lines.push('is printed once below.')
 lines.push('')
 for (const f of curatedFonts) {
-  lines.push(`  - ${f.name} (${f.files.length} weights)`)
+  lines.push(`  - ${f.name} (${f.files.length} ${f.files.length === 1 ? 'file' : 'weights'})`)
   for (const file of f.files) lines.push(`      ${file}`)
   lines.push(`    Copyright: ${f.copyright}`)
   lines.push('')

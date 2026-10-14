@@ -5,7 +5,7 @@
  * - 四区结构：内容区 / 素材区 / AI结论区 / 关联设计区（新建）齐备；
  *   根节点 role=brief + schemaVersion=1；zone 标记 content|materials|conclusions|designs。
  * - zone 标记寻址：显示名改名后读写仍正常；剥掉标记后 name 兜底兼容旧档。
- * - 字体治理：BRIEF_FONT_FAMILY 单一常量 + fontRegistryEntry('Alibaba PuHuiTi') 钉扎。
+ * - 字体治理：BRIEF_FONT_FAMILY 单一常量 + fontRegistryEntry('Noto Sans SC') 钉扎。
  * - 结论按设计归组（组 designId 标记 + GroupTitle 投影），保序。
  * - 关联设计区：registerBriefDesignEntry 幂等；tombstone 保痕；读侧容错补显。
  * - findBrief 解析序：显式 briefId > 当前页唯一 brief > 歧义信号（无静默兜底）。
@@ -114,10 +114,10 @@ test('字体钉扎：全部 TEXT 用 BRIEF_FONT_FAMILY，注册表在册', () =>
   const { graph, figma } = setupToolTest()
   const brief = createBrief(figma)
 
-  expect(BRIEF_FONT_FAMILY).toBe('Alibaba PuHuiTi')
+  expect(BRIEF_FONT_FAMILY).toBe('Noto Sans SC')
   const entry = expectDefined(fontRegistryEntry(BRIEF_FONT_FAMILY), 'font registry entry')
-  expect(entry.family).toBe('Alibaba PuHuiTi')
-  expect(entry.weights).toContain('Regular')
+  expect(entry.family).toBe('Noto Sans SC')
+  expect(entry.variable).toBe(true)
 
   const stack = [...brief.childIds]
   let textCount = 0

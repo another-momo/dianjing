@@ -37,9 +37,21 @@ const BUNDLED_FONTS: Record<string, string> = {
   'Noto Naskh Arabic|Regular': '/NotoNaskhArabic-Regular.ttf'
 }
 
-// Alibaba PuHuiTi 9 字重（T39，CJK 312）：从注册表派生避免双源漂移。
-for (const weight of FONT_REGISTRY.find((e) => e.family === 'Alibaba PuHuiTi')?.weights ?? []) {
-  BUNDLED_FONTS[`Alibaba PuHuiTi|${weight}`] = `/AlibabaPuHuiTi-${weight}.ttf`
+// Noto Sans SC 可变字体（T0，wght 100-900 全轴）：九档 style 键同指 VF 单文件——
+// 各键注册同一字节对象，排版期 namedInstanceVariations 按 style 名解 wght 坐标。
+// style 名与 weightToStyle 输出一一对应（Thin..Black，无空格形态）。
+for (const weight of [
+  'Thin',
+  'ExtraLight',
+  'Light',
+  'Regular',
+  'Medium',
+  'SemiBold',
+  'Bold',
+  'ExtraBold',
+  'Black'
+]) {
+  BUNDLED_FONTS[`Noto Sans SC|${weight}`] = '/NotoSansSC-VF.ttf'
 }
 
 /**
@@ -441,7 +453,7 @@ export class FontManager {
     if (this.cjkFallbackPromise) return this.cjkFallbackPromise
 
     this.cjkFallbackPromise = (async () => {
-      // T84：bundled PuHuiTi 前插 CJK 回退链，离线/无系统字体权限时仍能命中中文字形
+      // T84：bundled CJK 族前插 CJK 回退链，离线/无系统字体权限时仍能命中中文字形
       await this.prependBundledCJK(this.cjkFallbackFamilies)
       return this.cjkFallbackFamilies
     })()
@@ -498,11 +510,11 @@ export class FontManager {
   }
 
   /**
-   * bundled PuHuiTi 前插 CJK 回退链（T84）：断网/无系统字体权限场景下仍能让
+   * bundled CJK 族前插 CJK 回退链（T84）：断网/无系统字体权限场景下仍能让
    * CJK 字符命中字形；幂等，loadFont 失败时不抛（降级到原有本地/远端链）。
    */
   private async prependBundledCJK(targetFamilies: string[]): Promise<void> {
-    const family = 'Alibaba PuHuiTi'
+    const family = 'Noto Sans SC'
     if (targetFamilies.includes(family)) return
     const buffer = await this.loadFont(family, 'Regular')
     if (buffer && !targetFamilies.includes(family)) {
@@ -752,9 +764,15 @@ export class FontManager {
       return buffer
     }
     if (existing) this.registerSupplemental(family, style, existing)
+    // CanvasKit 全 provider 拒收（畸形/不支持的容器）的字节不入账——缓存「已加载」
+    // 会让 demand 链按已加载短路，画布静默 tofu 且永不重试。无 provider 阶段（测试、
+    // 预载）照常入账，attachProvider 回放时的拒收由 attach 路径自行承担。
+    if (this.fontProviders.size > 0 && !this.registerFontInCanvasKit(family, buffer)) {
+      console.warn(`CanvasKit rejected font bytes for "${family}" (${style}); not caching`)
+      return null
+    }
     this.loadedFamilies.set(key, buffer)
     if (source) this.loadedFamilySources.set(key, source)
-    this.registerFontInCanvasKit(family, buffer)
     this.registerFontInBrowser(family, style, buffer, unicodeRange)
     this.trackVariableFont(key, buffer)
     this.recountFontMemory(key)

@@ -4,11 +4,12 @@ import type { AcceptableValue } from 'reka-ui'
 import { useTypography } from '#vue/controls/typography/use'
 import type { TypographyFontLoader } from '#vue/controls/typography/use'
 
-const { fontLoader } = defineProps<{
+const { fontLoader, onMissingWeight } = defineProps<{
   fontLoader?: TypographyFontLoader
+  onMissingWeight?: (family: string, weight: number) => void
 }>()
 
-const ctx = useTypography({ fontLoader })
+const ctx = useTypography({ fontLoader, onMissingWeight })
 
 function onAlignChange(val: AcceptableValue) {
   if (val) ctx.setAlign(val as 'LEFT' | 'CENTER' | 'RIGHT' | 'JUSTIFIED')

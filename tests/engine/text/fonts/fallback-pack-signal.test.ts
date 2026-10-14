@@ -1,6 +1,6 @@
 /**
  * CJK 回退链缺口 A：ensureFallbackPack 的 signal 分支曾绕过 prependBundledCJK——
- * signal 路径先填充共享链时 bundled PuHuiTi 优先级失守。
+ * signal 路径先填充共享链时 bundled Noto Sans SC 优先级失守。
  * 钉扎：signal 路径同样 bundled 前插 + 中止语义不回归。
  * mock 模式沿用 cjk-fallback.test.ts。
  */
@@ -31,14 +31,14 @@ function makeManager(): FontManager {
 }
 
 describe('ensureFallbackPack signal 路径（缺口 A）', () => {
-  test('cjk + signal：bundled PuHuiTi 仍位于回退链首位', async () => {
+  test('cjk + signal：bundled Noto Sans SC 仍位于回退链首位', async () => {
     const manager = makeManager()
 
     const result = await manager.ensureFallbackPack(['cjk'], '', new AbortController().signal)
 
     expect(result.cjk).toBeDefined()
-    expect(result.cjk?.[0]).toBe('Alibaba PuHuiTi')
-    expect(manager.isLoaded('Alibaba PuHuiTi')).toBe(true)
+    expect(result.cjk?.[0]).toBe('Noto Sans SC')
+    expect(manager.isLoaded('Noto Sans SC')).toBe(true)
   })
 
   test('cjk + characters + signal：bundled 前插与直调路径口径一致', async () => {
@@ -46,7 +46,7 @@ describe('ensureFallbackPack signal 路径（缺口 A）', () => {
 
     const result = await manager.ensureFallbackPack(['cjk'], '字', new AbortController().signal)
 
-    expect(result.cjk?.[0]).toBe('Alibaba PuHuiTi')
+    expect(result.cjk?.[0]).toBe('Noto Sans SC')
   })
 
   test('已中止 signal 仍即抛（取消语义不回归）', async () => {

@@ -62,22 +62,14 @@ export const FONT_REGISTRY: FontRegistryEntry[] = [
     weights: ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold']
   },
   {
-    family: 'Alibaba PuHuiTi',
-    tier: 'T1',
-    license: 'Alibaba 普惠体授权（免费商用，厂商保留收回权利）',
+    family: 'Noto Sans SC',
+    displayName: '思源黑体',
+    tier: 'T0',
+    license: 'OFL-1.1',
     source: 'bundled',
-    weights: [
-      'Thin',
-      'Light',
-      'Regular',
-      'Medium',
-      'SemiBold',
-      'Bold',
-      'ExtraBold',
-      'Heavy',
-      'Black'
-    ],
-    note: 'T1：厂商保留收回免费授权的权利，授权声明需存档（15 册 D.5 治理层）'
+    variable: true,
+    weights: [],
+    note: '可变字体（wght 100-900 全轴，九档 style 键同指单文件）；bundled 为 tools/font-subset/charset-cjk.txt 9031 字表子集（subset-fonts.py 可复跑）'
   },
   {
     family: 'Noto Naskh Arabic',

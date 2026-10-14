@@ -158,8 +158,20 @@ export function createTypographyActions({
     const targets = nodes.value
     if (targets.length === 0) return
     update('Change font weight', { fontWeight: weight })
+    const loader = options.fontLoader
+    if (!loader) return
     const style = weightToStyle(weight)
-    await Promise.all(targets.map((target) => options.fontLoader?.load(target.fontFamily, style)))
+    const results = await Promise.all(
+      targets.map((target) => loader.load(target.fontFamily, style))
+    )
+    // 加载失败（该族无此字重档）逐族上报。已知静态族由字重梯过滤在前，这里兜
+    // 未枚举到 style 集的族（如用户安装族）。node.fontWeight 不回滚——渲染链
+    // 按最近可用档回退，用户看到提示后可自行改回。
+    const failedFamilies = new Set<string>()
+    for (const [index, result] of results.entries()) {
+      if (result == null) failedFamilies.add(targets[index].fontFamily)
+    }
+    for (const family of failedFamilies) options.onMissingWeight?.(family, weight)
   }
 
   function setAlign(align: TextAlign) {

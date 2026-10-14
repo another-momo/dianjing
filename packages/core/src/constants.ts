@@ -105,7 +105,7 @@ export const PEN_CLOSE_RADIUS_BOOST = 2
 export const PEN_PATH_STROKE_WIDTH = 2
 export const PARENT_OUTLINE_ALPHA = 0.5
 export const PARENT_OUTLINE_DASH = 4
-export const DEFAULT_FONT_FAMILY = 'Inter'
+export const DEFAULT_FONT_FAMILY = 'Noto Sans SC'
 export const DEFAULT_FONT_SIZE = 14
 export const DEFAULT_STROKE_MITER_LIMIT = 4
 /** Figma's stroke weight for a node that has not been given one. */

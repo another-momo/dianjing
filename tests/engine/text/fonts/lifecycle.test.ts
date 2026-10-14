@@ -56,6 +56,23 @@ describe('font lifecycle', () => {
     expect(registrations).toEqual(['Subset Font', 'Subset Font'])
   })
 
+  test('refuses to cache bytes that every attached provider rejects', () => {
+    const manager = new FontManager()
+    const provider = {
+      registerFont() {
+        throw new Error('not a font')
+      }
+    } as unknown as TypefaceFontProvider
+    manager.attachProvider({} as CanvasKit, provider)
+
+    // CanvasKit 拒收的字节入账会缓存「已加载」假象——demand 链短路、画布静默 tofu
+    manager.markLoaded('Broken Sans', 'Regular', new ArrayBuffer(64))
+
+    expect(manager.isLoaded('Broken Sans')).toBe(false)
+    expect(manager.loadedData('Broken Sans', 'Regular')).toBeNull()
+    expect(manager.loadedFontSource('Broken Sans', 'Regular')).toBeNull()
+  })
+
   test('tracks nodes gated by pre-render font resolution', () => {
     const manager = new FontManager()
     manager.blockNodesUntilFontsResolve(['first', 'second'])

@@ -143,7 +143,7 @@ export const BRIEF_ZONE_CONCLUSIONS_NAME = BRIEF_TEXTS.conclusionsZoneName
 export const BRIEF_ZONE_DESIGNS_NAME = BRIEF_TEXTS.designsZoneName
 
 /** All brief text uses the bundled marketing CJK family (weights resolve via fontWeight) */
-export const BRIEF_FONT_FAMILY = 'Alibaba PuHuiTi'
+export const BRIEF_FONT_FAMILY = 'Noto Sans SC'
 
 /** Brief frame width (see createBrief) and estimated height, for placement sizing */
 export const BRIEF_WIDTH = 1252

@@ -13,15 +13,16 @@ describe('FONT_REGISTRY', () => {
   test('registers the three bundled families with tiers', () => {
     const families = FONT_REGISTRY.map((entry) => entry.family)
     expect(families).toContain('Inter')
-    expect(families).toContain('Alibaba PuHuiTi')
+    expect(families).toContain('Noto Sans SC')
     expect(families).toContain('Noto Naskh Arabic')
   })
 
-  test('Alibaba PuHuiTi carries all nine weights and T1 licensing note', () => {
-    const entry = fontRegistryEntry('Alibaba PuHuiTi')
-    expect(entry?.tier).toBe('T1')
-    expect(entry?.weights).toHaveLength(9)
-    expect(entry?.note).toBeTruthy()
+  test('Noto Sans SC registers as the bundled variable CJK family (T0/OFL)', () => {
+    const entry = fontRegistryEntry('Noto Sans SC')
+    expect(entry?.tier).toBe('T0')
+    expect(entry?.license).toBe('OFL-1.1')
+    expect(entry?.variable).toBe(true)
+    expect(entry?.weights).toHaveLength(0)
   })
 
   test('only T0/T1 entries are registered', () => {
@@ -34,7 +35,7 @@ describe('FONT_REGISTRY', () => {
 describe('isBundledFamilyAllowed', () => {
   test('allows registered bundled families', () => {
     expect(isBundledFamilyAllowed('Inter')).toBe(true)
-    expect(isBundledFamilyAllowed('Alibaba PuHuiTi')).toBe(true)
+    expect(isBundledFamilyAllowed('Noto Sans SC')).toBe(true)
   })
 
   test('rejects unregistered families', () => {

@@ -11,7 +11,7 @@ profile 有规定时按 profile，否则用本节默认值。
 
 6–8 个字号档自定一套，跨节一致使用：Display 32–40、H1 24–28、H2 20–22、H3 17–18、Body 14–15、Caption 12–13、Overline 10–11。2–3 个字重上限。Hierarchy 通过 size / weight / color 单一变量分档，不混合。
 
-中文字体默认 `Alibaba PuHuiTi`（bundled，覆盖 简体/繁體/拉丁），纯拉丁段可用 Inter；可用字重 Thin / Light / Regular / Medium / SemiBold / Bold / ExtraBold / Heavy / Black，Heavy / Black 谨慎用于 Display/装饰。同设计内不混字族——选一套贯彻到底。
+中文字体默认 `Noto Sans SC`（bundled 可变字体，覆盖 简体/繁體/拉丁，wght 100–900 全轴），纯拉丁段可用 Inter；字重按 100–900 数值档取，800–900 谨慎用于 Display/装饰。同设计内不混字族——选一套贯彻到底。
 
 配色：浅底主文 #111827 / 次文 #6B7280 / 辅文 #9CA3AF；深底白 #FFFFFF / #FFFFFF99 / #FFFFFF66。
 

@@ -5,6 +5,7 @@ import { computed } from 'vue'
 import { createEditor } from '@open-pencil/core/editor'
 
 import { createTypographyActions } from '#vue/controls/typography/actions'
+import { filterWeightsForFamily } from '#vue/controls/typography/use'
 
 describe('typography depth actions', () => {
   test('restores nullable max lines and text style after preview undo', () => {
@@ -86,5 +87,68 @@ describe('typography depth actions', () => {
       'ORIGINAL',
       'LOWER'
     ])
+  })
+
+  test('reports a failed weight pick per family via onMissingWeight', async () => {
+    const editor = createEditor()
+    const pageId = editor.state.currentPageId
+    const text = editor.graph.createNode('TEXT', pageId, { fontFamily: 'Subset Sans' })
+    const missing: Array<[string, number]> = []
+    const actions = createTypographyActions({
+      editor,
+      nodes: computed(() => {
+        const node = editor.graph.getNode(text.id)
+        return node ? [node] : []
+      }),
+      activeFormatting: computed(() => []),
+      options: {
+        fontLoader: { load: async () => null },
+        onMissingWeight: (family, weight) => missing.push([family, weight])
+      }
+    })
+
+    await actions.setWeight(900)
+
+    expect(missing).toEqual([['Subset Sans', 900]])
+  })
+
+  test('does not report when the weight face loads', async () => {
+    const editor = createEditor()
+    const pageId = editor.state.currentPageId
+    const text = editor.graph.createNode('TEXT', pageId, { fontFamily: 'Full Sans' })
+    const missing: Array<[string, number]> = []
+    const actions = createTypographyActions({
+      editor,
+      nodes: computed(() => {
+        const node = editor.graph.getNode(text.id)
+        return node ? [node] : []
+      }),
+      activeFormatting: computed(() => []),
+      options: {
+        fontLoader: { load: async () => new ArrayBuffer(8) },
+        onMissingWeight: (family, weight) => missing.push([family, weight])
+      }
+    })
+
+    await actions.setWeight(700)
+
+    expect(missing).toEqual([])
+    expect(editor.graph.getNode(text.id)?.fontWeight).toBe(700)
+  })
+})
+
+describe('filterWeightsForFamily', () => {
+  test('filters the ladder to the registered styles of a static bundled family', () => {
+    // Inter 注册五档（Regular/Medium/SemiBold/Bold/ExtraBold）
+    expect(filterWeightsForFamily('Inter').map((entry) => entry.value)).toEqual([
+      400, 500, 600, 700, 800
+    ])
+  })
+
+  test('keeps the full ladder for variable and unknown families', () => {
+    // Noto Sans SC 注册为 variable（未加载时 fvar 未嗅探，仍走注册表分支放行全梯）
+    expect(filterWeightsForFamily('Noto Sans SC')).toHaveLength(9)
+    expect(filterWeightsForFamily('Some User Installed Family')).toHaveLength(9)
+    expect(filterWeightsForFamily('')).toHaveLength(9)
   })
 })
